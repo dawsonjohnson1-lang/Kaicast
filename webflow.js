@@ -223,7 +223,13 @@ function toWindowFieldData({ report, window, spotItemId = null }) {
 
   // waves
   putNum(out, "wave-height-m", avg.waveHeightM);
-  if (Number.isFinite(avg.waveHeightM)) putNum(out, "wave-ft", Math.round(avg.waveHeightM * 3.28084 * 10) / 10);
+  if (Number.isFinite(avg.waveHeightM)) {
+    const waveFeet = Math.round(avg.waveHeightM * 3.28084 * 10) / 10;
+    // preferred slug in your collection
+    putNum(out, "wave-height-f", waveFeet);
+    // backward compatible slug (if older sites used it)
+    putNum(out, "wave-ft", waveFeet);
+  }
   putNum(out, "dominant-period-s", avg.wavePeriodS);
 
   // moon
@@ -356,6 +362,7 @@ async function pushAllReportsToWebflow({ reports }) {
           "water-temp-c": fieldData["water-temp-c"],
           "wind-kt": fieldData["wind-kt"],
           "wave-height-m": fieldData["wave-height-m"],
+          "wave-height-f": fieldData["wave-height-f"],
         },
       });
 
