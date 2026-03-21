@@ -130,6 +130,14 @@ function putNum(out, key, v) {
 function putStr(out, key, v) {
   if (v != null && String(v).trim() !== "") out[key] = String(v);
 }
+// helper: only include field if it’s a boolean
+function putBool(out, key, v) {
+  if (typeof v === "boolean") out[key] = v;
+}
+// helper: serialize value as JSON string, only when value is not null/undefined
+function putJson(out, key, v) {
+  if (v != null) out[key] = typeof v === "string" ? v : JSON.stringify(v);
+}
 
 function toSpotFieldData(report) {
   const slug = safeSlug(report.spot);
@@ -179,21 +187,32 @@ function toWindowFieldData({ report, window, spotItemId = null }) {
   const jelly = nowAnalysis.jellyfish ?? {};
   const nowMetrics = report.now?.metrics ?? {};
 
+  // Derive saved-at-hour-key: prefer report-level hourKey, fall back to window start
+  const savedAtHourKey = report.hourKey || (() => {
+    const d = new Date(start);
+    return (
+      String(d.getUTCFullYear()) +
+      String(d.getUTCMonth() + 1).padStart(2, "0") +
+      String(d.getUTCDate()).padStart(2, "0") +
+      String(d.getUTCHours()).padStart(2, "0")
+    );
+  })();
+
+  // Human-readable label (spot name + start datetime)
+  const label = `${report.spotName || report.spot} ${start}`;
+
   const out = {
-    name: `${report.spotName || report.spot} ${start}`,
+    name: label,
+    label,
     slug: windowSlug,
     spot_id: report.spot,
 
     start: window.startIso ?? undefined,
     end: window.endIso ?? undefined,
-    start_iso: window.startIso ?? undefined,
-    end_iso: window.endIso ?? undefined,
 
-    // reference field (only if we have it)
+    // spotref only – do NOT send multiple variant keys (schema filtering would
+    // allow the wrong one through on some collections)
     ...(spotItemId ? { spotref: [spotItemId] } : {}),
-    ...(spotItemId ? { spot: [spotItemId] } : {}),
-    ...(spotItemId ? { "spot-reference": [spotItemId] } : {}),
-    ...(spotItemId ? { spotRef: [spotItemId] } : {}),
 
     rating: rating.rating ?? undefined,
     reason: rating.reason ?? undefined,
@@ -223,11 +242,10 @@ function toWindowFieldData({ report, window, spotItemId = null }) {
 
   // waves
   putNum(out, "wave-height-m", avg.waveHeightM);
-  if (Number.isFinite(avg.waveHeightM)) {
-    const waveFeet = Math.round(avg.waveHeightM * 3.28084 * 10) / 10;
-    // preferred slug in your collection
+  const waveHeightM = avg.waveHeightM ?? nowMetrics.waveHeightM;
+  if (Number.isFinite(waveHeightM)) {
+    const waveFeet = Math.round(waveHeightM * 3.28084 * 10) / 10;
     putNum(out, "wave-height-f", waveFeet);
-    // backward compatible slug (if older sites used it)
     putNum(out, "wave-ft", waveFeet);
   }
   putNum(out, "dominant-period-s", avg.wavePeriodS);
@@ -238,9 +256,29 @@ function toWindowFieldData({ report, window, spotItemId = null }) {
   putNum(out, "days-since-full-moon", moon.daysSinceFullMoon);
 
   // jelly/night dive
-  if (typeof jelly.jellyfishWarning === "boolean") out["jellyfish-warning"] = jelly.jellyfishWarning;
-  if (typeof jelly.nightDivingOk === "boolean") out["night-diving-ok"] = jelly.nightDivingOk;
+  putBool(out, "jellyfish-warning", jelly.jellyfishWarning);
+  putBool(out, "night-diving-ok", jelly.nightDivingOk);
   putStr(out, "night-dive-note", jelly.nightDiveNote);
+
+  // runoff booleans/strings
+  const runoff = window.runoff ?? nowAnalysis.runoff ?? null;
+  if (runoff) {
+    putStr(out, "runoff-severity", runoff.severity);
+    putBool(out, "runoff-safe-to-enter", runoff.safeToEnter);
+    putStr(out, "runoff-health-risk", runoff.healthRisk);
+    putStr(out, "runoff-water-quality", runoff.waterQualityFeel);
+  }
+
+  // sources-json (JSON string of data sources array)
+  putJson(out, "sources-json", Array.isArray(report.sources) ? report.sources : null);
+
+  // qc-flags (comma-separated string)
+  if (Array.isArray(report.qcFlags) && report.qcFlags.length > 0) {
+    out["qc-flags"] = report.qcFlags.join(",");
+  }
+
+  // saved-at-hour-key
+  putStr(out, "saved-at-hour-key", savedAtHourKey);
 
   // metadata/debug
   out.window_json = JSON.stringify(window ?? {});
@@ -352,17 +390,27 @@ async function pushAllReportsToWebflow({ reports }) {
       const slug = fieldData.slug || rawFieldData.slug;
       const existing = windowBySlug.get(slug);
 
-      // logs to confirm fields are actually present
+      // Diagnostic logging: show raw keys, filtered keys, and which were dropped
+      const rawKeys      = Object.keys(rawFieldData);
+      const filteredKeys = Object.keys(fieldData);
+      const droppedKeys  = rawKeys.filter((k) => !filteredKeys.includes(k));
       logger.info("Webflow window payload", {
         slug,
-        keys: Object.keys(fieldData),
+        rawKeys,
+        filteredKeys,
+        droppedKeys,
         sample: {
-          "vis-m": fieldData["vis-m"],
-          "air-temp-c": fieldData["air-temp-c"],
-          "water-temp-c": fieldData["water-temp-c"],
-          "wind-kt": fieldData["wind-kt"],
-          "wave-height-m": fieldData["wave-height-m"],
-          "wave-height-f": fieldData["wave-height-f"],
+          "vis-m":            fieldData["vis-m"],
+          "vis-ft":           fieldData["vis-ft"],
+          "air-temp-c":       fieldData["air-temp-c"],
+          "air-temp-f":       fieldData["air-temp-f"],
+          "wind-kt":          fieldData["wind-kt"],
+          "gust-kt":          fieldData["gust-kt"],
+          "wave-ft":          fieldData["wave-ft"],
+          "sources-json":     fieldData["sources-json"],
+          "qc-flags":         fieldData["qc-flags"],
+          "saved-at-hour-key":fieldData["saved-at-hour-key"],
+          "spotref":          fieldData["spotref"],
         },
       });
 
