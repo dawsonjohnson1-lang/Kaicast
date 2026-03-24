@@ -10,7 +10,8 @@
  *  - evaluateJellyfishAndNightDive({ moonData, visibilityMeters, currentKnots, waterTempC, cloudCoverPercent })
  *  - estimateVisibility(opts)
  *  - generateSnorkelRating(opts)
- *  - assessRunoffRisk({ rain6hMM, rain24hMM, rain72hMM, spot })
+ *  - estimateRunoffRisk({ rain3hMM, rain12hMM, rain24hMM, rain48hMM, rain72hMM, windKnots, windDeg, tidePhase, spotContext, communityRunoffSignal })
+ *  - assessRunoffRisk({ rain6hMM, rain24hMM, rain72hMM, spot }) (back-compat wrapper)
  *  - estimateCurrentFromWind(windKnots)
  *  - classifyTidePhase(levelSeries, whenTs)
  *  - computeTidePhaseFromLevels(levelSeries)
@@ -28,6 +29,14 @@ function clamp(v, min, max) {
 
 function lerp(a, b, t) {
   return a + (b - a) * t;
+}
+
+function round1(v) {
+  return Number.isFinite(v) ? Math.round(v * 10) / 10 : v;
+}
+
+function round2(v) {
+  return Number.isFinite(v) ? Math.round(v * 100) / 100 : v;
 }
 
 /**
@@ -194,7 +203,7 @@ function computeTidePhaseFromLevels(levelSeries, whenTs) {
  *  - turbidityNTU
  *  - cloudCoverPercent
  *  - hourLocal (0-23)
- *  - runoff: result of assessRunoffRisk (optional)
+ *  - runoff: result of estimateRunoffRisk/assessRunoffRisk (optional)
  */
 function estimateVisibility({
   windKnots = null,
@@ -221,7 +230,7 @@ function estimateVisibility({
 
   // Don't assume ideal conditions when marine inputs are missing.
   // We still allow wind/defaults for wind/clouds/hour to avoid total failure.
-  if (missing.wind) windKnots = 6;           // light trades
+  if (missing.wind) windKnots = 6; // light trades
   if (missing.clouds) cloudCoverPercent = 40;
   if (missing.hour) hourLocal = 10;
   if (missing.current) currentKnots = 0.3; // small background
@@ -251,13 +260,13 @@ function estimateVisibility({
 
   if (!missing.swell && swellPeriodSec >= 13 && swellFeet >= 3) vis -= 3; // long-period surge
 
-  // Runoff penalty (from assessRunoffRisk) takes priority over raw rain penalty
+  // Runoff penalty (from runoff object) takes priority over raw rain penalty
   if (runoff && runoff.severity) {
     const runoffVisPenalty =
-      runoff.severity === 'extreme' ? 9 :
-      runoff.severity === 'high' ? 6 :
-      runoff.severity === 'moderate' ? 3 :
-      runoff.severity === 'low' ? 1 : 0;
+      runoff.severity === 'extreme' ? 12 :
+      runoff.severity === 'high' ? 9 :
+      runoff.severity === 'moderate' ? 5 :
+      runoff.severity === 'low' ? 2 : 0;
     if (runoffVisPenalty > 0) vis -= runoffVisPenalty;
   } else if (!missing.rain) {
     // Fallback to raw rain-based penalty when no runoff object provided
@@ -313,6 +322,306 @@ function estimateVisibility({
 }
 
 // ---------------------------------------------------------------------------
+// Runoff risk assessment (dedicated model)
+// ---------------------------------------------------------------------------
+
+function normalizeSpotContext(spotContext) {
+  const sc = spotContext || {};
+  const runoffSensitivity = (sc.runoffSensitivity || 'medium');
+  const runoffLagHours = Number.isFinite(sc.runoffLagHours) ? sc.runoffLagHours : null;
+  const runoffExposure = sc.runoffExposure || null;
+
+  // Back-compat aliases from current SPOTS
+  const nearStreamMouth = Boolean(sc.nearStreamMouth);
+  const nearDrainage = Boolean(sc.nearDrainage);
+
+  return {
+    runoffSensitivity: (runoffSensitivity === 'low' || runoffSensitivity === 'medium' || runoffSensitivity === 'high')
+      ? runoffSensitivity
+      : 'medium',
+    runoffLagHours,
+    runoffExposure: (runoffExposure === 'open-coast' || runoffExposure === 'bay' || runoffExposure === 'stream-mouth' || runoffExposure === 'harbor-adjacent' || runoffExposure === 'canal-adjacent')
+      ? runoffExposure
+      : null,
+    nearStreamMouth,
+    nearDrainage,
+  };
+}
+
+function severityFromScore(score) {
+  if (score >= 85) return 'extreme';
+  if (score >= 65) return 'high';
+  if (score >= 40) return 'moderate';
+  if (score >= 18) return 'low';
+  return 'none';
+}
+
+function computeRunoffPenaltyFromSeverity(sev) {
+  return (
+    sev === 'extreme' ? 65 :
+    sev === 'high' ? 48 :
+    sev === 'moderate' ? 30 :
+    sev === 'low' ? 12 : 0
+  );
+}
+
+/**
+ * Dedicated runoff scoring model.
+ *
+ * Goals:
+ * - treat runoff as both visibility/dive-quality + health/contamination
+ * - weight recent rain heavily but keep memory via 24/48/72h totals
+ * - incorporate spotContext runoffSensitivity and exposure
+ * - can set safeToEnter=false for high/extreme runoff
+ */
+function estimateRunoffRisk({
+  rain3hMM = null,
+  rain12hMM = null,
+  rain24hMM = null,
+  rain48hMM = null,
+  rain72hMM = null,
+  windKnots = null,
+  windDeg = null,
+  tidePhase = 'unknown',
+  spotContext = null,
+  communityRunoffSignal = null,
+} = {}) {
+  const sc = normalizeSpotContext(spotContext);
+
+  const r3 = Number.isFinite(rain3hMM) ? rain3hMM : null;
+  const r12 = Number.isFinite(rain12hMM) ? rain12hMM : null;
+  const r24 = Number.isFinite(rain24hMM) ? rain24hMM : null;
+  const r48 = Number.isFinite(rain48hMM) ? rain48hMM : null;
+  const r72 = Number.isFinite(rain72hMM) ? rain72hMM : null;
+
+  const drivers = [];
+
+  // Confidence starts with rainfall coverage.
+  const haveAny = [r3, r12, r24, r48, r72].some((v) => Number.isFinite(v));
+  let confidence = haveAny ? 0.75 : 0.35;
+
+  // Base score.
+  let score = 0;
+
+  // Recent rain (3h) – strongest driver
+  if (Number.isFinite(r3)) {
+    if (r3 >= 30) { score += 55; drivers.push(`very heavy rain last 3h (${round1(r3)}mm)`); }
+    else if (r3 >= 20) { score += 45; drivers.push(`heavy rain last 3h (${round1(r3)}mm)`); }
+    else if (r3 >= 12) { score += 33; drivers.push(`moderate-heavy rain last 3h (${round1(r3)}mm)`); }
+    else if (r3 >= 6)  { score += 22; drivers.push(`moderate rain last 3h (${round1(r3)}mm)`); }
+    else if (r3 >= 2)  { score += 12; drivers.push(`light-moderate rain last 3h (${round1(r3)}mm)`); }
+    else if (r3 > 0)   { score += 4; }
+  } else {
+    confidence -= 0.1;
+  }
+
+  // 12h – runoff persistence / watershed loading
+  if (Number.isFinite(r12)) {
+    if (r12 >= 80) { score += 30; drivers.push(`very high 12h total (${round1(r12)}mm)`); }
+    else if (r12 >= 50) { score += 22; drivers.push(`high 12h total (${round1(r12)}mm)`); }
+    else if (r12 >= 25) { score += 14; drivers.push(`elevated 12h total (${round1(r12)}mm)`); }
+    else if (r12 >= 10) { score += 8; }
+  } else {
+    confidence -= 0.05;
+  }
+
+  // 24h – cumulative load
+  if (Number.isFinite(r24)) {
+    if (r24 >= 120) { score += 24; drivers.push(`very high 24h total (${round1(r24)}mm)`); }
+    else if (r24 >= 80) { score += 18; drivers.push(`high 24h total (${round1(r24)}mm)`); }
+    else if (r24 >= 40) { score += 12; drivers.push(`elevated 24h total (${round1(r24)}mm)`); }
+    else if (r24 >= 15) { score += 6; }
+  } else {
+    confidence -= 0.05;
+  }
+
+  // 48h/72h – saturation and lingering tail
+  if (Number.isFinite(r48)) {
+    if (r48 >= 160) { score += 12; drivers.push(`watershed saturated (48h ${round1(r48)}mm)`); }
+    else if (r48 >= 90) { score += 8; }
+  } else {
+    confidence -= 0.03;
+  }
+
+  if (Number.isFinite(r72)) {
+    if (r72 >= 220) { score += 10; drivers.push(`extended wet period (72h ${round1(r72)}mm)`); }
+    else if (r72 >= 140) { score += 7; }
+    else if (r72 >= 80) { score += 4; }
+  } else {
+    confidence -= 0.03;
+  }
+
+  // Site multipliers (legacy + exposure)
+  let siteMult = 1.0;
+
+  if (sc.nearStreamMouth) { siteMult *= 1.35; drivers.push('near stream mouth / drainage plume'); }
+  if (sc.nearDrainage) { siteMult *= 1.2; drivers.push('near drainage outlet'); }
+
+  if (sc.runoffExposure === 'stream-mouth') { siteMult *= 1.25; drivers.push('stream-mouth exposure'); }
+  if (sc.runoffExposure === 'canal-adjacent') { siteMult *= 1.25; drivers.push('canal-adjacent exposure'); }
+  if (sc.runoffExposure === 'harbor-adjacent') { siteMult *= 1.15; drivers.push('harbor-adjacent exposure'); }
+  if (sc.runoffExposure === 'bay') { siteMult *= 1.15; drivers.push('bay circulation can trap dirty water'); }
+
+  // Sensitivity: affects both magnitude and persistence
+  const sensMult = sc.runoffSensitivity === 'high' ? 1.35 : sc.runoffSensitivity === 'low' ? 0.75 : 1.0;
+  score *= sensMult;
+
+  // Persistence / lag: high sensitivity stays dirty longer (even if 3h rain is low but 24-72h high)
+  // This is a soft boost that becomes important when r3 is not huge but r24/r48/r72 are.
+  const tail = (Number.isFinite(r24) ? r24 : 0) * 0.10 + (Number.isFinite(r48) ? r48 : 0) * 0.04 + (Number.isFinite(r72) ? r72 : 0) * 0.02;
+  if (tail > 0) {
+    const tailBoost = sc.runoffSensitivity === 'high' ? clamp(tail, 0, 18) : clamp(tail, 0, 12);
+    if (tailBoost >= 6) drivers.push('runoff may linger from recent rainfall');
+    score += tailBoost;
+  }
+
+  // Tide (optional): outgoing can worsen nearshore plumes; incoming can help slightly.
+  if (tidePhase === 'falling') {
+    score += 3;
+    drivers.push('falling tide can flush dirty water from nearshore');
+  } else if (tidePhase === 'rising') {
+    score -= 2;
+  } else if (tidePhase === 'unknown') {
+    // leave score, but reduce confidence
+    confidence -= 0.03;
+  }
+
+  // Wind: strong winds can spread plumes offshore + resuspend sediment; calm winds do NOT clear contamination.
+  if (Number.isFinite(windKnots)) {
+    if (windKnots >= 22) {
+      score += 6;
+      drivers.push(`strong winds may spread/resuspend runoff (${round1(windKnots)}kt)`);
+    } else if (windKnots >= 16) {
+      score += 3;
+    }
+  }
+
+  // Community runoff signal (optional): 0..1 or boolean-ish.
+  // If present and high, we boost severity + confidence.
+  if (communityRunoffSignal != null) {
+    if (communityRunoffSignal === true) {
+      score += 10;
+      confidence += 0.08;
+      drivers.push('community reports indicate dirty/brown water');
+    } else if (communityRunoffSignal === false) {
+      confidence += 0.03;
+    } else if (typeof communityRunoffSignal === 'number' && Number.isFinite(communityRunoffSignal)) {
+      const sig = clamp(communityRunoffSignal, 0, 1);
+      if (sig >= 0.7) {
+        score += 12;
+        confidence += 0.1;
+        drivers.push('community runoff signal is high');
+      } else if (sig >= 0.4) {
+        score += 6;
+        confidence += 0.05;
+        drivers.push('community runoff signal suggests degraded water quality');
+      } else {
+        confidence += 0.02;
+      }
+    } else {
+      // Unknown format, no-op
+      confidence -= 0.02;
+    }
+  } else {
+    confidence -= 0.03;
+  }
+
+  // Apply site mult at the end
+  score *= siteMult;
+
+  score = clamp(score, 0, 100);
+  confidence = clamp(confidence, 0.15, 0.95);
+
+  const severity = severityFromScore(score);
+  const scorePenalty = computeRunoffPenaltyFromSeverity(severity);
+
+  // Health risk mapping
+  const healthRisk =
+    severity === 'extreme' ? 'high' :
+    severity === 'high' ? 'high' :
+    severity === 'moderate' ? 'moderate' :
+    'low';
+
+  // Safe-to-enter mapping
+  const safeToEnter = !(severity === 'high' || severity === 'extreme');
+
+  // Water quality feel mapping
+  const waterQualityFeel =
+    severity === 'extreme' ? 'brown' :
+    severity === 'high' ? 'brown' :
+    severity === 'moderate' ? 'murky' :
+    severity === 'low' ? 'slightly-stained' :
+    'clean';
+
+  // Ensure we always have at least one driver when risk exists or confidence is low.
+  if (!drivers.length) {
+    if (!haveAny) drivers.push('rain history unavailable; runoff risk is uncertain');
+    else drivers.push('recent rainfall suggests possible runoff');
+  }
+
+  // If confidence is low and severity is none/low, keep language cautious via driver.
+  if (confidence < 0.5) {
+    drivers.push('runoff risk is hard to confirm with limited rainfall history');
+  }
+
+  return {
+    severity,
+    healthRisk,
+    safeToEnter,
+    waterQualityFeel,
+    scorePenalty,
+    drivers,
+    confidence: round2(confidence),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Backward-compatible wrapper
+// ---------------------------------------------------------------------------
+
+/**
+ * assessRunoffRisk (legacy API) — keep shape used by index.js today.
+ *
+ * NOTE: The legacy caller passes rain6hMM/rain24hMM/rain72hMM.
+ * We approximate 3h/12h/48h totals from available values and lower confidence.
+ */
+function assessRunoffRisk({
+  rain6hMM = 0,
+  rain24hMM = 0,
+  rain72hMM = 0,
+  spot = null,
+} = {}) {
+  const r6 = Number.isFinite(rain6hMM) ? rain6hMM : null;
+  const r24 = Number.isFinite(rain24hMM) ? rain24hMM : null;
+  const r72 = Number.isFinite(rain72hMM) ? rain72hMM : null;
+
+  // Approximate missing rollups (conservative)
+  // - 3h: assume ~60% of 6h when rain is concentrated; cap at 6h
+  // - 12h: assume ~min(24h, 1.6*6h)
+  // - 48h: assume ~min(72h, 1.4*24h)
+  const rain3hMM = Number.isFinite(r6) ? Math.min(r6, r6 * 0.6) : null;
+  const rain12hMM = (Number.isFinite(r24) && Number.isFinite(r6)) ? Math.min(r24, r6 * 1.6) : (Number.isFinite(r24) ? Math.min(r24, r24 * 0.7) : null);
+  const rain48hMM = (Number.isFinite(r72) && Number.isFinite(r24)) ? Math.min(r72, r24 * 1.4) : (Number.isFinite(r72) ? Math.min(r72, r72 * 0.75) : null);
+
+  const out = estimateRunoffRisk({
+    rain3hMM,
+    rain12hMM,
+    rain24hMM: r24,
+    rain48hMM,
+    rain72hMM: r72,
+    tidePhase: 'unknown',
+    spotContext: spot,
+    communityRunoffSignal: null,
+  });
+
+  // Slightly reduce confidence because these are approximations.
+  out.confidence = round2(clamp(out.confidence - 0.12, 0.15, 0.95));
+  out.drivers = Array.isArray(out.drivers) && out.drivers.length ? out.drivers : ['recent rainfall suggests possible runoff'];
+
+  return out;
+}
+
+// ---------------------------------------------------------------------------
 // Snorkel rating (overall quality)
 // ---------------------------------------------------------------------------
 
@@ -335,10 +644,11 @@ function generateSnorkelRating({
   crowdOverride = null,
 
   // Future/optional: per-spot behaviour + meta
-  spotContext = null,          // { runoffSensitivity, maxCleanSwellFt, hardNoGoSwellFt, coast }
-  jellyfishWarning = false,    // from evaluateJellyfishAndNightDive
-  confidenceScore = 1,         // 0–1, from calling code if desired
-  runoff = null,               // from assessRunoffRisk
+  spotContext = null, // { runoffSensitivity, maxCleanSwellFt, hardNoGoSwellFt, coast }
+  jellyfishWarning = false, // from evaluateJellyfishAndNightDive
+  confidenceScore = 1, // 0–1, from calling code if desired
+  runoff = null, // from estimateRunoffRisk / assessRunoffRisk
+  runoffPenalty = null, // optional explicit penalty
 } = {}) {
   if (crowdOverride) {
     return {
@@ -351,7 +661,7 @@ function generateSnorkelRating({
   }
 
   const {
-    runoffSensitivity = 'medium',   // 'low' | 'medium' | 'high'
+    runoffSensitivity = 'medium', // 'low' | 'medium' | 'high'
     maxCleanSwellFt = null,
     hardNoGoSwellFt = null,
     coast = null,
@@ -408,7 +718,7 @@ function generateSnorkelRating({
   else if (currentKnots > 1.5) { score -= 15; details.current = -15; }
   else details.current = 0;
 
-  // Rain + runoff sensitivity
+  // Rain + runoff sensitivity (legacy minor penalty)
   let rainPenalty = 0;
   if (rainLast24hMM > 10) rainPenalty = 25;
   else if (rainLast24hMM > 5) rainPenalty = 15;
@@ -426,18 +736,35 @@ function generateSnorkelRating({
     details.rain = 0;
   }
 
-  // Direct runoff assessment penalty (from assessRunoffRisk) overrides/supplements rain
-  if (runoff && typeof runoff.scorePenalty === 'number' && runoff.scorePenalty > 0) {
-    // Only apply when greater than existing rain penalty (avoid double-counting)
-    const extraPenalty = Math.max(0, runoff.scorePenalty - Math.abs(details.rain || 0));
+  // Dedicated runoff assessment penalty & caps
+  const effectiveRunoffPenalty =
+    (typeof runoffPenalty === 'number' && Number.isFinite(runoffPenalty))
+      ? runoffPenalty
+      : (runoff && typeof runoff.scorePenalty === 'number' ? runoff.scorePenalty : 0);
+
+  if (effectiveRunoffPenalty > 0) {
+    // Avoid excessive double-counting with rain penalty, but allow runoff to dominate.
+    const extraPenalty = Math.max(0, effectiveRunoffPenalty - Math.abs(details.rain || 0));
     if (extraPenalty > 0) {
       score -= extraPenalty;
       details.runoff = -extraPenalty;
+    } else {
+      details.runoff = details.runoff || 0;
     }
-    // Hard no-go when runoff says unsafe
+  }
+
+  // Runoff safety / health caps MUST override calm conditions
+  if (runoff) {
     if (runoff.safeToEnter === false) {
-      score = Math.min(score, 30);
-      details.runoffNoGo = true;
+      score = Math.min(score, 18);
+      details.runoffUnsafe = true;
+    }
+    if (runoff.healthRisk === 'high') {
+      score = Math.min(score, 25);
+      details.runoffHealthHigh = true;
+    } else if (runoff.healthRisk === 'moderate') {
+      score = Math.min(score, 55);
+      details.runoffHealthModerate = true;
     }
   }
 
@@ -523,6 +850,17 @@ function generateSnorkelRating({
     rating = 'Great';
   }
 
+  // Runoff caps should be final: unsafe/high health risk cannot be Excellent/Great
+  if (runoff) {
+    if (runoff.safeToEnter === false) {
+      if (rating === 'Excellent' || rating === 'Great') rating = 'No-Go';
+    }
+    if (runoff.healthRisk === 'high') {
+      if (rating === 'Excellent' || rating === 'Great') rating = 'No-Go';
+      if (rating === 'Good') rating = 'Fair';
+    }
+  }
+
   const reasons = [];
   const add = (k, text) => { if (details[k]) reasons.push(`${text} (${details[k]})`); };
   add('vis', 'visibility');
@@ -534,6 +872,7 @@ function generateSnorkelRating({
   add('period', 'period');
   add('current', 'current');
   add('rain', 'rain/runoff');
+  add('runoff', 'runoff');
   add('tide', 'tide');
   add('temp', 'water temp');
   add('tempMissing', 'missing water temperature');
@@ -543,6 +882,8 @@ function generateSnorkelRating({
   add('northCoastCurrent', 'north-coast current sensitivity');
   add('southCoastSurge', 'south-coast surge');
   add('westCoastWindChop', 'west-coast wind chop');
+  if (details.runoffUnsafe) reasons.push('unsafe runoff');
+  if (details.runoffHealthHigh) reasons.push('high contamination risk');
   if (details.lightning) reasons.push('thunderstorms');
 
   const reason = `Score: ${score} — adjustments from ${reasons.length ? reasons.join(', ') : 'benign conditions'}.`;
@@ -552,15 +893,38 @@ function generateSnorkelRating({
   if (currentKnots > 2) caution.push('Stronger currents today.');
   if (swellFeet != null && swellFeet > 5) caution.push('Rougher swell than usual.');
   if (windKnots > 15) caution.push('Choppy surface conditions.');
-  if (rainLast24hMM > 5) caution.push('Murky water due to runoff.');
+
+  // Runoff wording (must never be null)
+  if (runoff) {
+    const d = Array.isArray(runoff.drivers) ? runoff.drivers : [];
+    const driverTxt = d.length ? d.join('; ') : 'recent rainfall suggests possible runoff';
+
+    if (runoff.severity === 'extreme' || runoff.severity === 'high') {
+      caution.push('Heavy runoff likely. Brown water and contamination risk.');
+      caution.push(`Drivers: ${driverTxt}.`);
+    } else if (runoff.severity === 'moderate') {
+      caution.push('Runoff still lingering from recent rain. Conditions may look calm but water quality is poor.');
+      caution.push(`Drivers: ${driverTxt}.`);
+    } else if (runoff.severity === 'low') {
+      caution.push('Recent rainfall suggests possible dirty water even if surface conditions look calm.');
+      caution.push(`Drivers: ${driverTxt}.`);
+    } else if (runoff.confidence < 0.5) {
+      caution.push('Runoff risk is hard to confirm, but recent rain suggests possible dirty water.');
+      caution.push(`Drivers: ${driverTxt}.`);
+    }
+  } else if (rainLast24hMM > 5) {
+    caution.push('Murky water due to runoff.');
+  }
+
   if (jellyfishWarning) caution.push('High jellyfish risk – stings likely.');
-  if (runoff && runoff.safeToEnter === false) caution.push('Water quality unsafe due to runoff. Avoid entry.');
-  else if (runoff && runoff.severity === 'moderate') caution.push('Reduced water quality due to runoff.');
+
+  // Ensure never null, never empty string
+  const cautionNote = caution.length ? caution.join(' ') : 'No major hazards detected.';
 
   return {
     rating,
     reason,
-    cautionNote: caution.join(' '),
+    cautionNote,
     score,
     details,
   };
@@ -613,102 +977,6 @@ function estimateCurrentFromWind(windKnots = 0) {
 }
 
 // ---------------------------------------------------------------------------
-// Runoff risk assessment
-// ---------------------------------------------------------------------------
-
-/**
- * Assess runoff/water-quality risk based on recent rainfall totals and spot context.
- *
- * @param {object} opts
- * @param {number} opts.rain6hMM   - rainfall total last 6 hours (mm)
- * @param {number} opts.rain24hMM  - rainfall total last 24 hours (mm)
- * @param {number} opts.rain72hMM  - rainfall total last 72 hours (mm)
- * @param {object} opts.spot       - spot config (runoffSensitivity, nearStreamMouth, nearDrainage)
- *
- * @returns {{ severity, healthRisk, safeToEnter, waterQualityFeel, scorePenalty, drivers, confidence }}
- */
-function assessRunoffRisk({
-  rain6hMM = 0,
-  rain24hMM = 0,
-  rain72hMM = 0,
-  spot = null,
-} = {}) {
-  const {
-    runoffSensitivity = 'medium',
-    nearStreamMouth = false,
-    nearDrainage = false,
-  } = spot || {};
-
-  const sensitivityFactor =
-    runoffSensitivity === 'high' ? 1.5 :
-    runoffSensitivity === 'low'  ? 0.7 : 1.0;
-
-  const drivers = [];
-  let rawScore = 0;
-
-  // 6h precip – most acute indicator
-  if (rain6hMM > 20)      { rawScore += 50; drivers.push(`heavy rain last 6h (${rain6hMM}mm)`); }
-  else if (rain6hMM > 10) { rawScore += 30; drivers.push(`moderate rain last 6h (${rain6hMM}mm)`); }
-  else if (rain6hMM > 5)  { rawScore += 15; drivers.push(`light rain last 6h (${rain6hMM}mm)`); }
-  else if (rain6hMM > 1)  { rawScore += 5; }
-
-  // 24h precip – cumulative load
-  if (rain24hMM > 40)      { rawScore += 25; drivers.push(`high 24h total (${rain24hMM}mm)`); }
-  else if (rain24hMM > 20) { rawScore += 15; drivers.push(`elevated 24h total (${rain24hMM}mm)`); }
-  else if (rain24hMM > 10) { rawScore += 8; }
-
-  // 72h precip – soil saturation / extended runoff tail
-  if (rain72hMM > 80)      { rawScore += 15; drivers.push(`saturated ground – 72h total ${rain72hMM}mm`); }
-  else if (rain72hMM > 40) { rawScore += 8; }
-
-  // Site multipliers
-  if (nearStreamMouth) { rawScore *= 1.3; drivers.push('near stream mouth'); }
-  if (nearDrainage)    { rawScore *= 1.2; drivers.push('near drainage outlet'); }
-
-  const adjustedScore = rawScore * sensitivityFactor;
-
-  let severity, safeToEnter, healthRisk, waterQualityFeel, scorePenalty;
-
-  if (adjustedScore >= 80) {
-    severity        = 'extreme';
-    safeToEnter     = false;
-    healthRisk      = 'High risk of waterborne illness. Avoid entering the water.';
-    waterQualityFeel = 'Brown/murky water with debris likely. Strongly avoid.';
-    scorePenalty    = 60;
-  } else if (adjustedScore >= 50) {
-    severity        = 'high';
-    safeToEnter     = false;
-    healthRisk      = 'Elevated bacterial and pollution risk. Not recommended.';
-    waterQualityFeel = 'Murky water likely with reduced visibility and runoff contaminants.';
-    scorePenalty    = 40;
-  } else if (adjustedScore >= 25) {
-    severity        = 'moderate';
-    safeToEnter     = true;
-    healthRisk      = 'Moderate runoff risk. Avoid if you have open wounds or are immunocompromised.';
-    waterQualityFeel = 'Water quality slightly degraded. Use caution.';
-    scorePenalty    = 20;
-  } else if (adjustedScore >= 8) {
-    severity        = 'low';
-    safeToEnter     = true;
-    healthRisk      = 'Minor runoff detected. Generally safe for healthy individuals.';
-    waterQualityFeel = 'Water quality mostly normal with minor sediment possible.';
-    scorePenalty    = 8;
-  } else {
-    severity        = 'none';
-    safeToEnter     = true;
-    healthRisk      = 'No significant runoff risk detected.';
-    waterQualityFeel = 'Water quality normal.';
-    scorePenalty    = 0;
-  }
-
-  // Confidence: full when all three rollup values are available finite numbers
-  const hasAll = Number.isFinite(rain6hMM) && Number.isFinite(rain24hMM) && Number.isFinite(rain72hMM);
-  const confidence = hasAll ? 0.8 : 0.5;
-
-  return { severity, healthRisk, safeToEnter, waterQualityFeel, scorePenalty, drivers, confidence };
-}
-
-// ---------------------------------------------------------------------------
 // Exports
 // ---------------------------------------------------------------------------
 
@@ -718,6 +986,7 @@ module.exports = {
   evaluateJellyfishAndNightDive,
   estimateVisibility,
   generateSnorkelRating,
+  estimateRunoffRisk,
   assessRunoffRisk,
 
   // Extras we may use elsewhere
