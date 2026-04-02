@@ -139,6 +139,41 @@ function putJson(out, key, v) {
   if (v != null) out[key] = typeof v === "string" ? v : JSON.stringify(v);
 }
 
+/**
+ * Map a report's tide cycle to flattened Webflow CMS fields.
+ *
+ * Required Webflow CMS slugs (create these fields in your collection if they don't exist):
+ *   low_tide_1_time      (Plain text / Date-time)
+ *   low_tide_1_height    (Number)
+ *   rising_tide_time     (Plain text / Date-time)
+ *   rising_tide_height   (Number)
+ *   high_tide_time       (Plain text / Date-time)
+ *   high_tide_height     (Number)
+ *   falling_tide_time    (Plain text / Date-time)
+ *   falling_tide_height  (Number)
+ *   low_tide_2_time      (Plain text / Date-time)
+ *   low_tide_2_height    (Number)
+ *   current_tide_state   (Plain text — "low" | "rising" | "high" | "falling")
+ *   current_tide_height  (Number)
+ *
+ * TODO: verify slug names match your Webflow collection fields.
+ */
+function applyTideFields(out, tide) {
+  if (!tide) return;
+  putStr(out, "low_tide_1_time",     tide.lowTide1Time);
+  putNum(out, "low_tide_1_height",   tide.lowTide1Height);
+  putStr(out, "rising_tide_time",    tide.risingTideTime);
+  putNum(out, "rising_tide_height",  tide.risingTideHeight);
+  putStr(out, "high_tide_time",      tide.highTideTime);
+  putNum(out, "high_tide_height",    tide.highTideHeight);
+  putStr(out, "falling_tide_time",   tide.fallingTideTime);
+  putNum(out, "falling_tide_height", tide.fallingTideHeight);
+  putStr(out, "low_tide_2_time",     tide.lowTide2Time);
+  putNum(out, "low_tide_2_height",   tide.lowTide2Height);
+  putStr(out, "current_tide_state",  tide.currentTideState);
+  putNum(out, "current_tide_height", tide.currentTideHeight);
+}
+
 function toSpotFieldData(report) {
   const slug = safeSlug(report.spot);
   const lat = report.spotLat ?? null;
@@ -162,6 +197,10 @@ function toSpotFieldData(report) {
   out["last-generated-at"] = out.last_generated_at;
   out["now-json"] = out.now_json;
   out["report-json"] = out.report_json;
+
+  // Flattened tide cycle fields for this spot's current report
+  // Required Webflow CMS slugs: (see applyTideFields for full list)
+  applyTideFields(out, report.tide ?? null);
 
   return out;
 }
@@ -268,6 +307,15 @@ function toWindowFieldData({ report, window, spotItemId = null }) {
     putStr(out, "runoff-health-risk", runoff.healthRisk);
     putStr(out, "runoff-water-quality", runoff.waterQualityFeel);
   }
+
+  // tide at window midpoint
+  // Required Webflow CMS slugs: current_tide_state, current_tide_height
+  // TODO: verify these slug names match your Webflow windows collection fields
+  const winTide = window.tide ?? null;
+  if (winTide) {
+    putStr(out, "current_tide_state",  winTide.tideState);
+    putNum(out, "current_tide_height", winTide.tideHeight);
+  } 
 
   // sources-json (JSON string of data sources array)
   putJson(out, "sources-json", Array.isArray(report.sources) ? report.sources : null);
@@ -400,17 +448,19 @@ async function pushAllReportsToWebflow({ reports }) {
         filteredKeys,
         droppedKeys,
         sample: {
-          "vis-m":            fieldData["vis-m"],
-          "vis-ft":           fieldData["vis-ft"],
-          "air-temp-c":       fieldData["air-temp-c"],
-          "air-temp-f":       fieldData["air-temp-f"],
-          "wind-kt":          fieldData["wind-kt"],
-          "gust-kt":          fieldData["gust-kt"],
-          "wave-ft":          fieldData["wave-ft"],
-          "sources-json":     fieldData["sources-json"],
-          "qc-flags":         fieldData["qc-flags"],
-          "saved-at-hour-key":fieldData["saved-at-hour-key"],
-          "spotref":          fieldData["spotref"],
+          "vis-m":               fieldData["vis-m"],
+          "vis-ft":              fieldData["vis-ft"],
+          "air-temp-c":          fieldData["air-temp-c"],
+          "air-temp-f":          fieldData["air-temp-f"],
+          "wind-kt":             fieldData["wind-kt"],
+          "gust-kt":             fieldData["gust-kt"],
+          "wave-ft":             fieldData["wave-ft"],
+          "current_tide_state":  fieldData["current_tide_state"],
+          "current_tide_height": fieldData["current_tide_height"],
+          "sources-json":        fieldData["sources-json"],
+          "qc-flags":            fieldData["qc-flags"],
+          "saved-at-hour-key":   fieldData["saved-at-hour-key"],
+          "spotref":             fieldData["spotref"],
         },
       });
 

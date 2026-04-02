@@ -143,7 +143,53 @@ async function fetchMoonPhase(dateUtc = new Date(), lat = 21.3, lon = -157.8, tz
 }
 
 // ---------------------------------------------------------------------------
-// Tide helpers (kept simple / mostly placeholders for now)
+// Rain rollup helper (used by index.js)
+// ---------------------------------------------------------------------------
+
+/**
+ * Compute rolling rainfall totals from an array of normalized hourly items.
+ *
+ * Returns rain3hMM, rain6hMM, rain12hMM, rain24hMM, rain48hMM, rain72hMM
+ * relative to nowMs.  Any bucket where no hourly items exist returns 0.
+ *
+ * @param {{ hourlyItems: Array, nowMs: number }} opts
+ * @returns {{ rain3hMM, rain6hMM, rain12hMM, rain24hMM, rain48hMM, rain72hMM }}
+ */
+function computeRainTotals({ hourlyItems, nowMs }) {
+  const MS3H  =  3 * 3600000;
+  const MS6H  =  6 * 3600000;
+  const MS12H = 12 * 3600000;
+  const MS24H = 24 * 3600000;
+  const MS48H = 48 * 3600000;
+  const MS72H = 72 * 3600000;
+
+  let r3 = 0, r6 = 0, r12 = 0, r24 = 0, r48 = 0, r72 = 0;
+
+  for (const item of (hourlyItems || [])) {
+    if (!item || !Number.isFinite(item.tsMs)) continue;
+    const age = nowMs - item.tsMs;
+    if (age < 0 || age > MS72H) continue;
+    const mm = Number.isFinite(item.rainLast1hMM) ? item.rainLast1hMM : 0;
+    if (age <= MS3H)  r3  += mm;
+    if (age <= MS6H)  r6  += mm;
+    if (age <= MS12H) r12 += mm;
+    if (age <= MS24H) r24 += mm;
+    if (age <= MS48H) r48 += mm;
+    r72 += mm;
+  }
+
+  return {
+    rain3hMM:  Math.round(r3  * 10) / 10,
+    rain6hMM:  Math.round(r6  * 10) / 10,
+    rain12hMM: Math.round(r12 * 10) / 10,
+    rain24hMM: Math.round(r24 * 10) / 10,
+    rain48hMM: Math.round(r48 * 10) / 10,
+    rain72hMM: Math.round(r72 * 10) / 10,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Tide helpers
 // ---------------------------------------------------------------------------
 
 /**
@@ -186,6 +232,197 @@ function computeTidePhaseFromLevels(levelSeries, whenTs) {
   return classifyTidePhase(levelSeries, whenTs);
 }
 
+/**
+ * Extract local extrema from a tide level series.
+ *
+ * Handles two input formats:
+ *  - NOAA hilo events:  [{ tsMs, levelFt, type: 'H'|'L' }, ...]  → returned as-is
+ *  - Dense uniform series: [{ tsMs, levelFt }, ...]  → direction-change extrema
+ *
+ * Returns array of { tsMs, levelFt, type } sorted by tsMs ascending.
+ */
+function findLocalExtrema(levelSeries) {
+  if (!Array.isArray(levelSeries) || levelSeries.length < 2) return [];
+
+  // If the first element has a 'type' field the series is already hilo events
+  if (levelSeries[0] && levelSeries[0].type !== undefined) {
+    return levelSeries
+      .filter((e) => e.type === 'H' || e.type === 'L')
+      .sort((a, b) => a.tsMs - b.tsMs);
+  }
+
+  // Dense series: find local min/max by direction-change detection
+  const extrema = [];
+  for (let i = 1; i < levelSeries.length - 1; i++) {
+    const prev = levelSeries[i - 1].levelFt;
+    const curr = levelSeries[i].levelFt;
+    const next = levelSeries[i + 1].levelFt;
+    if (curr > prev && curr > next) extrema.push({ ...levelSeries[i], type: 'H' });
+    else if (curr < prev && curr < next) extrema.push({ ...levelSeries[i], type: 'L' });
+  }
+  return extrema;
+}
+
+/**
+ * Linear interpolation of tide level at tsMs from a sorted series.
+ *
+ * Returns null when series is empty or input is invalid.
+ * Clamps to edge values when tsMs is outside the series range.
+ */
+function interpolateLevelAt(levelSeries, tsMs) {
+  if (!Array.isArray(levelSeries) || levelSeries.length === 0) return null;
+  if (!Number.isFinite(tsMs)) return null;
+  if (levelSeries.length === 1) return levelSeries[0].levelFt;
+
+  // Before or after series range → clamp
+  if (tsMs <= levelSeries[0].tsMs) return levelSeries[0].levelFt;
+  if (tsMs >= levelSeries[levelSeries.length - 1].tsMs) {
+    return levelSeries[levelSeries.length - 1].levelFt;
+  }
+
+  // Binary search for bracketing pair
+  let lo = 0;
+  let hi = levelSeries.length - 1;
+  while (hi - lo > 1) {
+    const mid = Math.floor((lo + hi) / 2);
+    if (levelSeries[mid].tsMs <= tsMs) lo = mid;
+    else hi = mid;
+  }
+
+  const a = levelSeries[lo];
+  const b = levelSeries[hi];
+  const span = b.tsMs - a.tsMs;
+  if (span === 0) return a.levelFt;
+  const t = (tsMs - a.tsMs) / span;
+  return a.levelFt + (b.levelFt - a.levelFt) * t;
+}
+
+/**
+ * Choose the best complete tide cycle (low → high → low) from a list of
+ * hilo extrema events for a given reference time.
+ *
+ * Strategy:
+ *  1. Build all L → H → L triples from consecutive events.
+ *  2. If one contains nowMs (low1.tsMs ≤ nowMs ≤ low2.tsMs), return it.
+ *     If multiple contain it (edge overlap), pick the one where nowMs is
+ *     most central.
+ *  3. If none contain nowMs, pick the cycle whose high-tide time is nearest
+ *     to preferWindowMs (e.g. midday) — or nearest to nowMs if not given.
+ *
+ * Returns { low1, high, low2 } or null.
+ */
+function chooseBestCycle(events, nowMs, preferWindowMs = null) {
+  if (!Array.isArray(events) || events.length < 3) return null;
+
+  // Build all L→H→L triples
+  const cycles = [];
+  for (let i = 0; i < events.length - 2; i++) {
+    const a = events[i];
+    const b = events[i + 1];
+    const c = events[i + 2];
+    if (a.type === 'L' && b.type === 'H' && c.type === 'L') {
+      cycles.push({ low1: a, high: b, low2: c });
+    }
+  }
+  if (!cycles.length) return null;
+
+  // Cycles that contain nowMs
+  const containing = cycles.filter(
+    (c) => c.low1.tsMs <= nowMs && nowMs <= c.low2.tsMs,
+  );
+  if (containing.length === 1) return containing[0];
+  if (containing.length > 1) {
+    // Pick the one where nowMs is most central (ratio closest to 0.5)
+    return containing.reduce((best, c) => {
+      const span = c.low2.tsMs - c.low1.tsMs;
+      const ratio = span ? (nowMs - c.low1.tsMs) / span : 0.5;
+      const bestSpan = best.low2.tsMs - best.low1.tsMs;
+      const bestRatio = bestSpan ? (nowMs - best.low1.tsMs) / bestSpan : 0.5;
+      return Math.abs(ratio - 0.5) < Math.abs(bestRatio - 0.5) ? c : best;
+    });
+  }
+
+  // No cycle contains nowMs — pick nearest by preferred reference time
+  const ref = Number.isFinite(preferWindowMs) ? preferWindowMs : nowMs;
+  return cycles.reduce((best, c) => {
+    const dist = Math.abs(c.high.tsMs - ref);
+    const bestDist = Math.abs(best.high.tsMs - ref);
+    return dist < bestDist ? c : best;
+  });
+}
+
+/**
+ * Build a full tide-cycle object from a hilo series.
+ *
+ * Selects the best low→high→low cycle for nowMs, then computes:
+ *  - Midpoint (rising)  between low1 and high
+ *  - Midpoint (falling) between high and low2
+ *  - Current tide height by linear interpolation at nowMs
+ *  - Current tide state: 'low' | 'rising' | 'high' | 'falling'
+ *
+ * @param {object} opts
+ * @param {Array}  opts.levelSeries    - hilo events [{tsMs, levelFt, type}] sorted
+ * @param {number} opts.nowMs          - current timestamp in ms
+ * @param {string} [opts.tz]           - timezone string (reserved for future use)
+ * @param {number} [opts.preferWindowMs] - preferred reference for cycle selection
+ * @returns {object|null}  Full tide cycle object, or null if data insufficient
+ */
+function buildTideCycle({ levelSeries, nowMs, tz, preferWindowMs = null }) {
+  // suppress unused-variable lint warning; tz is accepted for forward-compat
+  void tz;
+
+  if (!Array.isArray(levelSeries) || levelSeries.length < 3) return null;
+  if (!Number.isFinite(nowMs)) return null;
+
+  const events = findLocalExtrema(levelSeries);
+  if (events.length < 3) return null;
+
+  const cycle = chooseBestCycle(events, nowMs, preferWindowMs);
+  if (!cycle) return null;
+
+  const { low1, high, low2 } = cycle;
+
+  // Midpoint timestamps (arithmetic mean between event times)
+  const risingTsMs  = Math.round((low1.tsMs + high.tsMs) / 2);
+  const fallingTsMs = Math.round((high.tsMs + low2.tsMs) / 2);
+
+  // Midpoint heights (linear: average of the two bounding extrema)
+  const risingHt  = (low1.levelFt + high.levelFt) / 2;
+  const fallingHt = (high.levelFt + low2.levelFt) / 2;
+
+  // Current height by linear interpolation from the full series
+  const rawHeight = interpolateLevelAt(levelSeries, nowMs);
+  const currentTideHeight = rawHeight != null ? Math.round(rawHeight * 100) / 100 : null;
+
+  // Current state classification with 30-minute tolerance around each extremum
+  const TOLERANCE_MS = 30 * 60000;
+  let currentTideState;
+  if (nowMs <= low1.tsMs + TOLERANCE_MS || nowMs >= low2.tsMs - TOLERANCE_MS) {
+    currentTideState = 'low';
+  } else if (nowMs >= high.tsMs - TOLERANCE_MS && nowMs <= high.tsMs + TOLERANCE_MS) {
+    currentTideState = 'high';
+  } else if (nowMs < high.tsMs) {
+    currentTideState = 'rising';
+  } else {
+    currentTideState = 'falling';
+  }
+
+  return {
+    lowTide1Time:      new Date(low1.tsMs).toISOString(),
+    lowTide1Height:    Math.round(low1.levelFt * 100) / 100,
+    risingTideTime:    new Date(risingTsMs).toISOString(),
+    risingTideHeight:  Math.round(risingHt * 100) / 100,
+    highTideTime:      new Date(high.tsMs).toISOString(),
+    highTideHeight:    Math.round(high.levelFt * 100) / 100,
+    fallingTideTime:   new Date(fallingTsMs).toISOString(),
+    fallingTideHeight: Math.round(fallingHt * 100) / 100,
+    lowTide2Time:      new Date(low2.tsMs).toISOString(),
+    lowTide2Height:    Math.round(low2.levelFt * 100) / 100,
+    currentTideState,
+    currentTideHeight,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Visibility estimation
 // ---------------------------------------------------------------------------
@@ -198,7 +435,8 @@ function computeTidePhaseFromLevels(levelSeries, whenTs) {
  *  - swellFeet (null => unknown)
  *  - swellPeriodSec
  *  - currentKnots
- *  - tidePhase: 'rising' | 'falling' | 'slack' | 'unknown'
+ *  - tidePhase: 'rising' | 'falling' | 'slack' | 'unknown'  (legacy; tide preferred)
+ *  - tide: full tide cycle object from buildTideCycle (optional; preferred over tidePhase)
  *  - rainLast24hMM
  *  - turbidityNTU
  *  - cloudCoverPercent
@@ -211,6 +449,7 @@ function estimateVisibility({
   swellPeriodSec = 10,
   currentKnots = null,
   tidePhase = 'unknown',
+  tide = null,
   rainLast24hMM = null,
   turbidityNTU = null,
   cloudCoverPercent = null,
@@ -288,9 +527,25 @@ function estimateVisibility({
   if (currentKnots > 2.5) vis -= 6;
   else if (currentKnots > 1.5) vis -= 3;
 
-  // Tide phase (incoming tide usually helps)
-  if (tidePhase === 'rising') vis += 2;
-  if (tidePhase === 'falling') vis -= 2;
+  // Tide effects — prefer new tide model; fall back to legacy tidePhase
+  // Scoring: rising +2, high +1, falling −2, low −1
+  const effectiveTideState = (tide && tide.currentTideState) || tidePhase;
+  if (effectiveTideState === 'rising') vis += 2;
+  else if (effectiveTideState === 'high') vis += 1;
+  else if (effectiveTideState === 'falling') vis -= 2;
+  else if (effectiveTideState === 'low') vis -= 1;
+
+  // Interaction: falling tide + active runoff → extra turbidity penalty
+  if (effectiveTideState === 'falling' &&
+      runoff && ['moderate', 'high', 'extreme'].includes(runoff.severity)) {
+    vis -= 2;
+  }
+
+  // Interaction: rising tide + low/no runoff → slight bonus (clear water flushing)
+  if (effectiveTideState === 'rising' &&
+      runoff && ['none', 'low'].includes(runoff.severity)) {
+    vis += 1;
+  }
 
   // Clouds: heavy overcast + harsh sun both slightly reduce apparent vis
   if (cloudCoverPercent > 80) vis -= 1;
@@ -638,6 +893,7 @@ function generateSnorkelRating({
   swellPeriodSec = 10,
   currentKnots = 0.5,
   tidePhase = 'unknown',
+  tide = null,
   waterTempC = null,
   lightningRisk = false,
   rainLast24hMM = 0,
@@ -768,10 +1024,28 @@ function generateSnorkelRating({
     }
   }
 
-  // Tide
-  if (tidePhase === 'rising') { score += 5; details.tide = +5; }
-  else if (tidePhase === 'falling') { score -= 5; details.tide = -5; }
+  // Tide effects — prefer new tide model; fall back to legacy tidePhase
+  // Scoring: rising +5, high +2, falling −5, low −2
+  const effectiveTideState = (tide && tide.currentTideState) || tidePhase;
+  if (effectiveTideState === 'rising')       { score += 5; details.tide = +5; }
+  else if (effectiveTideState === 'high')    { score += 2; details.tide = +2; }
+  else if (effectiveTideState === 'falling') { score -= 5; details.tide = -5; }
+  else if (effectiveTideState === 'low')     { score -= 2; details.tide = -2; }
   else details.tide = 0;
+
+  // Interaction: falling tide + active runoff → extra penalty (dirty water flushing in)
+  if (effectiveTideState === 'falling' &&
+      runoff && ['moderate', 'high', 'extreme'].includes(runoff.severity)) {
+    score -= 5;
+    details.tideFallingRunoff = -5;
+  }
+
+  // Interaction: rising tide + clean water → slight bonus (clear ocean water incoming)
+  if (effectiveTideState === 'rising' &&
+      runoff && ['none', 'low'].includes(runoff.severity)) {
+    score += 3;
+    details.tideRisingClean = +3;
+  }
 
   // Water temp comfort
   if (waterTempC == null) {
@@ -874,6 +1148,8 @@ function generateSnorkelRating({
   add('rain', 'rain/runoff');
   add('runoff', 'runoff');
   add('tide', 'tide');
+  add('tideFallingRunoff', 'falling tide + runoff');
+  add('tideRisingClean', 'rising tide, clean water');
   add('temp', 'water temp');
   add('tempMissing', 'missing water temperature');
   add('jellyfish', 'jellyfish risk');
@@ -893,6 +1169,12 @@ function generateSnorkelRating({
   if (currentKnots > 2) caution.push('Stronger currents today.');
   if (swellFeet != null && swellFeet > 5) caution.push('Rougher swell than usual.');
   if (windKnots > 15) caution.push('Choppy surface conditions.');
+
+  // Tide-related caution notes
+  if (effectiveTideState === 'falling' &&
+      runoff && ['moderate', 'high', 'extreme'].includes(runoff.severity)) {
+    caution.push('Falling tide carrying runoff – reduced visibility expected.');
+  }
 
   // Runoff wording (must never be null)
   if (runoff) {
@@ -988,6 +1270,13 @@ module.exports = {
   generateSnorkelRating,
   estimateRunoffRisk,
   assessRunoffRisk,
+  computeRainTotals,
+
+  // Tide cycle helpers
+  findLocalExtrema,
+  interpolateLevelAt,
+  chooseBestCycle,
+  buildTideCycle,
 
   // Extras we may use elsewhere
   diurnalProfile,
