@@ -20,7 +20,10 @@ const {
   assessRunoffRisk,
   computeRainTotals, // rain rollup helper
   buildTideCycle,    // tide cycle model
+  computeRainTotals,
+  computeTideCycle,
 } = require('./analysis');
+const { fetchNOAATideSeries } = require('./tides');
 const { pushAllReportsToWebflow } = require('./webflow');
 const {
   chooseNoaaTideStationForSpot,
@@ -52,6 +55,7 @@ const SPOTS = [
     tz: 'Pacific/Honolulu',
     coast: 'north',
     buoyStation: '51201',
+    tideStation: '1612340', // NOAA Honolulu Harbor (reference station for all Oahu spots)
 
     // CHANGED: was 'low' — too optimistic for storm runoff days
     runoffSensitivity: 'medium',
@@ -69,6 +73,7 @@ const SPOTS = [
     tz: 'Pacific/Honolulu',
     coast: 'north',
     buoyStation: '51201',
+    tideStation: '1612340',
 
     // CHANGED: was 'low'
     runoffSensitivity: 'medium',
@@ -86,6 +91,7 @@ const SPOTS = [
     tz: 'Pacific/Honolulu',
     coast: 'north',
     buoyStation: '51201',
+    tideStation: '1612340',
     runoffSensitivity: 'medium',
     nearStreamMouth: false,
     nearDrainage: false,
@@ -100,6 +106,7 @@ const SPOTS = [
     tz: 'Pacific/Honolulu',
     coast: 'west',
     buoyStation: '51202',
+    tideStation: '1612340',
     runoffSensitivity: 'high',
     nearStreamMouth: true,
     nearDrainage: false,
@@ -114,6 +121,7 @@ const SPOTS = [
     tz: 'Pacific/Honolulu',
     coast: 'south',
     buoyStation: '51202',
+    tideStation: '1612340',
     runoffSensitivity: 'low',
     nearStreamMouth: false,
     nearDrainage: false,
@@ -272,7 +280,7 @@ function buildWindows(hourlyItems, nowMs, count = 8) {
 
 // ─── Report builder ───────────────────────────────────────────────────────────
 
-async function buildSpotReport({ spot, owHourly, buoyData, nowMs }) {
+async function buildSpotReport({ spot, owHourly, buoyData, tideSeries, nowMs }) {
   const nowDate    = new Date(nowMs);
   const generatedAt = nowDate.toISOString();
   const hourKey    = buildHourKey(nowDate);
@@ -297,16 +305,26 @@ async function buildSpotReport({ spot, owHourly, buoyData, nowMs }) {
 
   const confidenceScore = computeConfidenceScore({ nowMetrics, buoyData, closestHour });
 
+  // Tide cycle — derive the detailed 12-point model for nowMs.
+  // Returns null when tide series is unavailable or too short (no crash).
+  const nowTideCycle = (Array.isArray(tideSeries) && tideSeries.length >= 6)
+    ? computeTideCycle(tideSeries, nowMs)
+    : null;
+
   // Rain rollups (NOW) — use analysis helper
   const rainRollups = computeRainTotals({ hourlyItems: owHourly.hourly, nowMs });
 
   const nowRunoff = assessRunoffRisk({
+    rain3hMM:  rainRollups.rain3hMM,
     rain6hMM:  rainRollups.rain6hMM,
+    rain12hMM: rainRollups.rain12hMM,
     rain24hMM: rainRollups.rain24hMM,
+    rain48hMM: rainRollups.rain48hMM,
     rain72hMM: rainRollups.rain72hMM,
     spot: { ...spot, coast },
-    windDeg: nowMetrics.windDeg,
+    windDeg:   nowMetrics.windDeg,
     windKnots: nowMetrics.windSpeedKts,
+    tideCycle: nowTideCycle,
   });
 
   // ── Tide (NOW) ─────────────────────────────────────────────────────────────
@@ -354,6 +372,7 @@ async function buildSpotReport({ spot, owHourly, buoyData, nowMs }) {
     swellFeet:         nowSwellFt,
     swellPeriodSec:    nowMetrics.wavePeriodS,
     currentKnots:      estimateCurrentFromWind(nowMetrics.windSpeedKts),
+    tidePhase:         nowTideCycle?.currentTideState ?? 'unknown',
     rainLast24hMM:     rainRollups.rain24hMM,
     cloudCoverPercent: nowMetrics.cloudCoverPercent,
     hourLocal:         nowLocalHour,
@@ -378,6 +397,7 @@ async function buildSpotReport({ spot, owHourly, buoyData, nowMs }) {
     currentKnots:     estimateCurrentFromWind(nowMetrics.windSpeedKts),
     waterTempC:       nowMetrics.waterTempC,
     rainLast24hMM:    rainRollups.rain24hMM,
+    tideCycle:        nowTideCycle,
     jellyfishWarning: jellyfishData.jellyfishWarning,
     runoff:           nowRunoff,
     tide:             tideCycle,
@@ -403,15 +423,26 @@ async function buildSpotReport({ spot, owHourly, buoyData, nowMs }) {
     const winStartMs = new Date(w.startIso).getTime();
     const winEndMs   = new Date(w.endIso).getTime();
     const winMidMs   = Math.round((winStartMs + winEndMs) / 2);
+    // Use the window midpoint for tide state so the state reflects the middle of the window
+    const winMidMs = winStartMs + 1.5 * 3600000;
+
+    // Per-window tide cycle (null-safe: returns null if tide data unavailable)
+    const winTideCycle = (Array.isArray(tideSeries) && tideSeries.length >= 6)
+      ? computeTideCycle(tideSeries, winMidMs)
+      : null;
 
     const winRainRollups = computeRainTotals({ hourlyItems: owHourly.hourly, nowMs: winStartMs });
     const winRunoff = assessRunoffRisk({
+      rain3hMM:  winRainRollups.rain3hMM,
       rain6hMM:  winRainRollups.rain6hMM,
+      rain12hMM: winRainRollups.rain12hMM,
       rain24hMM: winRainRollups.rain24hMM,
+      rain48hMM: winRainRollups.rain48hMM,
       rain72hMM: winRainRollups.rain72hMM,
-      spot: { ...spot, coast },
-      windDeg: w.avg.windDeg,
+      spot:      { ...spot, coast },
+      windDeg:   w.avg.windDeg,
       windKnots: w.avg.windSpeedKts,
+      tideCycle: winTideCycle,
     });
 
     // Tide at window midpoint — build cycle for this window's representative time
@@ -435,6 +466,7 @@ async function buildSpotReport({ spot, owHourly, buoyData, nowMs }) {
       swellFeet:         winSwellFt,
       swellPeriodSec:    w.avg.wavePeriodS,
       currentKnots:      estimateCurrentFromWind(w.avg.windSpeedKts),
+      tidePhase:         winTideCycle?.currentTideState ?? 'unknown',
       rainLast24hMM:     winRainRollups.rain24hMM,
       cloudCoverPercent: w.avg.cloudCoverPercent,
       hourLocal:         winLocalHour,
@@ -450,6 +482,7 @@ async function buildSpotReport({ spot, owHourly, buoyData, nowMs }) {
       currentKnots:     estimateCurrentFromWind(w.avg.windSpeedKts),
       waterTempC:       w.avg.waterTempC,
       rainLast24hMM:    winRainRollups.rain24hMM,
+      tideCycle:        winTideCycle,
       jellyfishWarning: jellyfishData.jellyfishWarning,
       runoff:           winRunoff,
       tide:             winTideCycle,
@@ -468,6 +501,7 @@ async function buildSpotReport({ spot, owHourly, buoyData, nowMs }) {
     return {
       ...w,
       tide:        winTide,
+      tide:        winTideCycle,
       rainRollups: winRainRollups,
       runoff:      winRunoff,
       visibility:  winVisibility,
@@ -480,10 +514,12 @@ async function buildSpotReport({ spot, owHourly, buoyData, nowMs }) {
   if (nowMetrics.waterTempC == null) qcFlags.push('missing-sst');
   if (nowMetrics.waveHeightM == null) qcFlags.push('missing-wave-height');
   if (closestHour == null) qcFlags.push('no-openweather-match');
+  if (!nowTideCycle) qcFlags.push('no-tide-cycle');
 
   const sources = ['openweather'];
   if (spot.buoyStation && buoyData?.waveHMap?.size) sources.push(`ndbc:${spot.buoyStation}`);
   if (tideStationId && rawTideSeries.length) sources.push(`noaa-tides:${tideStationId}`);
+  if (spot.tideStation && nowTideCycle) sources.push(`noaa-tides:${spot.tideStation}`);
 
   return {
     spot:       spot.id,
@@ -500,6 +536,8 @@ async function buildSpotReport({ spot, owHourly, buoyData, nowMs }) {
       metrics:     nowMetrics,
       rainRollups,
       confidenceScore,
+      // Nested tide cycle object (12 points); null when tide data unavailable
+      tide:        nowTideCycle,
       analysis: {
         moon:     moonData,
         jellyfish:jellyfishData,
@@ -518,16 +556,37 @@ async function runPipeline({ apiKey, publish = false }) {
   const nowMs = Date.now();
   logger.info('KaiCast pipeline start', { nowMs, publish, spots: SPOTS.length });
 
+  // Pre-fetch tide series once per unique tideStation to avoid redundant API calls
+  const tideCacheByStation = new Map();
+  for (const spot of SPOTS) {
+    if (spot.tideStation && !tideCacheByStation.has(spot.tideStation)) {
+      try {
+        const series = await fetchNOAATideSeries({ station: spot.tideStation, nowMs });
+        tideCacheByStation.set(spot.tideStation, series);
+        logger.info('Fetched NOAA tide series', { station: spot.tideStation, points: series.length });
+      } catch (tideErr) {
+        logger.warn('NOAA tide fetch failed; tide cycle will be null for affected spots', {
+          station: spot.tideStation,
+          error: tideErr.message,
+        });
+        tideCacheByStation.set(spot.tideStation, null);
+      }
+    }
+  }
+
   const reports = [];
   for (const spot of SPOTS) {
     try {
-      const owHourly = await fetchOpenWeatherHourly({ lat: spot.lat, lon: spot.lon, apiKey });
-      const hourKeys = owHourly.hourly.map((h) => h.isoHour);
-      const buoyData = spot.buoyStation
+      const owHourly  = await fetchOpenWeatherHourly({ lat: spot.lat, lon: spot.lon, apiKey });
+      const hourKeys  = owHourly.hourly.map((h) => h.isoHour);
+      const buoyData  = spot.buoyStation
         ? await fetchBuoyHourly({ station: spot.buoyStation, hourKeys }).catch(() => null)
         : null;
+      const tideSeries = spot.tideStation
+        ? (tideCacheByStation.get(spot.tideStation) ?? null)
+        : null;
 
-      const report = await buildSpotReport({ spot, owHourly, buoyData, nowMs });
+      const report = await buildSpotReport({ spot, owHourly, buoyData, tideSeries, nowMs });
       reports.push(report);
 
       const docId = `${spot.id}_${report.hourKey}`;
