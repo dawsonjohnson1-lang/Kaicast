@@ -1,4 +1,3 @@
-
 /* eslint-env node */
 /* global fetch */
 
@@ -110,8 +109,9 @@ async function getCollectionFields({ collectionId, token }) {
     throw new Error(`Webflow get collection schema failed (${r.status}): ${txt}`);
   }
   const j = await r.json();
-  const fields = Array.isArray(j.fields) ? j.fields.map((f) => (f.slug || f.name || "").toString()) : [];
-  return fields;
+  return Array.isArray(j.fields)
+    ? j.fields.map((f) => (f.slug || f.name || "").toString())
+    : [];
 }
 
 function safeSlug(s) {
@@ -123,6 +123,7 @@ function safeSlug(s) {
     .replace(/^-+|-+$/g, "");
 }
 
+// Helpers: only write the field if the value is meaningful
 function putNum(out, key, v) {
   if (Number.isFinite(v)) out[key] = v;
 }
@@ -136,46 +137,101 @@ function putJson(out, key, v) {
   if (v != null) out[key] = typeof v === "string" ? v : JSON.stringify(v);
 }
 
+/**
+ * Write the 12 canonical tide-cycle fields into an output payload.
+ *
+ * Canonical CMS slug convention: hyphenated lowercase.
+ *   low-tide-1-time, low-tide-1-height
+ *   rising-tide-time, rising-tide-height
+ *   high-tide-time, high-tide-height
+ *   falling-tide-time, falling-tide-height
+ *   low-tide-2-time, low-tide-2-height
+ *   current-tide-state, current-tide-height
+ *
+ * @param {object} out  - field-data object to write into
+ * @param {object|null} tide - tide cycle object from buildTideCycle / computeTideCycle
+ */
+function applyTideFields(out, tide) {
+  if (!tide) return;
+  putStr(out, "low-tide-1-time",     tide.lowTide1Time);
+  putNum(out, "low-tide-1-height",   tide.lowTide1Height);
+  putStr(out, "rising-tide-time",    tide.risingTideTime);
+  putNum(out, "rising-tide-height",  tide.risingTideHeight);
+  putStr(out, "high-tide-time",      tide.highTideTime);
+  putNum(out, "high-tide-height",    tide.highTideHeight);
+  putStr(out, "falling-tide-time",   tide.fallingTideTime);
+  putNum(out, "falling-tide-height", tide.fallingTideHeight);
+  putStr(out, "low-tide-2-time",     tide.lowTide2Time);
+  putNum(out, "low-tide-2-height",   tide.lowTide2Height);
+  putStr(out, "current-tide-state",  tide.currentTideState);
+  putNum(out, "current-tide-height", tide.currentTideHeight);
+}
+
+/**
+ * Build Webflow field data for a spot-level CMS item.
+ *
+ * @param {object} report - full report object from buildSpotReport
+ * @returns {object} fieldData suitable for Webflow create/update
+ */
 function toSpotFieldData(report) {
-  const slug = safeSlug(report.spot);
-  const lat = report.spotLat ?? null;
-  const lon = report.spotLon ?? null;
+  const slug  = safeSlug(report.spot);
+  const lat   = report.spotLat  ?? null;
+  const lon   = report.spotLon  ?? null;
   const coast = report.spotCoast ?? null;
 
   const out = {
-    name: report.spotName || report.spot,
+    name:             report.spotName || report.spot,
     slug,
-    spot_id: String(report.spot ?? ""),
-    last_generated_at: String(report.generatedAt ?? ""),
-    now_json: JSON.stringify(report.now ?? {}),
-    report_json: JSON.stringify(report ?? {}),
-    latitude: lat,
-    longitude: lon,
-    coast: coast,
+    "spot-id":        String(report.spot ?? ""),
+    "last-generated-at": String(report.generatedAt ?? ""),
+    "now-json":       JSON.stringify(report.now ?? {}),
+    "report-json":    JSON.stringify(report ?? {}),
+    latitude:         lat,
+    longitude:        lon,
+    coast,
   };
 
-  out["spot-id"] = out.spot_id;
-  out["last-generated-at"] = out.last_generated_at;
-  out["now-json"] = out.now_json;
-  out["report-json"] = out.report_json;
+  // Spot-level tide summary (current snapshot from report.now.tide)
+  const tide = report.now?.tide ?? report.tide ?? null;
+  applyTideFields(out, tide);
 
+  // Remove any explicit undefined values
+  for (const k of Object.keys(out)) {
+    if (out[k] === undefined) delete out[k];
+  }
   return out;
 }
 
+/**
+ * Build Webflow field data for a 3-hour forecast window CMS item.
+ *
+ * Tide CMS slugs (hyphenated, matches applyTideFields):
+ *   low-tide-1-time, low-tide-1-height, rising-tide-time, rising-tide-height,
+ *   high-tide-time, high-tide-height, falling-tide-time, falling-tide-height,
+ *   low-tide-2-time, low-tide-2-height, current-tide-state, current-tide-height
+ *
+ * Windows are uniquely identified by spot + start + end slug.
+ *
+ * @param {object} opts
+ * @param {object} opts.report     - full report object
+ * @param {object} opts.window     - single window from report.windows
+ * @param {string|null} opts.spotItemId - Webflow item ID for the spot reference
+ * @returns {object} fieldData suitable for Webflow create/update
+ */
 function toWindowFieldData({ report, window, spotItemId = null }) {
-  const spotSlug = safeSlug(report.spot);
-  const start = window.startIso || "";
-  const end = window.endIso || "";
+  const spotSlug   = safeSlug(report.spot);
+  const start      = window.startIso || "";
+  const end        = window.endIso   || "";
   const windowSlug = safeSlug(`${spotSlug}-${start}-${end}`);
 
-  const rating = window.rating ?? {};
-  const avg = window.avg ?? {};
-  const vis = window.visibility ?? {};
+  const rating     = window.rating    ?? {};
+  const avg        = window.avg       ?? {};
+  const vis        = window.visibility ?? {};
 
   const nowAnalysis = report.now?.analysis ?? {};
-  const moon = nowAnalysis.moon ?? {};
-  const jelly = nowAnalysis.jellyfish ?? {};
-  const nowMetrics = report.now?.metrics ?? {};
+  const moon        = nowAnalysis.moon      ?? {};
+  const jelly       = nowAnalysis.jellyfish ?? {};
+  const nowMetrics  = report.now?.metrics   ?? {};
 
   const savedAtHourKey = report.hourKey || (() => {
     const d = new Date(start);
@@ -190,30 +246,30 @@ function toWindowFieldData({ report, window, spotItemId = null }) {
   const label = `${report.spotName || report.spot} ${start}`;
 
   const out = {
-    name: label,
+    name:           label,
     label,
-    slug: windowSlug,
-    spot_id: report.spot,
-
-    start: window.startIso ?? undefined,
-    end: window.endIso ?? undefined,
-
+    slug:           windowSlug,
+    "spot-id":      report.spot,
+    start:          start || undefined,
+    end:            end   || undefined,
     ...(spotItemId ? { spotref: [spotItemId] } : {}),
-
-    rating: rating.rating ?? undefined,
-    reason: rating.reason ?? undefined,
+    rating:         rating.rating    ?? undefined,
+    reason:         rating.reason    ?? undefined,
     "caution-note": rating.cautionNote ?? undefined,
   };
 
   putNum(out, "score", rating.score);
 
-  putNum(out, "vis-m", vis.estimatedVisibilityMeters);
+  // Visibility
+  putNum(out, "vis-m",  vis.estimatedVisibilityMeters);
   putNum(out, "vis-ft", vis.estimatedVisibilityFeet);
 
-  putNum(out, "wind-kt", avg.windSpeedKts ?? nowMetrics.windSpeedKts);
-  putNum(out, "gust-kt", avg.windGustKts ?? nowMetrics.windGustKts);
-  putNum(out, "wind-direction", avg.windDeg ?? nowMetrics.windDeg);
+  // Wind (prefer window avg, fall back to current metrics)
+  putNum(out, "wind-kt",        avg.windSpeedKts  ?? nowMetrics.windSpeedKts);
+  putNum(out, "gust-kt",        avg.windGustKts   ?? nowMetrics.windGustKts);
+  putNum(out, "wind-direction", avg.windDeg       ?? nowMetrics.windDeg);
 
+  // Temperature
   putNum(out, "air-temp-c", avg.airTempC ?? nowMetrics.airTempC);
   const airC = avg.airTempC ?? nowMetrics.airTempC;
   if (Number.isFinite(airC)) putNum(out, "air-temp-f", Math.round((airC * 9 / 5 + 32) * 10) / 10);
@@ -222,48 +278,57 @@ function toWindowFieldData({ report, window, spotItemId = null }) {
   const waterC = avg.waterTempC ?? nowMetrics.waterTempC;
   if (Number.isFinite(waterC)) putNum(out, "water-temp-f", Math.round((waterC * 9 / 5 + 32) * 10) / 10);
 
-  putNum(out, "wave-height-m", avg.waveHeightM);
+  // Waves
   const waveHeightM = avg.waveHeightM ?? nowMetrics.waveHeightM;
+  putNum(out, "wave-height-m", avg.waveHeightM);
   if (Number.isFinite(waveHeightM)) {
-    const waveFeet = Math.round(waveHeightM * 3.28084 * 10) / 10;
-    putNum(out, "wave-height-f", waveFeet);
-    putNum(out, "wave-ft", waveFeet);
+    putNum(out, "wave-height-f", Math.round(waveHeightM * 3.28084 * 10) / 10);
+    putNum(out, "wave-ft",       Math.round(waveHeightM * 3.28084 * 10) / 10);
   }
   putNum(out, "dominant-period-s", avg.wavePeriodS);
 
-  putStr(out, "moon-phase", moon.moonPhase);
-  putNum(out, "moon-illumination", moon.moonIllumination);
+  // Moon
+  putStr(out, "moon-phase",          moon.moonPhase);
+  putNum(out, "moon-illumination",   moon.moonIllumination);
   putNum(out, "days-since-full-moon", moon.daysSinceFullMoon);
 
+  // Jellyfish / night dive
   putBool(out, "jellyfish-warning", jelly.jellyfishWarning);
-  putBool(out, "night-diving-ok", jelly.nightDivingOk);
-  putStr(out, "night-dive-note", jelly.nightDiveNote);
+  putBool(out, "night-diving-ok",   jelly.nightDivingOk);
+  putStr(out,  "night-dive-note",   jelly.nightDiveNote);
 
+  // Runoff
   const runoff = window.runoff ?? nowAnalysis.runoff ?? null;
   if (runoff) {
-    putStr(out, "runoff-severity", runoff.severity);
+    putStr(out,  "runoff-severity",      runoff.severity);
     putBool(out, "runoff-safe-to-enter", runoff.safeToEnter);
-    putStr(out, "runoff-health-risk", runoff.healthRisk);
-    putStr(out, "runoff-water-quality", runoff.waterQualityFeel);
-
-    // NEW OPTIONAL FIELDS:
-    // These will only be sent if your CMS schema includes them (due to schema filtering).
-    putStr(out, "runoff-rating-cap", runoff.ratingCap);
-    putNum(out, "runoff-vis-cap-m", runoff.visibilityCapMeters);
-    putNum(out, "runoff-confidence", runoff.confidence);
+    putStr(out,  "runoff-health-risk",   runoff.healthRisk);
+    putStr(out,  "runoff-water-quality", runoff.waterQualityFeel);
   }
 
-  putJson(out, "sources-json", Array.isArray(report.sources) ? report.sources : null);
+  // Tide cycle fields — prefer window.tide (full 12-point cycle); fall back to report.now.tide
+  const tide = window.tide ?? report.now?.tide ?? null;
+  // window.tide from index.js is { tideState, tideHeight } — a summary object.
+  // report.now.tide is the full 12-point cycle object.
+  // Prefer the full cycle for all 12 fields; use summary for current-* if no full cycle.
+  if (tide && tide.lowTide1Time) {
+    applyTideFields(out, tide);
+  } else if (tide) {
+    // Window tide is just { tideState, tideHeight }
+    putStr(out, "current-tide-state",  tide.tideState  ?? tide.currentTideState);
+    putNum(out, "current-tide-height", tide.tideHeight ?? tide.currentTideHeight);
+  }
 
+  // Metadata
+  putJson(out, "sources-json", Array.isArray(report.sources) ? report.sources : null);
   if (Array.isArray(report.qcFlags) && report.qcFlags.length > 0) {
     out["qc-flags"] = report.qcFlags.join(",");
   }
-
   putStr(out, "saved-at-hour-key", savedAtHourKey);
+  out["window-json"]   = JSON.stringify(window ?? {});
+  out["generated-at"]  = String(report.generatedAt ?? "");
 
-  out.window_json = JSON.stringify(window ?? {});
-  out.generated_at = String(report.generatedAt ?? "");
-
+  // Remove explicit undefined
   for (const k of Object.keys(out)) {
     if (out[k] === undefined) delete out[k];
   }
@@ -290,45 +355,46 @@ async function pushAllReportsToWebflow({ reports }) {
   let spotsCid;
   let windowsCid;
 
-  try { token = WEBFLOW_API_TOKEN ? WEBFLOW_API_TOKEN.value() : (process.env.WEBFLOW_API_TOKEN || ""); }
-  catch { token = process.env.WEBFLOW_API_TOKEN || ""; }
+  try { token     = WEBFLOW_API_TOKEN   ? WEBFLOW_API_TOKEN.value()   : (process.env.WEBFLOW_API_TOKEN   || ""); }
+  catch { token     = process.env.WEBFLOW_API_TOKEN   || ""; }
 
-  try { spotsCid = WEBFLOW_SPOTS_CID ? WEBFLOW_SPOTS_CID.value() : (process.env.WEBFLOW_SPOTS_CID || ""); }
-  catch { spotsCid = process.env.WEBFLOW_SPOTS_CID || ""; }
+  try { spotsCid  = WEBFLOW_SPOTS_CID   ? WEBFLOW_SPOTS_CID.value()   : (process.env.WEBFLOW_SPOTS_CID   || ""); }
+  catch { spotsCid  = process.env.WEBFLOW_SPOTS_CID   || ""; }
 
   try { windowsCid = WEBFLOW_WINDOWS_CID ? WEBFLOW_WINDOWS_CID.value() : (process.env.WEBFLOW_WINDOWS_CID || ""); }
   catch { windowsCid = process.env.WEBFLOW_WINDOWS_CID || ""; }
 
-  if (!token) throw new Error("WEBFLOW_API_TOKEN is missing");
-  if (!spotsCid) throw new Error("WEBFLOW_SPOTS_CID is missing");
+  if (!token)      throw new Error("WEBFLOW_API_TOKEN is missing");
+  if (!spotsCid)   throw new Error("WEBFLOW_SPOTS_CID is missing");
   if (!windowsCid) throw new Error("WEBFLOW_WINDOWS_CID is missing");
 
   logger.info("Webflow push starting", { reports: reports.length });
 
   const spotsFieldsArr = await getCollectionFields({ collectionId: spotsCid, token }).catch((e) => {
-    logger.warn("Unable to fetch spots collection schema; continuing without schema filtering", { message: e.message });
+    logger.warn("Unable to fetch spots collection schema; sending all fields", { message: e.message });
     return [];
   });
   const windowsFieldsArr = await getCollectionFields({ collectionId: windowsCid, token }).catch((e) => {
-    logger.warn("Unable to fetch windows collection schema; continuing without schema filtering", { message: e.message });
+    logger.warn("Unable to fetch windows collection schema; sending all fields", { message: e.message });
     return [];
   });
 
-  const spotsAllowed = new Set((spotsFieldsArr || []).map(String));
+  const spotsAllowed   = new Set((spotsFieldsArr   || []).map(String));
   const windowsAllowed = new Set((windowsFieldsArr || []).map(String));
 
   const existingSpots = await listAllItems({ collectionId: spotsCid, token });
-  const spotBySlug = new Map();
+  const spotBySlug    = new Map();
   for (const it of existingSpots) {
     const slug = it?.fields?.slug || it?.fieldData?.slug || it?.slug;
     if (slug) spotBySlug.set(String(slug), it);
   }
 
+  // Upsert spots
   for (const report of reports) {
     const rawFieldData = toSpotFieldData(report);
-    const fieldData = filterFieldDataForCollection(rawFieldData, spotsAllowed);
-    const slug = rawFieldData.slug;
-    const existing = spotBySlug.get(slug);
+    const fieldData    = filterFieldDataForCollection(rawFieldData, spotsAllowed);
+    const slug         = rawFieldData.slug;
+    const existing     = spotBySlug.get(slug);
 
     if (!existing) {
       const created = await createItem({ collectionId: spotsCid, token, fieldData });
@@ -340,7 +406,8 @@ async function pushAllReportsToWebflow({ reports }) {
     }
   }
 
-  const latestSpots = await listAllItems({ collectionId: spotsCid, token });
+  // Refresh spot map to get accurate item IDs for spotref
+  const latestSpots      = await listAllItems({ collectionId: spotsCid, token });
   const latestSpotBySlug = new Map();
   for (const it of latestSpots) {
     const slug = it?.fields?.slug || it?.fieldData?.slug || it?.slug;
@@ -348,23 +415,42 @@ async function pushAllReportsToWebflow({ reports }) {
   }
 
   const existingWindows = await listAllItems({ collectionId: windowsCid, token });
-  const windowBySlug = new Map();
+  const windowBySlug    = new Map();
   for (const it of existingWindows) {
     const slug = it?.fields?.slug || it?.fieldData?.slug || it?.slug;
     if (slug) windowBySlug.set(String(slug), it);
   }
 
+  // Upsert windows
   for (const report of reports) {
     const windows = Array.isArray(report.windows) ? report.windows : [];
     for (const w of windows) {
-      const spotItem = latestSpotBySlug.get(String(safeSlug(report.spot)));
+      const spotItem   = latestSpotBySlug.get(String(safeSlug(report.spot)));
       const spotItemId = spotItem?.id || null;
 
       const rawFieldData = toWindowFieldData({ report, window: w, spotItemId });
-      const fieldData = filterFieldDataForCollection(rawFieldData, windowsAllowed);
+      const fieldData    = filterFieldDataForCollection(rawFieldData, windowsAllowed);
+      const slug         = fieldData.slug || rawFieldData.slug;
+      const existing     = windowBySlug.get(slug);
 
-      const slug = fieldData.slug || rawFieldData.slug;
-      const existing = windowBySlug.get(slug);
+      // Diagnostic logging
+      const rawKeys      = Object.keys(rawFieldData);
+      const filteredKeys = Object.keys(fieldData);
+      const droppedKeys  = rawKeys.filter((k) => !filteredKeys.includes(k));
+      logger.info("Webflow window payload", {
+        slug,
+        kept:    filteredKeys.length,
+        dropped: droppedKeys.length,
+        sample: {
+          "vis-m":              fieldData["vis-m"],
+          "wind-kt":            fieldData["wind-kt"],
+          "wave-ft":            fieldData["wave-ft"],
+          "current-tide-state": fieldData["current-tide-state"],
+          "high-tide-time":     fieldData["high-tide-time"],
+          "sources-json":       fieldData["sources-json"],
+          "spotref":            fieldData["spotref"],
+        },
+      });
 
       if (!existing) {
         const created = await createItem({ collectionId: windowsCid, token, fieldData });

@@ -10,10 +10,17 @@
  *  - evaluateJellyfishAndNightDive({ moonData, visibilityMeters, currentKnots, waterTempC, cloudCoverPercent })
  *  - estimateVisibility(opts)
  *  - generateSnorkelRating(opts)
- *  - assessRunoffRisk({ rain6hMM, rain24hMM, rain72hMM, spot })
+ *  - estimateRunoffRisk({ rain3hMM, rain12hMM, rain24hMM, rain48hMM, rain72hMM, windKnots, windDeg, tidePhase, spotContext, communityRunoffSignal })
+ *  - assessRunoffRisk({ rain6hMM, rain24hMM, rain72hMM, spot }) (back-compat wrapper)
  *  - estimateCurrentFromWind(windKnots)
  *  - classifyTidePhase(levelSeries, whenTs)
  *  - computeTidePhaseFromLevels(levelSeries)
+ *  - interpolateTideHeight(levelSeries, targetMs)
+ *  - detectTideHighsLows(levelSeries)
+ *  - pickTideCycle({ highs, lows }, nowMs)
+ *  - determineTideState(low1TsMs, highTsMs, low2TsMs, nowMs)
+ *  - computeTideCycle(levelSeries, nowMs)
+ *  - computeRainTotals({ hourlyItems, nowMs })
  *  - movingAverage(arr, n)
  *  - diurnalProfile(hourLocal)
  */
@@ -28,6 +35,14 @@ function clamp(v, min, max) {
 
 function lerp(a, b, t) {
   return a + (b - a) * t;
+}
+
+function round1(v) {
+  return Number.isFinite(v) ? Math.round(v * 10) / 10 : v;
+}
+
+function round2(v) {
+  return Number.isFinite(v) ? Math.round(v * 100) / 100 : v;
 }
 
 /**
@@ -134,7 +149,53 @@ async function fetchMoonPhase(dateUtc = new Date(), lat = 21.3, lon = -157.8, tz
 }
 
 // ---------------------------------------------------------------------------
-// Tide helpers (kept simple / mostly placeholders for now)
+// Rain rollup helper
+// ---------------------------------------------------------------------------
+
+/**
+ * Compute rolling rainfall totals from an array of normalized hourly items.
+ *
+ * Returns rain3hMM, rain6hMM, rain12hMM, rain24hMM, rain48hMM, rain72hMM
+ * relative to nowMs. Any bucket where no hourly items exist returns 0.
+ *
+ * @param {{ hourlyItems: Array, nowMs: number }} opts
+ * @returns {{ rain3hMM, rain6hMM, rain12hMM, rain24hMM, rain48hMM, rain72hMM }}
+ */
+function computeRainTotals({ hourlyItems, nowMs }) {
+  const MS3H  =  3 * 3600000;
+  const MS6H  =  6 * 3600000;
+  const MS12H = 12 * 3600000;
+  const MS24H = 24 * 3600000;
+  const MS48H = 48 * 3600000;
+  const MS72H = 72 * 3600000;
+
+  let r3 = 0, r6 = 0, r12 = 0, r24 = 0, r48 = 0, r72 = 0;
+
+  for (const item of (hourlyItems || [])) {
+    if (!item || !Number.isFinite(item.tsMs)) continue;
+    const age = nowMs - item.tsMs;
+    if (age < 0 || age > MS72H) continue;
+    const mm = Number.isFinite(item.rainLast1hMM) ? item.rainLast1hMM : 0;
+    if (age <= MS3H)  r3  += mm;
+    if (age <= MS6H)  r6  += mm;
+    if (age <= MS12H) r12 += mm;
+    if (age <= MS24H) r24 += mm;
+    if (age <= MS48H) r48 += mm;
+    r72 += mm;
+  }
+
+  return {
+    rain3hMM:  Math.round(r3  * 10) / 10,
+    rain6hMM:  Math.round(r6  * 10) / 10,
+    rain12hMM: Math.round(r12 * 10) / 10,
+    rain24hMM: Math.round(r24 * 10) / 10,
+    rain48hMM: Math.round(r48 * 10) / 10,
+    rain72hMM: Math.round(r72 * 10) / 10,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Tide helpers
 // ---------------------------------------------------------------------------
 
 /**
@@ -177,6 +238,431 @@ function computeTidePhaseFromLevels(levelSeries, whenTs) {
   return classifyTidePhase(levelSeries, whenTs);
 }
 
+/**
+ * Extract local extrema from a tide level series.
+ *
+ * Handles two input formats:
+ *  - NOAA hilo events:  [{ tsMs, levelFt, type: 'H'|'L' }, ...]  → returned as-is
+ *  - Dense uniform series: [{ tsMs, levelFt }, ...]  → direction-change extrema
+ *
+ * Returns array of { tsMs, levelFt, type } sorted by tsMs ascending.
+ */
+function findLocalExtrema(levelSeries) {
+  if (!Array.isArray(levelSeries) || levelSeries.length < 2) return [];
+
+  // If the first element has a 'type' field the series is already hilo events
+  if (levelSeries[0] && levelSeries[0].type !== undefined) {
+    return levelSeries
+      .filter((e) => e.type === 'H' || e.type === 'L')
+      .sort((a, b) => a.tsMs - b.tsMs);
+  }
+
+  // Dense series: find local min/max by direction-change detection
+  const extrema = [];
+  for (let i = 1; i < levelSeries.length - 1; i++) {
+    const prev = levelSeries[i - 1].levelFt;
+    const curr = levelSeries[i].levelFt;
+    const next = levelSeries[i + 1].levelFt;
+    if (curr > prev && curr > next) extrema.push({ ...levelSeries[i], type: 'H' });
+    else if (curr < prev && curr < next) extrema.push({ ...levelSeries[i], type: 'L' });
+  }
+  return extrema;
+}
+
+/**
+ * Linear interpolation of tide level at tsMs from a sorted series.
+ *
+ * Returns null when series is empty or input is invalid.
+ * Clamps to edge values when tsMs is outside the series range.
+ */
+function interpolateLevelAt(levelSeries, tsMs) {
+  if (!Array.isArray(levelSeries) || levelSeries.length === 0) return null;
+  if (!Number.isFinite(tsMs)) return null;
+  if (levelSeries.length === 1) return levelSeries[0].levelFt;
+
+  // Before or after series range → clamp
+  if (tsMs <= levelSeries[0].tsMs) return levelSeries[0].levelFt;
+  if (tsMs >= levelSeries[levelSeries.length - 1].tsMs) {
+    return levelSeries[levelSeries.length - 1].levelFt;
+  }
+
+  // Binary search for bracketing pair
+  let lo = 0;
+  let hi = levelSeries.length - 1;
+  while (hi - lo > 1) {
+    const mid = Math.floor((lo + hi) / 2);
+    if (levelSeries[mid].tsMs <= tsMs) lo = mid;
+    else hi = mid;
+  }
+
+  const a = levelSeries[lo];
+  const b = levelSeries[hi];
+  const span = b.tsMs - a.tsMs;
+  if (span === 0) return a.levelFt;
+  const t = (tsMs - a.tsMs) / span;
+  return a.levelFt + (b.levelFt - a.levelFt) * t;
+}
+
+/**
+ * Choose the best complete tide cycle (low → high → low) from a list of
+ * hilo extrema events for a given reference time.
+ *
+ * Strategy:
+ *  1. Build all L → H → L triples from consecutive events.
+ *  2. If one contains nowMs (low1.tsMs ≤ nowMs ≤ low2.tsMs), return it.
+ *     If multiple contain it (edge overlap), pick the one where nowMs is
+ *     most central.
+ *  3. If none contain nowMs, pick the cycle whose high-tide time is nearest
+ *     to preferWindowMs (e.g. midday) — or nearest to nowMs if not given.
+ *
+ * Returns { low1, high, low2 } or null.
+ */
+function chooseBestCycle(events, nowMs, preferWindowMs = null) {
+  if (!Array.isArray(events) || events.length < 3) return null;
+
+  // Build all L→H→L triples
+  const cycles = [];
+  for (let i = 0; i < events.length - 2; i++) {
+    const a = events[i];
+    const b = events[i + 1];
+    const c = events[i + 2];
+    if (a.type === 'L' && b.type === 'H' && c.type === 'L') {
+      cycles.push({ low1: a, high: b, low2: c });
+    }
+  }
+  if (!cycles.length) return null;
+
+  // Cycles that contain nowMs
+  const containing = cycles.filter(
+    (c) => c.low1.tsMs <= nowMs && nowMs <= c.low2.tsMs,
+  );
+  if (containing.length === 1) return containing[0];
+  if (containing.length > 1) {
+    return containing.reduce((best, c) => {
+      const span = c.low2.tsMs - c.low1.tsMs;
+      const ratio = span ? (nowMs - c.low1.tsMs) / span : 0.5;
+      const bestSpan = best.low2.tsMs - best.low1.tsMs;
+      const bestRatio = bestSpan ? (nowMs - best.low1.tsMs) / bestSpan : 0.5;
+      return Math.abs(ratio - 0.5) < Math.abs(bestRatio - 0.5) ? c : best;
+    });
+  }
+
+  // No cycle contains nowMs — pick nearest by preferred reference time
+  const ref = Number.isFinite(preferWindowMs) ? preferWindowMs : nowMs;
+  return cycles.reduce((best, c) => {
+    const dist = Math.abs(c.high.tsMs - ref);
+    const bestDist = Math.abs(best.high.tsMs - ref);
+    return dist < bestDist ? c : best;
+  });
+}
+
+/**
+ * Build a full tide-cycle object from a hilo series.
+ *
+ * Selects the best low→high→low cycle for nowMs, then computes:
+ *  - Midpoint (rising)  between low1 and high
+ *  - Midpoint (falling) between high and low2
+ *  - Current tide height by linear interpolation at nowMs
+ *  - Current tide state: 'low' | 'rising' | 'high' | 'falling'
+ *
+ * @param {object} opts
+ * @param {Array}  opts.levelSeries    - hilo events [{tsMs, levelFt, type}] sorted
+ * @param {number} opts.nowMs          - current timestamp in ms
+ * @param {string} [opts.tz]           - timezone string (reserved for future use)
+ * @param {number} [opts.preferWindowMs] - preferred reference for cycle selection
+ * @returns {object|null}  Full tide cycle object, or null if data insufficient
+ */
+function buildTideCycle({ levelSeries, nowMs, tz, preferWindowMs = null }) {
+  // suppress unused-variable lint warning; tz is accepted for forward-compat
+  void tz;
+
+  if (!Array.isArray(levelSeries) || levelSeries.length < 3) return null;
+  if (!Number.isFinite(nowMs)) return null;
+
+  const events = findLocalExtrema(levelSeries);
+  if (events.length < 3) return null;
+
+  const cycle = chooseBestCycle(events, nowMs, preferWindowMs);
+  if (!cycle) return null;
+
+  const { low1, high, low2 } = cycle;
+
+  const risingTsMs  = Math.round((low1.tsMs + high.tsMs) / 2);
+  const fallingTsMs = Math.round((high.tsMs + low2.tsMs) / 2);
+
+  const risingHt  = (low1.levelFt + high.levelFt) / 2;
+  const fallingHt = (high.levelFt + low2.levelFt) / 2;
+
+  const rawHeight = interpolateLevelAt(levelSeries, nowMs);
+  const currentTideHeight = rawHeight != null ? Math.round(rawHeight * 100) / 100 : null;
+
+  const TOLERANCE_MS = 30 * 60000;
+  let currentTideState;
+  if (nowMs <= low1.tsMs + TOLERANCE_MS || nowMs >= low2.tsMs - TOLERANCE_MS) {
+    currentTideState = 'low';
+  } else if (nowMs >= high.tsMs - TOLERANCE_MS && nowMs <= high.tsMs + TOLERANCE_MS) {
+    currentTideState = 'high';
+  } else if (nowMs < high.tsMs) {
+    currentTideState = 'rising';
+  } else {
+    currentTideState = 'falling';
+  }
+
+  return {
+    lowTide1Time:      new Date(low1.tsMs).toISOString(),
+    lowTide1Height:    Math.round(low1.levelFt * 100) / 100,
+    risingTideTime:    new Date(risingTsMs).toISOString(),
+    risingTideHeight:  Math.round(risingHt * 100) / 100,
+    highTideTime:      new Date(high.tsMs).toISOString(),
+    highTideHeight:    Math.round(high.levelFt * 100) / 100,
+    fallingTideTime:   new Date(fallingTsMs).toISOString(),
+    fallingTideHeight: Math.round(fallingHt * 100) / 100,
+    lowTide2Time:      new Date(low2.tsMs).toISOString(),
+    lowTide2Height:    Math.round(low2.levelFt * 100) / 100,
+    currentTideState,
+    currentTideHeight,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Tide cycle model (detailed 12-point model)
+// ---------------------------------------------------------------------------
+
+/**
+ * Detect local high and low tide events in a levelSeries using a 1-point
+ * local-max / local-min detector.
+ *
+ * @param {Array<{tsMs: number, levelFt: number}>} levelSeries - sorted asc by tsMs
+ * @returns {{ highs: Array, lows: Array }}
+ */
+function detectTideHighsLows(levelSeries) {
+  const highs = [];
+  const lows  = [];
+
+  if (!Array.isArray(levelSeries) || levelSeries.length < 3) {
+    return { highs, lows };
+  }
+
+  for (let i = 1; i < levelSeries.length - 1; i++) {
+    const prev = levelSeries[i - 1].levelFt;
+    const curr = levelSeries[i].levelFt;
+    const next = levelSeries[i + 1].levelFt;
+
+    if (curr > prev && curr >= next) highs.push(levelSeries[i]);
+    if (curr < prev && curr <= next) lows.push(levelSeries[i]);
+  }
+  return { highs, lows };
+}
+
+/**
+ * Linearly interpolate tide height at an arbitrary timestamp.
+ *
+ * @param {Array<{tsMs: number, levelFt: number}>} levelSeries
+ * @param {number} targetMs
+ * @returns {number|null}
+ */
+function interpolateTideHeight(levelSeries, targetMs) {
+  if (!Array.isArray(levelSeries) || !levelSeries.length || !Number.isFinite(targetMs)) {
+    return null;
+  }
+
+  let before = null;
+  let after  = null;
+  for (const pt of levelSeries) {
+    if (pt.tsMs <= targetMs) {
+      if (!before || pt.tsMs > before.tsMs) before = pt;
+    } else if (!after || pt.tsMs < after.tsMs) {
+      after = pt;
+    }
+  }
+
+  if (before && after) {
+    const t = (targetMs - before.tsMs) / (after.tsMs - before.tsMs);
+    return round2(lerp(before.levelFt, after.levelFt, t));
+  }
+  if (before) return round2(before.levelFt);
+  if (after)  return round2(after.levelFt);
+  return null;
+}
+
+/**
+ * Select the most relevant tide cycle (low1 → high → low2) for nowMs.
+ *
+ * Prefers a cycle that contains nowMs; falls back to the cycle whose
+ * midpoint is closest to nowMs.
+ *
+ * @param {{ highs: Array, lows: Array }} detected
+ * @param {number} nowMs
+ * @returns {{ low1: object, high: object, low2: object }|null}
+ */
+function pickTideCycle({ highs, lows }, nowMs) {
+  if (!Array.isArray(highs) || !Array.isArray(lows) || lows.length < 2 || !highs.length) {
+    return null;
+  }
+
+  const cycles = [];
+  for (let i = 0; i < lows.length - 1; i++) {
+    const low1 = lows[i];
+    const low2 = lows[i + 1];
+    // Find the highest high between these two lows
+    const between = highs.filter((h) => h.tsMs > low1.tsMs && h.tsMs < low2.tsMs);
+    if (!between.length) continue;
+    const high = between.reduce((best, h) => (h.levelFt > best.levelFt ? h : best), between[0]);
+    cycles.push({ low1, high, low2 });
+  }
+
+  if (!cycles.length) return null;
+
+  // Prefer cycle that contains nowMs
+  for (const c of cycles) {
+    if (nowMs >= c.low1.tsMs && nowMs <= c.low2.tsMs) return c;
+  }
+
+  // Fall back: closest cycle by midpoint
+  let best     = null;
+  let bestDist = Infinity;
+  for (const c of cycles) {
+    const midMs = (c.low1.tsMs + c.low2.tsMs) / 2;
+    const dist  = Math.abs(midMs - nowMs);
+    if (dist < bestDist) {
+      bestDist = dist;
+      best     = c;
+    }
+  }
+  return best;
+}
+
+/**
+ * Determine tide state at nowMs given the three key cycle timestamps.
+ *
+ * States:
+ *   'low'     — within 15 % of rising or falling duration from either low
+ *   'high'    — within 15 % of either half-duration from the high
+ *   'rising'  — between low1 buffer and high buffer (ascending phase)
+ *   'falling' — between high buffer and low2 buffer (descending phase)
+ *
+ * @param {number} low1TsMs
+ * @param {number} highTsMs
+ * @param {number} low2TsMs
+ * @param {number} nowMs
+ * @returns {'low'|'rising'|'high'|'falling'}
+ */
+function determineTideState(low1TsMs, highTsMs, low2TsMs, nowMs) {
+  const LOW_BUF  = 0.15; // 15 % of half-cycle duration = "at" the low
+  const HIGH_BUF = 0.15; // 15 % of half-cycle duration = "at" the high
+
+  const risingDurMs  = highTsMs - low1TsMs;
+  const fallingDurMs = low2TsMs - highTsMs;
+
+  const posRising  = (nowMs - low1TsMs)  / risingDurMs;
+  const posFalling = (nowMs - highTsMs)   / fallingDurMs;
+
+  if (posRising >= 0 && posRising <= 1) {
+    if (posRising  <= LOW_BUF)       return 'low';
+    if (posRising  >= 1 - HIGH_BUF)  return 'high';
+    return 'rising';
+  }
+  if (posFalling >= 0 && posFalling <= 1) {
+    if (posFalling <= HIGH_BUF)      return 'high';
+    if (posFalling >= 1 - LOW_BUF)   return 'low';
+    return 'falling';
+  }
+
+  // Outside selected cycle boundaries — default to 'low'
+  return 'low';
+}
+
+/**
+ * Compute the full 12-point tide cycle model from a tide level series.
+ *
+ * Returns an object with:
+ *   lowTide1Time / lowTide1Height
+ *   risingTideTime / risingTideHeight     (midpoint between low1 and high)
+ *   highTideTime / highTideHeight
+ *   fallingTideTime / fallingTideHeight   (midpoint between high and low2)
+ *   lowTide2Time / lowTide2Height
+ *   currentTideState: 'low'|'rising'|'high'|'falling'
+ *   currentTideHeight
+ *
+ * Returns null (never throws) when the series is too short or no valid
+ * cycle is found, so callers can guard with a simple null-check.
+ *
+ * @param {Array<{tsMs: number, levelFt: number}>} levelSeries
+ * @param {number} nowMs
+ * @returns {object|null}
+ */
+function computeTideCycle(levelSeries, nowMs) {
+  if (!Array.isArray(levelSeries) || levelSeries.length < 6 || !Number.isFinite(nowMs)) {
+    return null;
+  }
+
+  const detected = detectTideHighsLows(levelSeries);
+  const cycle    = pickTideCycle(detected, nowMs);
+  if (!cycle) return null;
+
+  const { low1, high, low2 } = cycle;
+
+  // Rising-tide midpoint (halfway between low1 and high)
+  const risingMs  = Math.round((low1.tsMs + high.tsMs) / 2);
+  // Falling-tide midpoint (halfway between high and low2)
+  const fallingMs = Math.round((high.tsMs + low2.tsMs) / 2);
+
+  const risingTideHeight  = interpolateTideHeight(levelSeries, risingMs);
+  const fallingTideHeight = interpolateTideHeight(levelSeries, fallingMs);
+
+  const currentTideHeight = interpolateTideHeight(levelSeries, nowMs);
+  const currentTideState  = determineTideState(low1.tsMs, high.tsMs, low2.tsMs, nowMs);
+
+  return {
+    lowTide1Time:    new Date(low1.tsMs).toISOString(),
+    lowTide1Height:  low1.levelFt,
+    risingTideTime:  new Date(risingMs).toISOString(),
+    risingTideHeight,
+    highTideTime:    new Date(high.tsMs).toISOString(),
+    highTideHeight:  high.levelFt,
+    fallingTideTime: new Date(fallingMs).toISOString(),
+    fallingTideHeight,
+    lowTide2Time:    new Date(low2.tsMs).toISOString(),
+    lowTide2Height:  low2.levelFt,
+    currentTideState,
+    currentTideHeight,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Rain rollup helper
+// ---------------------------------------------------------------------------
+
+/**
+ * Compute rolling rain totals from an array of hourly weather items.
+ *
+ * Each item must have { tsMs, rainLast1hMM }.  Items beyond nowMs are excluded.
+ * Returns { rain3hMM, rain6hMM, rain12hMM, rain24hMM, rain48hMM, rain72hMM }.
+ *
+ * @param {{ hourlyItems: Array, nowMs: number }} opts
+ */
+function computeRainTotals({ hourlyItems = [], nowMs = Date.now() } = {}) {
+  if (!Array.isArray(hourlyItems) || !hourlyItems.length) {
+    return { rain3hMM: 0, rain6hMM: 0, rain12hMM: 0, rain24hMM: 0, rain48hMM: 0, rain72hMM: 0 };
+  }
+
+  function sumLastHours(hours) {
+    const cutoffMs = nowMs - hours * 3600000;
+    return hourlyItems
+      .filter((h) => Number.isFinite(h.tsMs) && h.tsMs <= nowMs && h.tsMs >= cutoffMs)
+      .reduce((sum, h) => sum + (Number.isFinite(h.rainLast1hMM) ? h.rainLast1hMM : 0), 0);
+  }
+
+  return {
+    rain3hMM:  round1(sumLastHours(3)),
+    rain6hMM:  round1(sumLastHours(6)),
+    rain12hMM: round1(sumLastHours(12)),
+    rain24hMM: round1(sumLastHours(24)),
+    rain48hMM: round1(sumLastHours(48)),
+    rain72hMM: round1(sumLastHours(72)),
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Visibility estimation
 // ---------------------------------------------------------------------------
@@ -189,12 +675,13 @@ function computeTidePhaseFromLevels(levelSeries, whenTs) {
  *  - swellFeet (null => unknown)
  *  - swellPeriodSec
  *  - currentKnots
- *  - tidePhase: 'rising' | 'falling' | 'slack' | 'unknown'
+ *  - tidePhase: 'rising' | 'falling' | 'slack' | 'unknown'  (legacy; tide preferred)
+ *  - tide: full tide cycle object from buildTideCycle (optional; preferred over tidePhase)
  *  - rainLast24hMM
  *  - turbidityNTU
  *  - cloudCoverPercent
  *  - hourLocal (0-23)
- *  - runoff: result of assessRunoffRisk (optional)
+ *  - runoff: result of estimateRunoffRisk/assessRunoffRisk (optional)
  */
 function estimateVisibility({
   windKnots = null,
@@ -202,6 +689,7 @@ function estimateVisibility({
   swellPeriodSec = 10,
   currentKnots = null,
   tidePhase = 'unknown',
+  tide = null,
   rainLast24hMM = null,
   turbidityNTU = null,
   cloudCoverPercent = null,
@@ -221,7 +709,7 @@ function estimateVisibility({
 
   // Don't assume ideal conditions when marine inputs are missing.
   // We still allow wind/defaults for wind/clouds/hour to avoid total failure.
-  if (missing.wind) windKnots = 6;           // light trades
+  if (missing.wind) windKnots = 6; // light trades
   if (missing.clouds) cloudCoverPercent = 40;
   if (missing.hour) hourLocal = 10;
   if (missing.current) currentKnots = 0.3; // small background
@@ -251,13 +739,13 @@ function estimateVisibility({
 
   if (!missing.swell && swellPeriodSec >= 13 && swellFeet >= 3) vis -= 3; // long-period surge
 
-  // Runoff penalty (from assessRunoffRisk) takes priority over raw rain penalty
+  // Runoff penalty (from runoff object) takes priority over raw rain penalty
   if (runoff && runoff.severity) {
     const runoffVisPenalty =
-      runoff.severity === 'extreme' ? 9 :
-      runoff.severity === 'high' ? 6 :
-      runoff.severity === 'moderate' ? 3 :
-      runoff.severity === 'low' ? 1 : 0;
+      runoff.severity === 'extreme' ? 12 :
+      runoff.severity === 'high' ? 9 :
+      runoff.severity === 'moderate' ? 5 :
+      runoff.severity === 'low' ? 2 : 0;
     if (runoffVisPenalty > 0) vis -= runoffVisPenalty;
   } else if (!missing.rain) {
     // Fallback to raw rain-based penalty when no runoff object provided
@@ -279,9 +767,25 @@ function estimateVisibility({
   if (currentKnots > 2.5) vis -= 6;
   else if (currentKnots > 1.5) vis -= 3;
 
-  // Tide phase (incoming tide usually helps)
-  if (tidePhase === 'rising') vis += 2;
-  if (tidePhase === 'falling') vis -= 2;
+  // Tide effects — prefer new tide model; fall back to legacy tidePhase
+  // Scoring: rising +2, high +1, falling −2, low −1
+  const effectiveTideState = (tide && tide.currentTideState) || tidePhase;
+  if (effectiveTideState === 'rising') vis += 2;
+  else if (effectiveTideState === 'high') vis += 1;
+  else if (effectiveTideState === 'falling') vis -= 2;
+  else if (effectiveTideState === 'low') vis -= 1;
+
+  // Interaction: falling tide + active runoff → extra turbidity penalty
+  if (effectiveTideState === 'falling' &&
+      runoff && ['moderate', 'high', 'extreme'].includes(runoff.severity)) {
+    vis -= 2;
+  }
+
+  // Interaction: rising tide + low/no runoff → slight bonus
+  if (effectiveTideState === 'rising' &&
+      runoff && ['none', 'low'].includes(runoff.severity)) {
+    vis += 1;
+  }
 
   // Clouds: heavy overcast + harsh sun both slightly reduce apparent vis
   if (cloudCoverPercent > 80) vis -= 1;
@@ -313,6 +817,323 @@ function estimateVisibility({
 }
 
 // ---------------------------------------------------------------------------
+// Runoff risk assessment (dedicated model)
+// ---------------------------------------------------------------------------
+
+function normalizeSpotContext(spotContext) {
+  const sc = spotContext || {};
+  const runoffSensitivity = (sc.runoffSensitivity || 'medium');
+  const runoffLagHours = Number.isFinite(sc.runoffLagHours) ? sc.runoffLagHours : null;
+  const runoffExposure = sc.runoffExposure || null;
+
+  // Back-compat aliases from current SPOTS
+  const nearStreamMouth = Boolean(sc.nearStreamMouth);
+  const nearDrainage = Boolean(sc.nearDrainage);
+
+  return {
+    runoffSensitivity: (runoffSensitivity === 'low' || runoffSensitivity === 'medium' || runoffSensitivity === 'high')
+      ? runoffSensitivity
+      : 'medium',
+    runoffLagHours,
+    runoffExposure: (runoffExposure === 'open-coast' || runoffExposure === 'bay' || runoffExposure === 'stream-mouth' || runoffExposure === 'harbor-adjacent' || runoffExposure === 'canal-adjacent')
+      ? runoffExposure
+      : null,
+    nearStreamMouth,
+    nearDrainage,
+  };
+}
+
+function severityFromScore(score) {
+  if (score >= 85) return 'extreme';
+  if (score >= 65) return 'high';
+  if (score >= 40) return 'moderate';
+  if (score >= 18) return 'low';
+  return 'none';
+}
+
+function computeRunoffPenaltyFromSeverity(sev) {
+  return (
+    sev === 'extreme' ? 65 :
+    sev === 'high' ? 48 :
+    sev === 'moderate' ? 30 :
+    sev === 'low' ? 12 : 0
+  );
+}
+
+/**
+ * Dedicated runoff scoring model.
+ *
+ * Goals:
+ * - treat runoff as both visibility/dive-quality + health/contamination
+ * - weight recent rain heavily but keep memory via 24/48/72h totals
+ * - incorporate spotContext runoffSensitivity and exposure
+ * - can set safeToEnter=false for high/extreme runoff
+ */
+function estimateRunoffRisk({
+  rain3hMM = null,
+  rain12hMM = null,
+  rain24hMM = null,
+  rain48hMM = null,
+  rain72hMM = null,
+  windKnots = null,
+  windDeg = null,
+  tidePhase = 'unknown',
+  spotContext = null,
+  communityRunoffSignal = null,
+} = {}) {
+  const sc = normalizeSpotContext(spotContext);
+
+  const r3 = Number.isFinite(rain3hMM) ? rain3hMM : null;
+  const r12 = Number.isFinite(rain12hMM) ? rain12hMM : null;
+  const r24 = Number.isFinite(rain24hMM) ? rain24hMM : null;
+  const r48 = Number.isFinite(rain48hMM) ? rain48hMM : null;
+  const r72 = Number.isFinite(rain72hMM) ? rain72hMM : null;
+
+  const drivers = [];
+
+  // Confidence starts with rainfall coverage.
+  const haveAny = [r3, r12, r24, r48, r72].some((v) => Number.isFinite(v));
+  let confidence = haveAny ? 0.75 : 0.35;
+
+  // Base score.
+  let score = 0;
+
+  // Recent rain (3h) – strongest driver
+  if (Number.isFinite(r3)) {
+    if (r3 >= 30) { score += 55; drivers.push(`very heavy rain last 3h (${round1(r3)}mm)`); }
+    else if (r3 >= 20) { score += 45; drivers.push(`heavy rain last 3h (${round1(r3)}mm)`); }
+    else if (r3 >= 12) { score += 33; drivers.push(`moderate-heavy rain last 3h (${round1(r3)}mm)`); }
+    else if (r3 >= 6)  { score += 22; drivers.push(`moderate rain last 3h (${round1(r3)}mm)`); }
+    else if (r3 >= 2)  { score += 12; drivers.push(`light-moderate rain last 3h (${round1(r3)}mm)`); }
+    else if (r3 > 0)   { score += 4; }
+  } else {
+    confidence -= 0.1;
+  }
+
+  // 12h – runoff persistence / watershed loading
+  if (Number.isFinite(r12)) {
+    if (r12 >= 80) { score += 30; drivers.push(`very high 12h total (${round1(r12)}mm)`); }
+    else if (r12 >= 50) { score += 22; drivers.push(`high 12h total (${round1(r12)}mm)`); }
+    else if (r12 >= 25) { score += 14; drivers.push(`elevated 12h total (${round1(r12)}mm)`); }
+    else if (r12 >= 10) { score += 8; }
+  } else {
+    confidence -= 0.05;
+  }
+
+  // 24h – cumulative load
+  if (Number.isFinite(r24)) {
+    if (r24 >= 120) { score += 24; drivers.push(`very high 24h total (${round1(r24)}mm)`); }
+    else if (r24 >= 80) { score += 18; drivers.push(`high 24h total (${round1(r24)}mm)`); }
+    else if (r24 >= 40) { score += 12; drivers.push(`elevated 24h total (${round1(r24)}mm)`); }
+    else if (r24 >= 15) { score += 6; }
+  } else {
+    confidence -= 0.05;
+  }
+
+  // 48h/72h – saturation and lingering tail
+  if (Number.isFinite(r48)) {
+    if (r48 >= 160) { score += 12; drivers.push(`watershed saturated (48h ${round1(r48)}mm)`); }
+    else if (r48 >= 90) { score += 8; }
+  } else {
+    confidence -= 0.03;
+  }
+
+  if (Number.isFinite(r72)) {
+    if (r72 >= 220) { score += 10; drivers.push(`extended wet period (72h ${round1(r72)}mm)`); }
+    else if (r72 >= 140) { score += 7; }
+    else if (r72 >= 80) { score += 4; }
+  } else {
+    confidence -= 0.03;
+  }
+
+  // Site multipliers (legacy + exposure)
+  let siteMult = 1.0;
+
+  if (sc.nearStreamMouth) { siteMult *= 1.35; drivers.push('near stream mouth / drainage plume'); }
+  if (sc.nearDrainage) { siteMult *= 1.2; drivers.push('near drainage outlet'); }
+
+  if (sc.runoffExposure === 'stream-mouth') { siteMult *= 1.25; drivers.push('stream-mouth exposure'); }
+  if (sc.runoffExposure === 'canal-adjacent') { siteMult *= 1.25; drivers.push('canal-adjacent exposure'); }
+  if (sc.runoffExposure === 'harbor-adjacent') { siteMult *= 1.15; drivers.push('harbor-adjacent exposure'); }
+  if (sc.runoffExposure === 'bay') { siteMult *= 1.15; drivers.push('bay circulation can trap dirty water'); }
+
+  // Sensitivity: affects both magnitude and persistence
+  const sensMult = sc.runoffSensitivity === 'high' ? 1.35 : sc.runoffSensitivity === 'low' ? 0.75 : 1.0;
+  score *= sensMult;
+
+  // Persistence / lag: high sensitivity stays dirty longer (even if 3h rain is low but 24-72h high)
+  // This is a soft boost that becomes important when r3 is not huge but r24/r48/r72 are.
+  const tail = (Number.isFinite(r24) ? r24 : 0) * 0.10 + (Number.isFinite(r48) ? r48 : 0) * 0.04 + (Number.isFinite(r72) ? r72 : 0) * 0.02;
+  if (tail > 0) {
+    const tailBoost = sc.runoffSensitivity === 'high' ? clamp(tail, 0, 18) : clamp(tail, 0, 12);
+    if (tailBoost >= 6) drivers.push('runoff may linger from recent rainfall');
+    score += tailBoost;
+  }
+
+  // Tide (optional): outgoing can worsen nearshore plumes; incoming can help slightly.
+  if (tidePhase === 'falling') {
+    score += 3;
+    drivers.push('falling tide can flush dirty water from nearshore');
+  } else if (tidePhase === 'rising') {
+    score -= 2;
+  } else if (tidePhase === 'unknown') {
+    // leave score, but reduce confidence
+    confidence -= 0.03;
+  }
+
+  // Wind: strong winds can spread plumes offshore + resuspend sediment; calm winds do NOT clear contamination.
+  if (Number.isFinite(windKnots)) {
+    if (windKnots >= 22) {
+      score += 6;
+      drivers.push(`strong winds may spread/resuspend runoff (${round1(windKnots)}kt)`);
+    } else if (windKnots >= 16) {
+      score += 3;
+    }
+  }
+
+  // Community runoff signal (optional): 0..1 or boolean-ish.
+  // If present and high, we boost severity + confidence.
+  if (communityRunoffSignal != null) {
+    if (communityRunoffSignal === true) {
+      score += 10;
+      confidence += 0.08;
+      drivers.push('community reports indicate dirty/brown water');
+    } else if (communityRunoffSignal === false) {
+      confidence += 0.03;
+    } else if (typeof communityRunoffSignal === 'number' && Number.isFinite(communityRunoffSignal)) {
+      const sig = clamp(communityRunoffSignal, 0, 1);
+      if (sig >= 0.7) {
+        score += 12;
+        confidence += 0.1;
+        drivers.push('community runoff signal is high');
+      } else if (sig >= 0.4) {
+        score += 6;
+        confidence += 0.05;
+        drivers.push('community runoff signal suggests degraded water quality');
+      } else {
+        confidence += 0.02;
+      }
+    } else {
+      // Unknown format, no-op
+      confidence -= 0.02;
+    }
+  } else {
+    confidence -= 0.03;
+  }
+
+  // Apply site mult at the end
+  score *= siteMult;
+
+  score = clamp(score, 0, 100);
+  confidence = clamp(confidence, 0.15, 0.95);
+
+  const severity = severityFromScore(score);
+  const scorePenalty = computeRunoffPenaltyFromSeverity(severity);
+
+  // Health risk mapping
+  const healthRisk =
+    severity === 'extreme' ? 'high' :
+    severity === 'high' ? 'high' :
+    severity === 'moderate' ? 'moderate' :
+    'low';
+
+  // Safe-to-enter mapping
+  const safeToEnter = !(severity === 'high' || severity === 'extreme');
+
+  // Water quality feel mapping
+  const waterQualityFeel =
+    severity === 'extreme' ? 'brown' :
+    severity === 'high' ? 'brown' :
+    severity === 'moderate' ? 'murky' :
+    severity === 'low' ? 'slightly-stained' :
+    'clean';
+
+  // Ensure we always have at least one driver when risk exists or confidence is low.
+  if (!drivers.length) {
+    if (!haveAny) drivers.push('rain history unavailable; runoff risk is uncertain');
+    else drivers.push('recent rainfall suggests possible runoff');
+  }
+
+  // If confidence is low and severity is none/low, keep language cautious via driver.
+  if (confidence < 0.5) {
+    drivers.push('runoff risk is hard to confirm with limited rainfall history');
+  }
+
+  return {
+    severity,
+    healthRisk,
+    safeToEnter,
+    waterQualityFeel,
+    scorePenalty,
+    drivers,
+    confidence: round2(confidence),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Backward-compatible wrapper
+// ---------------------------------------------------------------------------
+
+/**
+ * assessRunoffRisk (legacy-compatible wrapper) — keep shape used by index.js.
+ *
+ * Accepts rain6hMM/rain24hMM/rain72hMM plus optional finer-grained
+ * rain3hMM/rain12hMM/rain48hMM when available (e.g. from computeRainTotals).
+ * Also accepts optional tidePhase or tideCycle for improved runoff modelling.
+ */
+function assessRunoffRisk({
+  rain3hMM  = null,
+  rain6hMM  = 0,
+  rain12hMM = null,
+  rain24hMM = 0,
+  rain48hMM = null,
+  rain72hMM = 0,
+  spot      = null,
+  windDeg   = null,
+  windKnots = null,
+  tidePhase = null,
+  tideCycle = null,
+} = {}) {
+  const r3  = Number.isFinite(rain3hMM)  ? rain3hMM  : null;
+  const r6  = Number.isFinite(rain6hMM)  ? rain6hMM  : null;
+  const r12 = Number.isFinite(rain12hMM) ? rain12hMM : null;
+  const r24 = Number.isFinite(rain24hMM) ? rain24hMM : null;
+  const r48 = Number.isFinite(rain48hMM) ? rain48hMM : null;
+  const r72 = Number.isFinite(rain72hMM) ? rain72hMM : null;
+
+  // Fill in missing finer-grained values with conservative approximations
+  const est3hMM  = r3  ?? (r6  != null ? Math.min(r6,  r6  * 0.6) : null);
+  const est12hMM = r12 ?? (r24 != null && r6 != null ? Math.min(r24, r6 * 1.6) : (r24 != null ? Math.min(r24, r24 * 0.7) : null));
+  const est48hMM = r48 ?? (r72 != null && r24 != null ? Math.min(r72, r24 * 1.4) : (r72 != null ? Math.min(r72, r72 * 0.75) : null));
+
+  // Derive tide phase: prefer tideCycle.currentTideState, fall back to explicit tidePhase
+  const effectiveTidePhase = tideCycle?.currentTideState ?? tidePhase ?? 'unknown';
+
+  const out = estimateRunoffRisk({
+    rain3hMM:  est3hMM,
+    rain12hMM: est12hMM,
+    rain24hMM: r24,
+    rain48hMM: est48hMM,
+    rain72hMM: r72,
+    tidePhase: effectiveTidePhase,
+    windDeg,
+    windKnots,
+    spotContext: spot,
+    communityRunoffSignal: null,
+  });
+
+  // Reduce confidence slightly when finer-grained values were estimated, not measured.
+  if (!r3 || !r12 || !r48) {
+    out.confidence = round2(clamp(out.confidence - 0.08, 0.15, 0.95));
+  }
+  out.drivers = Array.isArray(out.drivers) && out.drivers.length
+    ? out.drivers
+    : ['recent rainfall suggests possible runoff'];
+
+  return out;
+}
+
+// ---------------------------------------------------------------------------
 // Snorkel rating (overall quality)
 // ---------------------------------------------------------------------------
 
@@ -321,6 +1142,12 @@ function estimateVisibility({
  *
  * Inputs are all optional—anything missing just falls back to defaults,
  * but missing critical marine inputs are penalized.
+ *
+ * Tide scoring (applied when tideCycle is provided, else falls back to tidePhase):
+ *   rising  → +5 base, +2 bonus on low-rain day  (modest positive)
+ *   high    → +3                                   (slight positive)
+ *   falling → -5, -5 extra when runoff is high/extreme (modest negative, stronger with runoff)
+ *   low     → -2                                   (neutral to slight negative)
  */
 function generateSnorkelRating({
   visibilityMeters = 15,
@@ -329,16 +1156,19 @@ function generateSnorkelRating({
   swellPeriodSec = 10,
   currentKnots = 0.5,
   tidePhase = 'unknown',
+  tide = null,
+  tideCycle = null, // from computeTideCycle; takes precedence over tidePhase
   waterTempC = null,
   lightningRisk = false,
   rainLast24hMM = 0,
   crowdOverride = null,
 
   // Future/optional: per-spot behaviour + meta
-  spotContext = null,          // { runoffSensitivity, maxCleanSwellFt, hardNoGoSwellFt, coast }
-  jellyfishWarning = false,    // from evaluateJellyfishAndNightDive
-  confidenceScore = 1,         // 0–1, from calling code if desired
-  runoff = null,               // from assessRunoffRisk
+  spotContext = null, // { runoffSensitivity, maxCleanSwellFt, hardNoGoSwellFt, coast }
+  jellyfishWarning = false, // from evaluateJellyfishAndNightDive
+  confidenceScore = 1, // 0–1, from calling code if desired
+  runoff = null, // from estimateRunoffRisk / assessRunoffRisk
+  runoffPenalty = null, // optional explicit penalty
 } = {}) {
   if (crowdOverride) {
     return {
@@ -351,7 +1181,7 @@ function generateSnorkelRating({
   }
 
   const {
-    runoffSensitivity = 'medium',   // 'low' | 'medium' | 'high'
+    runoffSensitivity = 'medium', // 'low' | 'medium' | 'high'
     maxCleanSwellFt = null,
     hardNoGoSwellFt = null,
     coast = null,
@@ -408,7 +1238,7 @@ function generateSnorkelRating({
   else if (currentKnots > 1.5) { score -= 15; details.current = -15; }
   else details.current = 0;
 
-  // Rain + runoff sensitivity
+  // Rain + runoff sensitivity (legacy minor penalty)
   let rainPenalty = 0;
   if (rainLast24hMM > 10) rainPenalty = 25;
   else if (rainLast24hMM > 5) rainPenalty = 15;
@@ -426,25 +1256,84 @@ function generateSnorkelRating({
     details.rain = 0;
   }
 
-  // Direct runoff assessment penalty (from assessRunoffRisk) overrides/supplements rain
-  if (runoff && typeof runoff.scorePenalty === 'number' && runoff.scorePenalty > 0) {
-    // Only apply when greater than existing rain penalty (avoid double-counting)
-    const extraPenalty = Math.max(0, runoff.scorePenalty - Math.abs(details.rain || 0));
+  // Dedicated runoff assessment penalty & caps
+  const effectiveRunoffPenalty =
+    (typeof runoffPenalty === 'number' && Number.isFinite(runoffPenalty))
+      ? runoffPenalty
+      : (runoff && typeof runoff.scorePenalty === 'number' ? runoff.scorePenalty : 0);
+
+  if (effectiveRunoffPenalty > 0) {
+    // Avoid excessive double-counting with rain penalty, but allow runoff to dominate.
+    const extraPenalty = Math.max(0, effectiveRunoffPenalty - Math.abs(details.rain || 0));
     if (extraPenalty > 0) {
       score -= extraPenalty;
       details.runoff = -extraPenalty;
-    }
-    // Hard no-go when runoff says unsafe
-    if (runoff.safeToEnter === false) {
-      score = Math.min(score, 30);
-      details.runoffNoGo = true;
+    } else {
+      details.runoff = details.runoff || 0;
     }
   }
 
-  // Tide
-  if (tidePhase === 'rising') { score += 5; details.tide = +5; }
-  else if (tidePhase === 'falling') { score -= 5; details.tide = -5; }
+  // Runoff safety / health caps MUST override calm conditions
+  if (runoff) {
+    if (runoff.safeToEnter === false) {
+      score = Math.min(score, 18);
+      details.runoffUnsafe = true;
+    }
+    if (runoff.healthRisk === 'high') {
+      score = Math.min(score, 25);
+      details.runoffHealthHigh = true;
+    } else if (runoff.healthRisk === 'moderate') {
+      score = Math.min(score, 55);
+      details.runoffHealthModerate = true;
+    }
+  }
+
+  // Tide effects — prefer new tide model; fall back to legacy tidePhase
+  // Scoring: rising +5, high +2, falling −5, low −2
+  const effectiveTideState = (tide && tide.currentTideState) || tidePhase;
+  if (effectiveTideState === 'rising')       { score += 5; details.tide = +5; }
+  else if (effectiveTideState === 'high')    { score += 2; details.tide = +2; }
+  else if (effectiveTideState === 'falling') { score -= 5; details.tide = -5; }
+  else if (effectiveTideState === 'low')     { score -= 2; details.tide = -2; }
   else details.tide = 0;
+  // Tide — prefer tideCycle.currentTideState, fall back to legacy tidePhase parameter.
+  // Scoring:
+  //   rising  → +5 base; +2 bonus on clean (low-rain) day
+  //   high    → +3  (slight positive)
+  //   falling → -5; extra -5 when runoff is high/extreme (stronger negative with runoff)
+  //   low     → -2  (neutral to slight negative)
+  const tideState = tideCycle?.currentTideState ?? tidePhase ?? 'unknown';
+  let tideDelta = 0;
+  if (tideState === 'rising') {
+    tideDelta = (rainLast24hMM != null && rainLast24hMM <= 5) ? 7 : 5;
+  } else if (tideState === 'high') {
+    tideDelta = 3;
+  } else if (tideState === 'falling') {
+    const runoffSev = runoff?.severity;
+    tideDelta = (runoffSev === 'high' || runoffSev === 'extreme') ? -10 : -5;
+  } else if (tideState === 'low') {
+    tideDelta = -2;
+  }
+  if (tideDelta !== 0) {
+    score += tideDelta;
+    details.tide = tideDelta;
+  } else {
+    details.tide = 0;
+  }
+
+  // Interaction: falling tide + active runoff → extra penalty
+  if (effectiveTideState === 'falling' &&
+      runoff && ['moderate', 'high', 'extreme'].includes(runoff.severity)) {
+    score -= 5;
+    details.tideFallingRunoff = -5;
+  }
+
+  // Interaction: rising tide + clean water → slight bonus
+  if (effectiveTideState === 'rising' &&
+      runoff && ['none', 'low'].includes(runoff.severity)) {
+    score += 3;
+    details.tideRisingClean = +3;
+  }
 
   // Water temp comfort
   if (waterTempC == null) {
@@ -523,6 +1412,17 @@ function generateSnorkelRating({
     rating = 'Great';
   }
 
+  // Runoff caps should be final: unsafe/high health risk cannot be Excellent/Great
+  if (runoff) {
+    if (runoff.safeToEnter === false) {
+      if (rating === 'Excellent' || rating === 'Great') rating = 'No-Go';
+    }
+    if (runoff.healthRisk === 'high') {
+      if (rating === 'Excellent' || rating === 'Great') rating = 'No-Go';
+      if (rating === 'Good') rating = 'Fair';
+    }
+  }
+
   const reasons = [];
   const add = (k, text) => { if (details[k]) reasons.push(`${text} (${details[k]})`); };
   add('vis', 'visibility');
@@ -534,7 +1434,10 @@ function generateSnorkelRating({
   add('period', 'period');
   add('current', 'current');
   add('rain', 'rain/runoff');
+  add('runoff', 'runoff');
   add('tide', 'tide');
+  add('tideFallingRunoff', 'falling tide + runoff');
+  add('tideRisingClean', 'rising tide, clean water');
   add('temp', 'water temp');
   add('tempMissing', 'missing water temperature');
   add('jellyfish', 'jellyfish risk');
@@ -543,6 +1446,8 @@ function generateSnorkelRating({
   add('northCoastCurrent', 'north-coast current sensitivity');
   add('southCoastSurge', 'south-coast surge');
   add('westCoastWindChop', 'west-coast wind chop');
+  if (details.runoffUnsafe) reasons.push('unsafe runoff');
+  if (details.runoffHealthHigh) reasons.push('high contamination risk');
   if (details.lightning) reasons.push('thunderstorms');
 
   const reason = `Score: ${score} — adjustments from ${reasons.length ? reasons.join(', ') : 'benign conditions'}.`;
@@ -552,15 +1457,44 @@ function generateSnorkelRating({
   if (currentKnots > 2) caution.push('Stronger currents today.');
   if (swellFeet != null && swellFeet > 5) caution.push('Rougher swell than usual.');
   if (windKnots > 15) caution.push('Choppy surface conditions.');
+  // Tide-related caution
+  if (effectiveTideState === 'falling' &&
+      runoff && ['moderate', 'high', 'extreme'].includes(runoff.severity)) {
+    caution.push('Falling tide carrying runoff – reduced visibility expected.');
+  }
   if (rainLast24hMM > 5) caution.push('Murky water due to runoff.');
+
+  // Runoff wording (must never be null)
+  if (runoff) {
+    const d = Array.isArray(runoff.drivers) ? runoff.drivers : [];
+    const driverTxt = d.length ? d.join('; ') : 'recent rainfall suggests possible runoff';
+
+    if (runoff.severity === 'extreme' || runoff.severity === 'high') {
+      caution.push('Heavy runoff likely. Brown water and contamination risk.');
+      caution.push(`Drivers: ${driverTxt}.`);
+    } else if (runoff.severity === 'moderate') {
+      caution.push('Runoff still lingering from recent rain. Conditions may look calm but water quality is poor.');
+      caution.push(`Drivers: ${driverTxt}.`);
+    } else if (runoff.severity === 'low') {
+      caution.push('Recent rainfall suggests possible dirty water even if surface conditions look calm.');
+      caution.push(`Drivers: ${driverTxt}.`);
+    } else if (runoff.confidence < 0.5) {
+      caution.push('Runoff risk is hard to confirm, but recent rain suggests possible dirty water.');
+      caution.push(`Drivers: ${driverTxt}.`);
+    }
+  } else if (rainLast24hMM > 5) {
+    caution.push('Murky water due to runoff.');
+  }
+
   if (jellyfishWarning) caution.push('High jellyfish risk – stings likely.');
-  if (runoff && runoff.safeToEnter === false) caution.push('Water quality unsafe due to runoff. Avoid entry.');
-  else if (runoff && runoff.severity === 'moderate') caution.push('Reduced water quality due to runoff.');
+
+  // Ensure never null, never empty string
+  const cautionNote = caution.length ? caution.join(' ') : 'No major hazards detected.';
 
   return {
     rating,
     reason,
-    cautionNote: caution.join(' '),
+    cautionNote,
     score,
     details,
   };
@@ -613,102 +1547,6 @@ function estimateCurrentFromWind(windKnots = 0) {
 }
 
 // ---------------------------------------------------------------------------
-// Runoff risk assessment
-// ---------------------------------------------------------------------------
-
-/**
- * Assess runoff/water-quality risk based on recent rainfall totals and spot context.
- *
- * @param {object} opts
- * @param {number} opts.rain6hMM   - rainfall total last 6 hours (mm)
- * @param {number} opts.rain24hMM  - rainfall total last 24 hours (mm)
- * @param {number} opts.rain72hMM  - rainfall total last 72 hours (mm)
- * @param {object} opts.spot       - spot config (runoffSensitivity, nearStreamMouth, nearDrainage)
- *
- * @returns {{ severity, healthRisk, safeToEnter, waterQualityFeel, scorePenalty, drivers, confidence }}
- */
-function assessRunoffRisk({
-  rain6hMM = 0,
-  rain24hMM = 0,
-  rain72hMM = 0,
-  spot = null,
-} = {}) {
-  const {
-    runoffSensitivity = 'medium',
-    nearStreamMouth = false,
-    nearDrainage = false,
-  } = spot || {};
-
-  const sensitivityFactor =
-    runoffSensitivity === 'high' ? 1.5 :
-    runoffSensitivity === 'low'  ? 0.7 : 1.0;
-
-  const drivers = [];
-  let rawScore = 0;
-
-  // 6h precip – most acute indicator
-  if (rain6hMM > 20)      { rawScore += 50; drivers.push(`heavy rain last 6h (${rain6hMM}mm)`); }
-  else if (rain6hMM > 10) { rawScore += 30; drivers.push(`moderate rain last 6h (${rain6hMM}mm)`); }
-  else if (rain6hMM > 5)  { rawScore += 15; drivers.push(`light rain last 6h (${rain6hMM}mm)`); }
-  else if (rain6hMM > 1)  { rawScore += 5; }
-
-  // 24h precip – cumulative load
-  if (rain24hMM > 40)      { rawScore += 25; drivers.push(`high 24h total (${rain24hMM}mm)`); }
-  else if (rain24hMM > 20) { rawScore += 15; drivers.push(`elevated 24h total (${rain24hMM}mm)`); }
-  else if (rain24hMM > 10) { rawScore += 8; }
-
-  // 72h precip – soil saturation / extended runoff tail
-  if (rain72hMM > 80)      { rawScore += 15; drivers.push(`saturated ground – 72h total ${rain72hMM}mm`); }
-  else if (rain72hMM > 40) { rawScore += 8; }
-
-  // Site multipliers
-  if (nearStreamMouth) { rawScore *= 1.3; drivers.push('near stream mouth'); }
-  if (nearDrainage)    { rawScore *= 1.2; drivers.push('near drainage outlet'); }
-
-  const adjustedScore = rawScore * sensitivityFactor;
-
-  let severity, safeToEnter, healthRisk, waterQualityFeel, scorePenalty;
-
-  if (adjustedScore >= 80) {
-    severity        = 'extreme';
-    safeToEnter     = false;
-    healthRisk      = 'High risk of waterborne illness. Avoid entering the water.';
-    waterQualityFeel = 'Brown/murky water with debris likely. Strongly avoid.';
-    scorePenalty    = 60;
-  } else if (adjustedScore >= 50) {
-    severity        = 'high';
-    safeToEnter     = false;
-    healthRisk      = 'Elevated bacterial and pollution risk. Not recommended.';
-    waterQualityFeel = 'Murky water likely with reduced visibility and runoff contaminants.';
-    scorePenalty    = 40;
-  } else if (adjustedScore >= 25) {
-    severity        = 'moderate';
-    safeToEnter     = true;
-    healthRisk      = 'Moderate runoff risk. Avoid if you have open wounds or are immunocompromised.';
-    waterQualityFeel = 'Water quality slightly degraded. Use caution.';
-    scorePenalty    = 20;
-  } else if (adjustedScore >= 8) {
-    severity        = 'low';
-    safeToEnter     = true;
-    healthRisk      = 'Minor runoff detected. Generally safe for healthy individuals.';
-    waterQualityFeel = 'Water quality mostly normal with minor sediment possible.';
-    scorePenalty    = 8;
-  } else {
-    severity        = 'none';
-    safeToEnter     = true;
-    healthRisk      = 'No significant runoff risk detected.';
-    waterQualityFeel = 'Water quality normal.';
-    scorePenalty    = 0;
-  }
-
-  // Confidence: full when all three rollup values are available finite numbers
-  const hasAll = Number.isFinite(rain6hMM) && Number.isFinite(rain24hMM) && Number.isFinite(rain72hMM);
-  const confidence = hasAll ? 0.8 : 0.5;
-
-  return { severity, healthRisk, safeToEnter, waterQualityFeel, scorePenalty, drivers, confidence };
-}
-
-// ---------------------------------------------------------------------------
 // Exports
 // ---------------------------------------------------------------------------
 
@@ -718,7 +1556,21 @@ module.exports = {
   evaluateJellyfishAndNightDive,
   estimateVisibility,
   generateSnorkelRating,
+  estimateRunoffRisk,
   assessRunoffRisk,
+  computeRainTotals,
+
+  // Tide cycle helpers
+  findLocalExtrema,
+  interpolateLevelAt,
+  chooseBestCycle,
+  buildTideCycle,
+  // Tide cycle model
+  detectTideHighsLows,
+  interpolateTideHeight,
+  pickTideCycle,
+  determineTideState,
+  computeTideCycle,
 
   // Extras we may use elsewhere
   diurnalProfile,
