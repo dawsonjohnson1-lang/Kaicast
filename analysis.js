@@ -149,52 +149,6 @@ async function fetchMoonPhase(dateUtc = new Date(), lat = 21.3, lon = -157.8, tz
 }
 
 // ---------------------------------------------------------------------------
-// Rain rollup helper
-// ---------------------------------------------------------------------------
-
-/**
- * Compute rolling rainfall totals from an array of normalized hourly items.
- *
- * Returns rain3hMM, rain6hMM, rain12hMM, rain24hMM, rain48hMM, rain72hMM
- * relative to nowMs. Any bucket where no hourly items exist returns 0.
- *
- * @param {{ hourlyItems: Array, nowMs: number }} opts
- * @returns {{ rain3hMM, rain6hMM, rain12hMM, rain24hMM, rain48hMM, rain72hMM }}
- */
-function computeRainTotals({ hourlyItems, nowMs }) {
-  const MS3H  =  3 * 3600000;
-  const MS6H  =  6 * 3600000;
-  const MS12H = 12 * 3600000;
-  const MS24H = 24 * 3600000;
-  const MS48H = 48 * 3600000;
-  const MS72H = 72 * 3600000;
-
-  let r3 = 0, r6 = 0, r12 = 0, r24 = 0, r48 = 0, r72 = 0;
-
-  for (const item of (hourlyItems || [])) {
-    if (!item || !Number.isFinite(item.tsMs)) continue;
-    const age = nowMs - item.tsMs;
-    if (age < 0 || age > MS72H) continue;
-    const mm = Number.isFinite(item.rainLast1hMM) ? item.rainLast1hMM : 0;
-    if (age <= MS3H)  r3  += mm;
-    if (age <= MS6H)  r6  += mm;
-    if (age <= MS12H) r12 += mm;
-    if (age <= MS24H) r24 += mm;
-    if (age <= MS48H) r48 += mm;
-    r72 += mm;
-  }
-
-  return {
-    rain3hMM:  Math.round(r3  * 10) / 10,
-    rain6hMM:  Math.round(r6  * 10) / 10,
-    rain12hMM: Math.round(r12 * 10) / 10,
-    rain24hMM: Math.round(r24 * 10) / 10,
-    rain48hMM: Math.round(r48 * 10) / 10,
-    rain72hMM: Math.round(r72 * 10) / 10,
-  };
-}
-
-// ---------------------------------------------------------------------------
 // Tide helpers
 // ---------------------------------------------------------------------------
 
@@ -338,6 +292,7 @@ function chooseBestCycle(events, nowMs, preferWindowMs = null) {
   );
   if (containing.length === 1) return containing[0];
   if (containing.length > 1) {
+    // Pick the one where nowMs is most central (ratio closest to 0.5)
     return containing.reduce((best, c) => {
       const span = c.low2.tsMs - c.low1.tsMs;
       const ratio = span ? (nowMs - c.low1.tsMs) / span : 0.5;
@@ -387,15 +342,19 @@ function buildTideCycle({ levelSeries, nowMs, tz, preferWindowMs = null }) {
 
   const { low1, high, low2 } = cycle;
 
+  // Midpoint timestamps (arithmetic mean between event times)
   const risingTsMs  = Math.round((low1.tsMs + high.tsMs) / 2);
   const fallingTsMs = Math.round((high.tsMs + low2.tsMs) / 2);
 
+  // Midpoint heights (linear: average of the two bounding extrema)
   const risingHt  = (low1.levelFt + high.levelFt) / 2;
   const fallingHt = (high.levelFt + low2.levelFt) / 2;
 
+  // Current height by linear interpolation from the full series
   const rawHeight = interpolateLevelAt(levelSeries, nowMs);
   const currentTideHeight = rawHeight != null ? Math.round(rawHeight * 100) / 100 : null;
 
+  // Current state classification with 30-minute tolerance around each extremum
   const TOLERANCE_MS = 30 * 60000;
   let currentTideState;
   if (nowMs <= low1.tsMs + TOLERANCE_MS || nowMs >= low2.tsMs - TOLERANCE_MS) {
@@ -781,7 +740,7 @@ function estimateVisibility({
     vis -= 2;
   }
 
-  // Interaction: rising tide + low/no runoff → slight bonus
+  // Interaction: rising tide + low/no runoff → slight bonus (clear water flushing)
   if (effectiveTideState === 'rising' &&
       runoff && ['none', 'low'].includes(runoff.severity)) {
     vis += 1;
@@ -1288,21 +1247,13 @@ function generateSnorkelRating({
     }
   }
 
-  // Tide effects — prefer new tide model; fall back to legacy tidePhase
-  // Scoring: rising +5, high +2, falling −5, low −2
-  const effectiveTideState = (tide && tide.currentTideState) || tidePhase;
-  if (effectiveTideState === 'rising')       { score += 5; details.tide = +5; }
-  else if (effectiveTideState === 'high')    { score += 2; details.tide = +2; }
-  else if (effectiveTideState === 'falling') { score -= 5; details.tide = -5; }
-  else if (effectiveTideState === 'low')     { score -= 2; details.tide = -2; }
-  else details.tide = 0;
   // Tide — prefer tideCycle.currentTideState, fall back to legacy tidePhase parameter.
   // Scoring:
   //   rising  → +5 base; +2 bonus on clean (low-rain) day
   //   high    → +3  (slight positive)
   //   falling → -5; extra -5 when runoff is high/extreme (stronger negative with runoff)
   //   low     → -2  (neutral to slight negative)
-  const tideState = tideCycle?.currentTideState ?? tidePhase ?? 'unknown';
+  const tideState = tideCycle?.currentTideState ?? (tide && tide.currentTideState) ?? tidePhase ?? 'unknown';
   let tideDelta = 0;
   if (tideState === 'rising') {
     tideDelta = (rainLast24hMM != null && rainLast24hMM <= 5) ? 7 : 5;
@@ -1321,15 +1272,15 @@ function generateSnorkelRating({
     details.tide = 0;
   }
 
-  // Interaction: falling tide + active runoff → extra penalty
-  if (effectiveTideState === 'falling' &&
+  // Interaction: falling tide + active runoff → extra penalty (dirty water flushing in)
+  if (tideState === 'falling' &&
       runoff && ['moderate', 'high', 'extreme'].includes(runoff.severity)) {
     score -= 5;
     details.tideFallingRunoff = -5;
   }
 
-  // Interaction: rising tide + clean water → slight bonus
-  if (effectiveTideState === 'rising' &&
+  // Interaction: rising tide + clean water → slight bonus (clear ocean water incoming)
+  if (tideState === 'rising' &&
       runoff && ['none', 'low'].includes(runoff.severity)) {
     score += 3;
     details.tideRisingClean = +3;
@@ -1457,12 +1408,12 @@ function generateSnorkelRating({
   if (currentKnots > 2) caution.push('Stronger currents today.');
   if (swellFeet != null && swellFeet > 5) caution.push('Rougher swell than usual.');
   if (windKnots > 15) caution.push('Choppy surface conditions.');
-  // Tide-related caution
-  if (effectiveTideState === 'falling' &&
+
+  // Tide-related caution notes
+  if (tideState === 'falling' &&
       runoff && ['moderate', 'high', 'extreme'].includes(runoff.severity)) {
     caution.push('Falling tide carrying runoff – reduced visibility expected.');
   }
-  if (rainLast24hMM > 5) caution.push('Murky water due to runoff.');
 
   // Runoff wording (must never be null)
   if (runoff) {
