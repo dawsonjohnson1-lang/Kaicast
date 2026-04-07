@@ -246,16 +246,6 @@ function toWindowFieldData({ report, window, spotItemId = null }) {
   const label = `${report.spotName || report.spot} ${start}`;
 
   const out = {
-    name: `${report.spotName || report.spot} ${start}`,
-    slug: windowSlug,
-    spot_id: report.spot,
-
-    start: window.startIso ?? undefined,
-    end: window.endIso ?? undefined,
-    start_iso: window.startIso ?? undefined,
-    end_iso: window.endIso ?? undefined,
-
-    // reference field aliases — include all known slugs so schema filtering keeps whichever exists
     name:           label,
     label,
     slug:           windowSlug,
@@ -302,34 +292,6 @@ function toWindowFieldData({ report, window, spotItemId = null }) {
   putNum(out, "moon-illumination",   moon.moonIllumination);
   putNum(out, "days-since-full-moon", moon.daysSinceFullMoon);
 
-  // jelly/night dive — always send as boolean true/false (not strings)
-  if (typeof jelly.jellyfishWarning === "boolean") out["jellyfish-warning"] = jelly.jellyfishWarning;
-  if (typeof jelly.nightDivingOk === "boolean") out["night-diving-ok"] = jelly.nightDivingOk;
-  putStr(out, "night-dive-note", jelly.nightDiveNote);
-
-  // label — from window or report meta
-  const labelVal = window.label ?? report.label;
-  if (labelVal != null && String(labelVal).trim() !== "") out["label"] = String(labelVal);
-
-  // sources-json — from window or report meta
-  const sourcesVal = window.sourcesJson ?? window.sources ?? report.sourcesJson ?? report.sources;
-  if (sourcesVal !== undefined) {
-    out["sources-json"] = typeof sourcesVal === "string" ? sourcesVal : JSON.stringify(sourcesVal ?? {});
-  }
-
-  // qc-flags — from window or report meta
-  const qcVal = window.qcFlags ?? window.qc_flags ?? report.qcFlags ?? report.qc_flags;
-  if (qcVal !== undefined) {
-    out["qc-flags"] = typeof qcVal === "string" ? qcVal : JSON.stringify(qcVal ?? []);
-  }
-
-  // saved-at-hour-key — from window or report meta
-  const hourKeyVal = window.savedAtHourKey ?? window.saved_at_hour_key ?? report.savedAtHourKey ?? report.saved_at_hour_key;
-  if (hourKeyVal != null && String(hourKeyVal).trim() !== "") out["saved-at-hour-key"] = String(hourKeyVal);
-
-  // metadata/debug
-  out.window_json = JSON.stringify(window ?? {});
-  out.generated_at = String(report.generatedAt ?? "");
   // Jellyfish / night dive
   putBool(out, "jellyfish-warning", jelly.jellyfishWarning);
   putBool(out, "night-diving-ok",   jelly.nightDivingOk);
@@ -467,12 +429,6 @@ async function pushAllReportsToWebflow({ reports }) {
       const spotItemId = spotItem?.id || null;
 
       const rawFieldData = toWindowFieldData({ report, window: w, spotItemId });
-      const fieldData = filterFieldDataForCollection(rawFieldData, windowsAllowed);
-
-      const slug = fieldData.slug || rawFieldData.slug;
-      const existing = windowBySlug.get(slug);
-
-      // Log keys kept and keys dropped by schema filtering to help debug missing fields
       const fieldData    = filterFieldDataForCollection(rawFieldData, windowsAllowed);
       const slug         = fieldData.slug || rawFieldData.slug;
       const existing     = windowBySlug.get(slug);
@@ -483,8 +439,6 @@ async function pushAllReportsToWebflow({ reports }) {
       const droppedKeys  = rawKeys.filter((k) => !filteredKeys.includes(k));
       logger.info("Webflow window payload", {
         slug,
-        keys: filteredKeys,
-        droppedKeys,
         kept:    filteredKeys.length,
         dropped: droppedKeys.length,
         sample: {
