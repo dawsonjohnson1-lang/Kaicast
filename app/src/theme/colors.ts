@@ -2,7 +2,7 @@ export const colors = {
   // Backgrounds
   bg: '#04070d',
   bgElevated: '#0b1220',
-  card: '#101826',
+  card: '#0f1623',
   cardAlt: '#0e1622',
   border: '#1a2333',
   divider: '#1f2937',
@@ -19,13 +19,14 @@ export const colors = {
   accentSoft: 'rgba(26,184,255,0.14)',
 
   // Status
-  excellent: '#16c47f',
-  excellentSoft: 'rgba(22,196,127,0.16)',
-  good: '#7bd16a',
+  excellent: '#1fd17a',
+  excellentSoft: 'rgba(31,209,122,0.14)',
+  good: '#f5b041',
+  goodSoft: 'rgba(245,176,65,0.16)',
   warn: '#f5b041',
   warnSoft: 'rgba(245,176,65,0.18)',
-  hazard: '#ef5350',
-  hazardSoft: 'rgba(239,83,80,0.16)',
+  hazard: '#d96338',
+  hazardSoft: 'rgba(217,99,56,0.16)',
 
   // Tags
   scuba: '#7c3aed',

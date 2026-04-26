@@ -26,14 +26,14 @@ export function DiveReportCard({ report, onPress }: Props) {
 
       <View style={styles.tags}>
         <Tag variant="excellent" />
-        <Tag variant={typeTag} />
+        <Tag variant={typeTag} outline />
       </View>
 
       <View style={styles.statsRow}>
-        <Stat label={`${report.depthFt} FT`} sub="DEPTH" />
+        <Stat label={`${report.depthFt} FT`} sub="VISIBILITY" />
         <Stat label={report.current} sub="CURRENT" />
-        <Stat label={report.surface} sub="SURFACE" />
-        <Stat label={report.visibility} sub="VIS" />
+        <Stat label={report.surface} sub="ENTRY" />
+        <Stat label={report.visibility} sub="WATER QUALITY" />
       </View>
 
       <Text style={styles.body}>{report.comment}</Text>

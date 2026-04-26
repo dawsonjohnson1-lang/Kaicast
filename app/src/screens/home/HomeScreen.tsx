@@ -19,18 +19,22 @@ export function HomeScreen() {
   const nav = useNavigation<DashboardNav>();
   const { user } = useAuth();
 
-  const initials = (user?.name ?? 'D').split(' ').map((s) => s[0]).join('').slice(0, 2);
+  const displayName = user?.name ?? 'Dawson';
+  const initials = displayName.split(' ').map((s) => s[0]).join('').slice(0, 2);
 
   return (
     <Screen>
       <AppBar
-        userName={(user?.name ?? 'Diver').toUpperCase()}
+        userName={displayName.toUpperCase()}
         userLocation="OAHU, HAWAII"
         initials={initials}
         onAvatarPress={() => nav.navigate('Profile')}
       />
 
-      <FeaturedSpotCard spot={{ ...featuredSpot, depthFt: 56, windMph: 1, current: 'STRONG' }} onPress={() => nav.navigate('SpotDetail', { spotId: featuredSpot.id })} />
+      <FeaturedSpotCard
+        spot={{ ...featuredSpot, visibilityFt: 56, windMph: 1, current: 'STRONG', airTempF: 79 }}
+        onPress={() => nav.navigate('SpotDetail', { spotId: featuredSpot.id })}
+      />
 
       <View style={{ height: spacing.xxl }} />
       <SectionTitle title="Favorite Spots" action="See all" onActionPress={() => nav.navigate('Saved')} />

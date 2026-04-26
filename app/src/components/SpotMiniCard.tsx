@@ -3,6 +3,7 @@ import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors, radius, spacing, typography } from '@/theme';
 import { Tag } from './Tag';
+import { Icon } from './Icon';
 import type { Spot } from '@/types';
 
 type Props = {
@@ -12,7 +13,9 @@ type Props = {
 };
 
 export function SpotMiniCard({ spot, onPress, width }: Props) {
-  const ratingTag = spot.rating === 'excellent' ? 'excellent' : spot.rating === 'good' ? 'good' : spot.rating === 'caution' ? 'warn' : 'hazard';
+  const ratingTag =
+    spot.rating === 'excellent' ? 'excellent' : spot.rating === 'good' ? 'good' : spot.rating === 'caution' ? 'warn' : 'hazard';
+  const ratingLabel = spot.rating === 'excellent' ? 'GREAT' : spot.rating === 'good' ? 'GOOD' : spot.rating === 'caution' ? 'CAUTION' : 'HAZARD';
   return (
     <Pressable onPress={onPress} style={[styles.card, width ? { width } : null]}>
       <LinearGradient
@@ -21,14 +24,19 @@ export function SpotMiniCard({ spot, onPress, width }: Props) {
         end={{ x: 1, y: 1 }}
         style={styles.cover}
       >
-        <View style={styles.tagWrap}>
-          <Tag variant={ratingTag} dot />
+        <View style={styles.iconBubble}>
+          <Icon name="compass-arrow" size={16} color={colors.textPrimary} />
         </View>
       </LinearGradient>
       <View style={styles.body}>
-        <Text style={typography.h3} numberOfLines={1}>{spot.name}</Text>
+        <View style={styles.tagWrap}>
+          <Tag variant={ratingTag} label={ratingLabel} dot />
+        </View>
+        <Text style={[typography.h3, { marginTop: spacing.sm }]} numberOfLines={1}>
+          {spot.name}
+        </Text>
         <Text style={styles.region}>{spot.region}</Text>
-        <Text style={styles.vis}>{spot.visibilityFt ?? '–'} FT VIS</Text>
+        <Text style={styles.vis}>{spot.visibilityFt ?? '–'} ft vis</Text>
       </View>
     </Pressable>
   );
@@ -43,10 +51,19 @@ const styles = StyleSheet.create({
   cover: {
     height: 110,
     padding: spacing.md,
+    alignItems: 'flex-end',
     justifyContent: 'flex-start',
+  },
+  iconBubble: {
+    width: 28,
+    height: 28,
+    borderRadius: 999,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   tagWrap: { alignSelf: 'flex-start' },
   body: { padding: spacing.md },
   region: { ...typography.bodySm, color: colors.textSecondary, marginTop: 2 },
-  vis: { ...typography.caption, color: colors.textPrimary, marginTop: 6 },
+  vis: { ...typography.bodySm, color: colors.accent, marginTop: 6, fontWeight: '600' },
 });

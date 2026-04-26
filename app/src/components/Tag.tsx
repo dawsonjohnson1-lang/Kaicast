@@ -14,16 +14,16 @@ export type TagVariant =
   | 'live'
   | 'neutral';
 
-const palette: Record<TagVariant, { bg: string; fg: string; label?: string }> = {
-  excellent: { bg: colors.excellentSoft, fg: colors.excellent, label: 'Excellent' },
-  good: { bg: colors.excellentSoft, fg: colors.good, label: 'Good' },
-  warn: { bg: colors.warnSoft, fg: colors.warn, label: 'Caution' },
-  hazard: { bg: colors.hazardSoft, fg: colors.hazard, label: 'Hazard' },
-  scuba: { bg: colors.scubaSoft, fg: colors.scuba, label: 'Scuba' },
-  freedive: { bg: colors.freediveSoft, fg: colors.freedive, label: 'Freediving' },
-  spear: { bg: colors.spearSoft, fg: colors.spear, label: 'Spearfishing' },
-  snorkel: { bg: colors.snorkelSoft, fg: colors.snorkel, label: 'Snorkel' },
-  live: { bg: colors.excellentSoft, fg: colors.excellent, label: 'Live' },
+const palette: Record<TagVariant, { bg: string; fg: string; label?: string; outline?: boolean }> = {
+  excellent: { bg: colors.excellentSoft, fg: colors.excellent, label: 'EXCELLENT' },
+  good: { bg: colors.goodSoft, fg: colors.good, label: 'GOOD' },
+  warn: { bg: colors.warnSoft, fg: colors.warn, label: 'CAUTION' },
+  hazard: { bg: colors.hazardSoft, fg: colors.hazard, label: 'HAZARD' },
+  scuba: { bg: colors.scubaSoft, fg: colors.scuba, label: 'SCUBA', outline: true },
+  freedive: { bg: 'transparent', fg: colors.freedive, label: 'FREEDIVING', outline: true },
+  spear: { bg: colors.spearSoft, fg: colors.spear, label: 'SPEARFISHING' },
+  snorkel: { bg: colors.snorkelSoft, fg: colors.snorkel, label: 'SNORKEL' },
+  live: { bg: colors.excellentSoft, fg: colors.excellent, label: 'LIVE' },
   neutral: { bg: colors.bgElevated, fg: colors.textSecondary },
 };
 
@@ -32,12 +32,22 @@ type Props = {
   label?: string;
   style?: ViewStyle;
   dot?: boolean;
+  outline?: boolean;
 };
 
-export function Tag({ variant, label, style, dot }: Props) {
+export function Tag({ variant, label, style, dot, outline }: Props) {
   const p = palette[variant];
+  const useOutline = outline ?? p.outline ?? false;
   return (
-    <View style={[styles.tag, { backgroundColor: p.bg }, style]}>
+    <View
+      style={[
+        styles.tag,
+        useOutline
+          ? { backgroundColor: 'transparent', borderWidth: 1, borderColor: p.fg }
+          : { backgroundColor: p.bg },
+        style,
+      ]}
+    >
       {dot && <View style={[styles.dot, { backgroundColor: p.fg }]} />}
       <Text style={[styles.text, { color: p.fg }]}>{label ?? p.label ?? ''}</Text>
     </View>

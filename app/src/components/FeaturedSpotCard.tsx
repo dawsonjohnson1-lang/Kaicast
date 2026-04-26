@@ -7,7 +7,7 @@ import { Icon } from './Icon';
 import type { Spot } from '@/types';
 
 type Props = {
-  spot: Spot & { airTempF?: number; depthFt?: number; windMph?: number; current?: string };
+  spot: Spot & { airTempF?: number; visibilityFt?: number; windMph?: number; current?: string };
   onPress?: () => void;
 };
 
@@ -21,7 +21,7 @@ export function FeaturedSpotCard({ spot, onPress }: Props) {
         style={StyleSheet.absoluteFill}
       />
       <LinearGradient
-        colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.55)']}
+        colors={['rgba(0,0,0,0.05)', 'rgba(0,0,0,0.55)']}
         style={StyleSheet.absoluteFill}
       />
       <View style={styles.topRow}>
@@ -32,13 +32,18 @@ export function FeaturedSpotCard({ spot, onPress }: Props) {
       <Text style={styles.region}>{spot.region}</Text>
 
       <View style={styles.statsRow}>
-        <Stat label="DEPTH" value={`${spot.depthFt ?? 56} FT`} />
+        <Stat label="VISIBILITY" value={`${spot.visibilityFt ?? 56} FT`} />
         <Stat label="WIND" value={`${spot.windMph ?? 1} MPH`} />
         <Stat label="CURRENT" value={spot.current ?? 'STRONG'} />
       </View>
 
       <View style={styles.bar}>
-        <View style={[styles.barFill, { width: '82%' }]} />
+        <LinearGradient
+          colors={[colors.excellent, colors.accent]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={[styles.barFill, { width: '82%' }]}
+        />
       </View>
       <View style={styles.bottomRow}>
         <Text style={styles.live}>EXCELLENT · LIVE</Text>
@@ -53,8 +58,8 @@ export function FeaturedSpotCard({ spot, onPress }: Props) {
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <View>
-      <Text style={typography.metricSm}>{value}</Text>
-      <Text style={[typography.caption, { marginTop: 2 }]}>{label}</Text>
+      <Text style={typography.caption}>{label}</Text>
+      <Text style={[typography.metricSm, { marginTop: 4 }]}>{value}</Text>
     </View>
   );
 }
@@ -64,7 +69,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.xl,
     overflow: 'hidden',
     padding: spacing.xl,
-    minHeight: 220,
+    minHeight: 240,
     justifyContent: 'flex-end',
   },
   topRow: {
@@ -86,19 +91,19 @@ const styles = StyleSheet.create({
   },
   statsRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    gap: spacing.xxl,
     marginTop: spacing.lg,
-    marginBottom: spacing.md,
+    marginBottom: spacing.lg,
   },
   bar: {
     height: 6,
-    backgroundColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: 'rgba(255,255,255,0.14)',
     borderRadius: 999,
     overflow: 'hidden',
   },
   barFill: {
     height: '100%',
-    backgroundColor: colors.accent,
+    borderRadius: 999,
   },
   bottomRow: {
     flexDirection: 'row',
@@ -108,13 +113,13 @@ const styles = StyleSheet.create({
   },
   live: {
     ...typography.caption,
-    color: colors.accent,
+    color: colors.excellent,
   },
   fab: {
     width: 36,
     height: 36,
     borderRadius: 999,
-    backgroundColor: colors.accent,
+    backgroundColor: 'rgba(255,255,255,0.14)',
     alignItems: 'center',
     justifyContent: 'center',
   },
