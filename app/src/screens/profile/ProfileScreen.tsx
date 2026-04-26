@@ -13,6 +13,7 @@ import { DiveReportCard } from '@/components/DiveReportCard';
 import { Logo } from '@/components/Logo';
 import { colors, radius, spacing, typography } from '@/theme';
 import { useAuth } from '@/hooks/useAuth';
+import { useProfilePhoto } from '@/hooks/useProfilePhoto';
 import { diveReports, favoriteSpots } from '@/api/mockData';
 import type { RootNav } from '@/navigation/types';
 
@@ -22,6 +23,7 @@ const TABS: Tab[] = ['Dashboard', 'Dive Reports', 'Friends', 'Settings'];
 export function ProfileScreen() {
   const nav = useNavigation<RootNav>();
   const { user, signOut } = useAuth();
+  const photo = useProfilePhoto();
   const [tab, setTab] = useState<Tab>('Dashboard');
   const initials = (user?.name ?? 'D').split(' ').map((s) => s[0]).join('').slice(0, 2);
 
@@ -42,7 +44,7 @@ export function ProfileScreen() {
       </View>
 
       <View style={styles.profileHead}>
-        <Avatar initials={initials} size={96} ring />
+        <Avatar initials={initials} size={96} ring imageSource={photo} />
         <Text style={[typography.h1, { marginTop: spacing.md }]}>{user?.name ?? 'Diver'}</Text>
         <Text style={styles.handle}>@{user?.handle ?? 'diver'} · KaiCast Forecaster</Text>
       </View>

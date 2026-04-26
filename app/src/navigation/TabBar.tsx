@@ -26,7 +26,7 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
       <View style={styles.row}>
         {state.routes.map((route, i) => {
           const focused = state.index === i;
-          const color = focused ? colors.accent : colors.textSecondary;
+          const color = focused ? colors.accent : 'rgba(255,255,255,0.55)';
           return (
             <Pressable
               key={route.key}
@@ -37,6 +37,7 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
               style={styles.item}
               hitSlop={6}
             >
+              <View style={[styles.indicator, focused && styles.indicatorActive]} />
               <RadarIcon variant={VARIANTS[route.name]} size={26} color={color} />
               <Text style={[styles.label, { color }]}>{LABELS[route.name]}</Text>
             </Pressable>
@@ -49,25 +50,33 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
 
 const styles = StyleSheet.create({
   bar: {
-    backgroundColor: colors.bg,
+    backgroundColor: '#000000',
     borderTopWidth: 1,
-    borderTopColor: colors.border,
-    paddingTop: spacing.md,
+    borderTopColor: 'rgba(255,255,255,0.06)',
   },
   row: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    alignItems: 'center',
+    alignItems: 'flex-start',
   },
   item: {
     alignItems: 'center',
     gap: 4,
-    paddingVertical: 4,
     flex: 1,
+    paddingBottom: 6,
+  },
+  indicator: {
+    width: 38,
+    height: 2,
+    backgroundColor: 'transparent',
+    marginBottom: 8,
+  },
+  indicatorActive: {
+    backgroundColor: colors.accent,
   },
   label: {
     fontSize: 9,
     fontWeight: '700',
-    letterSpacing: 1.0,
+    letterSpacing: 1.2,
   },
 });
