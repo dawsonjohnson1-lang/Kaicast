@@ -1,27 +1,23 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, Image, ImageSourcePropType, StyleSheet } from 'react-native';
 import { colors, radius, spacing, typography } from '@/theme';
-import { Icon, IconName } from './Icon';
 import type { ConditionAlert } from '@/types';
 
-const config: Record<ConditionAlert['severity'], { fg: string; bubbleBg: string; cardBg: string; icon: IconName }> = {
+const config: Record<ConditionAlert['severity'], { bubbleBg: string; cardBg: string; icon: ImageSourcePropType }> = {
   info: {
-    fg: colors.excellent,
     bubbleBg: 'rgba(31,209,122,0.18)',
     cardBg: 'rgba(31,209,122,0.06)',
-    icon: 'wave',
+    icon: require('../../assets/alert-green-curl.png'),
   },
   warn: {
-    fg: colors.accent,
     bubbleBg: 'rgba(26,184,255,0.18)',
     cardBg: 'rgba(26,184,255,0.06)',
-    icon: 'wave',
+    icon: require('../../assets/alert-blue-swirl.png'),
   },
   hazard: {
-    fg: colors.hazard,
     bubbleBg: 'rgba(217,99,56,0.20)',
     cardBg: 'rgba(217,99,56,0.08)',
-    icon: 'globe',
+    icon: require('../../assets/alert-orange-globe.png'),
   },
 };
 
@@ -30,7 +26,7 @@ export function AlertRow({ alert }: { alert: ConditionAlert }) {
   return (
     <View style={[styles.row, { backgroundColor: c.cardBg }]}>
       <View style={[styles.iconWrap, { backgroundColor: c.bubbleBg }]}>
-        <Icon name={c.icon} size={20} color={c.fg} />
+        <Image source={c.icon} style={styles.iconImg} resizeMode="contain" />
       </View>
       <View style={styles.body}>
         <Text style={typography.h3}>{alert.spotName}</Text>
@@ -54,6 +50,10 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  iconImg: {
+    width: 24,
+    height: 24,
   },
   body: { flex: 1 },
   msg: { ...typography.bodySm, color: colors.textSecondary, marginTop: 2 },

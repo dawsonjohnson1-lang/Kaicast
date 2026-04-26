@@ -16,7 +16,7 @@ export function DiveReportCard({ report, onPress }: Props) {
   return (
     <Pressable onPress={onPress} style={styles.card}>
       <View style={styles.head}>
-        <Avatar initials={report.authorInitials} size={42} />
+        <Avatar initials={report.authorInitials} size={42} vibrant />
         <View style={{ flex: 1 }}>
           <Text style={typography.h3}>{report.authorName}</Text>
           <Text style={styles.meta}>at {report.spotName}</Text>
