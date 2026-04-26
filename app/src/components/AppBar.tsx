@@ -8,10 +8,11 @@ type Props = {
   userName?: string;
   userLocation?: string;
   initials?: string;
+  photoUri?: string;
   onAvatarPress?: () => void;
 };
 
-export function AppBar({ userName = 'Dawson', userLocation = 'OAHU, HAWAII', initials = 'D', onAvatarPress }: Props) {
+export function AppBar({ userName = 'Dawson', userLocation = 'OAHU, HAWAII', initials = 'D', photoUri, onAvatarPress }: Props) {
   return (
     <View style={styles.row}>
       <Logo size={28} showWordmark color={colors.textPrimary} />
@@ -20,7 +21,7 @@ export function AppBar({ userName = 'Dawson', userLocation = 'OAHU, HAWAII', ini
           <Text style={styles.name}>{userName}</Text>
           <Text style={styles.loc}>{userLocation}</Text>
         </View>
-        <Avatar initials={initials} size={42} ring />
+        <Avatar initials={initials} size={42} ring imageUri={photoUri} />
       </Pressable>
     </View>
   );

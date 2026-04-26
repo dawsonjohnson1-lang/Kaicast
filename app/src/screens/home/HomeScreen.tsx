@@ -28,6 +28,7 @@ export function HomeScreen() {
         userName={displayName.toUpperCase()}
         userLocation="OAHU, HAWAII"
         initials={initials}
+        photoUri={user?.photoUrl}
         onAvatarPress={() => nav.navigate('Profile')}
       />
 

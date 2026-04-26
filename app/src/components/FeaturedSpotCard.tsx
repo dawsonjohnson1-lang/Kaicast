@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, Pressable, Image, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors, radius, spacing, typography } from '@/theme';
 import { Tag } from './Tag';
@@ -12,16 +12,21 @@ type Props = {
 };
 
 export function FeaturedSpotCard({ spot, onPress }: Props) {
+  const photo = spot.imageSource ?? (spot.imageUrl ? { uri: spot.imageUrl } : undefined);
   return (
     <Pressable onPress={onPress} style={styles.wrap}>
+      {photo ? (
+        <Image source={photo} style={StyleSheet.absoluteFill} resizeMode="cover" />
+      ) : (
+        <LinearGradient
+          colors={[spot.coverColor ?? '#0c4a5c', '#04111e']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
+      )}
       <LinearGradient
-        colors={[spot.coverColor ?? '#0c4a5c', '#04111e']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={StyleSheet.absoluteFill}
-      />
-      <LinearGradient
-        colors={['rgba(0,0,0,0.05)', 'rgba(0,0,0,0.55)']}
+        colors={['rgba(0,0,0,0.15)', 'rgba(0,0,0,0.75)']}
         style={StyleSheet.absoluteFill}
       />
       <View style={styles.topRow}>

@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, Pressable, Image, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors, radius, spacing, typography } from '@/theme';
 import { Tag } from './Tag';
@@ -16,18 +16,24 @@ export function SpotMiniCard({ spot, onPress, width }: Props) {
   const ratingTag =
     spot.rating === 'excellent' ? 'excellent' : spot.rating === 'good' ? 'good' : spot.rating === 'caution' ? 'warn' : 'hazard';
   const ratingLabel = spot.rating === 'excellent' ? 'GREAT' : spot.rating === 'good' ? 'GOOD' : spot.rating === 'caution' ? 'CAUTION' : 'HAZARD';
+  const photo = spot.imageSource ?? (spot.imageUrl ? { uri: spot.imageUrl } : undefined);
   return (
     <Pressable onPress={onPress} style={[styles.card, width ? { width } : null]}>
-      <LinearGradient
-        colors={[spot.coverColor ?? '#0c4a5c', '#04111e']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.cover}
-      >
+      <View style={styles.cover}>
+        {photo ? (
+          <Image source={photo} style={StyleSheet.absoluteFill} resizeMode="cover" />
+        ) : (
+          <LinearGradient
+            colors={[spot.coverColor ?? '#0c4a5c', '#04111e']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={StyleSheet.absoluteFill}
+          />
+        )}
         <View style={styles.iconBubble}>
           <Icon name="compass-arrow" size={16} color={colors.textPrimary} />
         </View>
-      </LinearGradient>
+      </View>
       <View style={styles.body}>
         <View style={styles.tagWrap}>
           <Tag variant={ratingTag} label={ratingLabel} dot />
@@ -53,6 +59,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     alignItems: 'flex-end',
     justifyContent: 'flex-start',
+    overflow: 'hidden',
   },
   iconBubble: {
     width: 28,
