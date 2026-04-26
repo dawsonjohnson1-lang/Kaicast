@@ -1,0 +1,31 @@
+{
+  "expo": {
+    "name": "KaiCast",
+    "slug": "kaicast",
+    "scheme": "kaicast",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": false,
+    "splash": {
+      "resizeMode": "cover",
+      "backgroundColor": "#04070d"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.kaicast.app"
+    },
+    "android": {
+      "package": "com.kaicast.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#04070d"
+      }
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "extra": {
+      "kaicastApiBase": "https://us-central1-kaicast.cloudfunctions.net"
+    }
+  }
+}
