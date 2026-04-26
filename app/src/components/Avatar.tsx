@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, Image, StyleSheet, ViewStyle } from 'react-native';
+import { View, Text, Image, ImageSourcePropType, StyleSheet, ViewStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors } from '@/theme';
 
@@ -9,6 +9,7 @@ type Props = {
   ring?: boolean;
   style?: ViewStyle;
   imageUri?: string;
+  imageSource?: ImageSourcePropType;
   vibrant?: boolean;
 };
 
@@ -22,7 +23,7 @@ const vibrantGradients: [string, string][] = [
 
 const mutedGradient: [string, string] = ['#1c2738', '#0f1623'];
 
-export function Avatar({ initials = '?', size = 44, ring, style, imageUri, vibrant = false }: Props) {
+export function Avatar({ initials = '?', size = 44, ring, style, imageUri, imageSource, vibrant = false }: Props) {
   const wrapStyle = {
     width: size + (ring ? 4 : 0),
     height: size + (ring ? 4 : 0),
@@ -32,11 +33,12 @@ export function Avatar({ initials = '?', size = 44, ring, style, imageUri, vibra
   };
 
   const inner = { width: size, height: size, borderRadius: 999 };
+  const photo = imageUri ? { uri: imageUri } : imageSource;
 
-  if (imageUri) {
+  if (photo) {
     return (
       <View style={[wrapStyle, style]}>
-        <Image source={{ uri: imageUri }} style={inner} />
+        <Image source={photo} style={inner} />
       </View>
     );
   }

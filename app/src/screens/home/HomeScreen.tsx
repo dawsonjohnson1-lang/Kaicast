@@ -29,6 +29,7 @@ export function HomeScreen() {
         userLocation="OAHU, HAWAII"
         initials={initials}
         photoUri={user?.photoUrl}
+        photoSource={require('../../../assets/dawson.png')}
         onAvatarPress={() => nav.navigate('Profile')}
       />
 

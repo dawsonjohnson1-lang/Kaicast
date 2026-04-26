@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, Pressable, ImageSourcePropType, StyleSheet } from 'react-native';
 import { colors, spacing, typography } from '@/theme';
 import { Logo } from './Logo';
 import { Avatar } from './Avatar';
@@ -9,10 +9,18 @@ type Props = {
   userLocation?: string;
   initials?: string;
   photoUri?: string;
+  photoSource?: ImageSourcePropType;
   onAvatarPress?: () => void;
 };
 
-export function AppBar({ userName = 'Dawson', userLocation = 'OAHU, HAWAII', initials = 'D', photoUri, onAvatarPress }: Props) {
+export function AppBar({
+  userName = 'Dawson',
+  userLocation = 'OAHU, HAWAII',
+  initials = 'D',
+  photoUri,
+  photoSource,
+  onAvatarPress,
+}: Props) {
   return (
     <View style={styles.row}>
       <Logo size={28} showWordmark color={colors.textPrimary} />
@@ -21,7 +29,7 @@ export function AppBar({ userName = 'Dawson', userLocation = 'OAHU, HAWAII', ini
           <Text style={styles.name}>{userName}</Text>
           <Text style={styles.loc}>{userLocation}</Text>
         </View>
-        <Avatar initials={initials} size={42} ring imageUri={photoUri} />
+        <Avatar initials={initials} size={42} ring imageUri={photoUri} imageSource={photoSource} />
       </Pressable>
     </View>
   );
