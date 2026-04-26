@@ -12,28 +12,32 @@ type Props = {
 };
 
 export function DiveReportCard({ report, onPress }: Props) {
-  const typeTag = report.diveType === 'scuba' ? 'scuba' : report.diveType === 'freedive' ? 'freedive' : report.diveType === 'spear' ? 'spear' : 'snorkel';
+  const typeTag =
+    report.diveType === 'scuba' ? 'scuba' :
+    report.diveType === 'freedive' ? 'freedive' :
+    report.diveType === 'spear' ? 'spear' : 'snorkel';
+
   return (
     <Pressable onPress={onPress} style={styles.card}>
       <View style={styles.head}>
-        <Avatar initials={report.authorInitials} size={42} />
+        <Avatar initials={report.authorInitials} size={38} />
         <View style={{ flex: 1 }}>
-          <Text style={typography.h3}>{report.authorName}</Text>
+          <Text style={styles.author}>{report.authorName}</Text>
           <Text style={styles.meta}>at {report.spotName}</Text>
         </View>
         <Text style={styles.time}>{report.postedAgo}</Text>
       </View>
 
       <View style={styles.tags}>
-        <Tag variant="excellent" />
+        <Tag variant="excellent" label="EXCELLENT" />
         <Tag variant={typeTag} />
       </View>
 
       <View style={styles.statsRow}>
-        <Stat label={`${report.depthFt} FT`} sub="DEPTH" />
-        <Stat label={report.current} sub="CURRENT" />
-        <Stat label={report.surface} sub="SURFACE" />
-        <Stat label={report.visibility} sub="VIS" />
+        <Stat label="VISIBILITY" value={`${report.depthFt} FT`} />
+        <Stat label="CURRENT" value={report.current} />
+        <Stat label="ENTERY" value={report.surface} />
+        <Stat label="WATER QUALITY" value={report.visibility} />
       </View>
 
       <Text style={styles.body}>{report.comment}</Text>
@@ -52,11 +56,11 @@ export function DiveReportCard({ report, onPress }: Props) {
   );
 }
 
-function Stat({ label, sub }: { label: string; sub: string }) {
+function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <View>
+    <View style={{ flex: 1 }}>
+      <Text style={styles.statValue}>{value}</Text>
       <Text style={styles.statLabel}>{label}</Text>
-      <Text style={styles.statSub}>{sub}</Text>
     </View>
   );
 }
@@ -67,16 +71,19 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     padding: spacing.lg,
     gap: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  head: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  meta: { ...typography.bodySm, color: colors.textSecondary, marginTop: 2 },
+  head: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  author: { ...typography.h3, fontSize: 15 },
+  meta: { ...typography.bodySm, color: colors.textSecondary, marginTop: 1 },
   time: { ...typography.bodySm, color: colors.textMuted },
   tags: { flexDirection: 'row', gap: spacing.sm },
-  statsRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  statLabel: { ...typography.h3, fontSize: 14 },
-  statSub: { ...typography.caption, color: colors.textMuted, marginTop: 2 },
-  body: { ...typography.body, color: colors.textPrimary, lineHeight: 20 },
-  actions: { flexDirection: 'row', gap: spacing.xl, marginTop: 4 },
+  statsRow: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.sm },
+  statValue: { ...typography.h3, fontSize: 15, fontWeight: '800' },
+  statLabel: { fontSize: 9, color: colors.textMuted, marginTop: 3, letterSpacing: 0.8, fontWeight: '600' },
+  body: { ...typography.body, color: colors.textPrimary, lineHeight: 20, fontSize: 14 },
+  actions: { flexDirection: 'row', gap: spacing.xl, marginTop: 2 },
   action: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   actionText: { ...typography.bodySm, color: colors.textSecondary },
 });

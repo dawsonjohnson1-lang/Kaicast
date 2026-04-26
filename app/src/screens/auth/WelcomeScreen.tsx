@@ -26,7 +26,7 @@ export function WelcomeScreen() {
         style={StyleSheet.absoluteFill}
       />
       <View style={styles.center}>
-        <Logo size={70} showWordmark color="#fff" />
+        <Logo size={50} showWordmark />
         <View style={{ height: spacing.xxl }} />
         <Text style={typography.display}>Read the ocean.</Text>
         <Text style={[typography.display, { color: colors.accent }]}>Dive smarter.</Text>

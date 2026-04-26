@@ -3,6 +3,7 @@ import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { colors, spacing, typography } from '@/theme';
 import { Logo } from './Logo';
 import { Avatar } from './Avatar';
+import { useProfilePhoto } from '@/hooks/useProfilePhoto';
 
 type Props = {
   userName?: string;
@@ -11,16 +12,22 @@ type Props = {
   onAvatarPress?: () => void;
 };
 
-export function AppBar({ userName = 'Dawson', userLocation = 'OAHU, HAWAII', initials = 'D', onAvatarPress }: Props) {
+export function AppBar({
+  userName = 'Dawson',
+  userLocation = 'OAHU, HAWAII',
+  initials = 'D',
+  onAvatarPress,
+}: Props) {
+  const photo = useProfilePhoto();
   return (
     <View style={styles.row}>
-      <Logo size={28} showWordmark color={colors.textPrimary} />
+      <Logo size={26} showWordmark />
       <Pressable style={styles.right} onPress={onAvatarPress}>
-        <View style={{ alignItems: 'flex-end' }}>
+        <Avatar initials={initials} size={36} imageSource={photo} />
+        <View>
           <Text style={styles.name}>{userName}</Text>
           <Text style={styles.loc}>{userLocation}</Text>
         </View>
-        <Avatar initials={initials} size={42} ring />
       </Pressable>
     </View>
   );
@@ -33,7 +40,17 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: spacing.xl,
   },
-  right: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  name: { ...typography.h3, fontSize: 16 },
-  loc: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
+  right: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  name: {
+    ...typography.h3,
+    fontSize: 14,
+    letterSpacing: 0.4,
+  },
+  loc: {
+    fontSize: 9,
+    fontWeight: '600',
+    color: colors.textMuted,
+    letterSpacing: 1.1,
+    marginTop: 1,
+  },
 });

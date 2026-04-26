@@ -1,6 +1,6 @@
 import type { ConditionAlert, DiveReport, Spot, SpotReport, TidePoint } from '@/types';
 
-export const featuredSpot: Spot = {
+export const featuredSpot: Spot & { airTempF?: number; windMph?: number; current?: string; progress?: number } = {
   id: 'electric-beach',
   name: 'Electric Beach',
   region: 'Oahu · 4.2 mi away',
@@ -9,6 +9,10 @@ export const featuredSpot: Spot = {
   visibilityFt: 56,
   rating: 'excellent',
   coverColor: '#0a3a4d',
+  airTempF: 79,
+  windMph: 1,
+  current: 'STRONG',
+  progress: 0.7,
 };
 
 export const favoriteSpots: Spot[] = [

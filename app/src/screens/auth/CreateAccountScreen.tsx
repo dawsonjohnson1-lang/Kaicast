@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, Image, StyleSheet, Pressable } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
@@ -9,8 +9,12 @@ import { Logo } from '@/components/Logo';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { Card } from '@/components/Card';
+import { Icon } from '@/components/Icon';
 import { colors, spacing, typography } from '@/theme';
 import type { AuthStackParamList } from '@/navigation/types';
+
+const googleIcon = require('@/assets/social-google.png');
+const facebookIcon = require('@/assets/social-facebook.png');
 
 export function CreateAccountScreen() {
   const nav = useNavigation<NativeStackNavigationProp<AuthStackParamList>>();
@@ -22,17 +26,17 @@ export function CreateAccountScreen() {
     <Screen contentStyle={{ paddingTop: 0 }}>
       <Header onBack={() => nav.goBack()} transparent />
       <View style={styles.logo}>
-        <Logo size={56} showWordmark color={colors.textPrimary} />
+        <Logo size={40} showWordmark />
       </View>
 
       <Text style={[typography.h1, styles.heading]}>Sign Up{'\n'}Account</Text>
       <Text style={styles.sub}>Create your KaiCast account to get started.</Text>
 
       <View style={styles.socialRow}>
-        <SocialButton label="Facebook" color="#1877F2" />
-        <SocialButton label="Google" color="#ea4335" />
+        <SocialButton label="Facebook" iconSource={facebookIcon} />
+        <SocialButton label="Google" iconSource={googleIcon} />
       </View>
-      <SocialButton label="Apple" color="#fff" full />
+      <SocialButton label="Apple" iconKind="apple" full />
 
       <View style={{ height: spacing.xxl }} />
 
@@ -54,15 +58,33 @@ export function CreateAccountScreen() {
   );
 }
 
-function SocialButton({ label, color, full }: { label: string; color: string; full?: boolean }) {
+function SocialButton({
+  label,
+  iconSource,
+  iconKind,
+  full,
+}: {
+  label: string;
+  iconSource?: any;
+  iconKind?: 'apple';
+  full?: boolean;
+}) {
   return (
     <Card padding={0} style={[styles.social, full ? { flex: 0, alignSelf: 'stretch' } : { flex: 1 }] as any}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, gap: 10 }}>
-        <View style={[styles.dot, { backgroundColor: color }]} />
+        {iconKind === 'apple' ? (
+          <AppleGlyph />
+        ) : (
+          <Image source={iconSource} style={{ width: 18, height: 18 }} resizeMode="contain" />
+        )}
         <Text style={{ ...typography.body, fontWeight: '600' }}>{label}</Text>
       </View>
     </Card>
   );
+}
+
+function AppleGlyph() {
+  return <Icon name="star-filled" size={18} color="#fff" />;
 }
 
 const styles = StyleSheet.create({

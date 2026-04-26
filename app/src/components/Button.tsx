@@ -82,8 +82,8 @@ const variants: Record<Variant, { container: ViewStyle; text: { color: string; f
     text: { color: colors.textSecondary, fontWeight: '600' },
   },
   outline: {
-    container: { backgroundColor: 'transparent', borderWidth: 1.5, borderColor: colors.accent },
-    text: { color: colors.accent, fontWeight: '700' },
+    container: { backgroundColor: 'transparent', borderWidth: 1.2, borderColor: colors.accent },
+    text: { color: colors.accent, fontWeight: '600' },
   },
   danger: {
     container: { backgroundColor: 'transparent' },

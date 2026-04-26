@@ -32,7 +32,7 @@ export function LoadingScreen() {
       />
       <View style={styles.haze} />
       <Animated.View style={{ opacity: fade, transform: [{ scale }] }}>
-        <Logo size={120} showWordmark={false} color="#ffffff" />
+        <Logo size={120} showWordmark={false} />
       </Animated.View>
     </View>
   );
