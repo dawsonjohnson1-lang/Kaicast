@@ -28,7 +28,7 @@ export function ProfileScreen() {
   return (
     <Screen contentStyle={{ paddingTop: 0 }}>
       <Header
-        rightSlot={<Logo size={28} showWordmark color={colors.textPrimary} />}
+        rightSlot={<Logo size={22} showWordmark />}
         onBack={nav.canGoBack() ? () => nav.goBack() : undefined}
       />
 

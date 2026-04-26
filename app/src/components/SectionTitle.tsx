@@ -11,7 +11,7 @@ type Props = {
 export function SectionTitle({ title, action, onActionPress }: Props) {
   return (
     <View style={styles.row}>
-      <Text style={typography.h3}>{title}</Text>
+      <Text style={styles.title}>{title}</Text>
       {action && (
         <Pressable onPress={onActionPress} hitSlop={8}>
           <Text style={styles.action}>{action}</Text>
@@ -28,9 +28,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: spacing.md,
   },
+  title: {
+    ...typography.h2,
+    fontSize: 22,
+    fontWeight: '800',
+  },
   action: {
     color: colors.accent,
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '600',
   },
 });
