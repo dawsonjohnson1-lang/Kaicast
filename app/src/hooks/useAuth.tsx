@@ -9,6 +9,7 @@ export type User = {
   handle: string;
   email: string;
   homeSpot: string;
+  photoUrl?: string;
 };
 
 type AuthContextValue = {

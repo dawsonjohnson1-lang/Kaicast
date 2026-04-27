@@ -1,3 +1,5 @@
+import type { ImageSourcePropType } from 'react-native';
+
 export type DiveType = 'scuba' | 'freedive' | 'spear' | 'snorkel';
 
 export type ConditionRating = 'excellent' | 'good' | 'caution' | 'hazard';
@@ -11,6 +13,7 @@ export type Spot = {
   visibilityFt?: number;
   rating?: ConditionRating;
   imageUrl?: string;
+  imageSource?: ImageSourcePropType;
   coverColor?: string;
 };
 

@@ -1,4 +1,10 @@
 export const colors = {
+  // Backgrounds
+  bg: '#161616',
+  bgElevated: '#1c1c1e',
+  card: '#1f1f22',
+  cardAlt: '#1a1a1c',
+  border: '#1a2333',
   // Backgrounds — sampled from Figma HOMEPAGE
   bg: '#000000',
   bgElevated: '#0d141d',
@@ -18,6 +24,15 @@ export const colors = {
   accentDeep: '#0a8fd8',
   accentSoft: 'rgba(26,184,255,0.14)',
 
+  // Status
+  excellent: '#1fd17a',
+  excellentSoft: 'rgba(31,209,122,0.14)',
+  good: '#f5b041',
+  goodSoft: 'rgba(245,176,65,0.16)',
+  warn: '#f5b041',
+  warnSoft: 'rgba(245,176,65,0.18)',
+  hazard: '#d96338',
+  hazardSoft: 'rgba(217,99,56,0.16)',
   // Status — Figma palette
   excellent: '#22d36b',
   excellentSoft: 'rgba(34,211,107,0.14)',

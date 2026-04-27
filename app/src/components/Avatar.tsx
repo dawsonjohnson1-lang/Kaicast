@@ -1,4 +1,5 @@
 import React from 'react';
+import { View, Text, Image, ImageSourcePropType, StyleSheet, ViewStyle } from 'react-native';
 import { View, Text, Image, StyleSheet, ViewStyle, ImageSourcePropType } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors } from '@/theme';
@@ -8,17 +9,24 @@ type Props = {
   size?: number;
   ring?: boolean;
   style?: ViewStyle;
+  imageUri?: string;
+  imageSource?: ImageSourcePropType;
+  vibrant?: boolean;
   imageSource?: ImageSourcePropType;
 };
 
-const gradients: [string, string][] = [
+const vibrantGradients: [string, string][] = [
   ['#1ab8ff', '#0a8fd8'],
   ['#7c3aed', '#22d3ee'],
   ['#16c47f', '#0a8fd8'],
-  ['#facc15', '#f97316'],
-  ['#ef5350', '#7c3aed'],
+  ['#22d3ee', '#0a8fd8'],
+  ['#7c3aed', '#1ab8ff'],
 ];
 
+const mutedGradient: [string, string] = ['#1c2738', '#0f1623'];
+
+export function Avatar({ initials = '?', size = 44, ring, style, imageUri, imageSource, vibrant = false }: Props) {
+  const wrapStyle = {
 export function Avatar({ initials = '?', size = 44, ring, style, imageSource }: Props) {
   const seed = initials.charCodeAt(0) % gradients.length;
   const g = gradients[seed];
@@ -28,6 +36,33 @@ export function Avatar({ initials = '?', size = 44, ring, style, imageSource }: 
     borderRadius: 999,
     padding: ring ? 2 : 0,
     backgroundColor: ring ? colors.accent : 'transparent',
+  };
+
+  const inner = { width: size, height: size, borderRadius: 999 };
+  const photo = imageUri ? { uri: imageUri } : imageSource;
+
+  if (photo) {
+    return (
+      <View style={[wrapStyle, style]}>
+        <Image source={photo} style={inner} />
+      </View>
+    );
+  }
+
+  const g = vibrant
+    ? vibrantGradients[initials.charCodeAt(0) % vibrantGradients.length]
+    : mutedGradient;
+
+  return (
+    <View style={[wrapStyle, style]}>
+      <LinearGradient
+        colors={g}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={[styles.avatar, inner]}
+      >
+        <Text style={[styles.text, { fontSize: size * 0.4 }]}>{initials.toUpperCase()}</Text>
+      </LinearGradient>
     overflow: 'hidden',
   };
 

@@ -25,7 +25,7 @@ export function Screen({
       <StatusBar barStyle="light-content" />
       {scroll ? (
         <ScrollView
-          contentContainerStyle={[{ padding, paddingBottom: spacing.xxxl }, contentStyle as ViewStyle]}
+          contentContainerStyle={[{ padding, paddingBottom: 120 }, contentStyle as ViewStyle]}
           showsVerticalScrollIndicator={false}
         >
           {children}

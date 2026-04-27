@@ -19,18 +19,22 @@ export function HomeScreen() {
   const nav = useNavigation<DashboardNav>();
   const { user } = useAuth();
 
-  const initials = (user?.name ?? 'D').split(' ').map((s) => s[0]).join('').slice(0, 2);
+  const displayName = user?.name ?? 'Dawson';
+  const initials = displayName.split(' ').map((s) => s[0]).join('').slice(0, 2);
 
   return (
     <Screen>
       <AppBar
-        userName={(user?.name ?? 'Diver').toUpperCase()}
+        userName={displayName.toUpperCase()}
         userLocation="OAHU, HAWAII"
         initials={initials}
+        photoUri={user?.photoUrl}
+        photoSource={require('../../../assets/dawson.png')}
         onAvatarPress={() => nav.navigate('Profile')}
       />
 
       <FeaturedSpotCard
+        spot={{ ...featuredSpot, visibilityFt: 56, windMph: 1, current: 'STRONG', airTempF: 79 }}
         spot={featuredSpot}
         onPress={() => nav.navigate('SpotDetail', { spotId: featuredSpot.id })}
       />
