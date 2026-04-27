@@ -19,6 +19,20 @@ const config: Record<ConditionAlert['severity'], { bubbleBg: string; cardBg: str
     cardBg: 'rgba(217,99,56,0.08)',
     icon: require('../../assets/alert-orange-globe.png'),
   },
+import { View, Text, Image, StyleSheet, ImageSourcePropType } from 'react-native';
+import { colors, radius, spacing, typography } from '@/theme';
+import type { ConditionAlert } from '@/types';
+
+const alertInfo = require('@/assets/alert-info.png');
+const alertWarn = require('@/assets/alert-warn.png');
+const alertHazard = require('@/assets/alert-hazard.png');
+
+type Severity = ConditionAlert['severity'];
+
+const config: Record<Severity, { fg: string; bg: string; ring: string; icon: ImageSourcePropType }> = {
+  info:   { fg: colors.accent,    bg: 'rgba(26,184,255,0.08)',  ring: 'rgba(26,184,255,0.18)',  icon: alertInfo },
+  warn:   { fg: colors.excellent, bg: 'rgba(34,211,107,0.07)',  ring: 'rgba(34,211,107,0.18)',  icon: alertWarn },
+  hazard: { fg: colors.hazard,    bg: 'rgba(232,90,60,0.08)',   ring: 'rgba(232,90,60,0.20)',   icon: alertHazard },
 };
 
 export function AlertRow({ alert }: { alert: ConditionAlert }) {
@@ -27,6 +41,9 @@ export function AlertRow({ alert }: { alert: ConditionAlert }) {
     <View style={[styles.row, { backgroundColor: c.cardBg }]}>
       <View style={[styles.iconWrap, { backgroundColor: c.bubbleBg }]}>
         <Image source={c.icon} style={styles.iconImg} resizeMode="contain" />
+    <View style={[styles.row, { backgroundColor: c.bg, borderColor: c.ring }]}>
+      <View style={[styles.iconWrap, { backgroundColor: 'transparent' }]}>
+        <Image source={c.icon} style={styles.icon} resizeMode="contain" />
       </View>
       <View style={styles.body}>
         <Text style={typography.h3}>{alert.spotName}</Text>
@@ -42,6 +59,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.md,
     padding: spacing.md,
+    paddingRight: spacing.lg,
     borderRadius: radius.lg,
   },
   iconWrap: {
@@ -57,4 +75,7 @@ const styles = StyleSheet.create({
   },
   body: { flex: 1 },
   msg: { ...typography.bodySm, color: colors.textSecondary, marginTop: 2 },
+  icon: { width: 36, height: 36 },
+  body: { flex: 1, paddingTop: 2 },
+  msg: { ...typography.bodySm, color: colors.textSecondary, marginTop: 2, lineHeight: 18 },
 });

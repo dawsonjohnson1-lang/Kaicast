@@ -9,11 +9,19 @@ const ICONS: Record<string, ImageSourcePropType> = {
   Saved: require('../../assets/tab-saved.png'),
   Explore: require('../../assets/tab-explore.png'),
   Profile: require('../../assets/tab-profile.png'),
+import { RadarIcon } from '@/components/RadarIcon';
+
+const VARIANTS: Record<string, 'dashboard' | 'saved' | 'explore' | 'profile'> = {
+  Dashboard: 'dashboard',
+  Saved: 'saved',
+  Explore: 'explore',
+  Profile: 'profile',
 };
 
 const LABELS: Record<string, string> = {
   Dashboard: 'DASHBOARD',
   Saved: 'SAVED',
+  Saved: 'SAVED SPOTS',
   Explore: 'EXPLORE',
   Profile: 'PROFILE',
 };
@@ -27,6 +35,7 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
         {state.routes.map((route, i) => {
           const focused = state.index === i;
           const color = focused ? colors.accent : '#b9bdc4';
+          const color = focused ? colors.accent : 'rgba(255,255,255,0.55)';
           return (
             <Pressable
               key={route.key}
@@ -38,6 +47,8 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
               hitSlop={6}
             >
               <Image source={ICONS[route.name]} style={[styles.icon, { tintColor: color }]} resizeMode="contain" />
+              <View style={[styles.indicator, focused && styles.indicatorActive]} />
+              <RadarIcon variant={VARIANTS[route.name]} size={26} color={color} />
               <Text style={[styles.label, { color }]}>{LABELS[route.name]}</Text>
             </Pressable>
           );
@@ -51,6 +62,9 @@ const styles = StyleSheet.create({
   bar: {
     backgroundColor: colors.bg,
     paddingTop: spacing.sm,
+    backgroundColor: '#000000',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.06)',
   },
   topAccent: {
     position: 'absolute',
@@ -63,6 +77,8 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-around',
+    alignItems: 'flex-start',
   },
   item: {
     flex: 1,
@@ -74,11 +90,23 @@ const styles = StyleSheet.create({
   icon: {
     width: 26,
     height: 26,
+    flex: 1,
+    paddingBottom: 6,
+  },
+  indicator: {
+    width: 38,
+    height: 2,
+    backgroundColor: 'transparent',
+    marginBottom: 8,
+  },
+  indicatorActive: {
+    backgroundColor: colors.accent,
   },
   label: {
     fontSize: 9,
     fontWeight: '700',
     letterSpacing: 1,
     textAlign: 'center',
+    letterSpacing: 1.2,
   },
 });

@@ -35,6 +35,7 @@ export function HomeScreen() {
 
       <FeaturedSpotCard
         spot={{ ...featuredSpot, visibilityFt: 56, windMph: 1, current: 'STRONG', airTempF: 79 }}
+        spot={featuredSpot}
         onPress={() => nav.navigate('SpotDetail', { spotId: featuredSpot.id })}
       />
 
@@ -42,7 +43,7 @@ export function HomeScreen() {
       <SectionTitle title="Favorite Spots" action="See all" onActionPress={() => nav.navigate('Saved')} />
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hRow}>
         {favoriteSpots.map((s) => (
-          <SpotMiniCard key={s.id} spot={s} width={170} onPress={() => nav.navigate('SpotDetail', { spotId: s.id })} />
+          <SpotMiniCard key={s.id} spot={s} width={172} onPress={() => nav.navigate('SpotDetail', { spotId: s.id })} />
         ))}
       </ScrollView>
 
@@ -58,7 +59,11 @@ export function HomeScreen() {
       <SectionTitle title="Friends' Reports" action="See all" />
       <View style={{ gap: spacing.md }}>
         {diveReports.map((r) => (
-          <DiveReportCard key={r.id} report={r} onPress={() => nav.navigate('DiveReportDetail', { reportId: r.id })} />
+          <DiveReportCard
+            key={r.id}
+            report={r}
+            onPress={() => nav.navigate('DiveReportDetail', { reportId: r.id })}
+          />
         ))}
       </View>
 

@@ -4,6 +4,7 @@ import type { ConditionAlert, DiveReport, Spot, SpotReport, TidePoint } from '@/
 // set imageUrl to a remote satellite-tile URL keyed off lat/lon — it takes
 // precedence over imageSource at render time.
 export const featuredSpot: Spot = {
+export const featuredSpot: Spot & { airTempF?: number; windMph?: number; current?: string; progress?: number } = {
   id: 'electric-beach',
   name: 'Electric Beach',
   region: 'Oahu · 4.2 mi away',
@@ -13,6 +14,10 @@ export const featuredSpot: Spot = {
   rating: 'excellent',
   coverColor: '#0a3a4d',
   imageSource: require('../../assets/spot-electric-beach.png'),
+  airTempF: 79,
+  windMph: 1,
+  current: 'STRONG',
+  progress: 0.7,
 };
 
 export const favoriteSpots: Spot[] = [
