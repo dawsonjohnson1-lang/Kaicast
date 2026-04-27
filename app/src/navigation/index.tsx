@@ -9,6 +9,7 @@ import { useAuth } from '@/hooks/useAuth';
 
 import { LoadingScreen } from '@/screens/auth/LoadingScreen';
 import { WelcomeScreen } from '@/screens/auth/WelcomeScreen';
+import { LoginScreen } from '@/screens/auth/LoginScreen';
 import { CreateAccountScreen } from '@/screens/auth/CreateAccountScreen';
 import { CreateAccountStep1Screen } from '@/screens/auth/CreateAccountStep1Screen';
 import { CreateAccountAlmostThereScreen } from '@/screens/auth/CreateAccountAlmostThereScreen';
@@ -52,6 +53,7 @@ function AuthNav() {
     >
       <AuthStack.Screen name="Loading" component={LoadingScreen} />
       <AuthStack.Screen name="Welcome" component={WelcomeScreen} />
+      <AuthStack.Screen name="Login" component={LoginScreen} />
       <AuthStack.Screen name="CreateAccount" component={CreateAccountScreen} />
       <AuthStack.Screen name="CreateAccountStep1" component={CreateAccountStep1Screen} />
       <AuthStack.Screen name="CreateAccountAlmostThere" component={CreateAccountAlmostThereScreen} />

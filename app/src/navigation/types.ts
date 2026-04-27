@@ -5,6 +5,7 @@ import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 export type AuthStackParamList = {
   Loading: undefined;
   Welcome: undefined;
+  Login: undefined;
   CreateAccount: undefined;
   CreateAccountStep1: undefined;
   CreateAccountAlmostThere: undefined;
