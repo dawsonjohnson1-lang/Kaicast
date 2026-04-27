@@ -3,13 +3,14 @@ import { View, Text, Pressable, Image, ImageSourcePropType, StyleSheet } from 'r
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { colors, spacing } from '@/theme';
+import { RadarIcon } from '@/components/RadarIcon';
 
 const ICONS: Record<string, ImageSourcePropType> = {
   Dashboard: require('../../assets/tab-dashboard.png'),
   Saved: require('../../assets/tab-saved.png'),
   Explore: require('../../assets/tab-explore.png'),
   Profile: require('../../assets/tab-profile.png'),
-import { RadarIcon } from '@/components/RadarIcon';
+};
 
 const VARIANTS: Record<string, 'dashboard' | 'saved' | 'explore' | 'profile'> = {
   Dashboard: 'dashboard',
@@ -34,7 +35,6 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
       <View style={styles.row}>
         {state.routes.map((route, i) => {
           const focused = state.index === i;
-          const color = focused ? colors.accent : '#b9bdc4';
           const color = focused ? colors.accent : 'rgba(255,255,255,0.55)';
           return (
             <Pressable
