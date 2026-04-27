@@ -73,7 +73,7 @@ export function LoginScreen() {
       <View style={{ height: spacing.lg }} />
       <Input
         label="Password"
-        placeholder="you@example.com"
+        placeholder="••••••••"
         secureTextEntry
         value={pw}
         onChangeText={setPw}

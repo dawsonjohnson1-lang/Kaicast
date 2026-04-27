@@ -3,8 +3,12 @@ import type { ConditionAlert, DiveReport, Spot, SpotReport, TidePoint } from '@/
 // Spot covers ship as bundled placeholders today. When the backend lands,
 // set imageUrl to a remote satellite-tile URL keyed off lat/lon — it takes
 // precedence over imageSource at render time.
-export const featuredSpot: Spot = {
-export const featuredSpot: Spot & { airTempF?: number; windMph?: number; current?: string; progress?: number } = {
+export const featuredSpot: Spot & {
+  airTempF?: number;
+  windMph?: number;
+  current?: string;
+  progress?: number;
+} = {
   id: 'electric-beach',
   name: 'Electric Beach',
   region: 'Oahu · 4.2 mi away',

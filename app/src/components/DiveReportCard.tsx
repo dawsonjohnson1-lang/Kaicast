@@ -20,8 +20,7 @@ export function DiveReportCard({ report, onPress }: Props) {
   return (
     <Pressable onPress={onPress} style={styles.card}>
       <View style={styles.head}>
-        <Avatar initials={report.authorInitials} size={42} vibrant />
-        <Avatar initials={report.authorInitials} size={38} />
+        <Avatar initials={report.authorInitials} size={38} vibrant />
         <View style={{ flex: 1 }}>
           <Text style={styles.author}>{report.authorName}</Text>
           <Text style={styles.meta}>at {report.spotName}</Text>
@@ -30,24 +29,15 @@ export function DiveReportCard({ report, onPress }: Props) {
       </View>
 
       <View style={styles.tags}>
-        <Tag variant="excellent" />
-        <Tag variant={typeTag} outline />
-      </View>
-
-      <View style={styles.statsRow}>
-        <Stat label={`${report.depthFt} FT`} sub="VISIBILITY" />
-        <Stat label={report.current} sub="CURRENT" />
-        <Stat label={report.surface} sub="ENTRY" />
-        <Stat label={report.visibility} sub="WATER QUALITY" />
         <Tag variant="excellent" label="EXCELLENT" />
         <Tag variant={typeTag} />
       </View>
 
       <View style={styles.statsRow}>
-        <Stat label="VISIBILITY" value={`${report.depthFt} FT`} />
+        <Stat label="DEPTH" value={`${report.depthFt} FT`} />
         <Stat label="CURRENT" value={report.current} />
-        <Stat label="ENTERY" value={report.surface} />
-        <Stat label="WATER QUALITY" value={report.visibility} />
+        <Stat label="ENTRY" value={report.surface} />
+        <Stat label="WATER" value={report.visibility} />
       </View>
 
       <Text style={styles.body}>{report.comment}</Text>

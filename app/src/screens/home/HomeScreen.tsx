@@ -29,12 +29,11 @@ export function HomeScreen() {
         userLocation="OAHU, HAWAII"
         initials={initials}
         photoUri={user?.photoUrl}
-        photoSource={require('../../../assets/dawson.png')}
+        photoSource={require('../../assets/profile.png')}
         onAvatarPress={() => nav.navigate('Profile')}
       />
 
       <FeaturedSpotCard
-        spot={{ ...featuredSpot, visibilityFt: 56, windMph: 1, current: 'STRONG', airTempF: 79 }}
         spot={featuredSpot}
         onPress={() => nav.navigate('SpotDetail', { spotId: featuredSpot.id })}
       />

@@ -1,31 +1,11 @@
 import React from 'react';
-import { View, Text, Image, ImageSourcePropType, StyleSheet } from 'react-native';
-import { colors, radius, spacing, typography } from '@/theme';
-import type { ConditionAlert } from '@/types';
-
-const config: Record<ConditionAlert['severity'], { bubbleBg: string; cardBg: string; icon: ImageSourcePropType }> = {
-  info: {
-    bubbleBg: 'rgba(31,209,122,0.18)',
-    cardBg: 'rgba(31,209,122,0.06)',
-    icon: require('../../assets/alert-green-curl.png'),
-  },
-  warn: {
-    bubbleBg: 'rgba(26,184,255,0.18)',
-    cardBg: 'rgba(26,184,255,0.06)',
-    icon: require('../../assets/alert-blue-swirl.png'),
-  },
-  hazard: {
-    bubbleBg: 'rgba(217,99,56,0.20)',
-    cardBg: 'rgba(217,99,56,0.08)',
-    icon: require('../../assets/alert-orange-globe.png'),
-  },
 import { View, Text, Image, StyleSheet, ImageSourcePropType } from 'react-native';
 import { colors, radius, spacing, typography } from '@/theme';
 import type { ConditionAlert } from '@/types';
 
-const alertInfo = require('@/assets/alert-info.png');
-const alertWarn = require('@/assets/alert-warn.png');
-const alertHazard = require('@/assets/alert-hazard.png');
+const alertInfo = require('../../assets/alert-blue-swirl.png');
+const alertWarn = require('../../assets/alert-green-curl.png');
+const alertHazard = require('../../assets/alert-orange-globe.png');
 
 type Severity = ConditionAlert['severity'];
 
@@ -38,11 +18,8 @@ const config: Record<Severity, { fg: string; bg: string; ring: string; icon: Ima
 export function AlertRow({ alert }: { alert: ConditionAlert }) {
   const c = config[alert.severity];
   return (
-    <View style={[styles.row, { backgroundColor: c.cardBg }]}>
-      <View style={[styles.iconWrap, { backgroundColor: c.bubbleBg }]}>
-        <Image source={c.icon} style={styles.iconImg} resizeMode="contain" />
     <View style={[styles.row, { backgroundColor: c.bg, borderColor: c.ring }]}>
-      <View style={[styles.iconWrap, { backgroundColor: 'transparent' }]}>
+      <View style={styles.iconWrap}>
         <Image source={c.icon} style={styles.icon} resizeMode="contain" />
       </View>
       <View style={styles.body}>
@@ -61,20 +38,14 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     paddingRight: spacing.lg,
     borderRadius: radius.lg,
+    borderWidth: 1,
   },
   iconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 999,
+    width: 44,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  iconImg: {
-    width: 24,
-    height: 24,
-  },
-  body: { flex: 1 },
-  msg: { ...typography.bodySm, color: colors.textSecondary, marginTop: 2 },
   icon: { width: 36, height: 36 },
   body: { flex: 1, paddingTop: 2 },
   msg: { ...typography.bodySm, color: colors.textSecondary, marginTop: 2, lineHeight: 18 },
