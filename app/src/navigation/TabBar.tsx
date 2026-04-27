@@ -13,7 +13,7 @@ const ICONS: Record<string, ImageSourcePropType> = {
 
 const LABELS: Record<string, string> = {
   Dashboard: 'DASHBOARD',
-  Saved: 'SAVED SPOTS',
+  Saved: 'SAVED',
   Explore: 'EXPLORE',
   Profile: 'PROFILE',
 };
@@ -49,7 +49,7 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
 
 const styles = StyleSheet.create({
   bar: {
-    backgroundColor: '#000',
+    backgroundColor: colors.bg,
     paddingTop: spacing.sm,
   },
   topAccent: {
@@ -62,14 +62,14 @@ const styles = StyleSheet.create({
   },
   row: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
     alignItems: 'center',
   },
   item: {
-    alignItems: 'center',
-    gap: 2,
-    paddingVertical: 4,
     flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    paddingVertical: 4,
   },
   icon: {
     width: 26,
@@ -79,5 +79,6 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: '700',
     letterSpacing: 1,
+    textAlign: 'center',
   },
 });

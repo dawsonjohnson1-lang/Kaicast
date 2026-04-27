@@ -15,18 +15,15 @@ export function FeaturedSpotCard({ spot, onPress }: Props) {
   const photo = spot.imageSource ?? (spot.imageUrl ? { uri: spot.imageUrl } : undefined);
   return (
     <Pressable onPress={onPress} style={styles.wrap}>
-      {photo ? (
-        <Image source={photo} style={StyleSheet.absoluteFill} resizeMode="cover" />
-      ) : (
-        <LinearGradient
-          colors={[spot.coverColor ?? '#0c4a5c', '#04111e']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={StyleSheet.absoluteFill}
-        />
-      )}
       <LinearGradient
-        colors={['rgba(0,0,0,0.45)', 'rgba(0,0,0,0.55)']}
+        colors={[spot.coverColor ?? '#0c4a5c', '#04111e']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={StyleSheet.absoluteFill}
+      />
+      {photo && <Image source={photo} style={StyleSheet.absoluteFill} resizeMode="contain" />}
+      <LinearGradient
+        colors={['rgba(0,0,0,0.35)', 'rgba(0,0,0,0.55)']}
         style={StyleSheet.absoluteFill}
       />
       <View style={styles.headRow}>

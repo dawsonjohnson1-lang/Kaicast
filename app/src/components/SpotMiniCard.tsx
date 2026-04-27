@@ -20,16 +20,13 @@ export function SpotMiniCard({ spot, onPress, width }: Props) {
   return (
     <Pressable onPress={onPress} style={[styles.card, width ? { width } : null]}>
       <View style={styles.cover}>
-        {photo ? (
-          <Image source={photo} style={StyleSheet.absoluteFill} resizeMode="cover" />
-        ) : (
-          <LinearGradient
-            colors={[spot.coverColor ?? '#0c4a5c', '#04111e']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={StyleSheet.absoluteFill}
-          />
-        )}
+        <LinearGradient
+          colors={[spot.coverColor ?? '#0c4a5c', '#04111e']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
+        {photo && <Image source={photo} style={StyleSheet.absoluteFill} resizeMode="contain" />}
         <View style={styles.iconBubble}>
           <Icon name="compass-arrow" size={16} color={colors.textPrimary} />
         </View>
