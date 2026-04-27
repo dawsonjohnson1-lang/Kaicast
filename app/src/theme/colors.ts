@@ -1,9 +1,9 @@
 export const colors = {
   // Backgrounds
-  bg: '#08090c',
-  bgElevated: '#0e1118',
-  card: '#10141d',
-  cardAlt: '#0e1219',
+  bg: '#161616',
+  bgElevated: '#1c1c1e',
+  card: '#1f1f22',
+  cardAlt: '#1a1a1c',
   border: '#1a2333',
   divider: '#1f2937',
 

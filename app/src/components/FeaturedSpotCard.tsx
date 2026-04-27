@@ -26,14 +26,14 @@ export function FeaturedSpotCard({ spot, onPress }: Props) {
         />
       )}
       <LinearGradient
-        colors={['rgba(0,0,0,0.15)', 'rgba(0,0,0,0.75)']}
+        colors={['rgba(0,0,0,0.45)', 'rgba(0,0,0,0.55)']}
         style={StyleSheet.absoluteFill}
       />
-      <View style={styles.topRow}>
+      <View style={styles.headRow}>
         <Tag variant="excellent" label="BEST CONDITIONS NOW" dot />
-        <Text style={styles.tempInline}>{spot.airTempF ?? 79}°F</Text>
+        <Text style={typography.h2}>{spot.airTempF ?? 79}°F</Text>
       </View>
-      <Text style={typography.h1}>{spot.name}</Text>
+      <Text style={[typography.h1, { marginTop: spacing.sm }]}>{spot.name}</Text>
       <Text style={styles.region}>{spot.region}</Text>
 
       <View style={styles.statsRow}>
@@ -74,20 +74,11 @@ const styles = StyleSheet.create({
     borderRadius: radius.xl,
     overflow: 'hidden',
     padding: spacing.xl,
-    minHeight: 240,
-    justifyContent: 'flex-end',
   },
-  topRow: {
-    position: 'absolute',
-    top: spacing.lg,
-    left: spacing.xl,
-    right: spacing.xl,
+  headRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-  },
-  tempInline: {
-    ...typography.h2,
   },
   region: {
     ...typography.bodySm,

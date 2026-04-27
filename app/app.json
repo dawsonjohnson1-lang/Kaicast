@@ -9,7 +9,7 @@
     "newArchEnabled": false,
     "splash": {
       "resizeMode": "cover",
-      "backgroundColor": "#04070d"
+      "backgroundColor": "#161616"
     },
     "ios": {
       "supportsTablet": false,
@@ -18,7 +18,7 @@
     "android": {
       "package": "com.kaicast.app",
       "adaptiveIcon": {
-        "backgroundColor": "#04070d"
+        "backgroundColor": "#161616"
       }
     },
     "web": {
