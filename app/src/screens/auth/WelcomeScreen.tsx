@@ -37,6 +37,8 @@ export function WelcomeScreen() {
       <View style={styles.actions}>
         <Button label="Create Account" iconRight="arrow-right" onPress={() => nav.navigate('CreateAccount')} fullWidth />
         <View style={{ height: spacing.md }} />
+        <Button label="Sign In" variant="secondary" onPress={() => nav.navigate('Login')} fullWidth />
+        <View style={{ height: spacing.md }} />
         <Button label="Skip for now (demo)" variant="ghost" onPress={quickIn} fullWidth />
       </View>
     </Screen>
