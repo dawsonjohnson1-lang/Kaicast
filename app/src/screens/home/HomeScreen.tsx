@@ -35,7 +35,6 @@ export function HomeScreen() {
 
       <FeaturedSpotCard
         spot={{ ...featuredSpot, visibilityFt: 56, windMph: 1, current: 'STRONG', airTempF: 79 }}
-        spot={featuredSpot}
         onPress={() => nav.navigate('SpotDetail', { spotId: featuredSpot.id })}
       />
 

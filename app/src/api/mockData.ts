@@ -1,9 +1,5 @@
 import type { ConditionAlert, DiveReport, Spot, SpotReport, TidePoint } from '@/types';
 
-// Spot covers ship as bundled placeholders today. When the backend lands,
-// set imageUrl to a remote satellite-tile URL keyed off lat/lon — it takes
-// precedence over imageSource at render time.
-export const featuredSpot: Spot = {
 export const featuredSpot: Spot & { airTempF?: number; windMph?: number; current?: string; progress?: number } = {
   id: 'electric-beach',
   name: 'Electric Beach',
@@ -13,7 +9,6 @@ export const featuredSpot: Spot & { airTempF?: number; windMph?: number; current
   visibilityFt: 56,
   rating: 'excellent',
   coverColor: '#0a3a4d',
-  imageSource: require('../../assets/spot-electric-beach.png'),
   airTempF: 79,
   windMph: 1,
   current: 'STRONG',
@@ -21,25 +16,10 @@ export const featuredSpot: Spot & { airTempF?: number; windMph?: number; current
 };
 
 export const favoriteSpots: Spot[] = [
-  {
-    id: 'electric-beach', name: 'Electric Beach', region: 'Oahu', visibilityFt: 56, rating: 'excellent',
-    coverColor: '#0c4a5c', lat: 21.355, lon: -158.122,
-    imageSource: require('../../assets/spot-electric-beach.png'),
-  },
-  {
-    id: 'sharks-cove', name: "Shark's Cove", region: 'Oahu', visibilityFt: 48, rating: 'good',
-    coverColor: '#0a3a4d', lat: 21.6417, lon: -158.0617,
-    imageSource: require('../../assets/spot-sharks-cove.png'),
-  },
-  {
-    id: 'molokini', name: 'Molokini', region: 'Maui', visibilityFt: 80, rating: 'excellent',
-    coverColor: '#0a4a3a', lat: 20.633, lon: -156.495,
-    imageSource: require('../../assets/spot-molokini.png'),
-  },
-  {
-    id: 'three-tables', name: 'Three Tables', region: 'Oahu', visibilityFt: 42, rating: 'good',
-    coverColor: '#0c2a4d', lat: 21.6367, lon: -158.0633,
-  },
+  { id: 'electric-beach', name: 'Electric Beach', region: 'Oahu', visibilityFt: 56, rating: 'excellent', coverColor: '#0c4a5c', lat: 21.355, lon: -158.122 },
+  { id: 'sharks-cove', name: "Shark's Cove", region: 'Oahu', visibilityFt: 48, rating: 'good', coverColor: '#0a3a4d', lat: 21.6417, lon: -158.0617 },
+  { id: 'molokini', name: 'Molokini', region: 'Maui', visibilityFt: 80, rating: 'excellent', coverColor: '#0a4a3a', lat: 20.633, lon: -156.495 },
+  { id: 'three-tables', name: 'Three Tables', region: 'Oahu', visibilityFt: 42, rating: 'good', coverColor: '#0c2a4d', lat: 21.6367, lon: -158.0633 },
 ];
 
 export const conditionAlerts: ConditionAlert[] = [
@@ -56,7 +36,7 @@ export const diveReports: DiveReport[] = [
     spotName: 'Electric Beach',
     postedAgo: '2h ago',
     diveType: 'freedive',
-    depthFt: 66,
+    depthFt: 60,
     current: 'STRONG',
     surface: 'SAFE',
     visibility: 'CLEAN',
@@ -71,7 +51,7 @@ export const diveReports: DiveReport[] = [
     spotName: 'Electric Beach',
     postedAgo: '2h ago',
     diveType: 'scuba',
-    depthFt: 66,
+    depthFt: 60,
     current: 'STRONG',
     surface: 'SAFE',
     visibility: 'CLEAN',
