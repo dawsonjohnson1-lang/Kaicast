@@ -21,7 +21,6 @@ const VARIANTS: Record<string, 'dashboard' | 'saved' | 'explore' | 'profile'> = 
 
 const LABELS: Record<string, string> = {
   Dashboard: 'DASHBOARD',
-  Saved: 'SAVED',
   Saved: 'SAVED SPOTS',
   Explore: 'EXPLORE',
   Profile: 'PROFILE',
@@ -60,9 +59,8 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
 
 const styles = StyleSheet.create({
   bar: {
-    backgroundColor: colors.bg,
-    paddingTop: spacing.sm,
     backgroundColor: '#000000',
+    paddingTop: spacing.sm,
     borderTopWidth: 1,
     borderTopColor: 'rgba(255,255,255,0.06)',
   },
@@ -76,9 +74,8 @@ const styles = StyleSheet.create({
   },
   row: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-around',
     alignItems: 'flex-start',
+    justifyContent: 'space-around',
   },
   item: {
     flex: 1,
@@ -105,8 +102,7 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 9,
     fontWeight: '700',
-    letterSpacing: 1,
-    textAlign: 'center',
     letterSpacing: 1.2,
+    textAlign: 'center',
   },
 });
