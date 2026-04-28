@@ -1,8 +1,8 @@
 export const colors = {
   // Backgrounds — sampled from Figma HOMEPAGE
   bg: '#161616',
-  bgElevated: '#0d141d',
-  card: '#11181f',
+  bgElevated: '#1C1C1C',
+  card: '#1C1C1C',
   cardAlt: '#0c1218',
   border: '#1a232c',
   divider: '#1f2937',
