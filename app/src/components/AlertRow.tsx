@@ -5,9 +5,9 @@ import type { ConditionAlert } from '@/types';
 
 // Descriptively-named source assets so severity → icon color stays correct
 // regardless of how `info`/`warn` are interpreted semantically.
-const greenCurl = require('../../../assets/alert-green-curl.png');
-const blueSwirl = require('../../../assets/alert-blue-swirl.png');
-const orangeGlobe = require('../../../assets/alert-orange-globe.png');
+const greenCurl = require('../../assets/alert-green-curl.png');
+const blueSwirl = require('../../assets/alert-blue-swirl.png');
+const orangeGlobe = require('../../assets/alert-orange-globe.png');
 
 type Severity = ConditionAlert['severity'];
 
