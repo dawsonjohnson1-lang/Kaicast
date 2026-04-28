@@ -7,9 +7,14 @@ import { Logo } from '@/components/Logo';
 import { colors } from '@/theme';
 import type { AuthStackParamList } from '@/navigation/types';
 
-// Splash placeholder: deep-water gradient with subtle blue haze.
-// To match the Figma comp exactly, drop an underwater photo into
-// app/assets/loading-bg.jpg and swap the gradient for an <Image source={...} />.
+// The Figma comp uses an underwater freediver photo behind the centered
+// K-mark logo. Until that photo lands in the repo, this renders a
+// deep-water gradient with bubble-like specks as a stand-in. To swap in
+// the real asset:
+//   1. Add app/assets/loading-bg.jpg
+//   2. Replace the <LinearGradient> + bubbles block with:
+//        <Image source={require('../../../assets/loading-bg.jpg')}
+//               style={StyleSheet.absoluteFill} resizeMode="cover" />
 export function LoadingScreen() {
   const nav = useNavigation<NativeStackNavigationProp<AuthStackParamList>>();
   const fade = React.useRef(new Animated.Value(0)).current;
@@ -28,19 +33,51 @@ export function LoadingScreen() {
   return (
     <View style={styles.root}>
       <LinearGradient
-        colors={['#02060c', '#061826', '#0a2540']}
+        colors={['#020409', '#04111e', '#0a2a4a']}
         start={{ x: 0.2, y: 0 }}
         end={{ x: 0.8, y: 1 }}
         style={StyleSheet.absoluteFill}
       />
-      <View style={styles.haze} />
+      {BUBBLES.map((b, i) => (
+        <View
+          key={i}
+          style={[
+            styles.bubble,
+            {
+              top: `${b.top}%`,
+              left: `${b.left}%`,
+              width: b.size,
+              height: b.size,
+              borderRadius: b.size,
+              opacity: b.opacity,
+            },
+          ]}
+        />
+      ))}
+
       <View style={styles.vignette} />
-      <Animated.View style={{ opacity: fade, transform: [{ scale }] }}>
-        <Logo size={92} showWordmark={false} />
+
+      <Animated.View style={styles.logoWrap}>
+        <Animated.View style={{ opacity: fade, transform: [{ scale }] }}>
+          <Logo size={96} showWordmark={false} />
+        </Animated.View>
       </Animated.View>
     </View>
   );
 }
+
+const BUBBLES = [
+  { top: 8,  left: 12, size: 4,  opacity: 0.35 },
+  { top: 15, left: 78, size: 3,  opacity: 0.30 },
+  { top: 24, left: 38, size: 5,  opacity: 0.40 },
+  { top: 32, left: 62, size: 3,  opacity: 0.25 },
+  { top: 44, left: 18, size: 6,  opacity: 0.45 },
+  { top: 52, left: 84, size: 4,  opacity: 0.35 },
+  { top: 60, left: 46, size: 3,  opacity: 0.25 },
+  { top: 70, left: 28, size: 5,  opacity: 0.40 },
+  { top: 78, left: 70, size: 4,  opacity: 0.30 },
+  { top: 86, left: 8,  size: 3,  opacity: 0.25 },
+];
 
 const styles = StyleSheet.create({
   root: {
@@ -49,16 +86,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: colors.bg,
   },
-  haze: {
+  bubble: {
     position: 'absolute',
-    width: 360,
-    height: 360,
-    borderRadius: 360,
-    backgroundColor: 'rgba(18,86,140,0.22)',
-    top: '30%',
+    backgroundColor: 'rgba(255,255,255,0.55)',
   },
   vignette: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.35)',
+    backgroundColor: 'rgba(0,0,0,0.30)',
+  },
+  logoWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

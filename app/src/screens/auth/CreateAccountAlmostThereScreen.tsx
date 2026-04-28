@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, Pressable, Switch, StyleSheet } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
@@ -43,7 +44,17 @@ export function CreateAccountAlmostThereScreen() {
   return (
     <Screen contentStyle={{ paddingTop: 0 }}>
       <View style={styles.banner}>
-        <Logo size={26} showWordmark={false} />
+        <LinearGradient
+          colors={['#0a2a4a', '#0a4070', '#0a2540']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
+        <LinearGradient
+          colors={['rgba(0,0,0,0.0)', 'rgba(0,0,0,0.45)']}
+          style={StyleSheet.absoluteFill}
+        />
+        <Logo size={28} showWordmark={false} />
         <View style={styles.bannerProgress}>
           <ProgressDots total={3} current={3} />
         </View>
@@ -155,11 +166,11 @@ const styles = StyleSheet.create({
   banner: {
     marginHorizontal: -spacing.xl,
     paddingHorizontal: spacing.xl,
-    paddingTop: spacing.lg,
+    paddingTop: spacing.xl,
     paddingBottom: spacing.lg,
-    backgroundColor: '#0a2540',
     alignItems: 'center',
     marginBottom: spacing.xl,
+    overflow: 'hidden',
   },
   bannerProgress: { width: '100%', marginTop: spacing.md },
   sub: { ...typography.body, color: colors.textSecondary, marginTop: spacing.sm, marginBottom: spacing.xl },

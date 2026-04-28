@@ -58,7 +58,7 @@ export function CreateAccountScreen() {
       <Button label="Create Account" fullWidth onPress={() => nav.navigate('CreateAccountStep1')} />
       <Pressable style={styles.footer} onPress={() => nav.navigate('Login')}>
         <Text style={styles.footerText}>
-          Already Have An Account? <Text style={{ color: colors.textPrimary, fontWeight: '700' }}>Sign In</Text>
+          Already Have An Account? <Text style={{ color: colors.accent, fontWeight: '700' }}>Sign In</Text>
         </Text>
       </Pressable>
     </Screen>
@@ -101,7 +101,7 @@ function AppleGlyph() {
 
 const styles = StyleSheet.create({
   logo: { alignItems: 'center', marginTop: spacing.lg, marginBottom: spacing.xxl },
-  heading: { textAlign: 'center', fontSize: 38, lineHeight: 42 },
+  heading: { textAlign: 'center', fontSize: 48, lineHeight: 52, fontWeight: '800', letterSpacing: -1 },
   sub: { ...typography.body, color: colors.textSecondary, textAlign: 'center', marginTop: spacing.md, marginBottom: spacing.xxl },
   socialRow: { flexDirection: 'row', gap: spacing.md, marginBottom: spacing.md },
   social: {
