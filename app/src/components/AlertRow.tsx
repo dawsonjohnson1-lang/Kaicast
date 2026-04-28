@@ -3,16 +3,18 @@ import { View, Text, Image, StyleSheet, ImageSourcePropType } from 'react-native
 import { colors, radius, spacing, typography } from '@/theme';
 import type { ConditionAlert } from '@/types';
 
-const alertInfo = require('@/assets/alert-info.png');
-const alertWarn = require('@/assets/alert-warn.png');
-const alertHazard = require('@/assets/alert-hazard.png');
+// Descriptively-named source assets so severity → icon color stays correct
+// regardless of how `info`/`warn` are interpreted semantically.
+const greenCurl = require('../../../assets/alert-green-curl.png');
+const blueSwirl = require('../../../assets/alert-blue-swirl.png');
+const orangeGlobe = require('../../../assets/alert-orange-globe.png');
 
 type Severity = ConditionAlert['severity'];
 
 const config: Record<Severity, { fg: string; bg: string; ring: string; icon: ImageSourcePropType }> = {
-  info:   { fg: colors.excellent, bg: 'rgba(34,211,107,0.07)',  ring: 'rgba(34,211,107,0.18)', icon: alertInfo },
-  warn:   { fg: colors.accent,    bg: 'rgba(26,184,255,0.07)',  ring: 'rgba(26,184,255,0.18)', icon: alertWarn },
-  hazard: { fg: colors.hazard,    bg: 'rgba(232,90,60,0.08)',   ring: 'rgba(232,90,60,0.20)',  icon: alertHazard },
+  info:   { fg: colors.excellent, bg: 'rgba(34,211,107,0.07)',  ring: 'rgba(34,211,107,0.18)', icon: greenCurl },
+  warn:   { fg: colors.accent,    bg: 'rgba(26,184,255,0.07)',  ring: 'rgba(26,184,255,0.18)', icon: blueSwirl },
+  hazard: { fg: colors.hazard,    bg: 'rgba(232,90,60,0.08)',   ring: 'rgba(232,90,60,0.20)',  icon: orangeGlobe },
 };
 
 export function AlertRow({ alert }: { alert: ConditionAlert }) {

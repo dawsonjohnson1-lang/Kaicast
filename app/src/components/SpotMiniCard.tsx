@@ -58,8 +58,9 @@ export function SpotMiniCard({ spot, onPress, width }: Props) {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: 'transparent',
+    backgroundColor: '#1C1C1C',
     borderRadius: radius.lg,
+    overflow: 'hidden',
   },
   cover: {
     height: 96,
@@ -75,7 +76,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  body: { paddingTop: spacing.sm, gap: 2 },
+  body: { padding: spacing.md, gap: 2 },
   ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   ratingDot: { width: 6, height: 6, borderRadius: 999 },
   ratingLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 0.8 },
