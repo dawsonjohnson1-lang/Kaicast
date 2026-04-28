@@ -13,6 +13,8 @@ import { colors, spacing, typography } from '@/theme';
 import { useAuth } from '@/hooks/useAuth';
 import type { AuthStackParamList } from '@/navigation/types';
 
+const jellyfishBg = require('@/assets/blurry-jellyfish.png');
+
 const CERTS = ['None', 'Open Water', 'Advanced', 'Rescue', 'Divemaster', 'Instructor'];
 
 export function CreateAccountAlmostThereScreen() {
@@ -31,7 +33,7 @@ export function CreateAccountAlmostThereScreen() {
   });
 
   return (
-    <Screen contentStyle={{ paddingTop: 0 }}>
+    <Screen contentStyle={{ paddingTop: 0 }} bgImage={jellyfishBg} bgOverlay="rgba(4,7,13,0.55)">
       <Header onBack={() => nav.goBack()} transparent />
       <ProgressDots total={3} current={3} />
       <Text style={[typography.h1, { marginTop: spacing.xl }]}>Almost there</Text>

@@ -1,11 +1,12 @@
 import React, { useEffect } from 'react';
-import { View, StyleSheet, Animated, Easing } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import { View, StyleSheet, Animated, Easing, ImageBackground } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Logo } from '@/components/Logo';
 import { colors } from '@/theme';
 import type { AuthStackParamList } from '@/navigation/types';
+
+const diverBg = require('@/assets/Diver-background.jpg');
 
 export function LoadingScreen() {
   const nav = useNavigation<NativeStackNavigationProp<AuthStackParamList>>();
@@ -24,13 +25,8 @@ export function LoadingScreen() {
 
   return (
     <View style={styles.root}>
-      <LinearGradient
-        colors={['#020306', '#04111e', '#0a2540']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={StyleSheet.absoluteFill}
-      />
-      <View style={styles.haze} />
+      <ImageBackground source={diverBg} resizeMode="cover" style={StyleSheet.absoluteFill} />
+      <View style={styles.overlay} />
       <Animated.View style={{ opacity: fade, transform: [{ scale }] }}>
         <Logo size={120} showWordmark={false} />
       </Animated.View>
@@ -45,12 +41,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: colors.bg,
   },
-  haze: {
-    position: 'absolute',
-    width: 320,
-    height: 320,
-    borderRadius: 320,
-    backgroundColor: 'rgba(26,184,255,0.18)',
-    top: '40%',
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.65)',
   },
 });

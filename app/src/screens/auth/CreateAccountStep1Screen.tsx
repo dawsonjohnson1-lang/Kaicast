@@ -13,6 +13,8 @@ import { colors, spacing, typography } from '@/theme';
 import type { AuthStackParamList } from '@/navigation/types';
 import type { DiveType } from '@/types';
 
+const jellyfishBg = require('@/assets/blurry-jellyfish.png');
+
 const DIVE_TYPES: { id: DiveType; label: string }[] = [
   { id: 'scuba', label: 'Scuba' },
   { id: 'freedive', label: 'Freediving' },
@@ -27,7 +29,7 @@ export function CreateAccountStep1Screen() {
   const [type, setType] = useState<DiveType>('scuba');
 
   return (
-    <Screen contentStyle={{ paddingTop: 0 }}>
+    <Screen contentStyle={{ paddingTop: 0 }} bgImage={jellyfishBg} bgOverlay="rgba(4,7,13,0.55)">
       <Header onBack={() => nav.goBack()} transparent />
       <ProgressDots total={3} current={1} />
       <Text style={[typography.h1, { marginTop: spacing.xl }]}>Tell us about you</Text>

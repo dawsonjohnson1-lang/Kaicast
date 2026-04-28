@@ -112,7 +112,7 @@ function SocialButton({
     <Card padding={0} style={[styles.social, full ? { flex: 0, alignSelf: 'stretch' } : { flex: 1 }] as any}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, gap: 10 }}>
         {iconKind === 'apple' ? (
-          <Icon name="star-filled" size={18} color="#fff" />
+          <Icon name="apple" size={18} color="#fff" />
         ) : (
           <Image source={iconSource} style={{ width: 18, height: 18 }} resizeMode="contain" />
         )}

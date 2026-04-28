@@ -84,7 +84,7 @@ function SocialButton({
 }
 
 function AppleGlyph() {
-  return <Icon name="star-filled" size={18} color="#fff" />;
+  return <Icon name="apple" size={18} color="#fff" />;
 }
 
 const styles = StyleSheet.create({
