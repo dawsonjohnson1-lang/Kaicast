@@ -23,10 +23,11 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   return (
     <View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, 8) }]}>
+      <View style={styles.topAccent} />
       <View style={styles.row}>
         {state.routes.map((route, i) => {
           const focused = state.index === i;
-          const color = focused ? colors.accent : 'rgba(255,255,255,0.55)';
+          const color = focused ? '#FFFFFF' : 'rgba(255,255,255,0.55)';
           return (
             <Pressable
               key={route.key}
@@ -49,10 +50,16 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
 
 const styles = StyleSheet.create({
   bar: {
-    backgroundColor: '#1C1C1C',
+    backgroundColor: colors.bg,
     paddingTop: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.06)',
+  },
+  topAccent: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 1,
+    backgroundColor: colors.accent,
   },
   row: {
     flexDirection: 'row',
@@ -67,9 +74,9 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   label: {
-    fontSize: 9,
-    fontWeight: '700',
-    letterSpacing: 1.4,
+    fontSize: 11,
+    fontWeight: '400',
+    letterSpacing: 0.77,
     textAlign: 'center',
   },
 });

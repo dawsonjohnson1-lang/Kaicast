@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { View, Image, StyleSheet, Animated, Easing } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Logo } from '@/components/Logo';
@@ -24,12 +25,16 @@ export function LoadingScreen() {
   return (
     <View style={styles.root}>
       <Image source={require('../../../assets/loading-bg.jpg')} style={StyleSheet.absoluteFill} resizeMode="cover" />
-
-      <View style={styles.vignette} />
+      <LinearGradient
+        colors={['rgba(16,16,16,0.78)', 'rgba(16,16,16,0.10)']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={StyleSheet.absoluteFill}
+      />
 
       <Animated.View style={styles.logoWrap}>
         <Animated.View style={{ opacity: fade, transform: [{ scale }] }}>
-          <Logo size={96} showWordmark={false} />
+          <Logo size={80} showWordmark={false} />
         </Animated.View>
       </Animated.View>
     </View>
@@ -42,10 +47,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.bg,
-  },
-  vignette: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.30)',
   },
   logoWrap: {
     alignItems: 'center',

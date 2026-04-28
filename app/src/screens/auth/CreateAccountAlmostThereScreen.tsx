@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, Pressable, Switch, StyleSheet } from 'react-native';
+import { View, Text, Pressable, Switch, Image, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -8,7 +8,7 @@ import { Screen } from '@/components/Screen';
 import { Logo } from '@/components/Logo';
 import { Button } from '@/components/Button';
 import { ChoiceChip } from '@/components/ChoiceChip';
-import { ProgressDots } from '@/components/ProgressDots';
+import { ProgressBars } from '@/components/ProgressBars';
 import { Icon } from '@/components/Icon';
 import { colors, spacing, typography } from '@/theme';
 import { useAuth } from '@/hooks/useAuth';
@@ -44,19 +44,19 @@ export function CreateAccountAlmostThereScreen() {
   return (
     <Screen contentStyle={{ paddingTop: 0 }}>
       <View style={styles.banner}>
-        <LinearGradient
-          colors={['#0a2a4a', '#0a4070', '#0a2540']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
+        <Image
+          source={require('../../../assets/hero-underwater.jpg')}
           style={StyleSheet.absoluteFill}
+          resizeMode="cover"
         />
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(24,24,24,0.2)' }]} />
         <LinearGradient
           colors={['rgba(0,0,0,0.0)', 'rgba(0,0,0,0.45)']}
           style={StyleSheet.absoluteFill}
         />
         <Logo size={28} showWordmark={false} />
         <View style={styles.bannerProgress}>
-          <ProgressDots total={3} current={3} />
+          <ProgressBars total={3} current={3} />
         </View>
       </View>
 
@@ -173,16 +173,21 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   bannerProgress: { width: '100%', marginTop: spacing.md },
-  sub: { ...typography.body, color: colors.textSecondary, marginTop: spacing.sm, marginBottom: spacing.xl },
+  sub: { fontSize: 13, color: 'rgba(255,255,255,0.4)', marginTop: spacing.sm, marginBottom: spacing.xl },
   section: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
-    color: colors.textMuted,
-    letterSpacing: 1.4,
+    color: 'rgba(255,255,255,0.3)',
+    letterSpacing: 1,
     marginTop: spacing.xxl,
     marginBottom: spacing.md,
   },
-  fieldLabel: { ...typography.bodySm, color: colors.textSecondary, fontWeight: '600', marginBottom: spacing.sm },
+  fieldLabel: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: 'rgba(255,255,255,0.65)',
+    marginBottom: spacing.sm,
+  },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   select: {
     flexDirection: 'row',
