@@ -22,7 +22,7 @@ export function Logo({ size = 28, showWordmark = true }: Props) {
   return (
     <Image
       source={mark}
-      style={{ height: size, width: size * 0.85 }}
+      style={[styles.mark, { height: size, width: size * 0.85 }]}
       resizeMode="contain"
     />
   );
@@ -30,4 +30,5 @@ export function Logo({ size = 28, showWordmark = true }: Props) {
 
 const styles = StyleSheet.create({
   wordmark: { tintColor: '#ffffff' },
+  mark: { tintColor: '#ffffff' },
 });

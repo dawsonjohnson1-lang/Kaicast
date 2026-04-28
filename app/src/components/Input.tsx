@@ -32,7 +32,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   input: {
-    backgroundColor: colors.cardAlt,
+    backgroundColor: '#1C1C1C',
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.border,
