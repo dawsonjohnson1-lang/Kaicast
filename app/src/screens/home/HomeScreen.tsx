@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { View, ScrollView, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 
 import { Screen } from '@/components/Screen';
@@ -24,11 +24,6 @@ export function HomeScreen() {
 
   return (
     <Screen>
-      <View style={{ backgroundColor: '#ff0066', padding: 12, marginBottom: 12, borderRadius: 8 }}>
-        <Text style={{ color: '#fff', fontWeight: '900', fontSize: 16, letterSpacing: 1 }}>
-          DEV-LOOP TEST · 73c16e0 · DELETE ME
-        </Text>
-      </View>
       <AppBar
         userName={displayName.toUpperCase()}
         userLocation="OAHU, HAWAII"
