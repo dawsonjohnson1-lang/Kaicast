@@ -1,13 +1,12 @@
 import React from 'react';
-import { View, Text, Pressable, Image, StyleSheet } from 'react-native';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { colors, radius, spacing, typography } from '@/theme';
+import { colors, radius, spacing } from '@/theme';
 import { SpotCover } from './SpotCover';
 import { Icon } from './Icon';
 import type { Spot } from '@/types';
 
 type Props = {
-  spot: Spot & { airTempF?: number; visibilityFt?: number; windMph?: number; current?: string };
   spot: Spot & {
     airTempF?: number;
     visibilityFt?: number;
@@ -19,49 +18,11 @@ type Props = {
 };
 
 export function FeaturedSpotCard({ spot, onPress }: Props) {
+  const progress = Math.max(0, Math.min(1, spot.progress ?? 0.7));
   const photo = spot.imageSource ?? (spot.imageUrl ? { uri: spot.imageUrl } : undefined);
   return (
-    <Pressable onPress={onPress} style={styles.wrap}>
-      <LinearGradient
-        colors={[spot.coverColor ?? '#0c4a5c', '#04111e']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={StyleSheet.absoluteFill}
-      />
-      {photo && <Image source={photo} style={StyleSheet.absoluteFill} resizeMode="contain" />}
-      <LinearGradient
-        colors={['rgba(0,0,0,0.35)', 'rgba(0,0,0,0.55)']}
-        style={StyleSheet.absoluteFill}
-      />
-      <View style={styles.headRow}>
-        <Tag variant="excellent" label="BEST CONDITIONS NOW" dot />
-        <Text style={typography.h2}>{spot.airTempF ?? 79}°F</Text>
-      </View>
-      <Text style={[typography.h1, { marginTop: spacing.sm }]}>{spot.name}</Text>
-      <Text style={styles.region}>{spot.region}</Text>
-
-      <View style={styles.statsRow}>
-        <Stat label="VISIBILITY" value={`${spot.visibilityFt ?? 56} FT`} />
-        <Stat label="WIND" value={`${spot.windMph ?? 1} MPH`} />
-        <Stat label="CURRENT" value={spot.current ?? 'STRONG'} />
-      </View>
-
-      <View style={styles.bar}>
-        <LinearGradient
-          colors={[colors.excellent, colors.accent]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={[styles.barFill, { width: '82%' }]}
-        />
-      </View>
-      <View style={styles.bottomRow}>
-        <Text style={styles.live}>EXCELLENT · LIVE</Text>
-        <View style={styles.fab}>
-          <Icon name="arrow-right" size={18} color={colors.textPrimary} />
-  const progress = Math.max(0, Math.min(1, spot.progress ?? 0.7));
-  return (
     <Pressable onPress={onPress} style={styles.outer}>
-      <SpotCover seed={spot.id} rounded={radius.xl} style={styles.cover}>
+      <SpotCover seed={spot.id} imageSource={photo} rounded={radius.xl} style={styles.cover}>
         <View style={styles.body}>
           <View style={styles.topRow}>
             <View style={styles.bestPill}>
@@ -103,9 +64,6 @@ export function FeaturedSpotCard({ spot, onPress }: Props) {
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <View>
-      <Text style={typography.caption}>{label}</Text>
-      <Text style={[typography.metricSm, { marginTop: 4 }]}>{value}</Text>
     <View style={{ minWidth: 80 }}>
       <Text style={styles.statLabel}>{label}</Text>
       <Text style={styles.statValue}>{value}</Text>
@@ -116,18 +74,8 @@ function Stat({ label, value }: { label: string; value: string }) {
 const styles = StyleSheet.create({
   outer: { borderRadius: radius.xl },
   cover: { minHeight: 260 },
-  body: {
-    padding: spacing.xl,
-  },
-  headRow: {
-    gap: spacing.sm,
-    flex: 1,
-  },
-  topRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
+  body: { padding: spacing.xl },
+  topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   bestPill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -138,17 +86,8 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   bestDot: { width: 6, height: 6, borderRadius: 999, backgroundColor: colors.excellent },
-  bestText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: colors.excellent,
-    letterSpacing: 0.6,
-  },
-  temp: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '700',
-  },
+  bestText: { fontSize: 10, fontWeight: '700', color: colors.excellent, letterSpacing: 0.6 },
+  temp: { color: '#fff', fontSize: 18, fontWeight: '700' },
   title: {
     color: '#fff',
     fontSize: 44,
@@ -157,18 +96,12 @@ const styles = StyleSheet.create({
     letterSpacing: -1,
     marginTop: spacing.sm,
   },
-  region: {
-    color: 'rgba(255,255,255,0.78)',
-    fontSize: 13,
-    marginTop: 2,
-  },
+  region: { color: 'rgba(255,255,255,0.78)', fontSize: 13, marginTop: 2 },
   statsRow: {
     flexDirection: 'row',
-    gap: spacing.xxl,
-    marginTop: spacing.lg,
-    marginBottom: spacing.lg,
     gap: spacing.xl,
-    marginTop: spacing.md,
+    marginTop: spacing.lg,
+    marginBottom: spacing.md,
   },
   statLabel: {
     fontSize: 9,
@@ -185,15 +118,10 @@ const styles = StyleSheet.create({
   },
   barTrack: {
     height: 6,
-    backgroundColor: 'rgba(255,255,255,0.14)',
     backgroundColor: 'rgba(255,255,255,0.18)',
     borderRadius: 999,
     overflow: 'hidden',
     marginTop: spacing.md,
-  },
-  barFill: {
-    height: '100%',
-    borderRadius: 999,
   },
   barFill: { height: '100%', borderRadius: 999 },
   bottomRow: {
@@ -202,19 +130,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: spacing.sm,
   },
-  live: {
-    ...typography.caption,
-    color: colors.excellent,
-    color: colors.excellent,
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1.1,
-  },
+  live: { color: colors.excellent, fontSize: 11, fontWeight: '700', letterSpacing: 1.1 },
   fab: {
     width: 40,
     height: 40,
     borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.14)',
     backgroundColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',

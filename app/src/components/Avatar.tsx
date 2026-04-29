@@ -23,8 +23,16 @@ const vibrantGradients: [string, string][] = [
 
 const mutedGradient: [string, string] = ['#1c2738', '#0f1623'];
 
-export function Avatar({ initials = '?', size = 44, ring, style, imageUri, imageSource, vibrant = false }: Props) {
-  const wrapStyle: ViewStyle = {
+export function Avatar({
+  initials = '?',
+  size = 44,
+  ring,
+  style,
+  imageUri,
+  imageSource,
+  vibrant = false,
+}: Props) {
+  const wrapper: ViewStyle = {
     width: size + (ring ? 4 : 0),
     height: size + (ring ? 4 : 0),
     borderRadius: 999,
@@ -37,7 +45,7 @@ export function Avatar({ initials = '?', size = 44, ring, style, imageUri, image
 
   if (photo) {
     return (
-      <View style={[wrapStyle, style]}>
+      <View style={[wrapper, style]}>
         <Image source={photo} style={inner} resizeMode="cover" />
       </View>
     );
@@ -48,7 +56,7 @@ export function Avatar({ initials = '?', size = 44, ring, style, imageUri, image
     : mutedGradient;
 
   return (
-    <View style={[wrapStyle, style]}>
+    <View style={[wrapper, style]}>
       <LinearGradient
         colors={g}
         start={{ x: 0, y: 0 }}

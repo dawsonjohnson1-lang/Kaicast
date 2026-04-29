@@ -1,16 +1,10 @@
 export const colors = {
   // Backgrounds
   bg: '#161616',
-  bgElevated: '#1c1c1e',
-  card: '#1f1f22',
+  bgElevated: '#1f1f1f',
+  card: '#1C1C1C',
   cardAlt: '#1a1a1c',
-  border: '#1a2333',
-  // Backgrounds — sampled from Figma HOMEPAGE
-  bg: '#000000',
-  bgElevated: '#0d141d',
-  card: '#11181f',
-  cardAlt: '#0c1218',
-  border: '#1a232c',
+  border: '#262626',
   divider: '#1f2937',
 
   // Text
@@ -24,19 +18,11 @@ export const colors = {
   accentDeep: '#0a8fd8',
   accentSoft: 'rgba(26,184,255,0.14)',
 
-  // Status
-  excellent: '#1fd17a',
-  excellentSoft: 'rgba(31,209,122,0.14)',
-  good: '#f5b041',
-  goodSoft: 'rgba(245,176,65,0.16)',
-  warn: '#f5b041',
-  warnSoft: 'rgba(245,176,65,0.18)',
-  hazard: '#d96338',
-  hazardSoft: 'rgba(217,99,56,0.16)',
   // Status — Figma palette
   excellent: '#22d36b',
   excellentSoft: 'rgba(34,211,107,0.14)',
   good: '#7bd16a',
+  goodSoft: 'rgba(123,209,106,0.14)',
   warn: '#f5b041',
   warnSoft: 'rgba(245,176,65,0.14)',
   hazard: '#e85a3c',
@@ -55,7 +41,7 @@ export const colors = {
   // UV ramp
   uv: ['#1ab8ff', '#22d36b', '#facc15', '#fb923c', '#ef5350'],
 
-  // Featured progress bar — green → blue gradient (sampled from HOMEPAGE)
+  // Featured progress bar — green → blue gradient
   progressStart: '#22d36b',
   progressEnd: '#1ab8ff',
 
