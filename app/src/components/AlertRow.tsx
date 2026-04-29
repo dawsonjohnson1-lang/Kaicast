@@ -19,7 +19,7 @@ export function AlertRow({ alert }: { alert: ConditionAlert }) {
   const c = config[alert.severity];
   return (
     <View style={[styles.row, { backgroundColor: c.bg, borderColor: c.ring }]}>
-      <View style={[styles.iconWrap, { backgroundColor: 'transparent' }]}>
+      <View style={styles.iconWrap}>
         <Image source={c.icon} style={styles.icon} resizeMode="contain" />
       </View>
       <View style={styles.body}>
@@ -46,6 +46,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: 'transparent',
   },
   icon: { width: 36, height: 36 },
   body: { flex: 1, paddingTop: 2 },

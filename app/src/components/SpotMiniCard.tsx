@@ -20,7 +20,7 @@ const RATING_LABELS: Record<ConditionRating, string> = {
 
 const RATING_COLORS: Record<ConditionRating, string> = {
   excellent: colors.excellent,
-  good: colors.warn,
+  good: colors.good,
   caution: colors.warn,
   hazard: colors.hazard,
 };
@@ -29,10 +29,16 @@ export function SpotMiniCard({ spot, onPress, width }: Props) {
   const rating = spot.rating ?? 'good';
   const ratingColor = RATING_COLORS[rating];
   const ratingLabel = RATING_LABELS[rating];
+  const photo = spot.imageSource ?? (spot.imageUrl ? { uri: spot.imageUrl } : undefined);
 
   return (
     <Pressable onPress={onPress} style={[styles.card, width ? { width } : null]}>
-      <SpotCover seed={spot.id} style={styles.cover} rounded={0}>
+      <SpotCover
+        seed={spot.id}
+        imageSource={photo}
+        rounded={radius.md}
+        style={styles.cover}
+      >
         <View style={styles.coverFab}>
           <Icon name="arrow-right" size={14} color="#fff" strokeWidth={2.5} />
         </View>
@@ -52,30 +58,32 @@ export function SpotMiniCard({ spot, onPress, width }: Props) {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: 'transparent',
+    backgroundColor: colors.card,
     borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
     overflow: 'hidden',
   },
   cover: {
-    height: 96,
-    justifyContent: 'flex-start',
+    height: 110,
     alignItems: 'flex-end',
+    justifyContent: 'flex-start',
     overflow: 'hidden',
   },
   coverFab: {
     margin: spacing.sm,
-    width: 26,
-    height: 26,
+    width: 28,
+    height: 28,
     borderRadius: 999,
     backgroundColor: 'rgba(0,0,0,0.55)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  body: { paddingTop: spacing.sm, gap: 2 },
+  body: { padding: spacing.md, gap: 2 },
   ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   ratingDot: { width: 6, height: 6, borderRadius: 999 },
   ratingLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 0.8 },
   name: { ...typography.h3, marginTop: 2 },
   region: { ...typography.bodySm, color: colors.textSecondary },
-  vis: { color: colors.accent, fontSize: 13, fontWeight: '700', marginTop: 2 },
+  vis: { color: colors.accent, fontSize: 13, fontWeight: '700', marginTop: 4 },
 });
