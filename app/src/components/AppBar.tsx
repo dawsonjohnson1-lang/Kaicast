@@ -22,8 +22,6 @@ export function AppBar({
   photoSource,
   onAvatarPress,
 }: Props) {
-  onAvatarPress,
-}: Props) {
   const photo = useProfilePhoto();
   return (
     <View style={styles.row}>
