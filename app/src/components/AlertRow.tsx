@@ -3,16 +3,16 @@ import { View, Text, Image, ImageSourcePropType, StyleSheet } from 'react-native
 import { colors, radius, spacing, typography } from '@/theme';
 import type { ConditionAlert } from '@/types';
 
-const alertInfo = require('@/assets/alert-info.png');
-const alertWarn = require('@/assets/alert-warn.png');
-const alertHazard = require('@/assets/alert-hazard.png');
+const alertTide = require('@/assets/alert-tide.png');
+const alertSwell = require('@/assets/alert-swell.png');
+const alertRunoff = require('@/assets/alert-runoff.png');
 
 type Severity = ConditionAlert['severity'];
 
 const config: Record<Severity, { fg: string; bg: string; ring: string; icon: ImageSourcePropType }> = {
-  info:   { fg: colors.accent,    bg: 'rgba(26,184,255,0.08)',  ring: 'rgba(26,184,255,0.18)',  icon: alertInfo },
-  warn:   { fg: colors.excellent, bg: 'rgba(34,211,107,0.07)',  ring: 'rgba(34,211,107,0.18)',  icon: alertWarn },
-  hazard: { fg: colors.hazard,    bg: 'rgba(232,90,60,0.08)',   ring: 'rgba(232,90,60,0.20)',   icon: alertHazard },
+  info:   { fg: colors.accent,    bg: 'rgba(26,184,255,0.08)',  ring: 'rgba(26,184,255,0.18)',  icon: alertTide },
+  warn:   { fg: colors.excellent, bg: 'rgba(34,211,107,0.07)',  ring: 'rgba(34,211,107,0.18)',  icon: alertSwell },
+  hazard: { fg: colors.hazard,    bg: 'rgba(232,90,60,0.08)',   ring: 'rgba(232,90,60,0.20)',   icon: alertRunoff },
 };
 
 export function AlertRow({ alert }: { alert: ConditionAlert }) {
