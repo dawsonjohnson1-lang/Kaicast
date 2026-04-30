@@ -9,17 +9,45 @@ const alertRunoff = require('@/assets/alert-runoff.png');
 
 type Severity = ConditionAlert['severity'];
 
-const config: Record<Severity, { fg: string; bg: string; ring: string; icon: ImageSourcePropType }> = {
-  info:   { fg: colors.accent,    bg: 'rgba(26,184,255,0.08)',  ring: 'rgba(26,184,255,0.18)',  icon: alertTide },
-  warn:   { fg: colors.excellent, bg: 'rgba(34,211,107,0.07)',  ring: 'rgba(34,211,107,0.18)',  icon: alertSwell },
-  hazard: { fg: colors.hazard,    bg: 'rgba(232,90,60,0.08)',   ring: 'rgba(232,90,60,0.20)',   icon: alertRunoff },
+type AlertStyle = {
+  fg: string;
+  row: string;
+  ring: string;
+  bubble: string;
+  icon: ImageSourcePropType;
+};
+
+// Each alert type gets a color family pulled from the symbol itself.
+// info → tide (green), warn → swell (blue), hazard → runoff (orange).
+const config: Record<Severity, AlertStyle> = {
+  info: {
+    fg: colors.excellent,
+    row: 'rgba(34,211,107,0.08)',
+    ring: 'rgba(34,211,107,0.28)',
+    bubble: 'rgba(34,211,107,0.18)',
+    icon: alertTide,
+  },
+  warn: {
+    fg: colors.accent,
+    row: 'rgba(26,184,255,0.08)',
+    ring: 'rgba(26,184,255,0.28)',
+    bubble: 'rgba(26,184,255,0.18)',
+    icon: alertSwell,
+  },
+  hazard: {
+    fg: colors.hazard,
+    row: 'rgba(232,90,60,0.08)',
+    ring: 'rgba(232,90,60,0.30)',
+    bubble: 'rgba(232,90,60,0.20)',
+    icon: alertRunoff,
+  },
 };
 
 export function AlertRow({ alert }: { alert: ConditionAlert }) {
   const c = config[alert.severity];
   return (
-    <View style={[styles.row, { backgroundColor: c.bg, borderColor: c.ring }]}>
-      <View style={styles.iconWrap}>
+    <View style={[styles.row, { backgroundColor: c.row, borderColor: c.ring }]}>
+      <View style={[styles.iconWrap, { backgroundColor: c.bubble }]}>
         <Image source={c.icon} style={styles.icon} resizeMode="contain" />
       </View>
       <View style={styles.body}>
@@ -41,14 +69,13 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
   },
   iconWrap: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     borderRadius: 999,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'transparent',
   },
-  icon: { width: 36, height: 36 },
+  icon: { width: 26, height: 26 },
   body: { flex: 1, paddingTop: 2 },
   msg: { ...typography.bodySm, color: colors.textSecondary, marginTop: 2, lineHeight: 18 },
 });
