@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, Pressable, Image, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 
 import { Screen } from '@/components/Screen';
 import { Header } from '@/components/Header';
@@ -15,8 +15,13 @@ import { Button } from '@/components/Button';
 import { DiveReportCard } from '@/components/DiveReportCard';
 import { Icon } from '@/components/Icon';
 import { colors, radius, spacing, typography } from '@/theme';
-import { electricBeachReport, diveReports } from '@/api/mockData';
-import type { RootNav } from '@/navigation/types';
+import { electricBeachReport, diveReports, exploreSpots, featuredSpot } from '@/api/mockData';
+import type { RootNav, RootStackParamList } from '@/navigation/types';
+import type { Spot } from '@/types';
+
+function findSpot(id: string): Spot {
+  return exploreSpots.find((s) => s.id === id) ?? featuredSpot;
+}
 
 type SpotTab = 'Overview' | 'Hazards' | 'Forecast' | 'Guide';
 
@@ -24,17 +29,28 @@ const TABS: SpotTab[] = ['Overview', 'Hazards', 'Forecast', 'Guide'];
 
 export function SpotDetailScreen() {
   const nav = useNavigation<RootNav>();
+  const route = useRoute<RouteProp<RootStackParamList, 'SpotDetail'>>();
   const [tab, setTab] = useState<SpotTab>('Overview');
 
+  const spot = findSpot(route.params.spotId);
   const r = electricBeachReport;
+  const heroImage = spot.imageSource ?? (spot.imageUrl ? { uri: spot.imageUrl } : undefined);
 
   return (
     <Screen scroll={false} padding={0} edges={['top', 'left', 'right']}>
       <View style={styles.hero}>
+        {heroImage ? (
+          <Image source={heroImage} style={StyleSheet.absoluteFill} resizeMode="cover" />
+        ) : (
+          <LinearGradient
+            colors={[spot.coverColor ?? '#06334a', '#04111e']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={StyleSheet.absoluteFill}
+          />
+        )}
         <LinearGradient
-          colors={['#06334a', '#04111e']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
+          colors={['rgba(0,0,0,0.15)', 'rgba(0,0,0,0.65)']}
           style={StyleSheet.absoluteFill}
         />
         <Header
@@ -47,8 +63,8 @@ export function SpotDetailScreen() {
           }
         />
         <View style={styles.heroBody}>
-          <Tag variant="freedive" label="OAHU" />
-          <Text style={[typography.display, { marginTop: spacing.md }]}>{r.spot.name}</Text>
+          <Tag variant="freedive" label={spot.region.split('·')[0].trim().toUpperCase()} />
+          <Text style={[typography.display, { marginTop: spacing.md }]}>{spot.name}</Text>
           <Text style={styles.heroSub}>Today · Wed, Apr 16 · 2-15 PM</Text>
         </View>
       </View>
