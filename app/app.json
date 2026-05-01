@@ -26,6 +26,9 @@
     },
     "extra": {
       "kaicastApiBase": "https://us-central1-kaicast.cloudfunctions.net"
+    },
+    "experiments": {
+      "tsconfigPaths": true
     }
   }
 }
