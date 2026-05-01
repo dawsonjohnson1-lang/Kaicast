@@ -18,9 +18,9 @@ import { colors, radius, spacing, typography } from '@/theme';
 import { electricBeachReport, diveReports } from '@/api/mockData';
 import type { RootNav } from '@/navigation/types';
 
-type SpotTab = 'Overview' | 'Conditions' | 'Hazards' | 'Forecast' | 'Guide';
+type SpotTab = 'Overview' | 'Hazards' | 'Forecast' | 'Guide';
 
-const TABS: SpotTab[] = ['Overview', 'Conditions', 'Hazards', 'Forecast', 'Guide'];
+const TABS: SpotTab[] = ['Overview', 'Hazards', 'Forecast', 'Guide'];
 
 export function SpotDetailScreen() {
   const nav = useNavigation<RootNav>();
@@ -66,7 +66,6 @@ export function SpotDetailScreen() {
         </ScrollView>
 
         {tab === 'Overview' && <OverviewTab />}
-        {tab === 'Conditions' && <ConditionsTab />}
         {tab === 'Hazards' && <HazardsTab />}
         {tab === 'Forecast' && <ForecastTab />}
         {tab === 'Guide' && <GuideTab />}
@@ -93,7 +92,6 @@ function OverviewTab() {
   return (
     <View style={{ gap: spacing.md }}>
       <RatingHeader />
-      <ForecastStrip />
 
       <Row>
         <MetricCard label="WATER CLARITY" value={String(r.visibilityFt)} unit="FT" sub="VISIBILITY" />
@@ -125,62 +123,6 @@ function OverviewTab() {
           </View>
         </MetricCard>
       </Row>
-    </View>
-  );
-}
-
-function ConditionsTab() {
-  const r = electricBeachReport;
-  return (
-    <View style={{ gap: spacing.md }}>
-      <RatingHeader />
-      <ForecastStrip />
-
-      <Row>
-        <MetricCard label="WATER CLARITY" value={String(r.visibilityFt)} unit="FT" sub="VISIBILITY" />
-        <MetricCard label="WAVE HEIGHT" value={String(r.swellHeightFt)} unit="FT" sub="SWELL HEIGHT" />
-      </Row>
-
-      <Card>
-        <Text style={typography.caption}>UV RATING</Text>
-        <View style={{ height: spacing.md }} />
-        <RatingBar value={r.uvIndex} max={11} />
-      </Card>
-
-      <Row>
-        <MetricCard label="WATER TEMP" value={String(r.waterTempF)} unit="°F" sub="3MM WETSUIT" />
-        <MetricCard label="CURRENT" value={String(r.currentMph)} unit="MPH" sub="NON-EXISTENT" />
-      </Row>
-
-      <TideChart series={r.tide.series} trend={r.tide.trend} nowFt={r.tide.nowFt} nextLabel={r.tide.nextLabel} nextFt={r.tide.nextFt} />
-
-      <Row>
-        <MetricCard label="AIR TEMP" value={String(r.airTempF)} unit="°F" sub="AIR TEMP" />
-        <MetricCard label="WIND" value={String(r.windMph)} unit="MPH" sub={`${r.gustMph} MPH GUST`} />
-      </Row>
-
-      <Card>
-        <Text style={typography.caption}>MOON INFO</Text>
-        <View style={moonStyles.row}>
-          <View style={{ flex: 1 }}>
-            <Text style={[typography.h2, { marginTop: spacing.sm }]}>{r.moon.phase}</Text>
-            <View style={moonStyles.metricsRow}>
-              <View>
-                <Text style={typography.h2}>{r.moon.illumination}</Text>
-                <Text style={moonStyles.cap}>ILLUMINATION RATING</Text>
-              </View>
-              <View>
-                <Text style={typography.h2}>{r.moon.daysSinceFullMoon}</Text>
-                <Text style={moonStyles.cap}>DAYS SINCE FULL MOON</Text>
-              </View>
-            </View>
-            <Text style={moonStyles.note}>Night diving not recommended based on current conditions</Text>
-          </View>
-          <View style={moonStyles.moon}>
-            <Icon name="moon" size={56} color={colors.textPrimary} />
-          </View>
-        </View>
-      </Card>
     </View>
   );
 }
@@ -218,6 +160,7 @@ function ForecastTab() {
   const r = electricBeachReport;
   return (
     <View style={{ gap: spacing.md }}>
+      <ForecastStrip />
       <Card>
         <Text style={typography.caption}>4-DAY FORECAST</Text>
         <View style={{ height: spacing.md }} />
@@ -358,21 +301,6 @@ const ratingStyles = StyleSheet.create({
   dot: { width: 10, height: 10, borderRadius: 999, backgroundColor: colors.excellent },
   bar: { flexDirection: 'row', gap: 4, marginTop: spacing.md, height: 8 },
   seg: { flex: 1, borderRadius: 999 },
-});
-
-const moonStyles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.lg, marginTop: spacing.sm },
-  metricsRow: { flexDirection: 'row', gap: spacing.xxl, marginTop: spacing.md },
-  cap: { ...typography.caption, color: colors.textMuted, marginTop: 2 },
-  note: { ...typography.bodySm, color: colors.textMuted, marginTop: spacing.md, lineHeight: 18 },
-  moon: {
-    width: 80,
-    height: 80,
-    borderRadius: 999,
-    backgroundColor: colors.cardAlt,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
 });
 
 const hazardStyles = StyleSheet.create({
