@@ -5,21 +5,38 @@ import Svg, { Circle, Path } from 'react-native-svg';
 import { colors, spacing } from '@/theme';
 import type { Spot } from '@/types';
 
-import Mapbox, { MapView, Camera, PointAnnotation } from '@rnmapbox/maps';
+// Lazy require @rnmapbox/maps so a top-level import doesn't crash on
+// bundle load in Expo Go (its native bridge throws "@rnmapbox/maps native
+// code not available" the moment RNMBXModule.ts evaluates). The render-time
+// `useMapbox` guard then routes to FauxMap.
+let Mapbox: any = null;
+let MapView: any = null;
+let Camera: any = null;
+let PointAnnotation: any = null;
+try {
+  if (Platform.OS !== 'web') {
+    const mod = require('@rnmapbox/maps');
+    Mapbox = mod.default;
+    MapView = mod.MapView;
+    Camera = mod.Camera;
+    PointAnnotation = mod.PointAnnotation;
+  }
+} catch {
+  // Native module not linked (Expo Go) — fall back to FauxMap.
+}
 
 // Inlined at bundle time from app/.env (gitignored). EXPO_PUBLIC_* vars
 // are exposed to the JS bundle automatically — the token never goes into
-// app.json or git history.
+// app.config.js or git history.
 const token = process.env.EXPO_PUBLIC_MAPBOX_TOKEN ?? '';
 const hasValidToken = token.length > 30 && !token.includes('REPLACE_ME');
-const useMapbox = Platform.OS !== 'web' && hasValidToken;
+const useMapbox = Platform.OS !== 'web' && hasValidToken && MapView != null;
 
-if (useMapbox) {
+if (Mapbox && useMapbox) {
   try {
     Mapbox.setAccessToken(token);
   } catch {
-    // Native module unavailable (e.g. running in Expo Go without a custom
-    // dev client). The render-time fallback below catches this.
+    // Defensive: if setAccessToken itself throws, FauxMap still renders.
   }
 }
 
