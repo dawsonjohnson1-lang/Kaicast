@@ -28,7 +28,14 @@ npm run web            # browser
 
 The Explore screen uses [`@rnmapbox/maps`](https://github.com/rnmapbox/maps) for the satellite/dark map. The `FauxMap` SVG fallback in `src/components/Map.tsx` still renders on web, in Expo Go, or whenever the public token is unset.
 
-- **Public access token**: lives in `app.json → expo.extra.mapboxAccessToken`. Replace the `pk.eyJ1...REPLACE_ME` placeholder with your real token (read at runtime via `Constants.expoConfig?.extra?.mapboxAccessToken`).
+- **Public access token**: not committed. Add it to `app/.env` (gitignored) as
+
+  ```bash
+  EXPO_PUBLIC_MAPBOX_TOKEN=pk.your_public_token
+  ```
+
+  Expo inlines `EXPO_PUBLIC_*` vars into the JS bundle at build time; `Map.tsx` reads it via `process.env.EXPO_PUBLIC_MAPBOX_TOKEN`. URL-restrict and quota-cap the token in your Mapbox dashboard before distributing builds.
+
 - **Secret download token**: required by the iOS/Android build to fetch the Mapbox SDK. Export it before running `expo prebuild` / `eas build`:
 
   ```bash

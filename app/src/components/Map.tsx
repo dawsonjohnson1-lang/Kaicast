@@ -1,14 +1,16 @@
 import React from 'react';
 import { Platform, View, Text, StyleSheet } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
-import Constants from 'expo-constants';
 
 import { colors, spacing } from '@/theme';
 import type { Spot } from '@/types';
 
 import Mapbox, { MapView, Camera, PointAnnotation } from '@rnmapbox/maps';
 
-const token = (Constants.expoConfig?.extra?.mapboxAccessToken ?? '') as string;
+// Inlined at bundle time from app/.env (gitignored). EXPO_PUBLIC_* vars
+// are exposed to the JS bundle automatically — the token never goes into
+// app.json or git history.
+const token = process.env.EXPO_PUBLIC_MAPBOX_TOKEN ?? '';
 const hasValidToken = token.length > 30 && !token.includes('REPLACE_ME');
 const useMapbox = Platform.OS !== 'web' && hasValidToken;
 

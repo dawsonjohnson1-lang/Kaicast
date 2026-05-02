@@ -46,8 +46,7 @@
       ]
     ],
     "extra": {
-      "kaicastApiBase": "https://us-central1-kaicast.cloudfunctions.net",
-      "mapboxAccessToken": "pk.eyJ1...REPLACE_ME"
+      "kaicastApiBase": "https://us-central1-kaicast.cloudfunctions.net"
     },
     "experiments": {
       "tsconfigPaths": true
