@@ -655,7 +655,6 @@ function estimateVisibility({
   cloudCoverPercent = null,
   hourLocal = null,
   runoff = null,   // assessRunoffRisk() result (optional)
-  runoff = null,
 } = {}) {
   // Track missing fields to add a small pessimism penalty later
   const missing = {
