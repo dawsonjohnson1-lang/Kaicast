@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>KaiCast · Explore (Mapbox preview)</title>
+<link href="https://api.mapbox.com/mapbox-gl-js/v3.7.0/mapbox-gl.css" rel="stylesheet" />
+<script src="https://api.mapbox.com/mapbox-gl-js/v3.7.0/mapbox-gl.js"></script>
+<style>
+  :root {
+    --bg: #0b1220;
+    --bg-elev: #11192b;
+    --card: #16203a;
+    --border: #1f2a44;
+    --text: #f4f7fb;
+    --text-2: #a4b0c5;
+    --text-dim: #5d6b85;
+    --accent: #5cd6c0;
+    --accent-soft: rgba(92, 214, 192, 0.16);
+
+    --rating-excellent: #11d990;
+    --rating-good: #8fd86a;
+    --rating-caution: #f5b800;
+    --rating-hazard: #ff4d4d;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Inter, sans-serif; }
+  #app { position: relative; height: 100vh; width: 100vw; overflow: hidden;
+    max-width: 430px; margin: 0 auto; box-shadow: 0 0 0 1px #0a0f1a; }
+  #map { position: absolute; inset: 0 0 42% 0; }
+
+  /* top app bar */
+  .appbar { position: absolute; top: 0; left: 0; right: 0; padding: 54px 20px 16px;
+    display: flex; align-items: center; justify-content: space-between;
+    background: linear-gradient(180deg, rgba(11,18,32,0.85), rgba(11,18,32,0));
+    z-index: 5; pointer-events: none; }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand .dot { width: 10px; height: 10px; border-radius: 999px; background: var(--accent);
+    box-shadow: 0 0 12px var(--accent); }
+  .brand .name { font-size: 13px; letter-spacing: 2px; color: var(--text); font-weight: 700; }
+  .avatar { width: 36px; height: 36px; border-radius: 999px;
+    background: #2a3550; display: grid; place-items: center;
+    font-size: 12px; font-weight: 700; color: var(--text); border: 1px solid var(--border); }
+
+  /* fab buttons (right side) */
+  .fabs { position: absolute; right: 16px; top: 40%; display: flex; flex-direction: column; gap: 10px;
+    transform: translateY(-50%); z-index: 4; }
+  .fab { width: 44px; height: 44px; border-radius: 999px; background: rgba(17,25,43,0.9);
+    border: 1px solid var(--border); display: grid; place-items: center; cursor: pointer;
+    color: var(--text); backdrop-filter: blur(8px); }
+  .fab svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 2; }
+
+  /* spot pin (Surfline-style condition pill) */
+  .pin { position: relative; width: 44px; height: 44px; border-radius: 999px;
+    background: #11192b; border: 3px solid var(--rating-good);
+    display: grid; place-items: center; cursor: pointer;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.45); transition: transform .15s ease; }
+  .pin:hover { transform: scale(1.08); }
+  .pin .num { font-size: 13px; font-weight: 800; color: #fff; line-height: 1; }
+  .pin .unit { font-size: 8px; font-weight: 700; color: var(--text-2); margin-top: 2px; letter-spacing: 0.5px; }
+  .pin.excellent { border-color: var(--rating-excellent); }
+  .pin.good      { border-color: var(--rating-good); }
+  .pin.caution   { border-color: var(--rating-caution); }
+  .pin.hazard    { border-color: var(--rating-hazard); }
+  .pin.active::before {
+    content: ""; position: absolute; inset: -8px; border-radius: 999px;
+    border: 2px solid var(--accent); animation: pulse 1.6s ease-out infinite;
+  }
+  @keyframes pulse {
+    0%   { transform: scale(0.85); opacity: 0.9; }
+    100% { transform: scale(1.4); opacity: 0; }
+  }
+
+  /* bottom sheet */
+  .sheet { position: absolute; left: 0; right: 0; bottom: 0; height: 46%;
+    background: var(--bg-elev); border-top-left-radius: 22px; border-top-right-radius: 22px;
+    padding: 12px 20px 32px; display: flex; flex-direction: column;
+    box-shadow: 0 -12px 40px rgba(0,0,0,0.5); z-index: 6; }
+  .handle { align-self: center; width: 48px; height: 4px; border-radius: 999px;
+    background: var(--border); margin-bottom: 14px; }
+  .filters { display: flex; gap: 8px; margin-bottom: 14px; }
+  .pill { padding: 8px 14px; border-radius: 999px; font-size: 13px; font-weight: 600;
+    color: var(--text-2); cursor: pointer; }
+  .pill.active { background: var(--accent-soft); color: var(--accent); }
+  .helper { color: var(--text-dim); font-size: 12px; text-align: center; margin: 6px 0 14px; }
+  .list { flex: 1; overflow-y: auto; }
+  .row { display: flex; align-items: center; gap: 12px; padding: 12px 0;
+    border-bottom: 1px solid var(--border); cursor: pointer; }
+  .row:hover { background: rgba(255,255,255,0.02); }
+  .row .swatch { width: 40px; height: 40px; border-radius: 10px; background: var(--card);
+    display: grid; place-items: center; }
+  .row .swatch svg { width: 18px; height: 18px; stroke: var(--accent); fill: none; stroke-width: 2; }
+  .row .meta { flex: 1; }
+  .row .meta .title { font-size: 15px; font-weight: 700; color: var(--text); }
+  .row .meta .sub { font-size: 12px; color: var(--text-2); margin-top: 2px; }
+  .badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px;
+    border-radius: 999px; font-size: 11px; font-weight: 700; letter-spacing: 0.5px;
+    text-transform: uppercase; }
+  .badge .bdot { width: 6px; height: 6px; border-radius: 999px; }
+  .badge.excellent { background: rgba(17,217,144,0.14); color: var(--rating-excellent); }
+  .badge.excellent .bdot { background: var(--rating-excellent); }
+  .badge.good      { background: rgba(143,216,106,0.14); color: var(--rating-good); }
+  .badge.good      .bdot { background: var(--rating-good); }
+  .badge.caution   { background: rgba(245,184,0,0.14); color: var(--rating-caution); }
+  .badge.caution   .bdot { background: var(--rating-caution); }
+  .badge.hazard    { background: rgba(255,77,77,0.14); color: var(--rating-hazard); }
+  .badge.hazard    .bdot { background: var(--rating-hazard); }
+
+  /* token banner */
+  .banner { position: absolute; top: 16px; left: 16px; right: 16px; z-index: 50;
+    padding: 12px 16px; background: rgba(255,77,77,0.12); border: 1px solid var(--rating-hazard);
+    color: var(--text); border-radius: 10px; font-size: 13px; line-height: 1.4; }
+  .banner code { background: rgba(0,0,0,0.35); padding: 1px 6px; border-radius: 4px; font-size: 12px; }
+
+  /* mapbox attribution polish */
+  .mapboxgl-ctrl-bottom-left, .mapboxgl-ctrl-bottom-right { display: none !important; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="map"></div>
+
+  <div class="appbar">
+    <div class="brand"><span class="dot"></span><span class="name">DAWSON</span></div>
+    <div class="avatar">DJ</div>
+  </div>
+
+  <div class="fabs">
+    <div class="fab" title="Search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></div>
+    <div class="fab" title="Locate"><svg viewBox="0 0 24 24"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7z"/></svg></div>
+    <div class="fab" title="Globe"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20z"/></svg></div>
+  </div>
+
+  <div class="sheet">
+    <div class="handle"></div>
+    <div class="filters">
+      <div class="pill active">Dive Spots</div>
+      <div class="pill">Favorite Spots</div>
+    </div>
+    <div class="helper">Move map to find dive spots, buoys, and conditions near you.</div>
+    <div class="list" id="list"></div>
+  </div>
+</div>
+
+<script>
+  // === PASTE YOUR MAPBOX PUBLIC TOKEN HERE ===
+  const MAPBOX_TOKEN = "pk.REPLACE_ME";
+
+  // Spots mirrored from app/src/api/mockData.ts
+  const SPOTS = [
+    { id: "electric-beach", name: "Electric Beach", region: "Oahu",       lat: 21.3550, lon: -158.1220, vis: 56, rating: "excellent" },
+    { id: "sharks-cove",    name: "Shark's Cove",   region: "Oahu",       lat: 21.6417, lon: -158.0617, vis: 48, rating: "good" },
+    { id: "molokini",       name: "Molokini",       region: "Maui",       lat: 20.6330, lon: -156.4950, vis: 80, rating: "excellent" },
+    { id: "three-tables",   name: "Three Tables",   region: "Oahu",       lat: 21.6367, lon: -158.0633, vis: 42, rating: "good" },
+    { id: "hanauma",        name: "Hanauma Bay",    region: "Oahu",       lat: 21.2694, lon: -157.6939, vis: 35, rating: "caution" },
+    { id: "makua",          name: "Makua Beach",    region: "Oahu West",  lat: 21.5274, lon: -158.2295, vis: 28, rating: "caution" },
+    { id: "mokuleia",       name: "Mokuleia",       region: "Oahu North", lat: 21.5783, lon: -158.1553, vis: 22, rating: "hazard" },
+  ];
+
+  if (!MAPBOX_TOKEN || MAPBOX_TOKEN.includes("REPLACE_ME")) {
+    const b = document.createElement("div");
+    b.className = "banner";
+    b.innerHTML = 'No Mapbox token set. Paste your <code>pk.</code> public token into <code>MAPBOX_TOKEN</code> at the top of <code>preview/explore-mapbox.html</code> and reload.';
+    document.getElementById("app").appendChild(b);
+  }
+
+  mapboxgl.accessToken = MAPBOX_TOKEN;
+
+  const map = new mapboxgl.Map({
+    container: "map",
+    // Dark base; Surfline uses a custom satellite-dark hybrid. dark-v11 is the
+    // closest stock match — swap to "satellite-streets-v12" for satellite.
+    style: "mapbox://styles/mapbox/dark-v11",
+    center: [-157.85, 20.9],
+    zoom: 6.4,
+    pitch: 0,
+    bearing: 0,
+    attributionControl: false,
+  });
+
+  map.on("style.load", () => {
+    // Tint water deep navy + soften land for that Surfline coastline look
+    try {
+      map.setPaintProperty("water", "fill-color", "#06121f");
+      map.setPaintProperty("land", "background-color", "#10172a");
+    } catch (_) { /* layer names vary by style */ }
+  });
+
+  let activeId = null;
+  const markers = {};
+
+  function renderMarkers() {
+    SPOTS.forEach((s) => {
+      const el = document.createElement("div");
+      el.className = "pin " + s.rating + (s.id === activeId ? " active" : "");
+      el.innerHTML = `<div><div class="num">${s.vis}</div><div class="unit">FT</div></div>`;
+      el.addEventListener("click", () => {
+        activeId = s.id;
+        Object.values(markers).forEach(m => m.getElement().classList.remove("active"));
+        el.classList.add("active");
+        map.flyTo({ center: [s.lon, s.lat], zoom: 11, speed: 1.2 });
+        document.getElementById("row-" + s.id)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      });
+      const marker = new mapboxgl.Marker({ element: el }).setLngLat([s.lon, s.lat]).addTo(map);
+      markers[s.id] = marker;
+    });
+  }
+
+  function renderList() {
+    const list = document.getElementById("list");
+    list.innerHTML = SPOTS.map((s) => `
+      <div class="row" id="row-${s.id}" data-id="${s.id}">
+        <div class="swatch"><svg viewBox="0 0 24 24"><path d="M12 22s7-7 7-12a7 7 0 0 0-14 0c0 5 7 12 7 12z"/><circle cx="12" cy="10" r="2.5"/></svg></div>
+        <div class="meta">
+          <div class="title">${s.name}</div>
+          <div class="sub">${s.region} · ${s.vis} ft vis</div>
+        </div>
+        <div class="badge ${s.rating}"><span class="bdot"></span>${s.rating}</div>
+      </div>
+    `).join("");
+    list.querySelectorAll(".row").forEach((row) => {
+      row.addEventListener("click", () => {
+        const s = SPOTS.find(x => x.id === row.dataset.id);
+        markers[s.id].getElement().click();
+      });
+    });
+  }
+
+  map.on("load", () => { renderMarkers(); renderList(); });
+</script>
+</body>
+</html>
