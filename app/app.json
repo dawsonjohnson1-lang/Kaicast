@@ -24,8 +24,30 @@
     "web": {
       "bundler": "metro"
     },
+    "plugins": [
+      [
+        "@rnmapbox/maps",
+        {
+          "RNMapboxMapsImpl": "mapbox",
+          "RNMapboxMapsDownloadToken": "SET_VIA_ENV"
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "deploymentTarget": "13.0"
+          },
+          "android": {
+            "compileSdkVersion": 34,
+            "targetSdkVersion": 34
+          }
+        }
+      ]
+    ],
     "extra": {
-      "kaicastApiBase": "https://us-central1-kaicast.cloudfunctions.net"
+      "kaicastApiBase": "https://us-central1-kaicast.cloudfunctions.net",
+      "mapboxAccessToken": "pk.eyJ1...REPLACE_ME"
     },
     "experiments": {
       "tsconfigPaths": true

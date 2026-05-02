@@ -24,6 +24,28 @@ npm run web            # browser
 > The app uses dark mode only (matching the Figma).
 > A `Skip for now (demo)` button on the Welcome screen lets you bypass auth.
 
+## Mapbox setup
+
+The Explore screen uses [`@rnmapbox/maps`](https://github.com/rnmapbox/maps) for the satellite/dark map. The `FauxMap` SVG fallback in `src/components/Map.tsx` still renders on web, in Expo Go, or whenever the public token is unset.
+
+- **Public access token**: lives in `app.json → expo.extra.mapboxAccessToken`. Replace the `pk.eyJ1...REPLACE_ME` placeholder with your real token (read at runtime via `Constants.expoConfig?.extra?.mapboxAccessToken`).
+- **Secret download token**: required by the iOS/Android build to fetch the Mapbox SDK. Export it before running `expo prebuild` / `eas build`:
+
+  ```bash
+  export MAPBOX_DOWNLOADS_TOKEN=sk.your_secret_download_token
+  ```
+
+  The `@rnmapbox/maps` config plugin in `app.json` reads it via `RNMapboxMapsDownloadToken` (the value in the JSON is just the placeholder `"SET_VIA_ENV"`).
+
+- **Expo Go isn't enough.** Mapbox is a native module; you need a custom dev client:
+
+  ```bash
+  npx expo prebuild
+  npx expo run:ios       # or run:android
+  ```
+
+  Until then, the `SpotMap` component will fall back to `FauxMap`.
+
 ## Backend wiring
 
 `src/api/kaicast.ts` calls the Firebase Function `fetchKaiCastNow` deployed
