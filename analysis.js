@@ -1139,11 +1139,7 @@ function generateSnorkelRating({
   jellyfishWarning = false,    // from evaluateJellyfishAndNightDive
   confidenceScore = 1,         // 0–1, from calling code if desired
   runoff = null,               // assessRunoffRisk() result (optional)
-  spotContext = null, // { runoffSensitivity, maxCleanSwellFt, hardNoGoSwellFt, coast }
-  jellyfishWarning = false, // from evaluateJellyfishAndNightDive
-  confidenceScore = 1, // 0–1, from calling code if desired
-  runoff = null, // from estimateRunoffRisk / assessRunoffRisk
-  runoffPenalty = null, // optional explicit penalty
+  runoffPenalty = null,        // optional explicit penalty
 } = {}) {
   if (crowdOverride) {
     return {
@@ -1515,7 +1511,6 @@ function evaluateJellyfishAndNightDive({
 }) {
   const jellyfishWarning = false;
   const jellyfishNote = 'No unusual jellyfish activity expected.';
-  const jellyfishNote = '';
 
   const nightDivingOk = false;
   const nightDiveNote = 'Night diving not recommended based on current conditions.';

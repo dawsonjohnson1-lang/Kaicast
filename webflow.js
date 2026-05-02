@@ -473,11 +473,6 @@ async function pushAllReportsToWebflow({ reports }) {
       const existing = windowBySlug.get(slug);
 
       // Log keys kept and keys dropped by schema filtering to help debug missing fields
-      const fieldData    = filterFieldDataForCollection(rawFieldData, windowsAllowed);
-      const slug         = fieldData.slug || rawFieldData.slug;
-      const existing     = windowBySlug.get(slug);
-
-      // Diagnostic logging
       const rawKeys      = Object.keys(rawFieldData);
       const filteredKeys = Object.keys(fieldData);
       const droppedKeys  = rawKeys.filter((k) => !filteredKeys.includes(k));
