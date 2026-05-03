@@ -36,8 +36,17 @@ config.watchFolders = [__dirname];
 // walk up to <repoRoot>/node_modules. Reject those paths explicitly
 // so resolution fails fast instead of pulling a Node-only package
 // (firebase-functions etc.) into the React Native bundle.
+//
+// Case-insensitive regex flag is critical: macOS's filesystem is
+// case-insensitive (HFS+/APFS), so the same folder can be referenced
+// as both /Users/.../Kaicast and /Users/.../kaicast depending on what
+// the user typed at the shell. path.resolve preserves on-disk casing,
+// but Metro's resolver may report a path with the user's invocation
+// casing. Without the 'i' flag the blockList silently misses one
+// case and lets server-side packages slip through.
 const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const blockedAbs = [
+  // Source files at the repo root.
   path.join(repoRoot, 'index.js'),
   path.join(repoRoot, 'analysis.js'),
   path.join(repoRoot, 'buoy_Version2.js'),
@@ -45,13 +54,14 @@ const blockedAbs = [
   path.join(repoRoot, 'webflow.js'),
   path.join(repoRoot, 'functions'),
   path.join(repoRoot, 'abyss'),
-  path.join(repoRoot, 'node_modules', 'firebase-functions'),
-  path.join(repoRoot, 'node_modules', 'firebase-admin'),
-  path.join(repoRoot, 'node_modules', 'node-fetch'),
+  // Block the ENTIRE parent node_modules — the app uses only
+  // app/node_modules; anything resolving to <repoRoot>/node_modules
+  // is server-side or stale and should never enter the RN bundle.
+  path.join(repoRoot, 'node_modules'),
 ];
 
 config.resolver.blockList = blockedAbs.map(
-  (p) => new RegExp(`^${escape(p)}(/.*)?$`)
+  (p) => new RegExp(`^${escape(p)}(/.*)?$`, 'i')
 );
 
 module.exports = config;
