@@ -17,23 +17,25 @@ config.resolver.sourceExts = [...config.resolver.sourceExts, 'svg'];
 // ─── Pin scope to app/ ──────────────────────────────────────────────
 // Repo root has Firebase Functions code (index.js / analysis.js /
 // webflow.js) and a root-level package.json that lists
-// firebase-functions, firebase-admin, node-fetch. Without these
-// guards Metro:
-//   1. walks up via watchFolders auto-detection and tries to bundle
-//      server-side .js files at the repo root;
-//   2. walks up via Node's default hierarchical node_modules lookup
-//      and resolves `firebase-functions` from
-//      <repoRoot>/node_modules/firebase-functions, whose
-//      `require('util')` crashes RN's resolver.
-// projectRoot + watchFolders block (1); nodeModulesPaths +
-// disableHierarchicalLookup block (2). The blockList below is a
-// belt-and-suspenders for both.
+// firebase-functions / firebase-admin / node-fetch. Pin the project
+// root + watchFolders to app/ so Expo's monorepo auto-detection
+// doesn't walk up and bundle server-side code.
 config.projectRoot = __dirname;
 config.watchFolders = [__dirname];
-config.resolver.nodeModulesPaths = [path.join(__dirname, 'node_modules')];
-config.resolver.disableHierarchicalLookup = true;
+
+// NB: deliberately NOT setting resolver.disableHierarchicalLookup —
+// react-native ships nested peer deps at
+// app/node_modules/react-native/node_modules/@react-native/* and
+// disabling hierarchical lookup also blocks those, breaking core
+// modules like Modal/VirtualizedList. Hierarchical lookup stays
+// enabled; the blockList below is what keeps Metro from resolving
+// the parent's server-side packages.
 
 // ─── Defensive blockList ────────────────────────────────────────────
+// Even though projectRoot is pinned, hierarchical lookup can still
+// walk up to <repoRoot>/node_modules. Reject those paths explicitly
+// so resolution fails fast instead of pulling a Node-only package
+// (firebase-functions etc.) into the React Native bundle.
 const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const blockedAbs = [
   path.join(repoRoot, 'index.js'),
@@ -42,6 +44,7 @@ const blockedAbs = [
   path.join(repoRoot, 'tides.js'),
   path.join(repoRoot, 'webflow.js'),
   path.join(repoRoot, 'functions'),
+  path.join(repoRoot, 'abyss'),
   path.join(repoRoot, 'node_modules', 'firebase-functions'),
   path.join(repoRoot, 'node_modules', 'firebase-admin'),
   path.join(repoRoot, 'node_modules', 'node-fetch'),
