@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
+import { SpotCover } from '@/components/SpotCover';
 
 import { Screen } from '@/components/Screen';
 import { Header } from '@/components/Header';
@@ -31,10 +32,15 @@ export function SpotDetailScreen() {
   return (
     <Screen scroll={false} padding={0} edges={['top', 'left', 'right']}>
       <View style={styles.hero}>
+        <SpotCover
+          imageSource={r.spot.imageSource}
+          seed={r.spot.id}
+          style={StyleSheet.absoluteFill}
+        />
         <LinearGradient
-          colors={['#06334a', '#04111e']}
+          colors={['rgba(4,17,30,0.35)', 'rgba(4,17,30,0.92)']}
           start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
+          end={{ x: 0, y: 1 }}
           style={StyleSheet.absoluteFill}
         />
         <Header
@@ -119,11 +125,7 @@ function OverviewTab() {
 
       <Row>
         <MetricCard label="AIR TEMP" value={String(r.airTempF)} unit="°F" sub="AIR TEMP" />
-        <MetricCard label="WIND" value={String(r.windMph)} unit="MPH" sub={`${r.gustMph} MPH GUST`}>
-          <View style={styles.dialOverlay}>
-            <CompassDial size={70} bearing={120} />
-          </View>
-        </MetricCard>
+        <MetricCard label="WIND" value={String(r.windMph)} unit="MPH" sub={`${r.gustMph} MPH GUST`} />
       </Row>
     </View>
   );
@@ -252,9 +254,34 @@ function ForecastTab() {
   );
 }
 
+function GuideStatItem({ label, value, unit }: { label: string; value: string; unit: string }) {
+  return (
+    <View style={guideStyles.statItem}>
+      <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 3 }}>
+        <Text style={guideStyles.statValue}>{value}</Text>
+        {unit ? <Text style={guideStyles.statUnit}>{unit}</Text> : null}
+      </View>
+      <Text style={guideStyles.statLabel}>{label}</Text>
+    </View>
+  );
+}
+
 function GuideTab() {
+  const r = electricBeachReport;
   return (
     <View style={{ gap: spacing.md }}>
+      <Card>
+        <Text style={typography.caption}>SPOT STATS</Text>
+        <View style={guideStyles.statsGrid}>
+          <GuideStatItem label="VISIBILITY" value={String(r.visibilityFt)} unit="FT" />
+          <GuideStatItem label="WAVE HEIGHT" value={String(r.swellHeightFt)} unit="FT" />
+          <GuideStatItem label="WATER TEMP" value={String(r.waterTempF)} unit="°F" />
+          <GuideStatItem label="AIR TEMP" value={String(r.airTempF)} unit="°F" />
+          <GuideStatItem label="WIND" value={String(r.windMph)} unit="MPH" />
+          <GuideStatItem label="CURRENT" value={String(r.currentMph)} unit="MPH" />
+        </View>
+      </Card>
+
       <Card>
         <Text style={typography.caption}>SPOT GUIDE</Text>
         <Text style={[typography.h3, { marginTop: spacing.sm }]}>Electric Beach</Text>
@@ -279,6 +306,14 @@ function GuideTab() {
     </View>
   );
 }
+
+const guideStyles = StyleSheet.create({
+  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, marginTop: spacing.md },
+  statItem: { width: '46%' },
+  statValue: { color: '#0C9CFA', fontSize: 28, fontWeight: '700' },
+  statUnit: { color: '#0C9CFA', fontSize: 14, fontWeight: '600' },
+  statLabel: { ...typography.caption, color: colors.textMuted, marginTop: 2 },
+});
 
 function RatingHeader() {
   const r = electricBeachReport;
