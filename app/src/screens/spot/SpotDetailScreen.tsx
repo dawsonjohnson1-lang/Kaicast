@@ -10,15 +10,16 @@ import { Card } from '@/components/Card';
 import { MetricCard } from '@/components/MetricCard';
 import { RatingBar } from '@/components/RatingBar';
 import { TideChart } from '@/components/TideChart';
-import { CompassDial } from '@/components/CompassDial';
 import { Button } from '@/components/Button';
 import { DiveReportCard } from '@/components/DiveReportCard';
 import { Icon } from '@/components/Icon';
 import { MoonInfoCard } from './overview/MoonInfoCard';
+import { DirectionalReadingCard } from '@/components/DirectionalReadingCard';
 import { colors, radius, spacing, typography } from '@/theme';
-import { electricBeachReport, diveReports, exploreSpots, featuredSpot } from '@/api/mockData';
+import { diveReports, exploreSpots, featuredSpot } from '@/api/mockData';
+import { useSpotReport } from '@/hooks/useSpotReport';
 import type { RootNav, RootStackParamList } from '@/navigation/types';
-import type { Spot } from '@/types';
+import type { Spot, SpotReport } from '@/types';
 import { ForecastTab as ForecastTabRebuild } from './forecast/ForecastTab';
 import { HazardsTab as HazardsTabRebuild } from './hazards/HazardsTab';
 import { GuideTab as GuideTabRebuild } from './guide/GuideTab';
@@ -41,7 +42,8 @@ export function SpotDetailScreen() {
   const [tab, setTab] = useState<SpotTab>('Overview');
 
   const spot = findSpot(route.params.spotId);
-  const r = electricBeachReport;
+  const reportState = useSpotReport(spot);
+  const r = reportState.data;
   const heroImage = spot.imageSource ?? (spot.imageUrl ? { uri: spot.imageUrl } : undefined);
 
   return (
@@ -89,33 +91,42 @@ export function SpotDetailScreen() {
           })}
         </ScrollView>
 
-        {tab === 'Overview' && <OverviewTab />}
+        {tab === 'Overview' && <OverviewTab report={r} source={reportState.source} spot={spot} />}
         {tab === 'Hazards' && <HazardsTabRebuild spot={spot} />}
         {tab === 'Forecast' && <ForecastTabRebuild />}
         {tab === 'Guide' && <GuideTabRebuild spot={spot} />}
 
-        <View style={{ height: spacing.xxl }} />
-        <Text style={typography.h3}>Friends' Reports</Text>
-        <View style={{ height: spacing.md }} />
-        {diveReports.map((rep) => (
-          <View key={rep.id} style={{ marginBottom: spacing.md }}>
-            <DiveReportCard report={rep} onPress={() => nav.navigate('DiveReportDetail', { reportId: rep.id })} />
-          </View>
-        ))}
+        {tab !== 'Guide' && (
+          <>
+            <View style={{ height: spacing.xxl }} />
+            <Text style={typography.h3}>Friends' Reports</Text>
+            <View style={{ height: spacing.md }} />
+            {diveReports.map((rep) => (
+              <View key={rep.id} style={{ marginBottom: spacing.md }}>
+                <DiveReportCard report={rep} onPress={() => nav.navigate('DiveReportDetail', { reportId: rep.id })} />
+              </View>
+            ))}
 
-        <View style={{ height: spacing.xxl }} />
-        <Button label="Log Your Dive" variant="outline" fullWidth onPress={() => nav.navigate('LogDive')} />
-        <View style={{ height: spacing.xxxl }} />
+            <View style={{ height: spacing.xxl }} />
+            <Button label="Log Your Dive" variant="outline" fullWidth onPress={() => nav.navigate('LogDive')} />
+          </>
+        )}
+        <View style={{ height: tab === 'Guide' ? 100 : spacing.xxxl }} />
       </ScrollView>
+
+      {tab === 'Guide' && (
+        <View style={styles.stickyCta}>
+          <Button label="Log Your Dive" fullWidth onPress={() => nav.navigate('LogDive')} />
+        </View>
+      )}
     </Screen>
   );
 }
 
-function OverviewTab() {
-  const r = electricBeachReport;
+function OverviewTab({ report: r, source, spot }: { report: SpotReport; source: 'live' | 'mock'; spot: Spot }) {
   return (
     <View style={{ gap: spacing.md }}>
-      <RatingHeader />
+      <RatingHeader report={r} source={source} />
 
       <Row>
         <MetricCard label="WATER CLARITY" value={String(r.visibilityFt)} unit="FT" sub="VISIBILITY" />
@@ -144,12 +155,17 @@ function OverviewTab() {
 
       <Row>
         <MetricCard label="WATER TEMP" value={String(r.waterTempF)} unit="°F" sub="3MM WETSUIT" />
-        <MetricCard label="CURRENT" value={String(r.currentMph)} unit="MPH" sub="NON-EXISTENT">
-          <View style={styles.dialOverlay}>
-            <CompassDial size={70} bearing={45} />
-          </View>
-        </MetricCard>
+        <MetricCard label="AIR TEMP" value={String(r.airTempF)} unit="°F" sub="AIR TEMP" />
       </Row>
+
+      <DirectionalReadingCard
+        label="CURRENT"
+        value={r.currentMph}
+        unit="MPH"
+        descriptor={currentDescriptor(r.currentMph)}
+        directionDegrees={CURRENT_DIRECTION_DEG}
+        spotCoords={{ lat: spot.lat, lon: spot.lon }}
+      />
 
       <View style={tideHeaderStyles.wrap}>
         <View style={tideHeaderStyles.iconWrap}>
@@ -164,24 +180,15 @@ function OverviewTab() {
         />
       </View>
 
-      <Row>
-        <MetricCard label="AIR TEMP" value={String(r.airTempF)} unit="°F" sub="AIR TEMP" />
-        <MetricCard
-          label="WIND"
-          value={String(r.windMph)}
-          unit="MPH"
-          sub={`${r.gustMph} MPH GUST`}
-          icon={
-            <View style={{ transform: [{ rotate: `${WIND_DIRECTION_DEG}deg` }] }}>
-              <WindSvg width={22} height={22} />
-            </View>
-          }
-        >
-          <View style={styles.dialOverlay}>
-            <CompassDial size={70} bearing={WIND_DIRECTION_DEG} />
-          </View>
-        </MetricCard>
-      </Row>
+      <DirectionalReadingCard
+        label="WIND"
+        value={r.windMph}
+        unit="MPH"
+        descriptor={windDescriptor(r.windMph)}
+        directionDegrees={WIND_DIRECTION_DEG}
+        spotCoords={{ lat: spot.lat, lon: spot.lon }}
+        footnote={`${r.gustMph} MPH GUST`}
+      />
 
       <MoonInfoCard
         phase={r.moon.phase}
@@ -190,6 +197,22 @@ function OverviewTab() {
       />
     </View>
   );
+}
+
+function windDescriptor(mph: number): string {
+  if (mph < 3) return 'CALM';
+  if (mph < 8) return 'LIGHT';
+  if (mph < 13) return 'LIGHT TRADES';
+  if (mph < 19) return 'TRADES';
+  if (mph < 25) return 'STRONG';
+  return 'GALE';
+}
+
+function currentDescriptor(mph: number): string {
+  if (mph < 0.5) return 'NON-EXISTENT';
+  if (mph < 1) return 'LIGHT';
+  if (mph < 2) return 'MODERATE';
+  return 'STRONG';
 }
 
 function uvSeverityLabel(uv: number): string {
@@ -207,10 +230,11 @@ function uvSeverityColor(uv: number): string {
   return colors.hazard;
 }
 
-// TODO: thread real wind direction through the report shape. The Figma
-// hardcodes the dial to ~120° here for the "Today" preview; the icon
-// rotation reads from the same constant so they stay in sync.
+// TODO: thread real wind/current direction through the report shape.
+// Figma hardcodes the dial bearings; the directional cards read from
+// these constants so the icon, dial, and arrow stay in sync.
 const WIND_DIRECTION_DEG = 120;
+const CURRENT_DIRECTION_DEG = 45;
 
 const uvCardStyles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
@@ -223,16 +247,19 @@ const tideHeaderStyles = StyleSheet.create({
   iconWrap: { position: 'absolute', top: spacing.lg, right: spacing.lg, zIndex: 1 },
 });
 
-function RatingHeader() {
-  const r = electricBeachReport;
+function RatingHeader({ report: r, source }: { report: SpotReport; source: 'live' | 'mock' }) {
+  const peak = peakWindowLabel(r);
   return (
     <Card>
       <View style={ratingStyles.headerRow}>
         <View style={ratingStyles.dotWrap}>
           <View style={ratingStyles.dot} />
-          <Text style={[typography.h1, { fontSize: 32 }]}>{r.ratingLabel}</Text>
+          <View>
+            <Text style={[typography.h1, { fontSize: 32 }]}>{r.ratingLabel}</Text>
+            {peak ? <Text style={ratingStyles.peakLine}>{peak}</Text> : null}
+          </View>
         </View>
-        <Tag variant="live" dot />
+        {source === 'live' ? <Tag variant="live" dot /> : <Tag variant="warn" label="DEMO" dot />}
       </View>
       <Text style={[typography.bodySm, { color: colors.textSecondary, marginTop: spacing.sm }]}>{r.hazardSummary}</Text>
       <View style={{ height: spacing.md }} />
@@ -247,12 +274,33 @@ function RatingHeader() {
   );
 }
 
+// TODO(forecast): once hourly conditions land on SpotReport (mirroring
+// ForecastDay.ratingSegments), compute this from the highest-scored
+// hour. For now we mirror the hardcoded 4-segment bar above — the
+// middle two "excellent" bars cover 6 AM – 6 PM, so peak window =
+// the centered 9 AM – 3 PM subwindow. Returns "Peak now" when the
+// current hour falls inside that window.
+function peakWindowLabel(_r: SpotReport): string {
+  const peakStart = 9;
+  const peakEnd = 15;
+  const nowHour = new Date().getHours();
+  if (nowHour >= peakStart && nowHour < peakEnd) return 'Peak now';
+  return `Peak window ${formatHour12(peakStart)} – ${formatHour12(peakEnd)}`;
+}
+
+function formatHour12(h: number): string {
+  if (h === 0) return '12 AM';
+  if (h === 12) return '12 PM';
+  if (h < 12) return `${h} AM`;
+  return `${h - 12} PM`;
+}
+
 function Row({ children }: { children: React.ReactNode }) {
   return <View style={{ flexDirection: 'row', gap: spacing.md }}>{children}</View>;
 }
 
 const styles = StyleSheet.create({
-  hero: { paddingBottom: spacing.xl, paddingHorizontal: 0, minHeight: 230 },
+  hero: { height: 300, paddingHorizontal: 0, paddingBottom: spacing.xl },
   heroBody: { paddingHorizontal: spacing.xl, marginTop: spacing.lg },
   heroSub: { ...typography.bodySm, color: colors.textSecondary, marginTop: spacing.xs },
   body: { paddingHorizontal: spacing.xl, paddingTop: spacing.lg, backgroundColor: colors.bg },
@@ -272,6 +320,18 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   dialOverlay: { position: 'absolute', right: 8, bottom: 8 },
+  stickyCta: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xl,
+    backgroundColor: colors.bg,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+  },
 });
 
 const ratingStyles = StyleSheet.create({
@@ -280,5 +340,6 @@ const ratingStyles = StyleSheet.create({
   dot: { width: 10, height: 10, borderRadius: 999, backgroundColor: colors.excellent },
   bar: { flexDirection: 'row', gap: 4, marginTop: spacing.md, height: 8 },
   seg: { flex: 1, borderRadius: 999 },
+  peakLine: { ...typography.bodySm, color: colors.textSecondary, marginTop: 2, fontWeight: '500' },
 });
 

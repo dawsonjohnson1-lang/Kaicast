@@ -2,7 +2,7 @@ import Constants from 'expo-constants';
 
 const API_BASE: string =
   (Constants.expoConfig?.extra as { kaicastApiBase?: string } | undefined)?.kaicastApiBase ??
-  'https://us-central1-kaicast.cloudfunctions.net';
+  'https://us-central1-kaicast-207dc.cloudfunctions.net';
 
 export type BackendReport = {
   spot: string;
@@ -49,7 +49,21 @@ export async function triggerFetchNow(publish = false): Promise<FetchNowResponse
   return (await res.json()) as FetchNowResponse;
 }
 
+/**
+ * Fetch the latest BackendReport for one spot from the Firebase
+ * `getReport` endpoint. Throws on non-2xx so callers (the
+ * useSpotReport hook) can fall back to mock data when the function
+ * isn't deployed yet.
+ */
+export async function fetchSpotReport(spotId: string, signal?: AbortSignal): Promise<BackendReport> {
+  const url = `${API_BASE}/getReport?spot=${encodeURIComponent(spotId)}`;
+  const res = await fetch(url, { signal });
+  if (!res.ok) throw new Error(`KaiCast API error ${res.status} for ${spotId}`);
+  return (await res.json()) as BackendReport;
+}
+
 export const kaicastApi = {
   base: API_BASE,
   triggerFetchNow,
+  fetchSpotReport,
 };
