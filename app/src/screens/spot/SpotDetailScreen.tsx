@@ -14,6 +14,7 @@ import { CompassDial } from '@/components/CompassDial';
 import { Button } from '@/components/Button';
 import { DiveReportCard } from '@/components/DiveReportCard';
 import { Icon } from '@/components/Icon';
+import { MoonInfoCard } from './overview/MoonInfoCard';
 import { colors, radius, spacing, typography } from '@/theme';
 import { electricBeachReport, diveReports, exploreSpots, featuredSpot } from '@/api/mockData';
 import type { RootNav, RootStackParamList } from '@/navigation/types';
@@ -116,7 +117,16 @@ function OverviewTab() {
         <MetricCard label="WAVE HEIGHT" value={String(r.swellHeightFt)} unit="FT" sub="SWELL HEIGHT" />
       </Row>
 
-      <TideChart series={r.tide.series} trend={r.tide.trend} nowFt={r.tide.nowFt} nextLabel={r.tide.nextLabel} nextFt={r.tide.nextFt} />
+      <Card>
+        <View style={uvCardStyles.header}>
+          <Text style={typography.caption}>UV RATING</Text>
+          <Text style={[uvCardStyles.severity, { color: uvSeverityColor(r.uvIndex) }]}>
+            {uvSeverityLabel(r.uvIndex)}
+          </Text>
+        </View>
+        <View style={{ height: spacing.md }} />
+        <RatingBar value={r.uvIndex} max={11} />
+      </Card>
 
       <Row>
         <MetricCard label="WATER TEMP" value={String(r.waterTempF)} unit="°F" sub="3MM WETSUIT" />
@@ -127,11 +137,7 @@ function OverviewTab() {
         </MetricCard>
       </Row>
 
-      <Card>
-        <Text style={typography.caption}>UV RATING</Text>
-        <View style={{ height: spacing.md }} />
-        <RatingBar value={r.uvIndex} max={11} />
-      </Card>
+      <TideChart series={r.tide.series} trend={r.tide.trend} nowFt={r.tide.nowFt} nextLabel={r.tide.nextLabel} nextFt={r.tide.nextFt} />
 
       <Row>
         <MetricCard label="AIR TEMP" value={String(r.airTempF)} unit="°F" sub="AIR TEMP" />
@@ -141,9 +147,35 @@ function OverviewTab() {
           </View>
         </MetricCard>
       </Row>
+
+      <MoonInfoCard
+        phase={r.moon.phase}
+        illumination={r.moon.illumination}
+        daysSinceFullMoon={r.moon.daysSinceFullMoon}
+      />
     </View>
   );
 }
+
+function uvSeverityLabel(uv: number): string {
+  if (uv <= 2) return 'LOW';
+  if (uv <= 5) return 'MODERATE';
+  if (uv <= 7) return 'HIGH';
+  if (uv <= 10) return 'VERY HIGH';
+  return 'EXTREME';
+}
+
+function uvSeverityColor(uv: number): string {
+  if (uv <= 2) return colors.accent;
+  if (uv <= 5) return colors.excellent;
+  if (uv <= 7) return colors.warn;
+  return colors.hazard;
+}
+
+const uvCardStyles = StyleSheet.create({
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  severity: { ...typography.caption, fontWeight: '700' },
+});
 
 function GuideTab() {
   return (
