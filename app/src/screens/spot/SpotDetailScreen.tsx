@@ -21,6 +21,11 @@ import type { RootNav, RootStackParamList } from '@/navigation/types';
 import type { Spot } from '@/types';
 import { ForecastTab as ForecastTabRebuild } from './forecast/ForecastTab';
 import { HazardsTab as HazardsTabRebuild } from './hazards/HazardsTab';
+import { GuideTab as GuideTabRebuild } from './guide/GuideTab';
+import DirectSunlightSvg from '@/assets/direct-sunlight.svg';
+import WaveHeightSvg from '@/assets/wave-height.svg';
+import TideSvg from '@/assets/tide.svg';
+import WindSvg from '@/assets/wind.svg';
 
 function findSpot(id: string): Spot {
   return exploreSpots.find((s) => s.id === id) ?? featuredSpot;
@@ -87,7 +92,7 @@ export function SpotDetailScreen() {
         {tab === 'Overview' && <OverviewTab />}
         {tab === 'Hazards' && <HazardsTabRebuild spot={spot} />}
         {tab === 'Forecast' && <ForecastTabRebuild />}
-        {tab === 'Guide' && <GuideTab />}
+        {tab === 'Guide' && <GuideTabRebuild spot={spot} />}
 
         <View style={{ height: spacing.xxl }} />
         <Text style={typography.h3}>Friends' Reports</Text>
@@ -114,12 +119,21 @@ function OverviewTab() {
 
       <Row>
         <MetricCard label="WATER CLARITY" value={String(r.visibilityFt)} unit="FT" sub="VISIBILITY" />
-        <MetricCard label="WAVE HEIGHT" value={String(r.swellHeightFt)} unit="FT" sub="SWELL HEIGHT" />
+        <MetricCard
+          label="WAVE HEIGHT"
+          value={String(r.swellHeightFt)}
+          unit="FT"
+          sub="SWELL HEIGHT"
+          icon={<WaveHeightSvg width={20} height={20} />}
+        />
       </Row>
 
       <Card>
         <View style={uvCardStyles.header}>
-          <Text style={typography.caption}>UV RATING</Text>
+          <View style={uvCardStyles.headerLeft}>
+            <DirectSunlightSvg width={16} height={16} />
+            <Text style={typography.caption}>UV RATING</Text>
+          </View>
           <Text style={[uvCardStyles.severity, { color: uvSeverityColor(r.uvIndex) }]}>
             {uvSeverityLabel(r.uvIndex)}
           </Text>
@@ -137,13 +151,34 @@ function OverviewTab() {
         </MetricCard>
       </Row>
 
-      <TideChart series={r.tide.series} trend={r.tide.trend} nowFt={r.tide.nowFt} nextLabel={r.tide.nextLabel} nextFt={r.tide.nextFt} />
+      <View style={tideHeaderStyles.wrap}>
+        <View style={tideHeaderStyles.iconWrap}>
+          <TideSvg width={18} height={18} />
+        </View>
+        <TideChart
+          series={r.tide.series}
+          trend={r.tide.trend}
+          nowFt={r.tide.nowFt}
+          nextLabel={r.tide.nextLabel}
+          nextFt={r.tide.nextFt}
+        />
+      </View>
 
       <Row>
         <MetricCard label="AIR TEMP" value={String(r.airTempF)} unit="°F" sub="AIR TEMP" />
-        <MetricCard label="WIND" value={String(r.windMph)} unit="MPH" sub={`${r.gustMph} MPH GUST`}>
+        <MetricCard
+          label="WIND"
+          value={String(r.windMph)}
+          unit="MPH"
+          sub={`${r.gustMph} MPH GUST`}
+          icon={
+            <View style={{ transform: [{ rotate: `${WIND_DIRECTION_DEG}deg` }] }}>
+              <WindSvg width={22} height={22} />
+            </View>
+          }
+        >
           <View style={styles.dialOverlay}>
-            <CompassDial size={70} bearing={120} />
+            <CompassDial size={70} bearing={WIND_DIRECTION_DEG} />
           </View>
         </MetricCard>
       </Row>
@@ -172,38 +207,21 @@ function uvSeverityColor(uv: number): string {
   return colors.hazard;
 }
 
+// TODO: thread real wind direction through the report shape. The Figma
+// hardcodes the dial to ~120° here for the "Today" preview; the icon
+// rotation reads from the same constant so they stay in sync.
+const WIND_DIRECTION_DEG = 120;
+
 const uvCardStyles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   severity: { ...typography.caption, fontWeight: '700' },
 });
 
-function GuideTab() {
-  return (
-    <View style={{ gap: spacing.md }}>
-      <Card>
-        <Text style={typography.caption}>SPOT GUIDE</Text>
-        <Text style={[typography.h3, { marginTop: spacing.sm }]}>Electric Beach</Text>
-        <Text style={[typography.body, { color: colors.textSecondary, marginTop: spacing.sm, lineHeight: 22 }]}>
-          A warm-water outflow channel from the Kahe power plant attracts pelagic species year-round. Best in the morning before tradewinds pick up.
-        </Text>
-      </Card>
-
-      <Card>
-        <Text style={typography.caption}>ENTRY & EXIT</Text>
-        <Text style={[typography.body, { marginTop: spacing.sm }]}>Sandy beach with rocky shoreline. Enter on either side of the outfall. Watch for surge near the rocks.</Text>
-      </Card>
-
-      <Card>
-        <Text style={typography.caption}>MARINE LIFE</Text>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.sm }}>
-          {['Spinner Dolphins', 'Green Sea Turtles', 'Reef Sharks', 'Manta Rays', 'Eagle Rays'].map((m) => (
-            <Tag key={m} variant="freedive" label={m} />
-          ))}
-        </View>
-      </Card>
-    </View>
-  );
-}
+const tideHeaderStyles = StyleSheet.create({
+  wrap: { position: 'relative' },
+  iconWrap: { position: 'absolute', top: spacing.lg, right: spacing.lg, zIndex: 1 },
+});
 
 function RatingHeader() {
   const r = electricBeachReport;
