@@ -18,6 +18,7 @@ import { colors, radius, spacing, typography } from '@/theme';
 import { electricBeachReport, diveReports, exploreSpots, featuredSpot } from '@/api/mockData';
 import type { RootNav, RootStackParamList } from '@/navigation/types';
 import type { Spot } from '@/types';
+import { ForecastTab as ForecastTabRebuild } from './forecast/ForecastTab';
 
 function findSpot(id: string): Spot {
   return exploreSpots.find((s) => s.id === id) ?? featuredSpot;
@@ -83,7 +84,7 @@ export function SpotDetailScreen() {
 
         {tab === 'Overview' && <OverviewTab />}
         {tab === 'Hazards' && <HazardsTab />}
-        {tab === 'Forecast' && <ForecastTab />}
+        {tab === 'Forecast' && <ForecastTabRebuild />}
         {tab === 'Guide' && <GuideTab />}
 
         <View style={{ height: spacing.xxl }} />
@@ -172,45 +173,6 @@ function HazardsTab() {
   );
 }
 
-function ForecastTab() {
-  const r = electricBeachReport;
-  return (
-    <View style={{ gap: spacing.md }}>
-      <ForecastStrip />
-      <Card>
-        <Text style={typography.caption}>4-DAY FORECAST</Text>
-        <View style={{ height: spacing.md }} />
-        {r.forecast.map((d) => (
-          <View key={d.label} style={forecastStyles.row}>
-            <Text style={[typography.h3, { width: 60 }]}>{d.label}</Text>
-            <Text style={[typography.body, { width: 40 }]}>{d.date}</Text>
-            <View style={{ flex: 1 }}>
-              <View style={forecastStyles.bar}>
-                <View
-                  style={[
-                    forecastStyles.barFill,
-                    {
-                      width: d.rating === 'excellent' ? '92%' : d.rating === 'good' ? '70%' : d.rating === 'caution' ? '45%' : '25%',
-                      backgroundColor:
-                        d.rating === 'excellent' ? colors.excellent : d.rating === 'good' ? colors.good : d.rating === 'caution' ? colors.warn : colors.hazard,
-                    },
-                  ]}
-                />
-              </View>
-            </View>
-            <Tag
-              variant={d.rating === 'excellent' ? 'excellent' : d.rating === 'good' ? 'good' : d.rating === 'caution' ? 'warn' : 'hazard'}
-              dot
-            />
-          </View>
-        ))}
-      </Card>
-
-      <TideChart series={r.tide.series} trend={r.tide.trend} nowFt={r.tide.nowFt} nextLabel={r.tide.nextLabel} nextFt={r.tide.nextFt} />
-    </View>
-  );
-}
-
 function GuideTab() {
   return (
     <View style={{ gap: spacing.md }}>
@@ -263,27 +225,6 @@ function RatingHeader() {
   );
 }
 
-function ForecastStrip() {
-  const r = electricBeachReport;
-  return (
-    <View style={forecastStyles.strip}>
-      <Text style={typography.caption}>4-DAY FORECAST</Text>
-      <View style={forecastStyles.daysRow}>
-        {r.forecast.map((d, i) => {
-          const active = i === 0;
-          return (
-            <View key={d.label} style={[forecastStyles.day, active && forecastStyles.dayActive]}>
-              <Text style={[forecastStyles.dayLabel, active && { color: colors.textPrimary }]}>{d.label}</Text>
-              <Text style={[forecastStyles.dayDate, active && { color: colors.textPrimary }]}>{d.date}</Text>
-              <View style={[forecastStyles.dot, { backgroundColor: d.rating === 'excellent' ? colors.excellent : d.rating === 'good' ? colors.good : d.rating === 'caution' ? colors.warn : colors.hazard }]} />
-            </View>
-          );
-        })}
-      </View>
-    </View>
-  );
-}
-
 function Row({ children }: { children: React.ReactNode }) {
   return <View style={{ flexDirection: 'row', gap: spacing.md }}>{children}</View>;
 }
@@ -323,15 +264,3 @@ const hazardStyles = StyleSheet.create({
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border },
 });
 
-const forecastStyles = StyleSheet.create({
-  strip: { backgroundColor: colors.card, borderRadius: radius.lg, padding: spacing.lg },
-  daysRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: spacing.md, gap: spacing.sm },
-  day: { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: radius.md, backgroundColor: colors.cardAlt },
-  dayActive: { backgroundColor: colors.accentSoft, borderWidth: 1, borderColor: colors.accent },
-  dayLabel: { ...typography.caption, color: colors.textMuted },
-  dayDate: { ...typography.h3, marginTop: 4 },
-  dot: { width: 6, height: 6, borderRadius: 999, marginTop: 4 },
-  row: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border, gap: spacing.md },
-  bar: { height: 6, backgroundColor: colors.cardAlt, borderRadius: 999, overflow: 'hidden' },
-  barFill: { height: '100%', borderRadius: 999 },
-});
