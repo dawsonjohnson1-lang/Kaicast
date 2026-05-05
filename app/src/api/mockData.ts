@@ -1,10 +1,15 @@
 import type { ConditionAlert, DiveReport, Spot, SpotReport, TidePoint } from '@/types';
 
-// Spot covers ship as bundled placeholders today. When the backend lands,
-// set imageUrl to a remote satellite-tile URL keyed off lat/lon — it takes
-// precedence over imageSource at render time.
-export const featuredSpot: Spot = {
-export const featuredSpot: Spot & { airTempF?: number; windMph?: number; current?: string; progress?: number } = {
+// Mocks remain as the offline fallback when Firestore is not yet configured
+// (e.g. running the app in Expo Go without a Firebase web config). When a
+// kaicast_reports document is available the screens prefer live data.
+
+export const featuredSpot: Spot & {
+  airTempF?: number;
+  windMph?: number;
+  current?: string;
+  progress?: number;
+} = {
   id: 'electric-beach',
   name: 'Electric Beach',
   region: 'Oahu · 4.2 mi away',
@@ -45,7 +50,7 @@ export const favoriteSpots: Spot[] = [
 export const conditionAlerts: ConditionAlert[] = [
   { id: 'a1', spotName: 'Molokini Crater', message: 'Visibility improved to 80 ft — best in 2 weeks', severity: 'info' },
   { id: 'a2', spotName: 'Kealakekua Bay', message: 'Swell dropping tomorrow morning, excellent window 8–10am', severity: 'warn' },
-  { id: 'a3', spotName: 'Turtle Canyon', message: 'Runoff warning, high rain fall and reported sewage overflow', severity: 'hazard' },
+  { id: 'a3', spotName: 'Turtle Canyon', message: 'Runoff warning, high rainfall and reported sewage overflow', severity: 'hazard' },
 ];
 
 export const diveReports: DiveReport[] = [
@@ -117,7 +122,7 @@ export const electricBeachReport: SpotReport = {
 
 export const exploreSpots: Spot[] = [
   ...favoriteSpots,
-  { id: 'hanauma', name: 'Hanauma Bay', region: 'Oahu', visibilityFt: 35, rating: 'caution', coverColor: '#3a2a4d', lat: 21.2694, lon: -157.6939 },
+  { id: 'hanauma-bay', name: 'Hanauma Bay', region: 'Oahu', visibilityFt: 35, rating: 'caution', coverColor: '#3a2a4d', lat: 21.2694, lon: -157.6939 },
   { id: 'makua', name: 'Makua Beach', region: 'Oahu West', visibilityFt: 28, rating: 'caution', coverColor: '#4d2a2a', lat: 21.5274, lon: -158.2295 },
   { id: 'mokuleia', name: 'Mokuleia', region: 'Oahu North', visibilityFt: 22, rating: 'hazard', coverColor: '#4d1a1a', lat: 21.5783, lon: -158.1553 },
 ];

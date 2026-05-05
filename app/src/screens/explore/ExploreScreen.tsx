@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Circle, Path } from 'react-native-svg';
@@ -7,10 +7,13 @@ import { useNavigation } from '@react-navigation/native';
 import { Screen } from '@/components/Screen';
 import { AppBar } from '@/components/AppBar';
 import { Icon } from '@/components/Icon';
-import { Tag } from '@/components/Tag';
+import { Tag, TagVariant } from '@/components/Tag';
 import { colors, radius, spacing, typography } from '@/theme';
-import { exploreSpots } from '@/api/mockData';
+import { exploreSpots as mockExplore } from '@/api/mockData';
 import { useAuth } from '@/hooks/useAuth';
+import { useAllReports } from '@/hooks/useAllReports';
+import { ratingToCondition } from '@/utils/transforms';
+import type { Spot } from '@/types';
 import type { RootNav } from '@/navigation/types';
 
 type Filter = 'Dive Spots' | 'Favorite Spots';
@@ -19,8 +22,25 @@ const FILTERS: Filter[] = ['Dive Spots', 'Favorite Spots'];
 export function ExploreScreen() {
   const nav = useNavigation<RootNav>();
   const { user } = useAuth();
+  const { reports } = useAllReports();
   const [filter, setFilter] = useState<Filter>('Dive Spots');
   const initials = (user?.name ?? 'D').split(' ').map((s) => s[0]).join('').slice(0, 2);
+
+  const spots: Spot[] = useMemo(() => {
+    if (!reports.length) return mockExplore;
+    return reports
+      .slice()
+      .sort((a, b) => (b.now?.rating?.score ?? 0) - (a.now?.rating?.score ?? 0))
+      .map((r) => ({
+        id: r.spot,
+        name: r.spotName,
+        region: 'Oahu',
+        lat: r.spotLat,
+        lon: r.spotLon,
+        rating: ratingToCondition(r.now?.rating?.rating),
+        visibilityFt: r.now?.visibility?.estimatedVisibilityFeet ?? 0,
+      }));
+  }, [reports]);
 
   return (
     <Screen scroll={false} padding={0}>
@@ -55,8 +75,9 @@ export function ExploreScreen() {
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: spacing.xxl }}>
           <Text style={styles.helper}>Move map to find dive spots, buoys, and conditions near you.</Text>
-          {exploreSpots.map((s) => {
-            const ratingTag = s.rating === 'excellent' ? 'excellent' : s.rating === 'good' ? 'good' : s.rating === 'caution' ? 'warn' : 'hazard';
+          {spots.map((s) => {
+            const ratingTag: TagVariant =
+              s.rating === 'excellent' ? 'excellent' : s.rating === 'good' ? 'good' : s.rating === 'caution' ? 'warn' : 'hazard';
             return (
               <Pressable key={s.id} onPress={() => nav.navigate('SpotDetail', { spotId: s.id })} style={styles.row}>
                 <View style={[styles.pin, { backgroundColor: s.coverColor ?? colors.cardAlt }]}>

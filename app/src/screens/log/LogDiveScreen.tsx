@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { View, Text, StyleSheet, TextInput, ScrollView, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 
 import { Screen } from '@/components/Screen';
@@ -14,6 +14,19 @@ import { colors, radius, spacing, typography } from '@/theme';
 import type { DiveType } from '@/types';
 import type { RootNav } from '@/navigation/types';
 
+import { useAuth } from '@/hooks/useAuth';
+import { useAllReports } from '@/hooks/useAllReports';
+import { useSpotReport } from '@/hooks/useSpotReport';
+import { submitCommunityReport } from '@/services/community';
+import {
+  cToF,
+  currentLabel,
+  surfaceFromWind,
+  ktsToMph,
+  runoffToWaterQuality,
+} from '@/utils/transforms';
+import type { CommunityReport } from '@/types/report';
+
 type Step = 1 | 2 | 3 | 4 | 5;
 
 const DIVE_TYPES: { id: DiveType; label: string }[] = [
@@ -26,30 +39,112 @@ const DIVE_TYPES: { id: DiveType; label: string }[] = [
 const GROUP_SIZES = ['Solo', 'With a buddy', 'Small group', 'Guide'];
 const SURFACE = ['Calm', 'Choppy', 'Rough'];
 const CURRENT = ['None', 'Light', 'Moderate', 'Strong'];
-const VIS = ['Crystal', 'Clean', 'Murky', 'Green'];
+const VIS = ['Crystal', 'Clean', 'Murky', 'Green', 'Brown'];
 
 export function LogDiveScreen() {
   const nav = useNavigation<RootNav>();
+  const { user } = useAuth();
+  const { reports } = useAllReports();
   const [step, setStep] = useState<Step>(1);
+  const [submitting, setSubmitting] = useState(false);
 
   const [type, setType] = useState<DiveType>('scuba');
   const [group, setGroup] = useState('Solo');
-  const [date, setDate] = useState('04/16/2026');
-  const [time, setTime] = useState('--:-- --');
+  const [date, setDate] = useState(new Date().toLocaleDateString('en-US'));
+  const [time, setTime] = useState(new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }));
   const [duration, setDuration] = useState('');
-  const [location, setLocation] = useState('');
+  const [spotId, setSpotId] = useState<string | null>(null);
+  const selectedReport = useSpotReport(spotId);
 
   const [depth, setDepth] = useState('');
-  const [weapon, setWeapon] = useState('');
 
   const [surface, setSurface] = useState('Calm');
   const [current, setCurrent] = useState('None');
   const [vis, setVis] = useState('Clean');
+  const [waterTempF, setWaterTempF] = useState('');
+  const [autoFilled, setAutoFilled] = useState(false);
 
   const [notes, setNotes] = useState('');
+  const [privacy, setPrivacy] = useState<'Public' | 'Friends' | 'Only me'>('Public');
+
+  const spotName = useMemo(() => {
+    if (!spotId) return '';
+    return reports.find((r) => r.spot === spotId)?.spotName ?? spotId;
+  }, [spotId, reports]);
+
+  // Auto-populate conditions on first entry to Step 3 from the live spot report.
+  useEffect(() => {
+    if (step !== 3 || autoFilled || !selectedReport.report) return;
+    const m = selectedReport.report.now?.metrics;
+    if (!m) return;
+    if (m.windSpeedKts != null) {
+      const surfaceMap = { GLASS: 'Calm', CHOPPY: 'Choppy', ROUGH: 'Rough' } as const;
+      setSurface(surfaceMap[surfaceFromWind(m.windSpeedKts)]);
+      const cur = currentLabel(m.windSpeedKts);
+      setCurrent(cur === 'STRONG' ? 'Strong' : cur === 'MODERATE' ? 'Moderate' : 'Light');
+    }
+    if (m.waterTempC != null) setWaterTempF(String(Math.round(cToF(m.waterTempC))));
+    const wq = runoffToWaterQuality(selectedReport.report.now?.analysis?.runoff?.severity);
+    if (wq === 'CLEAN') setVis('Clean');
+    else if (wq === 'SLIGHTLY STAINED') setVis('Murky');
+    else if (wq === 'MURKY') setVis('Murky');
+    else if (wq === 'BROWN') setVis('Brown');
+    setAutoFilled(true);
+  }, [step, autoFilled, selectedReport.report]);
 
   const next = () => setStep(((step + 1) as Step));
   const back = () => (step === 1 ? nav.goBack() : setStep(((step - 1) as Step)));
+
+  async function handleSubmit() {
+    if (!user) {
+      Alert.alert('Sign-in required', 'Please sign in to log a dive.');
+      return;
+    }
+    if (!spotId) {
+      Alert.alert('Pick a spot', 'Choose a spot from Step 1 before submitting.');
+      setStep(1);
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const surfaceMap: Record<string, CommunityReport['reportedEntryCondition']> = {
+        Calm: 'SAFE', Choppy: 'CHOPPY', Rough: 'ROUGH',
+      };
+      const currentMap: Record<string, CommunityReport['reportedCurrent']> = {
+        None: 'NONE', Light: 'LIGHT', Moderate: 'MODERATE', Strong: 'STRONG',
+      };
+      const visMap: Record<string, CommunityReport['waterQuality']> = {
+        Crystal: 'CLEAN', Clean: 'CLEAN', Murky: 'MURKY', Green: 'GREEN', Brown: 'BROWN',
+      };
+
+      const newId = await submitCommunityReport({
+        userId: user.id,
+        displayName: user.name,
+        avatarUrl: user.photoUrl,
+        spotId,
+        spotName,
+        loggedAt: new Date().toISOString(),
+        diveType: type,
+        overallRating: 'EXCELLENT',
+        depthFt: depth ? Number(depth) : undefined,
+        reportedCurrent: currentMap[current],
+        reportedEntryCondition: surfaceMap[surface],
+        waterQuality: visMap[vis],
+        notes,
+      });
+
+      if (newId === null) {
+        // Firebase not configured — succeed locally so the demo still completes.
+        setStep(5);
+      } else {
+        setStep(5);
+      }
+    } catch (err) {
+      Alert.alert('Submit failed', (err as Error).message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   return (
     <Screen contentStyle={{ paddingTop: 0 }}>
@@ -78,8 +173,21 @@ export function LogDiveScreen() {
             <Input value={time} onChangeText={setTime} containerStyle={{ flex: 1 }} />
           </View>
 
-          <Text style={[styles.label, { marginTop: spacing.xl }]}>Location</Text>
-          <Input placeholder="Select your spot" value={location} onChangeText={setLocation} />
+          <Text style={[styles.label, { marginTop: spacing.xl }]}>Spot</Text>
+          {reports.length > 0 ? (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+              {reports.map((r) => (
+                <ChoiceChip
+                  key={r.spot}
+                  label={r.spotName}
+                  selected={spotId === r.spot}
+                  onPress={() => { setSpotId(r.spot); setAutoFilled(false); }}
+                />
+              ))}
+            </ScrollView>
+          ) : (
+            <Input placeholder="Select your spot" value={spotName} onChangeText={() => undefined} />
+          )}
 
           <Text style={[styles.label, { marginTop: spacing.xl }]}>Size or type of group</Text>
           <View style={styles.chipRow}>
@@ -100,43 +208,17 @@ export function LogDiveScreen() {
 
           <View style={{ height: spacing.xl }} />
           <Input label="Max depth (ft)" placeholder="40" keyboardType="number-pad" value={depth} onChangeText={setDepth} />
-          {(type === 'spear') && (
-            <>
-              <View style={{ height: spacing.lg }} />
-              <Input label="Weapon" placeholder="Speargun (band)" value={weapon} onChangeText={setWeapon} />
-              <View style={{ height: spacing.lg }} />
-              <Input label="Catch" placeholder="2 × Uku (4 lb, 3 lb)" />
-            </>
-          )}
-          {type === 'scuba' && (
-            <>
-              <View style={{ height: spacing.lg }} />
-              <Input label="Tank" placeholder="Aluminum 80, Nitrox 32%" />
-              <View style={{ height: spacing.lg }} />
-              <Input label="Bottom time (min)" placeholder="45" keyboardType="number-pad" />
-            </>
-          )}
-          {type === 'freedive' && (
-            <>
-              <View style={{ height: spacing.lg }} />
-              <Input label="Discipline" placeholder="Constant weight (CWT)" />
-              <View style={{ height: spacing.lg }} />
-              <Input label="Best dive time" placeholder="2:15" />
-            </>
-          )}
-          {type === 'snorkel' && (
-            <>
-              <View style={{ height: spacing.lg }} />
-              <Input label="Highlights" placeholder="Saw a turtle and reef sharks" />
-            </>
-          )}
         </View>
       )}
 
       {step === 3 && (
         <View>
           <Text style={typography.h1}>Conditions</Text>
-          <Text style={styles.sub}>Step 3 of 4 — what was it like?</Text>
+          <Text style={styles.sub}>
+            {selectedReport.report
+              ? 'Pre-filled from live conditions — edit anything.'
+              : 'Step 3 of 4 — what was it like?'}
+          </Text>
 
           <Text style={[styles.label, { marginTop: spacing.xl }]}>Surface</Text>
           <View style={styles.chipRow}>
@@ -154,7 +236,16 @@ export function LogDiveScreen() {
           </View>
 
           <Text style={[styles.label, { marginTop: spacing.xl }]}>Water temp</Text>
-          <Input placeholder="79 °F" keyboardType="number-pad" />
+          <Input placeholder="79 °F" keyboardType="number-pad" value={waterTempF} onChangeText={setWaterTempF} />
+
+          {selectedReport.report?.now?.metrics?.windSpeedKts != null && (
+            <Text style={[typography.bodySm, { color: colors.textMuted, marginTop: spacing.md }]}>
+              Live: wind {Math.round(ktsToMph(selectedReport.report.now.metrics.windSpeedKts))} mph
+              {selectedReport.report.now.rainRollups?.rain24hMM
+                ? ` · ${selectedReport.report.now.rainRollups.rain24hMM.toFixed(0)}mm rain (24h)`
+                : ''}
+            </Text>
+          )}
         </View>
       )}
 
@@ -176,9 +267,9 @@ export function LogDiveScreen() {
 
           <Text style={[styles.label, { marginTop: spacing.xl }]}>Privacy</Text>
           <View style={styles.chipRow}>
-            <ChoiceChip label="Public" selected />
-            <ChoiceChip label="Friends" />
-            <ChoiceChip label="Only me" />
+            <ChoiceChip label="Public" selected={privacy === 'Public'} onPress={() => setPrivacy('Public')} />
+            <ChoiceChip label="Friends" selected={privacy === 'Friends'} onPress={() => setPrivacy('Friends')} />
+            <ChoiceChip label="Only me" selected={privacy === 'Only me'} onPress={() => setPrivacy('Only me')} />
           </View>
         </View>
       )}
@@ -206,7 +297,13 @@ export function LogDiveScreen() {
       {step < 5 ? (
         <View style={styles.actions}>
           <Button label="Back" variant="ghost" iconLeft="chevron-left" onPress={back} />
-          <Button label={step === 4 ? 'Submit dive' : 'Continue'} iconRight="arrow-right" onPress={() => (step === 4 ? setStep(5) : next())} />
+          <Button
+            label={step === 4 ? (submitting ? 'Submitting…' : 'Submit dive') : 'Continue'}
+            iconRight="arrow-right"
+            loading={submitting}
+            disabled={submitting}
+            onPress={() => (step === 4 ? handleSubmit() : next())}
+          />
         </View>
       ) : (
         <Button label="Done" fullWidth onPress={() => nav.popToTop()} />

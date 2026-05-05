@@ -531,6 +531,139 @@ async function buildSpotReport({ spot, owHourly, buoyData, nowMs }) {
   };
 }
 
+// ─── Alert generation ─────────────────────────────────────────────────────────
+//
+// Compares the freshly built `report` with the previous hour's report
+// (if available) and emits short alert documents into /condition_alerts.
+// Each alert TTL = 6h via the `expiresAt` field; clients filter on read.
+
+async function generateAlerts({ report, prevReport }) {
+  const now = report.now || {};
+  const alerts = [];
+
+  // 1. Runoff / brown-water warning
+  const runoffSeverity = now.analysis?.runoff?.severity;
+  if (runoffSeverity === 'high' || runoffSeverity === 'extreme') {
+    const drivers = (now.analysis.runoff.drivers || []).slice(0, 2).join(', ');
+    alerts.push({
+      kind: 'runoff',
+      severity: 'hazard',
+      message: drivers
+        ? `Runoff warning — ${drivers}`
+        : 'Runoff warning — high rainfall, water quality may be poor',
+    });
+  }
+
+  // 2. Visibility improvement (vs previous hour)
+  const visNow = now.visibility?.estimatedVisibilityFeet;
+  const visPrev = prevReport?.now?.visibility?.estimatedVisibilityFeet;
+  if (visNow != null && visPrev != null && visNow >= 60 && visNow >= visPrev + 15) {
+    alerts.push({
+      kind: 'visibility-improved',
+      severity: 'info',
+      message: `Visibility improved to ${Math.round(visNow)} ft`,
+    });
+  }
+
+  // 3. Swell window: a later forecast block is rated higher than now AND
+  //    waveHeight drops by ≥ 0.3 m. Picks the first qualifying window.
+  const windows = Array.isArray(report.windows) ? report.windows : [];
+  const nowWaveM = now.metrics?.waveHeightM ?? null;
+  const nowScore = now.rating?.score ?? 0;
+  for (let i = 0; i < windows.length; i++) {
+    const w = windows[i];
+    const wScore = w?.rating?.score ?? 0;
+    const wWave = w?.avg?.waveHeightM ?? null;
+    if (
+      wScore >= 75 &&
+      wScore >= nowScore + 10 &&
+      nowWaveM != null &&
+      wWave != null &&
+      wWave <= nowWaveM - 0.3
+    ) {
+      const start = new Date(w.startIso);
+      const hourLabel = start.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        timeZone: 'Pacific/Honolulu',
+      });
+      alerts.push({
+        kind: 'swell-window',
+        severity: 'warn',
+        message: `Swell dropping — excellent window opens around ${hourLabel}`,
+      });
+      break;
+    }
+  }
+
+  // 4. Jellyfish swarm
+  if (now.analysis?.jellyfish?.jellyfishWarning) {
+    alerts.push({
+      kind: 'jellyfish',
+      severity: 'warn',
+      message: now.analysis.jellyfish.jellyfishNote || 'Jellyfish risk elevated',
+    });
+  }
+
+  if (!alerts.length) return [];
+
+  const generatedAt = report.generatedAt;
+  const expiresAt = new Date(new Date(generatedAt).getTime() + 6 * 3600000).toISOString();
+
+  const writes = alerts.map((a) =>
+    db.collection('condition_alerts').doc(`${report.spot}_${a.kind}_${report.hourKey}`).set({
+      spotId: report.spot,
+      spotName: report.spotName,
+      severity: a.severity,
+      message: a.message,
+      kind: a.kind,
+      generatedAt,
+      expiresAt,
+      savedAt: admin.firestore.FieldValue.serverTimestamp(),
+    })
+  );
+  await Promise.all(writes);
+  return alerts;
+}
+
+// ─── Convenience writes ───────────────────────────────────────────────────────
+
+async function writeSpotsLatest(report) {
+  // /spots_latest/{spotId} — single doc per spot with the latest report.
+  // Lets the app subscribe to one document per spot instead of doing a
+  // multi-where query keyed off hourKey.
+  await db.collection('spots_latest').doc(report.spot).set({
+    ...report,
+    savedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+}
+
+async function writeBestConditions(reports) {
+  // /meta/best_conditions — homepage hero source. Sorted top-N by score.
+  const ranked = reports
+    .filter((r) => r?.now?.rating?.score != null)
+    .sort((a, b) => (b.now.rating.score || 0) - (a.now.rating.score || 0))
+    .slice(0, 3)
+    .map((r) => ({
+      spot: r.spot,
+      spotName: r.spotName,
+      spotLat: r.spotLat,
+      spotLon: r.spotLon,
+      generatedAt: r.generatedAt,
+      visibilityFeet: r.now.visibility?.estimatedVisibilityFeet ?? null,
+      windKts: r.now.metrics?.windSpeedKts ?? null,
+      airTempC: r.now.metrics?.airTempC ?? null,
+      waveHeightM: r.now.metrics?.waveHeightM ?? null,
+      rating: r.now.rating?.rating ?? null,
+      score: r.now.rating?.score ?? null,
+    }));
+
+  await db.collection('meta').doc('best_conditions').set({
+    top: ranked,
+    generatedAt: new Date().toISOString(),
+    savedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+}
+
 // ─── Core pipeline ────────────────────────────────────────────────────────────
 
 async function runPipeline({ apiKey, publish = false }) {
@@ -563,14 +696,35 @@ async function runPipeline({ apiKey, publish = false }) {
       reports.push(report);
 
       const docId = `${spot.id}_${report.hourKey}`;
+
+      // Pull the previous hour's report (if any) for alert diffing
+      const prevSnap = await db.collection('spots_latest').doc(spot.id).get().catch(() => null);
+      const prevReport = prevSnap && prevSnap.exists ? prevSnap.data() : null;
+
       await db.collection('kaicast_reports').doc(docId).set({
         ...report,
         savedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
+
+      // Latest-doc + alerts (best-effort, never block report writing)
+      await writeSpotsLatest(report).catch((err) =>
+        logger.error('writeSpotsLatest failed', { spotId: spot.id, error: err.message })
+      );
+      await generateAlerts({ report, prevReport }).catch((err) =>
+        logger.error('generateAlerts failed', { spotId: spot.id, error: err.message })
+      );
+
       logger.info('Saved report', { spotId: spot.id, docId });
     } catch (spotErr) {
       logger.error('Error processing spot', { spotId: spot.id, error: spotErr.message });
     }
+  }
+
+  // Best-conditions summary across all spots in this run
+  if (reports.length > 0) {
+    await writeBestConditions(reports).catch((err) =>
+      logger.error('writeBestConditions failed', { error: err.message })
+    );
   }
 
   if (publish && reports.length > 0) {

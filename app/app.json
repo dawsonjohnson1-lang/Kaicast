@@ -25,7 +25,15 @@
       "bundler": "metro"
     },
     "extra": {
-      "kaicastApiBase": "https://us-central1-kaicast.cloudfunctions.net"
+      "kaicastApiBase": "https://us-central1-kaicast.cloudfunctions.net",
+      "firebase": {
+        "apiKey": "",
+        "authDomain": "",
+        "projectId": "kaicast",
+        "appId": "",
+        "messagingSenderId": "",
+        "storageBucket": ""
+      }
     }
   }
 }

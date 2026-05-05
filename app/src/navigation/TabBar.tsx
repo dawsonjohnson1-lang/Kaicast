@@ -1,16 +1,9 @@
 import React from 'react';
-import { View, Text, Pressable, Image, ImageSourcePropType, StyleSheet } from 'react-native';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { colors, spacing } from '@/theme';
 import { RadarIcon } from '@/components/RadarIcon';
-
-const ICONS: Record<string, ImageSourcePropType> = {
-  Dashboard: require('../../assets/tab-dashboard.png'),
-  Saved: require('../../assets/tab-saved.png'),
-  Explore: require('../../assets/tab-explore.png'),
-  Profile: require('../../assets/tab-profile.png'),
-};
 
 const VARIANTS: Record<string, 'dashboard' | 'saved' | 'explore' | 'profile'> = {
   Dashboard: 'dashboard',
@@ -45,8 +38,6 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
               style={styles.item}
               hitSlop={6}
             >
-              <Image source={ICONS[route.name]} style={[styles.icon, { tintColor: color }]} resizeMode="contain" />
-              <View style={[styles.indicator, focused && styles.indicatorActive]} />
               <RadarIcon variant={VARIANTS[route.name]} size={26} color={color} />
               <Text style={[styles.label, { color }]}>{LABELS[route.name]}</Text>
             </Pressable>
@@ -82,22 +73,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
-    paddingVertical: 4,
-  },
-  icon: {
-    width: 26,
-    height: 26,
-    flex: 1,
-    paddingBottom: 6,
-  },
-  indicator: {
-    width: 38,
-    height: 2,
-    backgroundColor: 'transparent',
-    marginBottom: 8,
-  },
-  indicatorActive: {
-    backgroundColor: colors.accent,
+    paddingVertical: 6,
   },
   label: {
     fontSize: 9,
