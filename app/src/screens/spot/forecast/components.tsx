@@ -109,15 +109,16 @@ export function ConditionBanner({ rating, ratingLabel, showLive }: ConditionBann
 type RatingBarProps = {
   segments: { startHour: number; endHour: number; color: string }[];
   indicatorHour: number; // 0–23
+  onScrub?: (hour: number) => void;
 };
 
-export function RatingBar({ segments, indicatorHour }: RatingBarProps) {
+export function RatingBar({ segments, indicatorHour, onScrub }: RatingBarProps) {
   const indicatorPct = (indicatorHour / 24) * 100;
   return (
     <View>
       <Text style={[styles.sectionLabel, { marginTop: 0 }]}>KAICAST RATING</Text>
-      <View style={ratingStyles.trackOuter}>
-        <View style={ratingStyles.track}>
+      <ScrubTrack onScrub={onScrub} style={ratingStyles.trackOuter}>
+        <View style={ratingStyles.track} pointerEvents="none">
           {segments.map((seg, i) => {
             const left = (seg.startHour / 24) * 100;
             const width = ((seg.endHour - seg.startHour) / 24) * 100;
@@ -132,8 +133,8 @@ export function RatingBar({ segments, indicatorHour }: RatingBarProps) {
             );
           })}
         </View>
-        <View style={[ratingStyles.indicator, { left: `${indicatorPct}%` }]} />
-      </View>
+        <View style={[ratingStyles.indicator, { left: `${indicatorPct}%` }]} pointerEvents="none" />
+      </ScrubTrack>
       <View style={ratingStyles.tickRow}>
         {['12a', '3a', '6a', '9a', '12p', '3p', '6p', '9p', '12a'].map((t, i) => (
           <Text key={i} style={ratingStyles.tick}>
@@ -178,11 +179,46 @@ export function TimeScrubber({ hour, height, width }: TimeScrubberProps) {
   );
 }
 
+// ─── ScrubTrack (RN responder wrapper that converts touch X → hour) ─
+type ScrubTrackProps = {
+  onScrub?: (hour: number) => void;
+  style?: ViewStyle | ViewStyle[];
+  children: React.ReactNode;
+};
+
+export function ScrubTrack({ onScrub, style, children }: ScrubTrackProps) {
+  const widthRef = React.useRef(0);
+  if (!onScrub) {
+    return <View style={style}>{children}</View>;
+  }
+  const handle = (locX: number) => {
+    const w = widthRef.current;
+    if (!w) return;
+    const clamped = Math.max(0, Math.min(w, locX));
+    onScrub(Math.round((clamped / w) * 23));
+  };
+  return (
+    <View
+      style={style}
+      onLayout={(e) => {
+        widthRef.current = e.nativeEvent.layout.width;
+      }}
+      onStartShouldSetResponder={() => true}
+      onMoveShouldSetResponder={() => true}
+      onResponderGrant={(e) => handle(e.nativeEvent.locationX)}
+      onResponderMove={(e) => handle(e.nativeEvent.locationX)}
+    >
+      {children}
+    </View>
+  );
+}
+
 // ─── HourlyBars (24 bars, with axis labels and inline scrubber) ─────
 type HourlyBarsProps = {
   hourly: HourlyPoint[];
   pickValue: (h: HourlyPoint) => number;
   scrubberHour: number;
+  onScrub?: (hour: number) => void;
   height?: number;
   barColor?: string;
   fadedColor?: string;
@@ -192,6 +228,7 @@ export function HourlyBars({
   hourly,
   pickValue,
   scrubberHour,
+  onScrub,
   height = 70,
   barColor = 'rgba(255,255,255,0.85)',
   fadedColor = 'rgba(255,255,255,0.32)',
@@ -200,13 +237,13 @@ export function HourlyBars({
   const barAreaHeight = height - 18; // leave room for axis labels
   return (
     <View style={{ marginTop: 8 }}>
-      <View style={[barsStyles.row, { height: barAreaHeight }]}>
+      <ScrubTrack onScrub={onScrub} style={[barsStyles.row, { height: barAreaHeight }]}>
         {hourly.map((h) => {
           const v = pickValue(h);
           const pct = Math.max(0.05, v / max);
           const isNear = Math.abs(h.hour24 - scrubberHour) <= 1;
           return (
-            <View key={h.hour24} style={barsStyles.barCol}>
+            <View key={h.hour24} style={barsStyles.barCol} pointerEvents="none">
               <View
                 style={[
                   barsStyles.bar,
@@ -219,7 +256,7 @@ export function HourlyBars({
             </View>
           );
         })}
-      </View>
+      </ScrubTrack>
       <View style={barsStyles.axisRow}>
         {SHORT_AXIS_LABELS.map((lbl, i) => (
           <Text key={i} style={[barsStyles.axisLabel, { opacity: lbl ? 1 : 0 }]}>

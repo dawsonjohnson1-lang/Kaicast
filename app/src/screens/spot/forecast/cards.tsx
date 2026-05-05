@@ -15,6 +15,7 @@ import {
   HourlyBars,
   TimeScrubber,
   CompassThumbnail,
+  ScrubTrack,
   FORECAST_TOKENS,
 } from './components';
 
@@ -25,10 +26,11 @@ const CARD_INNER_WIDTH = 360 - 32; // approx — rendered cards size to parent
 type CardProps = {
   day: ForecastDay;
   scrubberHour: number;
+  onScrub?: (hour: number) => void;
 };
 
 // ─── VisibilityCard ─────────────────────────────────────────────────
-export function VisibilityCard({ day, scrubberHour }: CardProps) {
+export function VisibilityCard({ day, scrubberHour, onScrub }: CardProps) {
   const point = day.hourly[scrubberHour];
   return (
     <DataCard header="VISIBILITY">
@@ -41,6 +43,7 @@ export function VisibilityCard({ day, scrubberHour }: CardProps) {
         hourly={day.hourly}
         pickValue={(h) => h.visibilityFt}
         scrubberHour={scrubberHour}
+        onScrub={onScrub}
         height={70}
       />
     </DataCard>
@@ -48,7 +51,7 @@ export function VisibilityCard({ day, scrubberHour }: CardProps) {
 }
 
 // ─── WindCard ───────────────────────────────────────────────────────
-export function WindCard({ day, scrubberHour }: CardProps) {
+export function WindCard({ day, scrubberHour, onScrub }: CardProps) {
   const point = day.hourly[scrubberHour];
   return (
     <DataCard header="WIND">
@@ -67,6 +70,7 @@ export function WindCard({ day, scrubberHour }: CardProps) {
         hourly={day.hourly}
         pickValue={(h) => h.windMph}
         scrubberHour={scrubberHour}
+        onScrub={onScrub}
         height={70}
         barColor="rgba(26,184,255,0.85)"
         fadedColor="rgba(26,184,255,0.32)"
@@ -131,7 +135,7 @@ export function CurrentCard({ day, scrubberHour }: CardProps) {
 }
 
 // ─── TideCard ───────────────────────────────────────────────────────
-export function TideCard({ day, scrubberHour }: CardProps) {
+export function TideCard({ day, scrubberHour, onScrub }: CardProps) {
   const W = CARD_INNER_WIDTH;
   const H = 110;
   const pad = 8;
@@ -176,7 +180,7 @@ export function TideCard({ day, scrubberHour }: CardProps) {
           ))}
         </View>
       </View>
-      <View style={{ marginTop: 12 }}>
+      <ScrubTrack onScrub={onScrub} style={{ marginTop: 12 }}>
         <Svg width={W} height={H} viewBox={`0 0 ${W} ${H}`}>
           <Path d={fillD} fill={colors.accent} fillOpacity={0.15} />
           <Path d={pathD} stroke={colors.accent} strokeWidth={1.6} fill="none" />
@@ -199,13 +203,13 @@ export function TideCard({ day, scrubberHour }: CardProps) {
             strokeDasharray="2,3"
           />
         </Svg>
-      </View>
+      </ScrubTrack>
     </DataCard>
   );
 }
 
 // ─── EnergyCard (Nearshore + Offshore) ──────────────────────────────
-export function EnergyCard({ day, scrubberHour }: CardProps) {
+export function EnergyCard({ day, scrubberHour, onScrub }: CardProps) {
   const point = day.hourly[scrubberHour];
   return (
     <DataCard>
@@ -231,6 +235,7 @@ export function EnergyCard({ day, scrubberHour }: CardProps) {
         hourly={day.hourly}
         pickValue={(h) => h.nearshoreEnergyKj + h.offshoreEnergyKj}
         scrubberHour={scrubberHour}
+        onScrub={onScrub}
         height={60}
         barColor={colors.accent}
         fadedColor="rgba(26,184,255,0.25)"
@@ -240,7 +245,7 @@ export function EnergyCard({ day, scrubberHour }: CardProps) {
 }
 
 // ─── ConsistencyCard ────────────────────────────────────────────────
-export function ConsistencyCard({ day, scrubberHour }: CardProps) {
+export function ConsistencyCard({ day, scrubberHour, onScrub }: CardProps) {
   const point = day.hourly[scrubberHour];
   const W = CARD_INNER_WIDTH;
   const H = 70;
@@ -260,7 +265,7 @@ export function ConsistencyCard({ day, scrubberHour }: CardProps) {
       <View style={cardStyles.consistencyBarTrack}>
         <View style={[cardStyles.consistencyBarFill, { width: `${point.consistency}%` }]} />
       </View>
-      <View style={{ marginTop: 8 }}>
+      <ScrubTrack onScrub={onScrub} style={{ marginTop: 8 }}>
         <Svg width={W} height={H} viewBox={`0 0 ${W} ${H}`}>
           <Path
             d={`${pathD} L ${W} ${H} L 0 ${H} Z`}
@@ -268,7 +273,7 @@ export function ConsistencyCard({ day, scrubberHour }: CardProps) {
           />
           <Path d={pathD} stroke="#22c55e" strokeWidth={1.6} fill="none" />
         </Svg>
-      </View>
+      </ScrubTrack>
       <View style={cardStyles.lowHighRow}>
         <Text style={cardStyles.axisLabel}>Low</Text>
         <Text style={cardStyles.axisLabel}>High</Text>

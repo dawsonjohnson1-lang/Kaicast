@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
 
 import { buildMockForecast, defaultHourFor } from '@/api/forecast-mock';
+import { colors, typography } from '@/theme';
 
 import { DayStrip, RatingBar, ConditionBanner } from './components';
 import {
@@ -17,6 +18,11 @@ import {
 /**
  * Forecast tab on Spot Detail. Self-contained module — drop this in
  * place of the inline Forecast component in SpotDetailScreen.
+ *
+ * Time scrubbing: a single `scrubberHour` state lives here; every chart
+ * receives it as a prop alongside an `onScrub` callback that writes
+ * back to this state. Dragging on any chart's track updates the marker
+ * across all of them and the per-card numeric readouts.
  *
  * Data flow today: `buildMockForecast()` returns 10 days of synthetic
  * hourly data shaped like the future Firebase response. When the real
@@ -39,24 +45,38 @@ export function ForecastTab() {
     setScrubberOwnerId(day.id);
   }
 
+  const defaultHour = defaultHourFor(day);
+  const isAtDefault = scrubberHour === defaultHour;
+
   return (
     <View style={styles.root}>
-      <DayStrip days={days} selectedId={selectedId} onSelect={setSelectedId} />
+      <View style={styles.headerRow}>
+        <DayStrip days={days} selectedId={selectedId} onSelect={setSelectedId} />
+        {!isAtDefault ? (
+          <Pressable
+            hitSlop={8}
+            onPress={() => setScrubberHour(defaultHour)}
+            style={styles.nowBtn}
+          >
+            <Text style={styles.nowBtnText}>NOW</Text>
+          </Pressable>
+        ) : null}
+      </View>
 
       <View style={{ height: 16 }} />
       <ConditionBanner rating={day.rating} ratingLabel={day.ratingLabel} showLive={day.isToday} />
 
       <View style={{ height: 16 }} />
-      <RatingBar segments={day.ratingSegments} indicatorHour={scrubberHour} />
+      <RatingBar segments={day.ratingSegments} indicatorHour={scrubberHour} onScrub={setScrubberHour} />
 
       <View style={{ height: 16 }} />
       <View style={{ gap: 12 }}>
-        <VisibilityCard day={day} scrubberHour={scrubberHour} />
-        <WindCard day={day} scrubberHour={scrubberHour} />
-        <CurrentCard day={day} scrubberHour={scrubberHour} />
-        <TideCard day={day} scrubberHour={scrubberHour} />
-        <EnergyCard day={day} scrubberHour={scrubberHour} />
-        <ConsistencyCard day={day} scrubberHour={scrubberHour} />
+        <VisibilityCard day={day} scrubberHour={scrubberHour} onScrub={setScrubberHour} />
+        <WindCard day={day} scrubberHour={scrubberHour} onScrub={setScrubberHour} />
+        <CurrentCard day={day} scrubberHour={scrubberHour} onScrub={setScrubberHour} />
+        <TideCard day={day} scrubberHour={scrubberHour} onScrub={setScrubberHour} />
+        <EnergyCard day={day} scrubberHour={scrubberHour} onScrub={setScrubberHour} />
+        <ConsistencyCard day={day} scrubberHour={scrubberHour} onScrub={setScrubberHour} />
         <WeatherStrip day={day} />
       </View>
     </View>
@@ -65,4 +85,12 @@ export function ForecastTab() {
 
 const styles = StyleSheet.create({
   root: {},
+  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  nowBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: colors.accentSoft,
+  },
+  nowBtnText: { ...typography.caption, color: colors.accent, fontWeight: '700' },
 });
