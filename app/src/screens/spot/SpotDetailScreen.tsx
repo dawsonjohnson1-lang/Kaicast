@@ -19,6 +19,7 @@ import { electricBeachReport, diveReports, exploreSpots, featuredSpot } from '@/
 import type { RootNav, RootStackParamList } from '@/navigation/types';
 import type { Spot } from '@/types';
 import { ForecastTab as ForecastTabRebuild } from './forecast/ForecastTab';
+import { HazardsTab as HazardsTabRebuild } from './hazards/HazardsTab';
 
 function findSpot(id: string): Spot {
   return exploreSpots.find((s) => s.id === id) ?? featuredSpot;
@@ -83,7 +84,7 @@ export function SpotDetailScreen() {
         </ScrollView>
 
         {tab === 'Overview' && <OverviewTab />}
-        {tab === 'Hazards' && <HazardsTab />}
+        {tab === 'Hazards' && <HazardsTabRebuild spot={spot} />}
         {tab === 'Forecast' && <ForecastTabRebuild />}
         {tab === 'Guide' && <GuideTab />}
 
@@ -140,35 +141,6 @@ function OverviewTab() {
           </View>
         </MetricCard>
       </Row>
-    </View>
-  );
-}
-
-function HazardsTab() {
-  return (
-    <View style={{ gap: spacing.md }}>
-      <RatingHeader />
-      <Card>
-        <Text style={typography.caption}>HAZARD CHECK</Text>
-        <View style={{ height: spacing.md }} />
-        {[
-          { label: 'Sharks', status: 'low' },
-          { label: 'Jellyfish', status: 'low' },
-          { label: 'Strong Current', status: 'mod' },
-          { label: 'Sewage / Runoff', status: 'low' },
-          { label: 'Rip Current', status: 'low' },
-          { label: 'Rocky Entry', status: 'mod' },
-        ].map((h) => (
-          <View key={h.label} style={hazardStyles.row}>
-            <Text style={typography.body}>{h.label}</Text>
-            <Tag
-              variant={h.status === 'low' ? 'excellent' : h.status === 'mod' ? 'warn' : 'hazard'}
-              label={h.status === 'low' ? 'LOW' : h.status === 'mod' ? 'MODERATE' : 'HIGH'}
-              dot
-            />
-          </View>
-        ))}
-      </Card>
     </View>
   );
 }
@@ -258,9 +230,5 @@ const ratingStyles = StyleSheet.create({
   dot: { width: 10, height: 10, borderRadius: 999, backgroundColor: colors.excellent },
   bar: { flexDirection: 'row', gap: 4, marginTop: spacing.md, height: 8 },
   seg: { flex: 1, borderRadius: 999 },
-});
-
-const hazardStyles = StyleSheet.create({
-  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border },
 });
 
