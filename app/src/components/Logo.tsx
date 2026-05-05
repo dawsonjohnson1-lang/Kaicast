@@ -1,6 +1,4 @@
 import React from 'react';
-import { View, Text, Image, StyleSheet } from 'react-native';
-import { colors } from '@/theme';
 import { Image, StyleSheet } from 'react-native';
 
 const wordmark = require('@/assets/logo-wordmark.png');
@@ -22,17 +20,9 @@ export function Logo({ size = 28, showWordmark = true }: Props) {
     );
   }
   return (
-    <View style={styles.row}>
-      <Image
-        source={require('../../assets/logo-k-wave.png')}
-        style={{ width: size, height: size, tintColor: color }}
-        resizeMode="contain"
-      />
-      {showWordmark && <Text style={[styles.wordmark, { color }]}>KAICAST</Text>}
-    </View>
     <Image
       source={mark}
-      style={{ height: size, width: size * 0.85 }}
+      style={[styles.mark, { height: size, width: size * 0.85 }]}
       resizeMode="contain"
     />
   );
@@ -40,4 +30,5 @@ export function Logo({ size = 28, showWordmark = true }: Props) {
 
 const styles = StyleSheet.create({
   wordmark: { tintColor: '#ffffff' },
+  mark: { tintColor: '#ffffff' },
 });

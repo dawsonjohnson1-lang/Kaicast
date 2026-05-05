@@ -22,19 +22,17 @@ export function AppBar({
   photoSource,
   onAvatarPress,
 }: Props) {
-  onAvatarPress,
-}: Props) {
-  const photo = useProfilePhoto();
+  const fallbackPhoto = useProfilePhoto();
+  const photo = photoSource ?? fallbackPhoto;
   return (
     <View style={styles.row}>
       <Logo size={26} showWordmark />
       <Pressable style={styles.right} onPress={onAvatarPress}>
-        <Avatar initials={initials} size={36} imageSource={photo} />
-        <View>
+        <View style={styles.text}>
           <Text style={styles.name}>{userName}</Text>
           <Text style={styles.loc}>{userLocation}</Text>
         </View>
-        <Avatar initials={initials} size={42} ring imageUri={photoUri} imageSource={photoSource} />
+        <Avatar initials={initials} size={42} ring imageUri={photoUri} imageSource={photo} />
       </Pressable>
     </View>
   );
@@ -48,6 +46,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xl,
   },
   right: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  text: { alignItems: 'flex-end' },
   name: {
     ...typography.h3,
     fontSize: 14,

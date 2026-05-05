@@ -67,8 +67,8 @@ function MainTabs() {
       tabBar={(props) => <TabBar {...props} />}
       screenOptions={{
         headerShown: false,
-        sceneContainerStyle: { backgroundColor: colors.bg },
       }}
+      sceneContainerStyle={{ backgroundColor: colors.bg }}
     >
       <Tabs.Screen name="Dashboard" component={HomeScreen} />
       <Tabs.Screen name="Saved" component={SavedSpotsScreen} />

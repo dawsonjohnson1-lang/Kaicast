@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, StyleSheet, Animated, Easing } from 'react-native';
+import { View, Image, StyleSheet, Animated, Easing } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -24,15 +24,18 @@ export function LoadingScreen() {
 
   return (
     <View style={styles.root}>
+      <Image source={require('../../../assets/loading-bg.jpg')} style={StyleSheet.absoluteFill} resizeMode="cover" />
       <LinearGradient
-        colors={['#020306', '#04111e', '#0a2540']}
+        colors={['rgba(16,16,16,0.78)', 'rgba(16,16,16,0.10)']}
         start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
+        end={{ x: 1, y: 0 }}
         style={StyleSheet.absoluteFill}
       />
-      <View style={styles.haze} />
-      <Animated.View style={{ opacity: fade, transform: [{ scale }] }}>
-        <Logo size={120} showWordmark={false} />
+
+      <Animated.View style={styles.logoWrap}>
+        <Animated.View style={{ opacity: fade, transform: [{ scale }] }}>
+          <Logo size={80} showWordmark={false} />
+        </Animated.View>
       </Animated.View>
     </View>
   );
@@ -45,12 +48,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: colors.bg,
   },
-  haze: {
-    position: 'absolute',
-    width: 320,
-    height: 320,
-    borderRadius: 320,
-    backgroundColor: 'rgba(26,184,255,0.18)',
-    top: '40%',
+  logoWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

@@ -19,28 +19,37 @@ export function ChoiceChip({ label, selected, onPress, style }: Props) {
         style,
       ]}
     >
-      <Text style={[styles.text, { color: selected ? '#0a1626' : colors.textPrimary }]}>{label}</Text>
+      <Text style={[styles.text, selected ? styles.textSelected : styles.textUnselected]}>{label}</Text>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   chip: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
+    height: 30,
+    paddingHorizontal: 14,
     borderRadius: radius.pill,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   selected: {
-    backgroundColor: colors.accent,
+    backgroundColor: 'rgba(26,184,255,0.30)',
     borderColor: colors.accent,
   },
   unselected: {
-    backgroundColor: 'transparent',
-    borderColor: colors.border,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderColor: 'rgba(255,255,255,0.15)',
   },
   text: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 12,
+  },
+  textSelected: {
+    color: colors.accent,
+    fontWeight: '500',
+  },
+  textUnselected: {
+    color: '#FFFFFF',
+    fontWeight: '400',
   },
 });
