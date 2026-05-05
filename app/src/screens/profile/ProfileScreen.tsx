@@ -86,10 +86,9 @@ export function ProfileScreen() {
       {tab === 'Dashboard' && (
         <View style={{ marginTop: spacing.xl, gap: spacing.xl }}>
           <View style={styles.tileGrid}>
-            <StatTile value="65" unit="ft" label="MAX DEPTH REPORTED" borderColor={colors.excellent} />
-            <StatTile value="35" unit=""   label="MAX DEPTH REPORTED" borderColor={colors.warn} />
-            <StatTile value="6"  unit=""   label="DIFFERENT SPOTS DIVED" borderColor={colors.scuba} />
-            <StatTile value="25" unit=""   label="LOGGED DIVES" borderColor="#e85a8a" />
+            <StatTile value="65" unit="ft" label="MAX DEPTH REPORTED"   borderColor={colors.excellent} />
+            <StatTile value="6"  unit=""   label="DIFFERENT SPOTS DIVED" borderColor={colors.border} />
+            <StatTile value="25" unit=""   label="LOGGED DIVES"          borderColor={colors.scuba} />
           </View>
 
           <View>
@@ -278,7 +277,7 @@ const styles = StyleSheet.create({
 
 const tileStyles = StyleSheet.create({
   tile: {
-    flexBasis: '48%',
+    flexBasis: '31%',
     flexGrow: 1,
     height: 120,
     borderRadius: radius.lg,
@@ -290,8 +289,8 @@ const tileStyles = StyleSheet.create({
   },
   row: { flexDirection: 'row', alignItems: 'baseline' },
   value: {
-    fontSize: 52,
-    lineHeight: 56,
+    fontSize: 40,
+    lineHeight: 44,
     fontWeight: '800',
     color: colors.textPrimary,
     letterSpacing: -1,

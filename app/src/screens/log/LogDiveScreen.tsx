@@ -10,6 +10,7 @@ import { Input } from '@/components/Input';
 import { ChoiceChip } from '@/components/ChoiceChip';
 import { Card } from '@/components/Card';
 import { Icon } from '@/components/Icon';
+import { AuthHero } from '@/components/AuthHero';
 import { colors, radius, spacing, typography } from '@/theme';
 import type { DiveType } from '@/types';
 import type { RootNav } from '@/navigation/types';
@@ -52,7 +53,8 @@ export function LogDiveScreen() {
   const back = () => (step === 1 ? nav.goBack() : setStep(((step - 1) as Step)));
 
   return (
-    <Screen contentStyle={{ paddingTop: 0 }}>
+    <Screen contentStyle={{ paddingTop: 0 }} bg={colors.bg}>
+      <AuthHero height={220} />
       <Header onBack={back} transparent />
       {step <= 4 && (
         <View style={{ marginHorizontal: spacing.xl, marginBottom: spacing.lg }}>

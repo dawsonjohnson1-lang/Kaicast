@@ -10,6 +10,7 @@ import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { Card } from '@/components/Card';
 import { Icon } from '@/components/Icon';
+import { AuthHero } from '@/components/AuthHero';
 import { colors, spacing, typography } from '@/theme';
 import type { AuthStackParamList } from '@/navigation/types';
 
@@ -21,16 +22,42 @@ export function CreateAccountScreen() {
   const [email, setEmail] = useState('');
   const [pw, setPw] = useState('');
   const [pw2, setPw2] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [errors, setErrors] = useState<{ email?: string; pw?: string; pw2?: string }>({});
+
+  const validate = () => {
+    const e: typeof errors = {};
+    if (!email.trim()) e.email = 'Email is required';
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) e.email = 'Enter a valid email address';
+    if (!pw) e.pw = 'Password is required';
+    else if (pw.length < 8) e.pw = 'Use at least 8 characters';
+    if (pw && pw2 !== pw) e.pw2 = 'Passwords don’t match';
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
+
+  const onSubmit = async () => {
+    if (!validate()) return;
+    setSubmitting(true);
+    try {
+      // TODO(firebase): replace with createUserWithEmailAndPassword
+      await new Promise((r) => setTimeout(r, 400));
+      nav.navigate('CreateAccountStep1');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
-    <Screen contentStyle={{ paddingTop: 0 }}>
+    <Screen contentStyle={{ paddingTop: 0 }} bg={colors.bg}>
+      <AuthHero height={360} />
       <Header onBack={() => nav.goBack()} transparent />
       <View style={styles.logo}>
         <Logo size={40} showWordmark />
       </View>
 
-      <Text style={[typography.h1, styles.heading]}>Sign Up{'\n'}Account</Text>
-      <Text style={styles.sub}>Create your KaiCast account to get started.</Text>
+      <Text style={[typography.h1, styles.heading]}>Sign Up Account</Text>
+      <Text style={styles.sub}>Create your Kaicast account to get started.</Text>
 
       <View style={styles.socialRow}>
         <SocialButton label="Facebook" iconSource={facebookIcon} />
@@ -40,15 +67,38 @@ export function CreateAccountScreen() {
 
       <View style={{ height: spacing.xxl }} />
 
-      <Input label="Email" placeholder="you@example.com" autoCapitalize="none" autoCorrect={false} keyboardType="email-address" value={email} onChangeText={setEmail} />
+      <Input
+        label="Email"
+        placeholder="you@example.com"
+        autoCapitalize="none"
+        autoCorrect={false}
+        keyboardType="email-address"
+        value={email}
+        onChangeText={(v) => { setEmail(v); if (errors.email) setErrors({ ...errors, email: undefined }); }}
+        error={errors.email}
+      />
       <View style={{ height: spacing.lg }} />
-      <Input label="Password" placeholder="you@example.com" secureTextEntry value={pw} onChangeText={setPw} />
+      <Input
+        label="Password"
+        placeholder="At least 8 characters"
+        secureTextEntry
+        value={pw}
+        onChangeText={(v) => { setPw(v); if (errors.pw) setErrors({ ...errors, pw: undefined }); }}
+        error={errors.pw}
+      />
       <View style={{ height: spacing.lg }} />
-      <Input label="Confirm Password" placeholder="you@example.com" secureTextEntry value={pw2} onChangeText={setPw2} />
+      <Input
+        label="Confirm Password"
+        placeholder="Repeat your password"
+        secureTextEntry
+        value={pw2}
+        onChangeText={(v) => { setPw2(v); if (errors.pw2) setErrors({ ...errors, pw2: undefined }); }}
+        error={errors.pw2}
+      />
 
       <View style={{ height: spacing.xxl }} />
 
-      <Button label="Create Account" fullWidth onPress={() => nav.navigate('CreateAccountStep1')} />
+      <Button label="Create Account" fullWidth loading={submitting} onPress={onSubmit} />
       <Pressable style={styles.footer} onPress={() => nav.navigate('Login')}>
         <Text style={styles.footerText}>
           Already Have An Account? <Text style={{ color: colors.textPrimary, fontWeight: '700' }}>Sign In</Text>

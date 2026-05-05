@@ -10,6 +10,7 @@ import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { Card } from '@/components/Card';
 import { Icon } from '@/components/Icon';
+import { AuthHero } from '@/components/AuthHero';
 import { colors, spacing, typography } from '@/theme';
 import { useAuth } from '@/hooks/useAuth';
 import type { AuthStackParamList } from '@/navigation/types';
@@ -22,15 +23,24 @@ export function LoginScreen() {
   const { signIn } = useAuth();
   const [email, setEmail] = useState('');
   const [pw, setPw] = useState('');
+  const [showPw, setShowPw] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [errors, setErrors] = useState<{ email?: string; pw?: string }>({});
+
+  const validate = () => {
+    const e: typeof errors = {};
+    if (!email.trim()) e.email = 'Email is required';
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) e.email = 'Enter a valid email address';
+    if (!pw) e.pw = 'Password is required';
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
 
   const onSignIn = async () => {
-    if (!email.trim() || !pw) {
-      Alert.alert('Missing details', 'Enter your email and password to sign in.');
-      return;
-    }
+    if (!validate()) return;
     setSubmitting(true);
     try {
+      // TODO(firebase): replace with signInWithEmailAndPassword
       await signIn({
         id: 'demo',
         name: email.split('@')[0] || 'Diver',
@@ -44,13 +54,14 @@ export function LoginScreen() {
   };
 
   return (
-    <Screen contentStyle={{ paddingTop: 0 }}>
+    <Screen contentStyle={{ paddingTop: 0 }} bg={colors.bg}>
+      <AuthHero height={360} />
       <Header onBack={() => nav.goBack()} transparent />
       <View style={styles.logo}>
         <Logo size={40} showWordmark />
       </View>
 
-      <Text style={[typography.h1, styles.heading]}>Welcome{'\n'}Back</Text>
+      <Text style={[typography.h1, styles.heading]}>Welcome Back</Text>
       <Text style={styles.sub}>Sign in to your Kaicast account.</Text>
 
       <View style={styles.socialRow}>
@@ -68,15 +79,22 @@ export function LoginScreen() {
         autoCorrect={false}
         keyboardType="email-address"
         value={email}
-        onChangeText={setEmail}
+        onChangeText={(v) => { setEmail(v); if (errors.email) setErrors({ ...errors, email: undefined }); }}
+        error={errors.email}
       />
       <View style={{ height: spacing.lg }} />
       <Input
         label="Password"
-        placeholder="you@example.com"
-        secureTextEntry
+        placeholder="Your password"
+        secureTextEntry={!showPw}
         value={pw}
-        onChangeText={setPw}
+        onChangeText={(v) => { setPw(v); if (errors.pw) setErrors({ ...errors, pw: undefined }); }}
+        error={errors.pw}
+        rightSlot={
+          <Pressable onPress={() => setShowPw((s) => !s)} hitSlop={10}>
+            <Icon name="eye" size={18} color={showPw ? colors.accent : colors.textSecondary} />
+          </Pressable>
+        }
       />
 
       <Pressable style={styles.forgot} onPress={() => Alert.alert('Reset password', 'Password reset is coming soon.')}>
@@ -85,7 +103,7 @@ export function LoginScreen() {
 
       <View style={{ height: spacing.xl }} />
 
-      <Button label="Sign In" fullWidth loading={submitting} onPress={onSignIn} />
+      <Button label="Log In" fullWidth loading={submitting} onPress={onSignIn} />
 
       <Pressable style={styles.footer} onPress={() => nav.navigate('CreateAccount')}>
         <Text style={styles.footerText}>
