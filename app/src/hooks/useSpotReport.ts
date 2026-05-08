@@ -76,9 +76,10 @@ function fromMaybe<T>(value: T | null | undefined, fallback: T): T {
 function toRating(label: string | undefined): ConditionRating {
   const l = (label ?? '').toLowerCase();
   if (l.includes('excellent')) return 'excellent';
+  if (l.includes('great')) return 'great';
   if (l.includes('good')) return 'good';
-  if (l.includes('caution') || l.includes('fair')) return 'caution';
-  return 'hazard';
+  if (l.includes('fair') || l.includes('caution')) return 'fair';
+  return 'no-go';
 }
 
 function mergeBackendIntoReport(backend: BackendReport, spot: Spot): SpotReport {

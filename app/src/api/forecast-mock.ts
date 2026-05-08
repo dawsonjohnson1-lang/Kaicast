@@ -4,8 +4,10 @@
 // this same shape so consumers (cards) don't need to change.
 
 import type { ConditionRating } from '@/types';
+import { RATING_COLORS, RATING_LABELS, type RatingTier } from '@/theme/ratingColors';
+import { scoreToTier } from '@/utils/scoreToTier';
 
-export type ForecastRating = 'excellent' | 'good' | 'caution' | 'poor';
+export type ForecastRating = RatingTier;
 
 export type HourlyPoint = {
   hourLabel: string;        // '3am' | 'Noon' | '6pm' …
@@ -52,19 +54,9 @@ export type ForecastDay = {
   ratingSegments: { startHour: number; endHour: number; color: string }[];
 };
 
-const COLOR = {
-  excellent: '#22c55e',
-  good: '#22c55e',
-  caution: '#efb93f',
-  poor: '#ef5a3f',
-} as const;
+const COLOR = RATING_COLORS;
 
-const RATING_LABEL: Record<ForecastRating, string> = {
-  excellent: 'EXCELLENT',
-  good: 'GOOD',
-  caution: 'CAUTION',
-  poor: 'POOR',
-};
+const RATING_LABEL = RATING_LABELS;
 
 const HOUR_LABELS = [
   '12a', '1a', '2a', '3a', '4a', '5a', '6a', '7a', '8a', '9a', '10a', '11a',
@@ -126,7 +118,7 @@ function buildTideEvents(): TideEvent[] {
 
 function buildSegments(hourly: HourlyPoint[]): { startHour: number; endHour: number; color: string }[] {
   const segs: { startHour: number; endHour: number; color: string }[] = [];
-  const colorFor = (s: number) => (s >= 70 ? COLOR.excellent : s >= 50 ? COLOR.caution : COLOR.poor);
+  const colorFor = (s: number) => COLOR[scoreToTier(s)];
   let segStart = 0;
   let segColor = colorFor(hourly[0].score);
   for (let h = 1; h < 24; h += 1) {
@@ -147,8 +139,8 @@ export function buildMockForecast(): ForecastDay[] {
   for (let i = 0; i < 10; i += 1) {
     const d = new Date(base);
     d.setDate(base.getDate() + i);
-    const ratings: ForecastRating[] = ['excellent', 'good', 'caution', 'poor'];
-    const rating: ForecastRating = i === 0 ? 'excellent' : ratings[(i + 1) % 4];
+    const ratings: ForecastRating[] = ['excellent', 'great', 'good', 'fair', 'no-go'];
+    const rating: ForecastRating = i === 0 ? 'excellent' : ratings[(i + 1) % ratings.length];
     const hourly = buildHourly(i, {
       vis: 28 + (i % 3) * 4,
       wind: 12 - (i % 4),
@@ -165,9 +157,9 @@ export function buildMockForecast(): ForecastDay[] {
       iso: d.toISOString().slice(0, 10),
       swellRangeFt: `${swellMin}-${swellMax}ft+`,
       rating,
-      amRating: i % 2 === 0 ? 'good' : 'caution',
+      amRating: i % 2 === 0 ? 'good' : 'fair',
       midRating: rating,
-      pmRating: i % 3 === 0 ? 'caution' : 'good',
+      pmRating: i % 3 === 0 ? 'fair' : 'good',
       isToday: i === 0,
       hourly,
       tideEvents: buildTideEvents(),
@@ -195,13 +187,10 @@ export function formatHourLabel(hour: number): string {
 
 export const SHORT_AXIS_LABELS = SHORT_HOUR_LABELS;
 
-// Map our internal forecast rating to the project's ConditionRating type
-// so existing callers / Tag variants still work.
+// ForecastRating === ConditionRating now (both alias RatingTier).
+// Keep the identity wrapper so call sites don't churn.
 export function toConditionRating(r: ForecastRating): ConditionRating {
-  if (r === 'excellent') return 'excellent';
-  if (r === 'good') return 'good';
-  if (r === 'caution') return 'caution';
-  return 'hazard';
+  return r;
 }
 
 export const FORECAST_COLOR = COLOR;

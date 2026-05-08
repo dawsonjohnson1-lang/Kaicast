@@ -1,28 +1,14 @@
 import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { colors, radius, spacing, typography } from '@/theme';
+import { colors, radius, spacing, typography, RATING_COLORS, RATING_LABELS } from '@/theme';
 import { SpotCover } from './SpotCover';
 import { Icon } from './Icon';
-import type { ConditionRating, Spot } from '@/types';
+import type { Spot } from '@/types';
 
 type Props = {
   spot: Spot;
   onPress?: () => void;
   width?: number;
-};
-
-const RATING_LABELS: Record<ConditionRating, string> = {
-  excellent: 'GREAT',
-  good: 'GOOD',
-  caution: 'FAIR',
-  hazard: 'AVOID',
-};
-
-const RATING_COLORS: Record<ConditionRating, string> = {
-  excellent: colors.excellent,
-  good: colors.good,
-  caution: colors.warn,
-  hazard: colors.hazard,
 };
 
 export function SpotMiniCard({ spot, onPress, width }: Props) {

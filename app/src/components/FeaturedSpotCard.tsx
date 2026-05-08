@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { colors, radius, spacing } from '@/theme';
+import { colors, radius, spacing, RATING_COLORS, RATING_LABELS } from '@/theme';
 import { SpotCover } from './SpotCover';
 import { Icon } from './Icon';
 import type { Spot } from '@/types';
@@ -20,14 +20,17 @@ type Props = {
 export function FeaturedSpotCard({ spot, onPress }: Props) {
   const progress = Math.max(0, Math.min(1, spot.progress ?? 0.7));
   const photo = spot.imageSource ?? (spot.imageUrl ? { uri: spot.imageUrl } : undefined);
+  const rating = spot.rating ?? 'excellent';
+  const ratingColor = RATING_COLORS[rating];
+  const ratingLabel = RATING_LABELS[rating];
   return (
     <Pressable onPress={onPress} style={styles.outer}>
       <SpotCover seed={spot.id} imageSource={photo} rounded={radius.xl} style={styles.cover}>
         <View style={styles.body}>
           <View style={styles.topRow}>
             <View style={styles.bestPill}>
-              <View style={styles.bestDot} />
-              <Text style={styles.bestText}>BEST CONDITIONS NOW</Text>
+              <View style={[styles.bestDot, { backgroundColor: ratingColor }]} />
+              <Text style={[styles.bestText, { color: ratingColor }]}>BEST CONDITIONS NOW</Text>
             </View>
             <Text style={styles.temp}>{spot.airTempF ?? 79}°F</Text>
           </View>
@@ -51,7 +54,7 @@ export function FeaturedSpotCard({ spot, onPress }: Props) {
           </View>
 
           <View style={styles.bottomRow}>
-            <Text style={styles.live}>EXCELLENT · LIVE</Text>
+            <Text style={[styles.live, { color: ratingColor }]}>{ratingLabel} · LIVE</Text>
             <View style={styles.fab}>
               <Icon name="arrow-right" size={18} color="#04070d" strokeWidth={2.5} />
             </View>
@@ -85,8 +88,8 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     borderRadius: 999,
   },
-  bestDot: { width: 6, height: 6, borderRadius: 999, backgroundColor: colors.excellent },
-  bestText: { fontSize: 10, fontWeight: '700', color: colors.excellent, letterSpacing: 0.6 },
+  bestDot: { width: 6, height: 6, borderRadius: 999 },
+  bestText: { fontSize: 10, fontWeight: '700', letterSpacing: 0.6 },
   temp: { color: '#fff', fontSize: 18, fontWeight: '700' },
   title: {
     color: '#fff',
@@ -130,7 +133,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: spacing.sm,
   },
-  live: { color: colors.excellent, fontSize: 11, fontWeight: '700', letterSpacing: 1.1 },
+  live: { fontSize: 11, fontWeight: '700', letterSpacing: 1.1 },
   fab: {
     width: 40,
     height: 40,

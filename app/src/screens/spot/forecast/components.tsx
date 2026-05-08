@@ -3,7 +3,7 @@ import { View, Text, Pressable, ScrollView, StyleSheet, ViewStyle } from 'react-
 import Svg, { Path, Circle, Line } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
 
-import { colors } from '@/theme';
+import { colors, RATING_FILL_RGBA, RATING_RING_RGBA } from '@/theme';
 import {
   ForecastDay,
   ForecastRating,
@@ -19,19 +19,6 @@ const HEADER_COLOR = 'rgba(255,255,255,0.3)';
 const SUB_COLOR = 'rgba(255,255,255,0.55)';
 const AXIS_COLOR = 'rgba(255,255,255,0.28)';
 const SCRUBBER_COLOR = 'rgba(255,255,255,0.45)';
-
-const RATING_FILL_RGBA: Record<ForecastRating, string> = {
-  excellent: 'rgba(34,197,94,0.08)',
-  good: 'rgba(34,197,94,0.08)',
-  caution: 'rgba(239,185,63,0.08)',
-  poor: 'rgba(239,90,63,0.08)',
-};
-const RATING_RING_RGBA: Record<ForecastRating, string> = {
-  excellent: 'rgba(34,197,94,0.20)',
-  good: 'rgba(34,197,94,0.20)',
-  caution: 'rgba(239,185,63,0.20)',
-  poor: 'rgba(239,90,63,0.20)',
-};
 
 // ─── DayStrip ───────────────────────────────────────────────────────
 type DayStripProps = {

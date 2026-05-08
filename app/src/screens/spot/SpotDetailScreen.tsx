@@ -15,7 +15,7 @@ import { DiveReportCard } from '@/components/DiveReportCard';
 import { Icon } from '@/components/Icon';
 import { MoonInfoCard } from './overview/MoonInfoCard';
 import { DirectionalReadingCard } from '@/components/DirectionalReadingCard';
-import { colors, radius, spacing, typography } from '@/theme';
+import { colors, radius, spacing, typography, RATING_COLORS } from '@/theme';
 import { diveReports, exploreSpots, featuredSpot } from '@/api/mockData';
 import { useSpotReport } from '@/hooks/useSpotReport';
 import type { RootNav, RootStackParamList } from '@/navigation/types';
@@ -253,7 +253,7 @@ function RatingHeader({ report: r, source }: { report: SpotReport; source: 'live
     <Card>
       <View style={ratingStyles.headerRow}>
         <View style={ratingStyles.dotWrap}>
-          <View style={ratingStyles.dot} />
+          <View style={[ratingStyles.dot, { backgroundColor: RATING_COLORS[r.rating] }]} />
           <View>
             <Text style={[typography.h1, { fontSize: 32 }]}>{r.ratingLabel}</Text>
             {peak ? <Text style={ratingStyles.peakLine}>{peak}</Text> : null}
@@ -265,10 +265,10 @@ function RatingHeader({ report: r, source }: { report: SpotReport; source: 'live
       <View style={{ height: spacing.md }} />
       <Text style={typography.caption}>BEST CONDITIONS TODAY</Text>
       <View style={ratingStyles.bar}>
-        <View style={[ratingStyles.seg, { backgroundColor: colors.warn }]} />
-        <View style={[ratingStyles.seg, { backgroundColor: colors.excellent }]} />
-        <View style={[ratingStyles.seg, { backgroundColor: colors.excellent }]} />
-        <View style={[ratingStyles.seg, { backgroundColor: colors.warn }]} />
+        <View style={[ratingStyles.seg, { backgroundColor: RATING_COLORS.fair }]} />
+        <View style={[ratingStyles.seg, { backgroundColor: RATING_COLORS.excellent }]} />
+        <View style={[ratingStyles.seg, { backgroundColor: RATING_COLORS.excellent }]} />
+        <View style={[ratingStyles.seg, { backgroundColor: RATING_COLORS.fair }]} />
       </View>
     </Card>
   );
@@ -337,7 +337,7 @@ const styles = StyleSheet.create({
 const ratingStyles = StyleSheet.create({
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   dotWrap: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  dot: { width: 10, height: 10, borderRadius: 999, backgroundColor: colors.excellent },
+  dot: { width: 10, height: 10, borderRadius: 999 },
   bar: { flexDirection: 'row', gap: 4, marginTop: spacing.md, height: 8 },
   seg: { flex: 1, borderRadius: 999 },
   peakLine: { ...typography.bodySm, color: colors.textSecondary, marginTop: 2, fontWeight: '500' },
