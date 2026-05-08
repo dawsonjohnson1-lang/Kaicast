@@ -1,8 +1,9 @@
 import type { ImageSourcePropType } from 'react-native';
+import type { RatingTier } from '@/theme/ratingColors';
 
 export type DiveType = 'scuba' | 'freedive' | 'spear' | 'snorkel';
 
-export type ConditionRating = 'excellent' | 'good' | 'caution' | 'hazard';
+export type ConditionRating = RatingTier;
 
 export type Spot = {
   id: string;
