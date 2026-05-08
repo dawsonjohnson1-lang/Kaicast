@@ -1,6 +1,6 @@
 import React from 'react';
-import { View, Text, Pressable, ScrollView, StyleSheet, ViewStyle } from 'react-native';
-import Svg, { Path, Circle, Line } from 'react-native-svg';
+import { View, Text, Pressable, ScrollView, Image, StyleSheet, ViewStyle } from 'react-native';
+import Svg, { Path, Circle, Line, Text as SvgText } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import { colors, RATING_FILL_RGBA, RATING_RING_RGBA } from '@/theme';
@@ -259,38 +259,69 @@ export function HourlyBars({
 type CompassThumbnailProps = {
   bearing: number; // 0–360
   size?: number;
+  spotCoords?: { lat: number; lon: number };
 };
 
-export function CompassThumbnail({ bearing, size = 78 }: CompassThumbnailProps) {
+const MAPBOX_TOKEN = process.env.EXPO_PUBLIC_MAPBOX_TOKEN ?? '';
+
+function compassTileUrl(lat: number, lon: number, px: number): string {
+  return `https://api.mapbox.com/styles/v1/mapbox/satellite-v9/static/${lon},${lat},14,0/${px}x${px}@2x?access_token=${MAPBOX_TOKEN}`;
+}
+
+export function CompassThumbnail({ bearing, size = 78, spotCoords }: CompassThumbnailProps) {
+  const hasTile = !!(spotCoords && MAPBOX_TOKEN);
   return (
     <View style={[compassStyles.wrap, { width: size, height: size }]}>
-      <LinearGradient
-        colors={['#0a3a4d', '#04111e']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={StyleSheet.absoluteFill}
-      />
-      <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.47)' }]} />
+      {hasTile ? (
+        <Image
+          source={{ uri: compassTileUrl(spotCoords!.lat, spotCoords!.lon, Math.round(size)) }}
+          style={StyleSheet.absoluteFill}
+          resizeMode="cover"
+        />
+      ) : (
+        <LinearGradient
+          colors={['#0a3a4d', '#04111e']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
+      )}
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.45)' }]} />
       <Svg width={size} height={size} viewBox="0 0 100 100">
         <Circle cx="50" cy="50" r="38" stroke="rgba(255,255,255,0.55)" strokeWidth={1.4} fill="none" />
         <Circle cx="50" cy="50" r="22" stroke="rgba(255,255,255,0.30)" strokeWidth={1} fill="none" />
-        {/* Cardinal ticks */}
-        {[0, 90, 180, 270].map((deg) => {
+        {/* Cardinal labels (N E S W) */}
+        {[
+          { deg: 0,   label: 'N' },
+          { deg: 90,  label: 'E' },
+          { deg: 180, label: 'S' },
+          { deg: 270, label: 'W' },
+        ].map(({ deg, label }) => {
           const rad = (deg * Math.PI) / 180;
-          const x1 = 50 + Math.sin(rad) * 38;
-          const y1 = 50 - Math.cos(rad) * 38;
-          const x2 = 50 + Math.sin(rad) * 32;
-          const y2 = 50 - Math.cos(rad) * 32;
-          return <Line key={deg} x1={x1} y1={y1} x2={x2} y2={y2} stroke="rgba(255,255,255,0.7)" strokeWidth={1.2} strokeLinecap="round" />;
+          const x = 50 + Math.sin(rad) * 44;
+          const y = 50 - Math.cos(rad) * 44 + 3;
+          return (
+            <SvgText
+              key={label}
+              x={x}
+              y={y}
+              fill="#ffffff"
+              fontSize={9}
+              fontWeight="700"
+              textAnchor="middle"
+            >
+              {label}
+            </SvgText>
+          );
         })}
         {/* Direction arrow */}
         <Path
           d={`M 50 50 L ${50 + Math.sin(((bearing) * Math.PI) / 180) * 30} ${50 - Math.cos(((bearing) * Math.PI) / 180) * 30}`}
-          stroke={colors.accent}
+          stroke="#0C9BFA"
           strokeWidth={2.5}
           strokeLinecap="round"
         />
-        <Circle cx="50" cy="50" r="3" fill={colors.accent} />
+        <Circle cx="50" cy="50" r="3" fill="#0C9BFA" />
       </Svg>
     </View>
   );

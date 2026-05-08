@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import Svg, { Path, Circle, Line } from 'react-native-svg';
+import Svg, { Path, Circle, Line, Defs, LinearGradient as SvgLinearGradient, Stop } from 'react-native-svg';
 
 import { colors } from '@/theme';
 import {
@@ -27,6 +27,7 @@ type CardProps = {
   day: ForecastDay;
   scrubberHour: number;
   onScrub?: (hour: number) => void;
+  spotCoords?: { lat: number; lon: number };
 };
 
 // ─── VisibilityCard ─────────────────────────────────────────────────
@@ -51,7 +52,7 @@ export function VisibilityCard({ day, scrubberHour, onScrub }: CardProps) {
 }
 
 // ─── WindCard ───────────────────────────────────────────────────────
-export function WindCard({ day, scrubberHour, onScrub }: CardProps) {
+export function WindCard({ day, scrubberHour, onScrub, spotCoords }: CardProps) {
   const point = day.hourly[scrubberHour];
   return (
     <DataCard header="WIND">
@@ -63,7 +64,7 @@ export function WindCard({ day, scrubberHour, onScrub }: CardProps) {
           </View>
           <Text style={cardStyles.subtle}>gusts {point.windGustMph} mph</Text>
         </View>
-        <CompassThumbnail bearing={point.windDeg} />
+        <CompassThumbnail bearing={point.windDeg} spotCoords={spotCoords} />
       </View>
       <Text style={cardStyles.scrubberLabel}>{formatHourLabel(scrubberHour)}</Text>
       <HourlyBars
@@ -90,7 +91,7 @@ export function WindCard({ day, scrubberHour, onScrub }: CardProps) {
 }
 
 // ─── CurrentCard ────────────────────────────────────────────────────
-export function CurrentCard({ day, scrubberHour }: CardProps) {
+export function CurrentCard({ day, scrubberHour, spotCoords }: CardProps) {
   const point = day.hourly[scrubberHour];
   return (
     <DataCard header="CURRENT">
@@ -102,7 +103,7 @@ export function CurrentCard({ day, scrubberHour }: CardProps) {
           </View>
           <Text style={cardStyles.subtle}>{bearingToCardinal(point.currentDeg)} flow</Text>
         </View>
-        <CompassThumbnail bearing={point.currentDeg} />
+        <CompassThumbnail bearing={point.currentDeg} spotCoords={spotCoords} />
       </View>
       <View style={cardStyles.currentGrid}>
         {[3, 6, 9, 12, 15, 18, 21].map((h) => {
@@ -145,15 +146,40 @@ export function TideCard({ day, scrubberHour, onScrub }: CardProps) {
   const xFor = (h: number) => pad + ((W - pad * 2) * h) / 23;
   const yFor = (ft: number) => H - pad - ((H - pad * 2) * (ft - minTide)) / tideRange;
 
+  // Smooth cubic-bezier path — control points at the midpoint between
+  // each hour, with the previous y for the leading control and the
+  // current y for the trailing control. Same trick as TideChart.tsx
+  // on the Overview tab.
   let pathD = '';
   day.hourly.forEach((p, i) => {
     const x = xFor(p.hour24);
     const y = yFor(p.tideFt);
-    pathD += i === 0 ? `M ${x} ${y}` : ` L ${x} ${y}`;
+    if (i === 0) {
+      pathD = `M ${x} ${y}`;
+      return;
+    }
+    const prev = day.hourly[i - 1];
+    const px = xFor(prev.hour24);
+    const py = yFor(prev.tideFt);
+    const cx = (px + x) / 2;
+    pathD += ` C ${cx} ${py}, ${cx} ${y}, ${x} ${y}`;
   });
   const fillD = `${pathD} L ${xFor(23)} ${H - pad} L ${xFor(0)} ${H - pad} Z`;
 
   const nowPoint = day.hourly[scrubberHour];
+  const nowX = xFor(scrubberHour);
+  const nowY = yFor(nowPoint.tideFt);
+
+  // Minimal axis: 6 AM, 12 PM, NOW, 6 PM, 12 AM. NOW reads from the
+  // scrubber so the label tracks user drags.
+  const axis = [
+    { hour: 6, label: '6 AM' },
+    { hour: 12, label: '12 PM' },
+    { hour: scrubberHour, label: 'NOW', isNow: true },
+    { hour: 18, label: '6 PM' },
+    { hour: 23, label: '12 AM' },
+  ];
+
   return (
     <DataCard header="TIDE">
       <View style={cardStyles.headerRowSplit}>
@@ -164,46 +190,56 @@ export function TideCard({ day, scrubberHour, onScrub }: CardProps) {
           </View>
           <Text style={cardStyles.subtle}>{day.tideTrend === 'rising' ? '▲ RISING' : '▼ FALLING'}</Text>
         </View>
-        <View style={cardStyles.tideEvents}>
-          {day.tideEvents.map((evt, i) => (
-            <View key={i} style={cardStyles.tideEvent}>
-              <Text
-                style={[
-                  cardStyles.tideEventValue,
-                  { color: evt.type === 'high' ? 'rgba(26,184,255,0.85)' : 'rgba(255,255,255,0.55)' },
-                ]}
-              >
+      </View>
+
+      <ScrubTrack onScrub={onScrub} style={{ marginTop: 12 }}>
+        <Svg width={W} height={H} viewBox={`0 0 ${W} ${H}`}>
+          <Defs>
+            <SvgLinearGradient id="tideFill" x1="0" y1="0" x2="0" y2="1">
+              <Stop offset="0" stopColor="#0C9BFA" stopOpacity={0.32} />
+              <Stop offset="1" stopColor="#0C9BFA" stopOpacity={0} />
+            </SvgLinearGradient>
+          </Defs>
+          <Path d={fillD} fill="url(#tideFill)" />
+          <Path d={pathD} stroke="#0C9BFA" strokeWidth={1.8} fill="none" />
+          <Line
+            x1={nowX}
+            y1={pad}
+            x2={nowX}
+            y2={H - pad}
+            stroke="rgba(255,255,255,0.55)"
+            strokeWidth={1}
+            strokeDasharray="3,4"
+          />
+          <Circle cx={nowX} cy={nowY} r={4.5} fill="#0C9BFA" stroke="#ffffff" strokeWidth={1.2} />
+        </Svg>
+      </ScrubTrack>
+
+      <View style={cardStyles.tideAxisRow}>
+        {axis.map((a, i) => (
+          <Text
+            key={`${a.label}-${i}`}
+            style={[cardStyles.tideAxisLabel, a.isNow && { color: '#0C9BFA', fontWeight: '700' }]}
+          >
+            {a.label}
+          </Text>
+        ))}
+      </View>
+
+      <View style={cardStyles.tideEventsRow}>
+        {day.tideEvents.map((evt, i) => (
+          <React.Fragment key={i}>
+            {i > 0 ? <View style={cardStyles.tideEventDivider} /> : null}
+            <View style={cardStyles.tideEventCol}>
+              <Text style={cardStyles.tideEventKind}>{evt.type === 'high' ? 'HIGH' : 'LOW'}</Text>
+              <Text style={cardStyles.tideEventValueLg}>
                 {evt.heightFt > 0 ? '+' : ''}{evt.heightFt.toFixed(1)} ft
               </Text>
               <Text style={cardStyles.tideEventTime}>{evt.timeLabel}</Text>
             </View>
-          ))}
-        </View>
+          </React.Fragment>
+        ))}
       </View>
-      <ScrubTrack onScrub={onScrub} style={{ marginTop: 12 }}>
-        <Svg width={W} height={H} viewBox={`0 0 ${W} ${H}`}>
-          <Path d={fillD} fill={colors.accent} fillOpacity={0.15} />
-          <Path d={pathD} stroke={colors.accent} strokeWidth={1.6} fill="none" />
-          {day.tideEvents.map((evt, i) => (
-            <Circle
-              key={i}
-              cx={xFor(evt.hour24)}
-              cy={yFor(evt.heightFt)}
-              r={2.5}
-              fill={evt.type === 'high' ? colors.accent : 'rgba(255,255,255,0.6)'}
-            />
-          ))}
-          <Line
-            x1={xFor(scrubberHour)}
-            y1={pad}
-            x2={xFor(scrubberHour)}
-            y2={H - pad}
-            stroke="rgba(255,255,255,0.45)"
-            strokeWidth={1}
-            strokeDasharray="2,3"
-          />
-        </Svg>
-      </ScrubTrack>
     </DataCard>
   );
 }
@@ -354,16 +390,21 @@ const cardStyles = StyleSheet.create({
   currentVal: { fontSize: 11, color: 'rgba(255,255,255,0.75)', fontWeight: '700' },
   currentGust: { fontSize: 8, color: 'rgba(255,255,255,0.4)' },
   // Tide
-  tideEvents: {
+  tideAxisRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 6, paddingHorizontal: 4 },
+  tideAxisLabel: { fontSize: 9, color: 'rgba(255,255,255,0.45)', fontWeight: '600', letterSpacing: 0.5 },
+  tideEventsRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    maxWidth: 200,
-    justifyContent: 'flex-end',
+    alignItems: 'stretch',
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(255,255,255,0.12)',
   },
-  tideEvent: { alignItems: 'flex-end' },
-  tideEventValue: { fontSize: 9, fontWeight: '600' },
-  tideEventTime: { fontSize: 8, color: 'rgba(255,255,255,0.42)' },
+  tideEventCol: { flex: 1, alignItems: 'center', gap: 2 },
+  tideEventDivider: { width: StyleSheet.hairlineWidth, backgroundColor: 'rgba(255,255,255,0.12)' },
+  tideEventKind: { fontSize: 9, color: 'rgba(255,255,255,0.45)', fontWeight: '700', letterSpacing: 0.8 },
+  tideEventValueLg: { fontSize: 14, color: '#fff', fontWeight: '700' },
+  tideEventTime: { fontSize: 10, color: 'rgba(255,255,255,0.55)' },
   // Energy
   energyRow: { flexDirection: 'row', gap: 16 },
   energyCol: { flex: 1 },

@@ -54,11 +54,11 @@ export function LogDiveScreen() {
 
   return (
     <Screen
-      contentStyle={{ paddingTop: 220 }}
+      contentStyle={{ paddingTop: 100 }}
       bg={colors.bg}
       edges={['left', 'right', 'bottom']}
     >
-      <AuthHero height={220} style={{ top: 0 }} />
+      <AuthHero height={100} style={{ top: 0 }} />
       <View style={logHeroStyles.headerOverlay}>
         <Header onBack={back} transparent />
       </View>
@@ -70,7 +70,7 @@ export function LogDiveScreen() {
 
       {step === 1 && (
         <View>
-          <Text style={typography.h1}>Log your dive</Text>
+          <Text style={[typography.h1, styles.titleSm]}>Log your dive</Text>
           <Text style={styles.sub}>Fill in the details — change anytime</Text>
 
           <Text style={[styles.label, { marginTop: spacing.xl }]}>I dive / do</Text>
@@ -103,7 +103,7 @@ export function LogDiveScreen() {
 
       {step === 2 && (
         <View>
-          <Text style={typography.h1}>{labelForType(type)}</Text>
+          <Text style={[typography.h1, styles.titleSm]}>{labelForType(type)}</Text>
           <Text style={styles.sub}>Step 2 of 4 — activity-specific details</Text>
 
           <View style={{ height: spacing.xl }} />
@@ -143,7 +143,7 @@ export function LogDiveScreen() {
 
       {step === 3 && (
         <View>
-          <Text style={typography.h1}>Conditions</Text>
+          <Text style={[typography.h1, styles.titleSm]}>Conditions</Text>
           <Text style={styles.sub}>Step 3 of 4 — what was it like?</Text>
 
           <Text style={[styles.label, { marginTop: spacing.xl }]}>Surface</Text>
@@ -168,7 +168,7 @@ export function LogDiveScreen() {
 
       {step === 4 && (
         <View>
-          <Text style={typography.h1}>Wrap-up</Text>
+          <Text style={[typography.h1, styles.titleSm]}>Wrap-up</Text>
           <Text style={styles.sub}>Step 4 of 4 — share what made it special</Text>
 
           <Text style={[styles.label, { marginTop: spacing.xl }]}>Notes</Text>
@@ -243,6 +243,7 @@ const logHeroStyles = StyleSheet.create({
 });
 
 const styles = StyleSheet.create({
+  titleSm: { fontSize: 22, lineHeight: 26 },
   sub: { ...typography.body, color: colors.textSecondary, marginTop: spacing.sm },
   label: { ...typography.bodySm, color: colors.textSecondary, fontWeight: '600' },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.sm },

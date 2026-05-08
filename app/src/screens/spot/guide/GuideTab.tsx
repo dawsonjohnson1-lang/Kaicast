@@ -218,19 +218,21 @@ function ConditionCard({ Icon, title, desc }: { Icon: React.FC<any>; title: stri
 }
 
 // ─── StatBar (gradient bar with positioned marker) ──────────────────
-function StatBar({ label, value, leftLabel, rightLabel, position, fromColor, toColor }: StatBarSpec) {
+function StatBar({ label, value, leftLabel, rightLabel, position }: StatBarSpec) {
+  const pct = Math.max(0, Math.min(1, position));
   return (
     <View style={statStyles.col}>
       <Text style={typography.caption}>{label}</Text>
       <Text style={statStyles.value}>{value}</Text>
       <View style={statStyles.barTrack}>
         <LinearGradient
-          colors={[fromColor, toColor]}
+          colors={['#0C9BFA', 'rgba(12,155,250,0)']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 0 }}
-          style={StyleSheet.absoluteFillObject}
+          style={[StyleSheet.absoluteFillObject, { borderRadius: 3 }]}
         />
-        <View style={[statStyles.marker, { left: `${Math.max(0, Math.min(1, position)) * 100}%` }]} />
+        <View style={[statStyles.glow, { left: `${pct * 100}%` }]} pointerEvents="none" />
+        <View style={[statStyles.marker, { left: `${pct * 100}%` }]} pointerEvents="none" />
       </View>
       <View style={statStyles.endRow}>
         <Text style={statStyles.endLabel}>{leftLabel}</Text>
@@ -342,7 +344,7 @@ const statStyles = StyleSheet.create({
     height: 6,
     borderRadius: 3,
     backgroundColor: colors.cardAlt,
-    overflow: 'hidden',
+    overflow: 'visible',
     position: 'relative',
   },
   marker: {
@@ -351,10 +353,17 @@ const statStyles = StyleSheet.create({
     width: 12,
     height: 12,
     borderRadius: 999,
-    backgroundColor: colors.textPrimary,
-    borderWidth: 2,
-    borderColor: colors.bg,
+    backgroundColor: '#ffffff',
     marginLeft: -6, // center on the position
+  },
+  glow: {
+    position: 'absolute',
+    top: -7,
+    width: 20,
+    height: 20,
+    borderRadius: 999,
+    backgroundColor: 'rgba(12,155,250,0.35)',
+    marginLeft: -10,
   },
   endRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 },
   endLabel: { fontSize: 9, color: colors.textMuted, fontWeight: '600', letterSpacing: 0.6 },

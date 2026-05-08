@@ -93,7 +93,7 @@ export function SpotDetailScreen() {
 
         {tab === 'Overview' && <OverviewTab report={r} source={reportState.source} spot={spot} />}
         {tab === 'Hazards' && <HazardsTabRebuild spot={spot} />}
-        {tab === 'Forecast' && <ForecastTabRebuild />}
+        {tab === 'Forecast' && <ForecastTabRebuild spotCoords={{ lat: spot.lat, lon: spot.lon }} />}
         {tab === 'Guide' && <GuideTabRebuild spot={spot} />}
 
         {tab !== 'Guide' && (

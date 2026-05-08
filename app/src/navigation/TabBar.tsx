@@ -5,7 +5,7 @@ import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { colors, spacing } from '@/theme';
 
 const ICONS: Record<string, ImageSourcePropType> = {
-  Dashboard: require('../../assets/tab-dashboard.png'),
+  Dashboard: require('../../assets/logo-mark.png'),
   Saved: require('../../assets/tab-saved.png'),
   Explore: require('../../assets/tab-explore.png'),
   Profile: require('../../assets/tab-profile.png'),
@@ -13,10 +13,12 @@ const ICONS: Record<string, ImageSourcePropType> = {
 
 const LABELS: Record<string, string> = {
   Dashboard: 'DASHBOARD',
-  Saved: 'SAVED SPOTS',
+  Saved: 'SAVED',
   Explore: 'EXPLORE',
   Profile: 'PROFILE',
 };
+
+const ACTIVE_COLOR = '#0C9BFA';
 
 export function TabBar({ state, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
@@ -25,7 +27,7 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
       <View style={styles.row}>
         {state.routes.map((route, i) => {
           const focused = state.index === i;
-          const color = focused ? colors.accent : 'rgba(255,255,255,0.55)';
+          const color = focused ? ACTIVE_COLOR : 'rgba(255,255,255,0.55)';
           return (
             <Pressable
               key={route.key}
@@ -42,7 +44,7 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
               style={styles.item}
               hitSlop={6}
             >
-              <View style={[styles.topIndicator, focused && { backgroundColor: colors.accent }]} />
+              <View style={[styles.topIndicator, focused && { backgroundColor: ACTIVE_COLOR }]} />
               <Image
                 source={ICONS[route.name]}
                 style={[styles.icon, { tintColor: color }]}
@@ -84,8 +86,8 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   icon: {
-    width: 30,
-    height: 30,
+    width: 20,
+    height: 20,
   },
   label: {
     fontSize: 10,

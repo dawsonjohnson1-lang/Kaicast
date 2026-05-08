@@ -30,7 +30,11 @@ import {
  * that returns the same `ForecastDay[]` shape — every card is a pure
  * function of `(day, scrubberHour)`, so they don't need to change.
  */
-export function ForecastTab() {
+type ForecastTabProps = {
+  spotCoords?: { lat: number; lon: number };
+};
+
+export function ForecastTab({ spotCoords }: ForecastTabProps = {}) {
   const days = useMemo(() => buildMockForecast(), []);
   const [selectedId, setSelectedId] = useState<string>(days[0].id);
 
@@ -72,8 +76,8 @@ export function ForecastTab() {
       <View style={{ height: 16 }} />
       <View style={{ gap: 12 }}>
         <VisibilityCard day={day} scrubberHour={scrubberHour} onScrub={setScrubberHour} />
-        <WindCard day={day} scrubberHour={scrubberHour} onScrub={setScrubberHour} />
-        <CurrentCard day={day} scrubberHour={scrubberHour} onScrub={setScrubberHour} />
+        <WindCard day={day} scrubberHour={scrubberHour} onScrub={setScrubberHour} spotCoords={spotCoords} />
+        <CurrentCard day={day} scrubberHour={scrubberHour} onScrub={setScrubberHour} spotCoords={spotCoords} />
         <TideCard day={day} scrubberHour={scrubberHour} onScrub={setScrubberHour} />
         <EnergyCard day={day} scrubberHour={scrubberHour} onScrub={setScrubberHour} />
         <ConsistencyCard day={day} scrubberHour={scrubberHour} onScrub={setScrubberHour} />
