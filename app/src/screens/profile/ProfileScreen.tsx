@@ -87,7 +87,7 @@ export function ProfileScreen() {
         <View style={{ marginTop: spacing.xl, gap: spacing.xl }}>
           <View style={styles.tileGrid}>
             <StatTile value="65" unit="ft" label="MAX DEPTH REPORTED"   borderColor={colors.excellent} />
-            <StatTile value="6"  unit=""   label="DIFFERENT SPOTS DIVED" borderColor={colors.border} />
+            <StatTile value="6"  unit=""   label="DIFFERENT SPOTS DIVED" borderColor={colors.accent} />
             <StatTile value="25" unit=""   label="LOGGED DIVES"          borderColor={colors.scuba} />
           </View>
 
@@ -284,16 +284,17 @@ const tileStyles = StyleSheet.create({
     borderWidth: 1.5,
     backgroundColor: colors.card,
     padding: spacing.lg,
-    alignItems: 'flex-start',
+    alignItems: 'center',
     justifyContent: 'center',
   },
-  row: { flexDirection: 'row', alignItems: 'baseline' },
+  row: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'center' },
   value: {
     fontSize: 40,
     lineHeight: 44,
     fontWeight: '800',
     color: colors.textPrimary,
     letterSpacing: -1,
+    textAlign: 'center',
   },
   unit: {
     ...typography.bodySm,
@@ -307,6 +308,7 @@ const tileStyles = StyleSheet.create({
     color: colors.textMuted,
     marginTop: spacing.sm,
     textTransform: 'uppercase',
+    textAlign: 'center',
   },
 });
 

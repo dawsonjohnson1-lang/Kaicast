@@ -62,7 +62,7 @@ module.exports = () => ({
       ],
     ],
     extra: {
-      kaicastApiBase: 'https://us-central1-kaicast.cloudfunctions.net',
+      kaicastApiBase: 'https://us-central1-kaicast-207dc.cloudfunctions.net',
     },
     experiments: {
       tsconfigPaths: true,

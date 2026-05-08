@@ -9,9 +9,15 @@
     "deploy": "firebase deploy --only functions"
   },
   "dependencies": {
+    "expo": "^55.0.19",
+    "firebase": "^12.12.1",
     "firebase-admin": "^13.6.0",
     "firebase-functions": "^7.0.3",
     "node-fetch": "^2.6.7"
   },
-  "private": true
+  "private": true,
+  "devDependencies": {
+    "@types/react": "~19.2.10",
+    "typescript": "~5.9.2"
+  }
 }

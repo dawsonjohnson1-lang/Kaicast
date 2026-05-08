@@ -53,9 +53,15 @@ export function LogDiveScreen() {
   const back = () => (step === 1 ? nav.goBack() : setStep(((step - 1) as Step)));
 
   return (
-    <Screen contentStyle={{ paddingTop: 0 }} bg={colors.bg}>
-      <AuthHero height={220} />
-      <Header onBack={back} transparent />
+    <Screen
+      contentStyle={{ paddingTop: 220 }}
+      bg={colors.bg}
+      edges={['left', 'right', 'bottom']}
+    >
+      <AuthHero height={220} style={{ top: 0 }} />
+      <View style={logHeroStyles.headerOverlay}>
+        <Header onBack={back} transparent />
+      </View>
       {step <= 4 && (
         <View style={{ marginHorizontal: spacing.xl, marginBottom: spacing.lg }}>
           <ProgressDots total={4} current={step} />
@@ -225,6 +231,16 @@ function labelForType(t: DiveType) {
     case 'snorkel': return 'Snorkel details';
   }
 }
+
+const logHeroStyles = StyleSheet.create({
+  headerOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+  },
+});
 
 const styles = StyleSheet.create({
   sub: { ...typography.body, color: colors.textSecondary, marginTop: spacing.sm },
