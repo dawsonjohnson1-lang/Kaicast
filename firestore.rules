@@ -1,0 +1,32 @@
+rules_version = '2';
+
+// Kaicast Firestore security rules.
+//   - users/{uid}      — readable by anyone, writable only by the
+//                        authenticated owner
+//   - diveLogs/{logId} — readable by anyone (privacy filtering is
+//                        enforced client-side via the privacy field
+//                        for now), creatable by the authed owner,
+//                        updatable / deletable only by the owner
+//   - spots/{spotId}   — readable by anyone, writable only by
+//                        server-side admin (seed script)
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{uid} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    match /diveLogs/{logId} {
+      allow read: if true;
+      allow create: if request.auth != null
+                     && request.auth.uid == request.resource.data.uid;
+      allow update, delete: if request.auth != null
+                            && request.auth.uid == resource.data.uid;
+    }
+
+    match /spots/{spotId} {
+      allow read: if true;
+      allow write: if false;
+    }
+  }
+}
