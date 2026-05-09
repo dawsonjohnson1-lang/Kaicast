@@ -136,7 +136,7 @@ export const electricBeachReport: SpotReport = {
 
 export const exploreSpots: Spot[] = [
   ...favoriteSpots,
-  { id: 'hanauma', name: 'Hanauma Bay', region: 'Oahu', visibilityFt: 35, rating: 'fair', coverColor: '#3a2a4d', lat: 21.2694, lon: -157.6939 },
+  { id: 'hanauma-bay', name: 'Hanauma Bay', region: 'Oahu', visibilityFt: 35, rating: 'fair', coverColor: '#3a2a4d', lat: 21.2694, lon: -157.6939 },
   { id: 'makua', name: 'Makua Beach', region: 'Oahu West', visibilityFt: 28, rating: 'fair', coverColor: '#4d2a2a', lat: 21.5274, lon: -158.2295 },
   { id: 'mokuleia', name: 'Mokuleia', region: 'Oahu North', visibilityFt: 22, rating: 'no-go', coverColor: '#4d1a1a', lat: 21.5783, lon: -158.1553 },
 ];

@@ -56,7 +56,11 @@ export async function triggerFetchNow(publish = false): Promise<FetchNowResponse
  * isn't deployed yet.
  */
 export async function fetchSpotReport(spotId: string, signal?: AbortSignal): Promise<BackendReport> {
-  const url = `${API_BASE}/getReport?spot=${encodeURIComponent(spotId)}`;
+  // Backend reads `req.query.spotId` (NOT `spot`). Earlier the client
+  // sent `?spot=…`, which the backend ignored and defaulted to the
+  // first spot in its SPOTS object — every spot screen silently
+  // rendered Electric Beach's report. Fixed now.
+  const url = `${API_BASE}/getReport?spotId=${encodeURIComponent(spotId)}`;
   const res = await fetch(url, { signal });
   if (!res.ok) throw new Error(`KaiCast API error ${res.status} for ${spotId}`);
   return (await res.json()) as BackendReport;
