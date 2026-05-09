@@ -23,6 +23,7 @@ import type { Spot, SpotReport } from '@/types';
 import { ForecastTab as ForecastTabRebuild } from './forecast/ForecastTab';
 import { HazardsTab as HazardsTabRebuild } from './hazards/HazardsTab';
 import { GuideTab as GuideTabRebuild } from './guide/GuideTab';
+import { satelliteUrl } from '@/api/satellite';
 
 function findSpot(id: string): Spot {
   return exploreSpots.find((s) => s.id === id) ?? featuredSpot;
@@ -40,13 +41,13 @@ export function SpotDetailScreen() {
   const spot = findSpot(route.params.spotId);
   const reportState = useSpotReport(spot);
   const r = reportState.data;
-  const heroImage = spot.imageSource ?? (spot.imageUrl ? { uri: spot.imageUrl } : undefined);
+  const heroSatelliteUri = satelliteUrl(spot.lat, spot.lon, 800, 600, 16);
 
   return (
     <Screen scroll={false} padding={0} edges={['top', 'left', 'right']}>
       <View style={styles.hero}>
-        {heroImage ? (
-          <Image source={heroImage} style={StyleSheet.absoluteFill} resizeMode="cover" />
+        {heroSatelliteUri ? (
+          <Image source={{ uri: heroSatelliteUri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
         ) : (
           <LinearGradient
             colors={[spot.coverColor ?? '#06334a', '#04111e']}

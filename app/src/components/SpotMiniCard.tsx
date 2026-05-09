@@ -15,13 +15,13 @@ export function SpotMiniCard({ spot, onPress, width }: Props) {
   const rating = spot.rating ?? 'good';
   const ratingColor = RATING_COLORS[rating];
   const ratingLabel = RATING_LABELS[rating];
-  const photo = spot.imageSource ?? (spot.imageUrl ? { uri: spot.imageUrl } : undefined);
 
   return (
     <Pressable onPress={onPress} style={[styles.card, width ? { width } : null]}>
       <SpotCover
         seed={spot.id}
-        imageSource={photo}
+        lat={spot.lat}
+        lon={spot.lon}
         rounded={radius.md}
         style={styles.cover}
       >

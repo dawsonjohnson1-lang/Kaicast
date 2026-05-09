@@ -19,13 +19,12 @@ type Props = {
 
 export function FeaturedSpotCard({ spot, onPress }: Props) {
   const progress = Math.max(0, Math.min(1, spot.progress ?? 0.7));
-  const photo = spot.imageSource ?? (spot.imageUrl ? { uri: spot.imageUrl } : undefined);
   const rating = spot.rating ?? 'excellent';
   const ratingColor = RATING_COLORS[rating];
   const ratingLabel = RATING_LABELS[rating];
   return (
     <Pressable onPress={onPress} style={styles.outer}>
-      <SpotCover seed={spot.id} imageSource={photo} rounded={radius.xl} style={styles.cover}>
+      <SpotCover seed={spot.id} lat={spot.lat} lon={spot.lon} rounded={radius.xl} style={styles.cover}>
         <View style={styles.body}>
           <View style={styles.topRow}>
             <View style={styles.bestPill}>

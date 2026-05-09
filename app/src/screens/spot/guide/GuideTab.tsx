@@ -8,6 +8,7 @@ import { Avatar } from '@/components/Avatar';
 import { Card } from '@/components/Card';
 import { Icon } from '@/components/Icon';
 import { DiveReportCard } from '@/components/DiveReportCard';
+import { satelliteUrl } from '@/api/satellite';
 import { colors, radius, spacing, typography } from '@/theme';
 import { diveReports } from '@/api/mockData';
 import { useProfilePhoto } from '@/hooks/useProfilePhoto';
@@ -25,21 +26,6 @@ type Props = {
 
 const FALLBACK_DESCRIPTION =
   'Spot details coming soon. Conditions, entry points, and marine life will appear here once we publish the spot guide.';
-
-const MAPS_API_KEY = (process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ?? '').trim();
-const HAS_MAPS_KEY = MAPS_API_KEY.length > 0;
-
-function staticMapUrl(lat: number, lon: number): string {
-  return (
-    `https://maps.googleapis.com/maps/api/staticmap` +
-    `?center=${lat},${lon}` +
-    `&zoom=16` +
-    `&size=600x300` +
-    `&scale=2` +
-    `&maptype=satellite` +
-    `&key=${MAPS_API_KEY}`
-  );
-}
 
 function googleMapsDeepLink(lat: number, lon: number): string {
   return `https://maps.google.com/?q=${lat},${lon}`;
@@ -154,11 +140,12 @@ function MapPreview({
   photo?: any;
   onOpenMaps: () => void;
 }) {
+  const tileUri = satelliteUrl(spot.lat, spot.lon, 600, 300, 16);
   return (
     <Pressable onPress={onOpenMaps} style={mapStyles.card}>
-      {HAS_MAPS_KEY ? (
+      {tileUri ? (
         <Image
-          source={{ uri: staticMapUrl(spot.lat, spot.lon) }}
+          source={{ uri: tileUri }}
           style={mapStyles.tile}
           resizeMode="cover"
           accessibilityLabel={`Satellite map of ${spot.name}`}

@@ -4,6 +4,7 @@ import Svg, { Path, Circle, Line, Text as SvgText } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import { colors, RATING_FILL_RGBA, RATING_RING_RGBA } from '@/theme';
+import { satelliteUrl } from '@/api/satellite';
 import {
   ForecastDay,
   ForecastRating,
@@ -262,19 +263,15 @@ type CompassThumbnailProps = {
   spotCoords?: { lat: number; lon: number };
 };
 
-const MAPBOX_TOKEN = process.env.EXPO_PUBLIC_MAPBOX_TOKEN ?? '';
-
-function compassTileUrl(lat: number, lon: number, px: number): string {
-  return `https://api.mapbox.com/styles/v1/mapbox/satellite-v9/static/${lon},${lat},14,0/${px}x${px}@2x?access_token=${MAPBOX_TOKEN}`;
-}
-
 export function CompassThumbnail({ bearing, size = 78, spotCoords }: CompassThumbnailProps) {
-  const hasTile = !!(spotCoords && MAPBOX_TOKEN);
+  const tileUri = spotCoords
+    ? satelliteUrl(spotCoords.lat, spotCoords.lon, Math.round(size), Math.round(size), 16)
+    : null;
   return (
     <View style={[compassStyles.wrap, { width: size, height: size }]}>
-      {hasTile ? (
+      {tileUri ? (
         <Image
-          source={{ uri: compassTileUrl(spotCoords!.lat, spotCoords!.lon, Math.round(size)) }}
+          source={{ uri: tileUri }}
           style={StyleSheet.absoluteFill}
           resizeMode="cover"
         />

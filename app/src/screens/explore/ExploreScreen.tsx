@@ -9,6 +9,7 @@ import { Screen } from '@/components/Screen';
 import { AppBar } from '@/components/AppBar';
 import { Icon } from '@/components/Icon';
 import { SpotMap } from '@/components/Map';
+import { satelliteUrl } from '@/api/satellite';
 import { colors, radius, spacing, typography, RATING_COLORS, RATING_LABELS } from '@/theme';
 import { exploreSpots } from '@/api/mockData';
 import { useAuth } from '@/hooks/useAuth';
@@ -18,8 +19,6 @@ import type { Spot } from '@/types';
 type Filter = 'Dive Spots' | 'Favorite Spots';
 const FILTERS: Filter[] = ['Dive Spots', 'Favorite Spots'];
 const SNAP_POINTS = ['10%', '55%'];
-
-const MAPBOX_TOKEN = process.env.EXPO_PUBLIC_MAPBOX_TOKEN ?? '';
 
 // Haversine great-circle distance between two lat/lon points in miles.
 function distanceMiles(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -31,10 +30,6 @@ function distanceMiles(lat1: number, lon1: number, lat2: number, lon2: number): 
     Math.sin(dLat / 2) ** 2 +
     Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(a));
-}
-
-function staticTileUrl(lat: number, lon: number): string {
-  return `https://api.mapbox.com/styles/v1/mapbox/satellite-v9/static/${lon},${lat},15,0/96x96@2x?access_token=${MAPBOX_TOKEN}`;
 }
 
 type ExploreSpot = Spot & { distMi?: number };
@@ -114,10 +109,11 @@ export function ExploreScreen() {
             const ratingColor = RATING_COLORS[rating];
             const ratingLabel = RATING_LABELS[rating];
             const distLabel = s.distMi != null ? `${s.distMi.toFixed(1)} mi` : null;
+            const tileUri = satelliteUrl(s.lat, s.lon, 96, 96, 16);
             return (
               <Pressable key={s.id} onPress={() => nav.navigate('SpotDetail', { spotId: s.id })} style={styles.row}>
                 <Image
-                  source={{ uri: staticTileUrl(s.lat, s.lon) }}
+                  source={tileUri ? { uri: tileUri } : undefined}
                   style={styles.thumb}
                   resizeMode="cover"
                 />

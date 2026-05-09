@@ -2,20 +2,29 @@ import React from 'react';
 import { View, ImageBackground, StyleSheet, ImageSourcePropType } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
+import { satelliteUrl } from '@/api/satellite';
+
 /**
- * SpotCover — placeholder for satellite imagery of a dive spot.
+ * SpotCover — satellite imagery of a dive spot, single-sourced through
+ * `@/api/satellite` so every cover, card and hero in the app shares the
+ * same provider, zoom, and centering. Pass the spot's `lat` / `lon` and
+ * the cover renders Google Maps Static (no labels, no watermark) with
+ * the spot's coordinate dead-center.
  *
- * TODO(spots-pipeline): When new spots are uploaded, the spot record will
- * carry a satellite-image URL (rendered server-side from the spot's lat/lon).
- * Pass it in via the `imageUri` prop and this will render that real imagery
- * with the same blur + dark gradient overlay used here.
- *
- * Until that pipeline lands, we render a deterministic dark-ocean gradient
- * keyed off the `seed` (spot.id) so each spot looks visually distinct.
+ * Falls back to:
+ *   - `imageUri` / `imageSource` if a caller wants to override
+ *   - a deterministic dark-ocean gradient keyed off `seed` when neither
+ *     coords nor an image are provided (or no GOOGLE_MAPS_KEY is set)
  */
 
 type Props = {
   seed?: string;
+  /** Lat/lon of the spot. Preferred — drives the satellite tile. */
+  lat?: number;
+  lon?: number;
+  /** Static-tile zoom level. 16 ≈ 600m across, 14 ≈ 2km across. */
+  zoom?: number;
+  /** Optional override URLs / require()s — bypass the satellite call. */
   imageUri?: string;
   imageSource?: ImageSourcePropType;
   children?: React.ReactNode;
@@ -38,16 +47,43 @@ function pick(seed = '') {
   return PALETTES[Math.abs(h) % PALETTES.length];
 }
 
-export function SpotCover({ seed, imageUri, imageSource, children, style, rounded }: Props) {
+// Layout-only width for the satellite request — actual rendered size
+// comes from the parent style. We pick a reasonable retina-ready size
+// once and let resizeMode="cover" crop to whatever shape the parent is.
+const TILE_W = 640;
+const TILE_H = 640;
+
+export function SpotCover({
+  seed,
+  lat,
+  lon,
+  zoom = 16,
+  imageUri,
+  imageSource,
+  children,
+  style,
+  rounded,
+}: Props) {
   const [a, b, c] = pick(seed);
   const radius = rounded ?? 0;
 
-  if (imageUri || imageSource) {
+  // Prefer satellite tile when we have coordinates.
+  const tileUrl =
+    Number.isFinite(lat) && Number.isFinite(lon)
+      ? satelliteUrl(lat as number, lon as number, TILE_W, TILE_H, zoom)
+      : null;
+
+  const resolvedSource: ImageSourcePropType | undefined = tileUrl
+    ? { uri: tileUrl }
+    : imageSource ?? (imageUri ? { uri: imageUri } : undefined);
+
+  if (resolvedSource) {
     return (
       <ImageBackground
-        source={imageSource ?? { uri: imageUri }}
+        source={resolvedSource}
         style={[{ overflow: 'hidden', borderRadius: radius }, style]}
-        imageStyle={{ borderRadius: radius }}
+        imageStyle={{ borderRadius: radius, width: '100%', height: '100%' }}
+        resizeMode="cover"
       >
         <LinearGradient
           colors={['rgba(0,0,0,0.05)', 'rgba(0,0,0,0.55)']}

@@ -3,9 +3,8 @@ import { View, Text, ImageBackground, StyleSheet, Image } from 'react-native';
 import Svg, { Line, Text as SvgText, Path, G } from 'react-native-svg';
 
 import { Card } from '@/components/Card';
+import { satelliteUrl } from '@/api/satellite';
 import { colors, radius, spacing, typography } from '@/theme';
-
-const MAPBOX_TOKEN = process.env.EXPO_PUBLIC_MAPBOX_TOKEN ?? '';
 
 type Props = {
   label: string;            // "WIND" | "CURRENT"
@@ -18,10 +17,6 @@ type Props = {
 };
 
 const COMPASS_SIZE = 120;
-
-function staticTileUrl(lat: number, lon: number, size = 96): string {
-  return `https://api.mapbox.com/styles/v1/mapbox/satellite-v9/static/${lon},${lat},14,0/${size}x${size}@2x?access_token=${MAPBOX_TOKEN}`;
-}
 
 export function DirectionalReadingCard({
   label,
@@ -58,13 +53,16 @@ function Compass({
   spotCoords: { lat: number; lon: number };
 }) {
   const ringRadius = COMPASS_SIZE / 2;
+  const tileUri = satelliteUrl(spotCoords.lat, spotCoords.lon, COMPASS_SIZE, COMPASS_SIZE, 16);
   return (
     <View style={styles.compass}>
-      <ImageBackground
-        source={{ uri: staticTileUrl(spotCoords.lat, spotCoords.lon) }}
-        style={StyleSheet.absoluteFill}
-        imageStyle={{ borderRadius: radius.lg }}
-      />
+      {tileUri ? (
+        <ImageBackground
+          source={{ uri: tileUri }}
+          style={StyleSheet.absoluteFill}
+          imageStyle={{ borderRadius: radius.lg }}
+        />
+      ) : null}
       <View style={styles.compassDarken} />
 
       <Svg width={COMPASS_SIZE} height={COMPASS_SIZE} style={StyleSheet.absoluteFill}>

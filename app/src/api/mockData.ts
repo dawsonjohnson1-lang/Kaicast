@@ -18,7 +18,6 @@ export const featuredSpot: Spot & { airTempF?: number; windMph?: number; current
   visibilityFt: 56,
   rating: 'excellent',
   coverColor: '#0a3a4d',
-  imageSource: require('../../assets/spot-electric-beach.png'),
   description: ELECTRIC_BEACH_DESCRIPTION,
   entryExit: ELECTRIC_BEACH_ENTRY,
   marineLife: ELECTRIC_BEACH_LIFE,
@@ -32,7 +31,6 @@ export const favoriteSpots: Spot[] = [
   {
     id: 'electric-beach', name: 'Electric Beach', region: 'Oahu', visibilityFt: 56, rating: 'excellent',
     coverColor: '#0c4a5c', lat: 21.355, lon: -158.122,
-    imageSource: require('../../assets/spot-electric-beach.png'),
     description: ELECTRIC_BEACH_DESCRIPTION,
     entryExit: ELECTRIC_BEACH_ENTRY,
     marineLife: ELECTRIC_BEACH_LIFE,
@@ -40,7 +38,6 @@ export const favoriteSpots: Spot[] = [
   {
     id: 'sharks-cove', name: "Shark's Cove", region: 'Oahu', visibilityFt: 48, rating: 'good',
     coverColor: '#0a3a4d', lat: 21.6417, lon: -158.0617,
-    imageSource: require('../../assets/spot-sharks-cove.png'),
     description:
       "A protected lava-rock cove on the North Shore that's a Marine Life Conservation District. Best in the summer when the surf is flat — winter brings huge swells that close it out.",
     entryExit: 'Rock entry off the parking-lot side; Three Tables to the left is gentler. Strong currents on big-swell days — don\'t enter in winter unless the surf is under 3 ft.',
@@ -49,7 +46,6 @@ export const favoriteSpots: Spot[] = [
   {
     id: 'molokini', name: 'Molokini', region: 'Maui', visibilityFt: 80, rating: 'excellent',
     coverColor: '#0a4a3a', lat: 20.633, lon: -156.495,
-    imageSource: require('../../assets/spot-molokini.png'),
     description:
       'A crescent-shaped volcanic crater off the south coast of Maui with some of the clearest water in Hawaii. Boat-only access through tour operators; the back wall drops to ~250 ft.',
     entryExit: 'Boat-access only. Most operators run from Maalaea Harbor. Backside dive is advanced — open ocean exposure and strong currents.',
