@@ -23,10 +23,6 @@ import type { Spot, SpotReport } from '@/types';
 import { ForecastTab as ForecastTabRebuild } from './forecast/ForecastTab';
 import { HazardsTab as HazardsTabRebuild } from './hazards/HazardsTab';
 import { GuideTab as GuideTabRebuild } from './guide/GuideTab';
-import DirectSunlightSvg from '@/assets/direct-sunlight.svg';
-import WaveHeightSvg from '@/assets/wave-height.svg';
-import TideSvg from '@/assets/tide.svg';
-import WindSvg from '@/assets/wind.svg';
 
 function findSpot(id: string): Spot {
   return exploreSpots.find((s) => s.id === id) ?? featuredSpot;
@@ -135,16 +131,12 @@ function OverviewTab({ report: r, source, spot }: { report: SpotReport; source: 
           value={String(r.swellHeightFt)}
           unit="FT"
           sub="SWELL HEIGHT"
-          icon={<WaveHeightSvg width={20} height={20} />}
         />
       </Row>
 
       <Card>
         <View style={uvCardStyles.header}>
-          <View style={uvCardStyles.headerLeft}>
-            <DirectSunlightSvg width={16} height={16} />
-            <Text style={typography.caption}>UV RATING</Text>
-          </View>
+          <Text style={typography.caption}>UV RATING</Text>
           <Text style={[uvCardStyles.severity, { color: uvSeverityColor(r.uvIndex) }]}>
             {uvSeverityLabel(r.uvIndex)}
           </Text>
@@ -167,18 +159,13 @@ function OverviewTab({ report: r, source, spot }: { report: SpotReport; source: 
         spotCoords={{ lat: spot.lat, lon: spot.lon }}
       />
 
-      <View style={tideHeaderStyles.wrap}>
-        <View style={tideHeaderStyles.iconWrap}>
-          <TideSvg width={18} height={18} />
-        </View>
-        <TideChart
-          series={r.tide.series}
-          trend={r.tide.trend}
-          nowFt={r.tide.nowFt}
-          nextLabel={r.tide.nextLabel}
-          nextFt={r.tide.nextFt}
-        />
-      </View>
+      <TideChart
+        series={r.tide.series}
+        trend={r.tide.trend}
+        nowFt={r.tide.nowFt}
+        nextLabel={r.tide.nextLabel}
+        nextFt={r.tide.nextFt}
+      />
 
       <DirectionalReadingCard
         label="WIND"
@@ -238,13 +225,7 @@ const CURRENT_DIRECTION_DEG = 45;
 
 const uvCardStyles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   severity: { ...typography.caption, fontWeight: '700' },
-});
-
-const tideHeaderStyles = StyleSheet.create({
-  wrap: { position: 'relative' },
-  iconWrap: { position: 'absolute', top: spacing.lg, right: spacing.lg, zIndex: 1 },
 });
 
 function RatingHeader({ report: r, source }: { report: SpotReport; source: 'live' | 'mock' }) {
