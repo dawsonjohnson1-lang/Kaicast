@@ -49,7 +49,7 @@ const EXPERIENCE_LEVELS = ['Beginner', 'Intermediate', 'Advanced', 'Expert'];
 
 export function CreateAccountStep1Screen() {
   const nav = useNavigation<NativeStackNavigationProp<AuthStackParamList>>();
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const [saving, setSaving] = useState(false);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [first, setFirst] = useState('');
@@ -92,11 +92,7 @@ export function CreateAccountStep1Screen() {
 
   const onContinue = async () => {
     if (!user) {
-      // Auth flow is broken — fall through so the user can still
-      // navigate, but log it so we catch it in dev.
-      // eslint-disable-next-line no-console
-      console.warn('[onboarding] continuing without user — profile not persisted');
-      nav.navigate('CreateAccountAlmostThere');
+      Alert.alert('Sign in required', 'Please sign in or create an account first.');
       return;
     }
     setSaving(true);
@@ -117,11 +113,19 @@ export function CreateAccountStep1Screen() {
         email: user.email,
       });
       nav.navigate('CreateAccountAlmostThere');
-    } catch (err) {
+    } catch (err: any) {
+      // Surface the failure so the user (and we) know what's wrong.
+      // The most common cause in dev is Firestore security rules
+      // denying the write — verify rules at
+      // https://console.firebase.google.com/project/kaicast-207dc/firestore/rules
       // eslint-disable-next-line no-console
       console.warn('[onboarding] profile write failed:', err);
-      // Still advance so we don't trap them; they can retry settings later.
-      nav.navigate('CreateAccountAlmostThere');
+      Alert.alert(
+        'Couldn’t save profile',
+        err?.code === 'permission-denied'
+          ? 'Firestore rejected the write. Check your security rules in the Firebase Console.'
+          : err?.message ?? 'Please try again.',
+      );
     } finally {
       setSaving(false);
     }
@@ -130,7 +134,15 @@ export function CreateAccountStep1Screen() {
   return (
     <Screen contentStyle={{ paddingTop: 0 }} bg={colors.bg}>
       <AuthHero height={260} />
-      <Header onBack={() => nav.goBack()} transparent />
+      <Header
+        onBack={() => nav.goBack()}
+        transparent
+        rightSlot={
+          <Pressable hitSlop={10} onPress={signOut}>
+            <Text style={s.signOutLink}>Sign out</Text>
+          </Pressable>
+        }
+      />
 
       <View style={{ marginTop: spacing.md }}>
         <ProgressDots total={3} current={1} />
@@ -297,6 +309,7 @@ function PickerModal({
 
 const s = StyleSheet.create({
   sub: { ...typography.body, color: colors.textSecondary, marginTop: spacing.sm },
+  signOutLink: { ...typography.bodySm, color: colors.accent, fontWeight: '600' },
   photoRow: {
     flexDirection: 'row',
     alignItems: 'center',
