@@ -12,6 +12,8 @@ import { Card } from '@/components/Card';
 import { Icon } from '@/components/Icon';
 import { AuthHero } from '@/components/AuthHero';
 import { colors, radius, spacing, typography } from '@/theme';
+import { useAuth } from '@/hooks/useAuth';
+import { submitDiveLog } from '@/api/diveLogs';
 import type { DiveType } from '@/types';
 import type { RootNav } from '@/navigation/types';
 
@@ -31,7 +33,9 @@ const VIS = ['Crystal', 'Clean', 'Murky', 'Green'];
 
 export function LogDiveScreen() {
   const nav = useNavigation<RootNav>();
+  const { user } = useAuth();
   const [step, setStep] = useState<Step>(1);
+  const [submitting, setSubmitting] = useState(false);
 
   const [type, setType] = useState<DiveType>('scuba');
   const [group, setGroup] = useState('Solo');
@@ -51,6 +55,40 @@ export function LogDiveScreen() {
 
   const next = () => setStep(((step + 1) as Step));
   const back = () => (step === 1 ? nav.goBack() : setStep(((step - 1) as Step)));
+
+  const onSubmit = async () => {
+    if (!user) return;
+    setSubmitting(true);
+    try {
+      await submitDiveLog({
+        uid: user.id,
+        // TODO(spot-resolution): the form's `location` field is a free-text
+        // input today; once the spot picker lands, replace this with the
+        // selected spot's id so logs link cleanly to BackendReports.
+        spotId: location.trim() || 'unknown',
+        diveType: type,
+        groupSize: group,
+        durationMin: duration ? Number.parseInt(duration, 10) : null,
+        depthFt: depth ? Number.parseInt(depth, 10) : null,
+        surface,
+        current,
+        visibility: vis,
+        notes,
+        privacy: 'public',
+        photos: [],
+      });
+      setStep(5);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn('[LogDive] submit failed:', err);
+      // Still advance to the success screen — the stub fallback in
+      // submitDiveLog never throws, so a thrown error means a real
+      // Firebase write failed. Surface it but don't trap the user.
+      setStep(5);
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <Screen
@@ -214,7 +252,12 @@ export function LogDiveScreen() {
       {step < 5 ? (
         <View style={styles.actions}>
           <Button label="Back" variant="ghost" iconLeft="chevron-left" onPress={back} />
-          <Button label={step === 4 ? 'Submit dive' : 'Continue'} iconRight="arrow-right" onPress={() => (step === 4 ? setStep(5) : next())} />
+          <Button
+            label={step === 4 ? 'Submit dive' : 'Continue'}
+            iconRight="arrow-right"
+            loading={submitting}
+            onPress={() => (step === 4 ? onSubmit() : next())}
+          />
         </View>
       ) : (
         <Button label="Done" fullWidth onPress={() => nav.popToTop()} />

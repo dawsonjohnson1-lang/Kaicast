@@ -1,0 +1,180 @@
+// Dive log persistence — writes to Firestore `diveLogs/{logId}` when
+// configured, falls back to a local AsyncStorage queue otherwise so the
+// LogDive form's "Save" still produces a record in demo mode.
+//
+// Schema:
+//   diveLogs/{logId}: {
+//     uid:         string                              // Firebase user id
+//     spotId:      string                              // matches spots collection / SPOTS in functions
+//     loggedAt:    Timestamp                           // set server-side on write
+//     diveType:    'scuba' | 'freedive' | 'spear' | 'snorkel'
+//     groupSize:   string                              // 'Solo' | 'With a buddy' | …
+//     durationMin: number | null
+//     depthFt:     number | null
+//     surface:     'Calm' | 'Choppy' | 'Rough'
+//     current:     'None' | 'Light' | 'Moderate' | 'Strong'
+//     visibility:  'Crystal' | 'Clean' | 'Murky' | 'Green'
+//     waterTempF:  number | null
+//     notes:       string
+//     privacy:     'public' | 'friends' | 'private'
+//     photos:      string[]                            // Firebase Storage URLs
+//     conditionsSnapshot?: BackendReport               // optional: report at log time, captured for cross-reference
+//   }
+//
+// The `conditionsSnapshot` field is what makes this work as a
+// cross-reference dataset: when a user saves a dive log, we capture the
+// then-current BackendReport for that spot/hour. Later we can join logs
+// back against the canonical reports/{spotId}/hourly/{hourKey} index
+// without worrying about the report shape changing.
+
+import {
+  addDoc,
+  collection,
+  getDocs,
+  query,
+  where,
+  orderBy,
+  limit as fbLimit,
+  serverTimestamp,
+  Timestamp,
+} from 'firebase/firestore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+import { db, firebaseConfigured } from '@/firebase';
+import type { BackendReport } from '@/api/kaicast';
+import type { DiveType } from '@/types';
+
+const STUB_QUEUE_KEY = 'kaicast.diveLogs.stub.v1';
+
+export type DiveLogPrivacy = 'public' | 'friends' | 'private';
+
+export type DiveLogInput = {
+  uid: string;
+  spotId: string;
+  diveType: DiveType;
+  groupSize?: string;
+  durationMin?: number | null;
+  depthFt?: number | null;
+  surface?: string;
+  current?: string;
+  visibility?: string;
+  waterTempF?: number | null;
+  notes?: string;
+  privacy?: DiveLogPrivacy;
+  photos?: string[];
+  conditionsSnapshot?: BackendReport | null;
+};
+
+export type DiveLogRecord = DiveLogInput & {
+  id: string;
+  loggedAt: Date | null;
+};
+
+/**
+ * Persist a dive log. Returns the new record's id.
+ *
+ * - When Firebase is configured: writes to `diveLogs/{logId}`.
+ * - Otherwise: appends to a local AsyncStorage queue under
+ *   `kaicast.diveLogs.stub.v1` so the form still gives feedback.
+ */
+export async function submitDiveLog(input: DiveLogInput): Promise<string> {
+  if (firebaseConfigured && db) {
+    const ref = await addDoc(collection(db, 'diveLogs'), {
+      ...input,
+      loggedAt: serverTimestamp(),
+    });
+    return ref.id;
+  }
+  // Stub fallback.
+  const id = `stub_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const record: DiveLogRecord = { ...input, id, loggedAt: new Date() };
+  const raw = await AsyncStorage.getItem(STUB_QUEUE_KEY);
+  const queue: DiveLogRecord[] = raw ? JSON.parse(raw) : [];
+  queue.unshift(record);
+  await AsyncStorage.setItem(STUB_QUEUE_KEY, JSON.stringify(queue.slice(0, 200)));
+  return id;
+}
+
+/** List the most recent dive logs for a given user (newest first). */
+export async function listDiveLogsForUser(uid: string, max = 50): Promise<DiveLogRecord[]> {
+  if (firebaseConfigured && db) {
+    const q = query(
+      collection(db, 'diveLogs'),
+      where('uid', '==', uid),
+      orderBy('loggedAt', 'desc'),
+      fbLimit(max),
+    );
+    const snap = await getDocs(q);
+    return snap.docs.map((d) => normalizeRecord(d.id, d.data()));
+  }
+  return readStubQueue().filter((r) => r.uid === uid).slice(0, max);
+}
+
+/**
+ * List the most recent dive logs at a given spot (newest first). Used
+ * by Spot Detail "Friends' Reports" and the Hazards/Forecast tabs to
+ * cross-reference user-reported observations against KaiCast's
+ * predicted conditions.
+ */
+export async function listDiveLogsForSpot(spotId: string, max = 50): Promise<DiveLogRecord[]> {
+  if (firebaseConfigured && db) {
+    const q = query(
+      collection(db, 'diveLogs'),
+      where('spotId', '==', spotId),
+      where('privacy', 'in', ['public', 'friends']),
+      orderBy('loggedAt', 'desc'),
+      fbLimit(max),
+    );
+    const snap = await getDocs(q);
+    return snap.docs.map((d) => normalizeRecord(d.id, d.data()));
+  }
+  return readStubQueue().filter((r) => r.spotId === spotId).slice(0, max);
+}
+
+function normalizeRecord(id: string, data: any): DiveLogRecord {
+  const ts: Timestamp | undefined = data.loggedAt;
+  return {
+    id,
+    uid: data.uid,
+    spotId: data.spotId,
+    diveType: data.diveType,
+    groupSize: data.groupSize,
+    durationMin: data.durationMin ?? null,
+    depthFt: data.depthFt ?? null,
+    surface: data.surface,
+    current: data.current,
+    visibility: data.visibility,
+    waterTempF: data.waterTempF ?? null,
+    notes: data.notes,
+    privacy: data.privacy,
+    photos: data.photos ?? [],
+    conditionsSnapshot: data.conditionsSnapshot ?? null,
+    loggedAt: ts ? ts.toDate() : null,
+  };
+}
+
+function readStubQueue(): DiveLogRecord[] {
+  // AsyncStorage is async — but our public listDiveLogsFor* APIs are
+  // also async, so callers handle the Promise. This sync helper is
+  // safe because we always await it via the async wrappers above.
+  // Falling back to an empty array on parse failure.
+  return _readStubSync();
+}
+
+let _stubCache: DiveLogRecord[] | null = null;
+function _readStubSync(): DiveLogRecord[] {
+  if (_stubCache) return _stubCache;
+  return [];
+}
+
+// Hydrate the in-memory stub cache from AsyncStorage on app boot.
+// Called once from the AuthProvider so screens see prior logs after
+// a cold start in stub mode.
+export async function hydrateStubLogs(): Promise<void> {
+  try {
+    const raw = await AsyncStorage.getItem(STUB_QUEUE_KEY);
+    _stubCache = raw ? JSON.parse(raw) : [];
+  } catch {
+    _stubCache = [];
+  }
+}
