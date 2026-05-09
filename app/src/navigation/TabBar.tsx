@@ -5,7 +5,7 @@ import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { colors, spacing } from '@/theme';
 
 const ICONS: Record<string, ImageSourcePropType> = {
-  Dashboard: require('../../assets/logo-mark.png'),
+  Dashboard: require('../assets/logo-mark.png'),
   Saved: require('../../assets/tab-saved.png'),
   Explore: require('../../assets/tab-explore.png'),
   Profile: require('../../assets/tab-profile.png'),
