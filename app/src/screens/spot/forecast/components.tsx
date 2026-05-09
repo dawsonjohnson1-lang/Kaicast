@@ -264,8 +264,10 @@ type CompassThumbnailProps = {
 };
 
 export function CompassThumbnail({ bearing, size = 78, spotCoords }: CompassThumbnailProps) {
+  // zoom 14 — gives ~1km of coastline context around the spot rather
+  // than the over-zoomed single-rock crop you get at z16.
   const tileUri = spotCoords
-    ? satelliteUrl(spotCoords.lat, spotCoords.lon, Math.round(size), Math.round(size), 16)
+    ? satelliteUrl(spotCoords.lat, spotCoords.lon, Math.round(size), Math.round(size), 14)
     : null;
   return (
     <View style={[compassStyles.wrap, { width: size, height: size }]}>

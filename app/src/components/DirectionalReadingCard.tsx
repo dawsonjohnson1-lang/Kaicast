@@ -53,7 +53,9 @@ function Compass({
   spotCoords: { lat: number; lon: number };
 }) {
   const ringRadius = COMPASS_SIZE / 2;
-  const tileUri = satelliteUrl(spotCoords.lat, spotCoords.lon, COMPASS_SIZE, COMPASS_SIZE, 16);
+  // zoom 14 ≈ 1.2 km across at this size — shows coastline context
+  // around the spot rather than tight crop on a single rock formation.
+  const tileUri = satelliteUrl(spotCoords.lat, spotCoords.lon, COMPASS_SIZE, COMPASS_SIZE, 14);
   return (
     <View style={styles.compass}>
       {tileUri ? (
