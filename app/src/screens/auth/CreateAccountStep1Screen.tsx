@@ -13,6 +13,9 @@ import { Avatar } from '@/components/Avatar';
 import { Icon } from '@/components/Icon';
 import { AuthHero } from '@/components/AuthHero';
 import { colors, radius, spacing, typography } from '@/theme';
+import { useAuth } from '@/hooks/useAuth';
+import { setUserProfile } from '@/api/userProfile';
+import { pickAndUploadPhoto } from '@/api/photoUpload';
 import type { AuthStackParamList } from '@/navigation/types';
 
 type DiveActivity =
@@ -46,6 +49,8 @@ const EXPERIENCE_LEVELS = ['Beginner', 'Intermediate', 'Advanced', 'Expert'];
 
 export function CreateAccountStep1Screen() {
   const nav = useNavigation<NativeStackNavigationProp<AuthStackParamList>>();
+  const { user } = useAuth();
+  const [saving, setSaving] = useState(false);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [first, setFirst] = useState('');
   const [last, setLast] = useState('');
@@ -63,13 +68,17 @@ export function CreateAccountStep1Screen() {
   const initials = `${first[0] ?? ''}${last[0] ?? ''}`.toUpperCase() || '+';
   const photoSource = photoUri ? { uri: photoUri } : undefined;
 
-  const onUploadPhoto = () => {
-    // TODO(image-picker): wire to expo-image-picker once installed; enforce
-    // JPG/PNG only and a 1 MB max-size check on the picked asset.
-    Alert.alert(
-      'Upload photo',
-      'Photo upload requires expo-image-picker. Install it and replace this stub with launchImageLibraryAsync.',
-    );
+  const onUploadPhoto = async () => {
+    if (!user) {
+      Alert.alert('Sign in required', 'Create your account first to attach a profile photo.');
+      return;
+    }
+    try {
+      const result = await pickAndUploadPhoto({ uid: user.id, kind: 'profile' });
+      if (result) setPhotoUri(result.publicUrl);
+    } catch (err: any) {
+      Alert.alert('Upload failed', err?.message ?? String(err));
+    }
   };
 
   const toggleActivity = (id: DiveActivity) => {
@@ -81,8 +90,41 @@ export function CreateAccountStep1Screen() {
     });
   };
 
-  const onContinue = () => {
-    nav.navigate('CreateAccountAlmostThere');
+  const onContinue = async () => {
+    if (!user) {
+      // Auth flow is broken — fall through so the user can still
+      // navigate, but log it so we catch it in dev.
+      // eslint-disable-next-line no-console
+      console.warn('[onboarding] continuing without user — profile not persisted');
+      nav.navigate('CreateAccountAlmostThere');
+      return;
+    }
+    setSaving(true);
+    try {
+      await setUserProfile(user.id, {
+        firstName: first.trim(),
+        lastName: last.trim(),
+        nickname: nickname.trim() || undefined,
+        handle: handle.trim() || user.handle,
+        name: `${first.trim()} ${last.trim()}`.trim() || user.name,
+        homeIsland: island ?? undefined,
+        homeTown: hometown.trim() || undefined,
+        homeSpot: homeSpot.trim() || undefined,
+        activities: Array.from(activities),
+        experienceLevel: experience ?? undefined,
+        yearsActive: years ? Number.parseInt(years, 10) : undefined,
+        photoUrl: photoUri ?? undefined,
+        email: user.email,
+      });
+      nav.navigate('CreateAccountAlmostThere');
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn('[onboarding] profile write failed:', err);
+      // Still advance so we don't trap them; they can retry settings later.
+      nav.navigate('CreateAccountAlmostThere');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -166,7 +208,7 @@ export function CreateAccountStep1Screen() {
 
       <View style={s.actions}>
         <Button label="Back" variant="ghost" iconLeft="chevron-left" onPress={() => nav.goBack()} />
-        <Button label="Continue" iconRight="arrow-right" onPress={onContinue} />
+        <Button label="Continue" iconRight="arrow-right" loading={saving} onPress={onContinue} />
       </View>
 
       <PickerModal

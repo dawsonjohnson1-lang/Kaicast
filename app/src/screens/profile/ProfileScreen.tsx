@@ -16,6 +16,7 @@ import { Logo } from '@/components/Logo';
 import { colors, radius, spacing, typography } from '@/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfilePhoto } from '@/hooks/useProfilePhoto';
+import { useUserProfile } from '@/hooks/useUserProfile';
 import { diveReports, favoriteSpots } from '@/api/mockData';
 import type { RootStackParamList, TabParamList } from '@/navigation/types';
 
@@ -33,11 +34,20 @@ const FOLLOWING_COUNT = 12;
 export function ProfileScreen() {
   const nav = useNavigation<Nav>();
   const { user, signOut } = useAuth();
-  const photo = useProfilePhoto();
+  const { profile } = useUserProfile(user?.id);
+  const fallbackPhoto = useProfilePhoto();
   const [tab, setTab] = useState<Tab>('Dashboard');
-  const initials = (user?.name ?? 'D').split(' ').map((s) => s[0]).join('').slice(0, 2);
-  const displayName = (user?.name ?? 'Diver').toUpperCase();
-  const handle = user?.handle ?? 'diver';
+
+  // Prefer the live profile doc when present; fall back to the auth
+  // user blob (which itself falls back to email-derived defaults).
+  const displayName = (profile?.name ?? user?.name ?? 'Diver').toUpperCase();
+  const handle = profile?.handle ?? user?.handle ?? 'diver';
+  const initials = (profile?.firstName || profile?.name || user?.name || 'D')
+    .split(' ').map((s) => s[0]).join('').slice(0, 2).toUpperCase();
+  const photoSource = profile?.photoUrl ? { uri: profile.photoUrl } : fallbackPhoto;
+  const homeLocation =
+    [profile?.homeIsland, profile?.homeTown].filter(Boolean).join(', ').toUpperCase() ||
+    'OAHU, HAWAII';
 
   const onClose = () => {
     if (nav.canGoBack()) nav.goBack();
@@ -55,10 +65,10 @@ export function ProfileScreen() {
       </View>
 
       <View style={styles.profileHead}>
-        <Avatar size={132} ring imageSource={photo} initials={initials} />
+        <Avatar size={132} ring imageSource={photoSource} initials={initials} />
         <Text style={[typography.display, { marginTop: spacing.lg }]}>{displayName}</Text>
         <Text style={styles.handle}>@{handle}</Text>
-        <Text style={styles.location}>OAHU, HAWAII</Text>
+        <Text style={styles.location}>{homeLocation}</Text>
         <View style={styles.statsRow}>
           <Pressable style={styles.statCol} onPress={() => nav.navigate('Followers')}>
             <Text style={styles.statBold}>{FOLLOWERS_COUNT}</Text>

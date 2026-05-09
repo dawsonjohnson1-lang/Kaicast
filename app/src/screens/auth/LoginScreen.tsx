@@ -13,6 +13,7 @@ import { Icon } from '@/components/Icon';
 import { AuthHero } from '@/components/AuthHero';
 import { colors, spacing, typography } from '@/theme';
 import { useAuth } from '@/hooks/useAuth';
+import { friendlyAuthError } from '@/utils/authErrors';
 import type { AuthStackParamList } from '@/navigation/types';
 
 const googleIcon = require('@/assets/social-google.png');
@@ -20,12 +21,12 @@ const facebookIcon = require('@/assets/social-facebook.png');
 
 export function LoginScreen() {
   const nav = useNavigation<NativeStackNavigationProp<AuthStackParamList>>();
-  const { signIn } = useAuth();
+  const { signInWithEmail } = useAuth();
   const [email, setEmail] = useState('');
   const [pw, setPw] = useState('');
   const [showPw, setShowPw] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [errors, setErrors] = useState<{ email?: string; pw?: string }>({});
+  const [errors, setErrors] = useState<{ email?: string; pw?: string; submit?: string }>({});
 
   const validate = () => {
     const e: typeof errors = {};
@@ -39,15 +40,11 @@ export function LoginScreen() {
   const onSignIn = async () => {
     if (!validate()) return;
     setSubmitting(true);
+    setErrors((prev) => ({ ...prev, submit: undefined }));
     try {
-      // TODO(firebase): replace with signInWithEmailAndPassword
-      await signIn({
-        id: 'demo',
-        name: email.split('@')[0] || 'Diver',
-        handle: email.split('@')[0] || 'diver',
-        email: email.trim(),
-        homeSpot: "Three Tables, O'ahu",
-      });
+      await signInWithEmail(email, pw);
+    } catch (err: any) {
+      setErrors((prev) => ({ ...prev, submit: friendlyAuthError(err) }));
     } finally {
       setSubmitting(false);
     }
@@ -103,6 +100,10 @@ export function LoginScreen() {
 
       <View style={{ height: spacing.xl }} />
 
+      {errors.submit ? (
+        <Text style={styles.submitError}>{errors.submit}</Text>
+      ) : null}
+
       <Button label="Log In" fullWidth loading={submitting} onPress={onSignIn} />
 
       <Pressable style={styles.footer} onPress={() => nav.navigate('CreateAccount')}>
@@ -147,6 +148,7 @@ const styles = StyleSheet.create({
   socialRow: { flexDirection: 'row', gap: spacing.md, marginBottom: spacing.md },
   social: { backgroundColor: colors.cardAlt, borderWidth: 1, borderColor: colors.border, borderRadius: 999 },
   forgot: { alignSelf: 'flex-end', marginTop: spacing.md },
+  submitError: { ...typography.bodySm, color: colors.hazard, textAlign: 'center', marginBottom: spacing.md },
   forgotText: { color: colors.accent, fontSize: 13, fontWeight: '600' },
   footer: { alignItems: 'center', marginTop: spacing.xl },
   footerText: { color: colors.textSecondary, fontSize: 13 },

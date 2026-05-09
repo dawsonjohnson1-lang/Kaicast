@@ -12,6 +12,8 @@ import { Card } from '@/components/Card';
 import { Icon } from '@/components/Icon';
 import { AuthHero } from '@/components/AuthHero';
 import { colors, spacing, typography } from '@/theme';
+import { useAuth } from '@/hooks/useAuth';
+import { friendlyAuthError } from '@/utils/authErrors';
 import type { AuthStackParamList } from '@/navigation/types';
 
 const googleIcon = require('@/assets/social-google.png');
@@ -19,11 +21,12 @@ const facebookIcon = require('@/assets/social-facebook.png');
 
 export function CreateAccountScreen() {
   const nav = useNavigation<NativeStackNavigationProp<AuthStackParamList>>();
+  const { signUpWithEmail } = useAuth();
   const [email, setEmail] = useState('');
   const [pw, setPw] = useState('');
   const [pw2, setPw2] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [errors, setErrors] = useState<{ email?: string; pw?: string; pw2?: string }>({});
+  const [errors, setErrors] = useState<{ email?: string; pw?: string; pw2?: string; submit?: string }>({});
 
   const validate = () => {
     const e: typeof errors = {};
@@ -39,10 +42,12 @@ export function CreateAccountScreen() {
   const onSubmit = async () => {
     if (!validate()) return;
     setSubmitting(true);
+    setErrors((prev) => ({ ...prev, submit: undefined }));
     try {
-      // TODO(firebase): replace with createUserWithEmailAndPassword
-      await new Promise((r) => setTimeout(r, 400));
+      await signUpWithEmail(email, pw);
       nav.navigate('CreateAccountStep1');
+    } catch (err) {
+      setErrors((prev) => ({ ...prev, submit: friendlyAuthError(err) }));
     } finally {
       setSubmitting(false);
     }
@@ -98,6 +103,10 @@ export function CreateAccountScreen() {
 
       <View style={{ height: spacing.xxl }} />
 
+      {errors.submit ? (
+        <Text style={styles.submitError}>{errors.submit}</Text>
+      ) : null}
+
       <Button label="Create Account" fullWidth loading={submitting} onPress={onSubmit} />
       <Pressable style={styles.footer} onPress={() => nav.navigate('Login')}>
         <Text style={styles.footerText}>
@@ -146,4 +155,5 @@ const styles = StyleSheet.create({
   dot: { width: 14, height: 14, borderRadius: 7 },
   footer: { alignItems: 'center', marginTop: spacing.xl },
   footerText: { color: colors.textSecondary, fontSize: 13 },
+  submitError: { ...typography.bodySm, color: colors.hazard, textAlign: 'center', marginBottom: spacing.md },
 });
