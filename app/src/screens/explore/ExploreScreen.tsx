@@ -7,8 +7,7 @@ import { useNavigation } from '@react-navigation/native';
 import { Screen } from '@/components/Screen';
 import { AppBar } from '@/components/AppBar';
 import { Icon } from '@/components/Icon';
-import { Tag } from '@/components/Tag';
-import { colors, radius, spacing, typography } from '@/theme';
+import { colors, radius, spacing, typography, RATING_COLORS, RATING_LABELS } from '@/theme';
 import { exploreSpots } from '@/api/mockData';
 import { useAuth } from '@/hooks/useAuth';
 import type { RootNav } from '@/navigation/types';
@@ -56,7 +55,9 @@ export function ExploreScreen() {
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: spacing.xxl }}>
           <Text style={styles.helper}>Move map to find dive spots, buoys, and conditions near you.</Text>
           {exploreSpots.map((s) => {
-            const ratingTag = s.rating === 'excellent' ? 'excellent' : s.rating === 'good' ? 'good' : s.rating === 'caution' ? 'warn' : 'hazard';
+            const rating = s.rating ?? 'good';
+            const ratingColor = RATING_COLORS[rating];
+            const ratingLabel = RATING_LABELS[rating];
             return (
               <Pressable key={s.id} onPress={() => nav.navigate('SpotDetail', { spotId: s.id })} style={styles.row}>
                 <View style={[styles.pin, { backgroundColor: s.coverColor ?? colors.cardAlt }]}>
@@ -66,7 +67,10 @@ export function ExploreScreen() {
                   <Text style={typography.h3}>{s.name}</Text>
                   <Text style={styles.region}>{s.region} · {s.visibilityFt} ft vis</Text>
                 </View>
-                <Tag variant={ratingTag} dot />
+                <View style={[styles.ratingPill, { borderColor: ratingColor }]}>
+                  <View style={[styles.ratingPillDot, { backgroundColor: ratingColor }]} />
+                  <Text style={[styles.ratingPillText, { color: ratingColor }]}>{ratingLabel}</Text>
+                </View>
               </Pressable>
             );
           })}
@@ -136,6 +140,17 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border },
   pin: { width: 40, height: 40, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
   region: { ...typography.bodySm, color: colors.textSecondary, marginTop: 2 },
+  ratingPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+  },
+  ratingPillDot: { width: 6, height: 6, borderRadius: 999 },
+  ratingPillText: { fontSize: 10, fontWeight: '700', letterSpacing: 0.6 },
 });
 
 const mapStyles = StyleSheet.create({

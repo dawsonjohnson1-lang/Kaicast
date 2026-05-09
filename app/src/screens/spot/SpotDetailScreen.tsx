@@ -14,9 +14,10 @@ import { CompassDial } from '@/components/CompassDial';
 import { Button } from '@/components/Button';
 import { DiveReportCard } from '@/components/DiveReportCard';
 import { Icon } from '@/components/Icon';
-import { colors, radius, spacing, typography } from '@/theme';
+import { colors, radius, spacing, typography, RATING_COLORS } from '@/theme';
 import { electricBeachReport, diveReports } from '@/api/mockData';
 import type { RootNav } from '@/navigation/types';
+import type { ConditionRating } from '@/types';
 
 type SpotTab = 'Overview' | 'Conditions' | 'Hazards' | 'Forecast' | 'Guide';
 
@@ -231,18 +232,14 @@ function ForecastTab() {
                   style={[
                     forecastStyles.barFill,
                     {
-                      width: d.rating === 'excellent' ? '92%' : d.rating === 'good' ? '70%' : d.rating === 'caution' ? '45%' : '25%',
-                      backgroundColor:
-                        d.rating === 'excellent' ? colors.excellent : d.rating === 'good' ? colors.good : d.rating === 'caution' ? colors.warn : colors.hazard,
+                      width: ratingFillWidth(d.rating),
+                      backgroundColor: RATING_COLORS[d.rating],
                     },
                   ]}
                 />
               </View>
             </View>
-            <Tag
-              variant={d.rating === 'excellent' ? 'excellent' : d.rating === 'good' ? 'good' : d.rating === 'caution' ? 'warn' : 'hazard'}
-              dot
-            />
+            <View style={[forecastStyles.tagDot, { backgroundColor: RATING_COLORS[d.rating] }]} />
           </View>
         ))}
       </Card>
@@ -286,7 +283,7 @@ function RatingHeader() {
     <Card>
       <View style={ratingStyles.headerRow}>
         <View style={ratingStyles.dotWrap}>
-          <View style={ratingStyles.dot} />
+          <View style={[ratingStyles.dot, { backgroundColor: RATING_COLORS[r.rating] }]} />
           <Text style={[typography.h1, { fontSize: 32 }]}>{r.ratingLabel}</Text>
         </View>
         <Tag variant="live" dot />
@@ -295,10 +292,10 @@ function RatingHeader() {
       <View style={{ height: spacing.md }} />
       <Text style={typography.caption}>BEST CONDITIONS TODAY</Text>
       <View style={ratingStyles.bar}>
-        <View style={[ratingStyles.seg, { backgroundColor: colors.warn }]} />
-        <View style={[ratingStyles.seg, { backgroundColor: colors.excellent }]} />
-        <View style={[ratingStyles.seg, { backgroundColor: colors.excellent }]} />
-        <View style={[ratingStyles.seg, { backgroundColor: colors.warn }]} />
+        <View style={[ratingStyles.seg, { backgroundColor: RATING_COLORS.fair }]} />
+        <View style={[ratingStyles.seg, { backgroundColor: RATING_COLORS.excellent }]} />
+        <View style={[ratingStyles.seg, { backgroundColor: RATING_COLORS.excellent }]} />
+        <View style={[ratingStyles.seg, { backgroundColor: RATING_COLORS.fair }]} />
       </View>
     </Card>
   );
@@ -316,7 +313,7 @@ function ForecastStrip() {
             <View key={d.label} style={[forecastStyles.day, active && forecastStyles.dayActive]}>
               <Text style={[forecastStyles.dayLabel, active && { color: colors.textPrimary }]}>{d.label}</Text>
               <Text style={[forecastStyles.dayDate, active && { color: colors.textPrimary }]}>{d.date}</Text>
-              <View style={[forecastStyles.dot, { backgroundColor: d.rating === 'excellent' ? colors.excellent : d.rating === 'good' ? colors.good : d.rating === 'caution' ? colors.warn : colors.hazard }]} />
+              <View style={[forecastStyles.dot, { backgroundColor: RATING_COLORS[d.rating] }]} />
             </View>
           );
         })}
@@ -327,6 +324,16 @@ function ForecastStrip() {
 
 function Row({ children }: { children: React.ReactNode }) {
   return <View style={{ flexDirection: 'row', gap: spacing.md }}>{children}</View>;
+}
+
+function ratingFillWidth(rating: ConditionRating): `${number}%` {
+  switch (rating) {
+    case 'excellent': return '92%';
+    case 'great':     return '80%';
+    case 'good':      return '70%';
+    case 'fair':      return '45%';
+    case 'no-go':     return '25%';
+  }
 }
 
 const styles = StyleSheet.create({
@@ -355,7 +362,7 @@ const styles = StyleSheet.create({
 const ratingStyles = StyleSheet.create({
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   dotWrap: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  dot: { width: 10, height: 10, borderRadius: 999, backgroundColor: colors.excellent },
+  dot: { width: 10, height: 10, borderRadius: 999 },
   bar: { flexDirection: 'row', gap: 4, marginTop: spacing.md, height: 8 },
   seg: { flex: 1, borderRadius: 999 },
 });
@@ -390,4 +397,5 @@ const forecastStyles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border, gap: spacing.md },
   bar: { height: 6, backgroundColor: colors.cardAlt, borderRadius: 999, overflow: 'hidden' },
   barFill: { height: '100%', borderRadius: 999 },
+  tagDot: { width: 8, height: 8, borderRadius: 999 },
 });
