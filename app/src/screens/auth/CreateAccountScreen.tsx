@@ -45,7 +45,10 @@ export function CreateAccountScreen() {
     setErrors((prev) => ({ ...prev, submit: undefined }));
     try {
       await signUpWithEmail(email, pw);
-      nav.navigate('CreateAccountStep1');
+      // Navigation happens automatically — once Firebase Auth flips
+      // isAuthed=true and the users/{uid} doc lands with
+      // onboardingComplete:false, AppNavigator re-renders into the
+      // OnboardingNav stack (initial route: CreateAccountStep1).
     } catch (err) {
       setErrors((prev) => ({ ...prev, submit: friendlyAuthError(err) }));
     } finally {
