@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
@@ -11,6 +11,7 @@ import { ChoiceChip } from '@/components/ChoiceChip';
 import { ProgressDots } from '@/components/ProgressDots';
 import { colors, spacing, typography } from '@/theme';
 import { useAuth } from '@/hooks/useAuth';
+import { setUserProfile } from '@/api/userProfile';
 import type { AuthStackParamList } from '@/navigation/types';
 
 const jellyfishBg = require('@/assets/blurry-jellyfish.png');
@@ -19,18 +20,36 @@ const CERTS = ['None', 'Open Water', 'Advanced', 'Rescue', 'Divemaster', 'Instru
 
 export function CreateAccountAlmostThereScreen() {
   const nav = useNavigation<NativeStackNavigationProp<AuthStackParamList>>();
-  const { signIn } = useAuth();
+  const { user } = useAuth();
   const [years, setYears] = useState('');
   const [home, setHome] = useState('');
   const [cert, setCert] = useState('Open Water');
+  const [saving, setSaving] = useState(false);
 
-  const finish = () => signIn({
-    id: 'demo',
-    name: 'Dawson',
-    handle: 'bigdawg',
-    email: 'dawson@kaicast.com',
-    homeSpot: home || "Three Tables, O'ahu",
-  });
+  const finish = async () => {
+    if (!user) {
+      Alert.alert('Sign in required', 'Please sign in or create an account first.');
+      return;
+    }
+    setSaving(true);
+    try {
+      // Writes the final onboarding fields AND flips onboardingComplete
+      // to true. The navigator's useUserProfile snapshot listener
+      // catches this and re-renders the user into the main app stack.
+      await setUserProfile(user.id, {
+        yearsActive: years ? Number.parseInt(years, 10) : undefined,
+        homeSpot: home.trim() || "Three Tables, O'ahu",
+        certification: cert,
+        onboardingComplete: true,
+      });
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn('[onboarding] finish failed:', err);
+      Alert.alert('Couldn’t save profile', 'Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <Screen contentStyle={{ paddingTop: 0 }} bgImage={jellyfishBg} bgOverlay="rgba(4,7,13,0.55)">
@@ -52,7 +71,7 @@ export function CreateAccountAlmostThereScreen() {
       </View>
 
       <View style={{ height: spacing.xxxl }} />
-      <Button label="Enter KaiCast" iconRight="arrow-right" fullWidth onPress={finish} />
+      <Button label="Enter KaiCast" iconRight="arrow-right" fullWidth loading={saving} onPress={finish} />
     </Screen>
   );
 }

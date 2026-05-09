@@ -96,10 +96,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (auth && db) {
       const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
       const handle = email.split('@')[0] || 'diver';
+      // onboardingComplete starts false so the navigator routes the
+      // newly-authed user into the onboarding stack instead of the
+      // main app. CreateAccountAlmostThereScreen flips this to true.
       await setDoc(doc(db, 'users', cred.user.uid), {
         email: email.trim(),
         handle,
         name: handle,
+        onboardingComplete: false,
         createdAt: serverTimestamp(),
       });
       return;

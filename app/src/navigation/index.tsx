@@ -6,6 +6,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { colors } from '@/theme';
 import { TabBar } from './TabBar';
 import { useAuth } from '@/hooks/useAuth';
+import { useUserProfile } from '@/hooks/useUserProfile';
 
 import { LoadingScreen } from '@/screens/auth/LoadingScreen';
 import { WelcomeScreen } from '@/screens/auth/WelcomeScreen';
@@ -55,6 +56,20 @@ function AuthNav() {
       <AuthStack.Screen name="Welcome" component={WelcomeScreen} />
       <AuthStack.Screen name="Login" component={LoginScreen} />
       <AuthStack.Screen name="CreateAccount" component={CreateAccountScreen} />
+    </AuthStack.Navigator>
+  );
+}
+
+// Multi-step onboarding stack — shown to authenticated users whose
+// `users/{uid}` profile doc has `onboardingComplete !== true`. Once
+// CreateAccountAlmostThereScreen flips that flag the navigator
+// re-renders and routes into the main app.
+function OnboardingNav() {
+  return (
+    <AuthStack.Navigator
+      initialRouteName="CreateAccountStep1"
+      screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}
+    >
       <AuthStack.Screen name="CreateAccountStep1" component={CreateAccountStep1Screen} />
       <AuthStack.Screen name="CreateAccountAlmostThere" component={CreateAccountAlmostThereScreen} />
     </AuthStack.Navigator>
@@ -79,14 +94,34 @@ function MainTabs() {
 }
 
 export function AppNavigator() {
-  const { isAuthed } = useAuth();
+  const { user, isAuthed, loading: authLoading } = useAuth();
+  const { profile, loading: profileLoading } = useUserProfile(user?.id);
+
+  // Three phases:
+  //   1. unauthed → AuthNav (Welcome / Login / CreateAccount)
+  //   2. authed but profile doc missing onboardingComplete → OnboardingNav
+  //      (Step 1 → AlmostThere). Live snapshot listener in
+  //      useUserProfile flips this the moment AlmostThere writes
+  //      onboardingComplete:true.
+  //   3. authed + onboarded → MainTabs + the rest of the root stack.
+  // While auth or profile is still loading we render the AuthNav
+  // (which itself opens on LoadingScreen) so the user sees branded
+  // loading rather than a flash of the wrong stack.
+  const phase: 'auth' | 'onboarding' | 'main' =
+    !isAuthed || authLoading
+      ? 'auth'
+      : profileLoading
+        ? 'auth'
+        : profile?.onboardingComplete === true
+          ? 'main'
+          : 'onboarding';
 
   return (
     <NavigationContainer theme={navTheme}>
       <RootStack.Navigator
         screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}
       >
-        {isAuthed ? (
+        {phase === 'main' && (
           <>
             <RootStack.Screen name="Main" component={MainTabs} />
             <RootStack.Screen name="SpotDetail" component={SpotDetailScreen} />
@@ -96,7 +131,11 @@ export function AppNavigator() {
             <RootStack.Screen name="Following" component={FollowingScreen} />
             <RootStack.Screen name="ProfileSettings" component={ProfileSettingsScreen} />
           </>
-        ) : (
+        )}
+        {phase === 'onboarding' && (
+          <RootStack.Screen name="Auth" component={OnboardingNav} />
+        )}
+        {phase === 'auth' && (
           <RootStack.Screen name="Auth" component={AuthNav} />
         )}
       </RootStack.Navigator>

@@ -38,6 +38,14 @@ export type UserProfile = {
   activities?: string[];
   experienceLevel?: string;
   yearsActive?: number;
+  certification?: string;
+  /**
+   * True once the user finishes the multi-step onboarding flow
+   * (CreateAccountStep1 → CreateAccountAlmostThere). The navigator
+   * gates the main app on this — when false/undefined, it routes the
+   * user to the onboarding stack regardless of how they got authed.
+   */
+  onboardingComplete?: boolean;
   updatedAt?: Date | null;
   createdAt?: Date | null;
 };
