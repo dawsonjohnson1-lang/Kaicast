@@ -16,16 +16,18 @@ import { useAuth } from '@/hooks/useAuth';
 import { useSpots } from '@/hooks/useSpots';
 import { useSpotReport } from '@/hooks/useSpotReport';
 import { useAlerts } from '@/hooks/useAlerts';
+import { useFavorites } from '@/hooks/useFavorites';
 import type { DashboardNav } from '@/navigation/types';
 
 export function HomeScreen() {
   const nav = useNavigation<DashboardNav>();
   const { user } = useAuth();
   const { spots } = useSpots();
-  // Top 4 spots from the canonical list as the dashboard's "Favorite
-  // Spots" carousel — once per-user favorites land, swap for a
-  // user-scoped query.
-  const favoriteSpots = spots.slice(0, 4);
+  const { favorites } = useFavorites(user?.id);
+  // Show user's favorites first; fall back to top 4 spots when they
+  // haven't favorited anything yet so the carousel never goes empty.
+  const userFavorites = spots.filter((s) => favorites.has(s.id));
+  const favoriteSpots = userFavorites.length ? userFavorites : spots.slice(0, 4);
   // Featured spot drives the Condition Alerts feed. Use the first
   // canonical spot when available; fall back to the static
   // featuredSpot from mockData when the list isn't loaded yet.

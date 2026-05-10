@@ -25,6 +25,9 @@ import { HazardsTab as HazardsTabRebuild } from './hazards/HazardsTab';
 import { GuideTab as GuideTabRebuild } from './guide/GuideTab';
 import { satelliteUrl } from '@/api/satellite';
 import { useSpotDiveLogs, diveLogToReport } from '@/hooks/useDiveLogs';
+import { useAuth } from '@/hooks/useAuth';
+import { useFavorites } from '@/hooks/useFavorites';
+import { addFavorite, removeFavorite } from '@/api/favorites';
 
 function findSpot(id: string): Spot {
   return exploreSpots.find((s) => s.id === id) ?? featuredSpot;
@@ -40,6 +43,14 @@ export function SpotDetailScreen() {
   const [tab, setTab] = useState<SpotTab>('Overview');
 
   const spot = findSpot(route.params.spotId);
+  const { user } = useAuth();
+  const { isFavorite } = useFavorites(user?.id);
+  const favorited = isFavorite(spot.id);
+  const onToggleFavorite = () => {
+    if (!user) return;
+    if (favorited) removeFavorite(user.id, spot.id);
+    else addFavorite(user.id, spot.id);
+  };
   const reportState = useSpotReport(spot);
   const r = reportState.data;
   const { logs: spotLogs } = useSpotDiveLogs(spot.id);
@@ -71,8 +82,12 @@ export function SpotDetailScreen() {
           transparent
           onBack={() => nav.goBack()}
           rightSlot={
-            <Pressable hitSlop={12} style={styles.iconBtn}>
-              <Icon name="heart" size={20} color={colors.textPrimary} />
+            <Pressable hitSlop={12} style={styles.iconBtn} onPress={onToggleFavorite}>
+              <Icon
+                name={favorited ? 'heart-filled' : 'heart'}
+                size={20}
+                color={favorited ? colors.accent : colors.textPrimary}
+              />
             </Pressable>
           }
         />
