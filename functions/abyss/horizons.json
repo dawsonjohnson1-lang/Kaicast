@@ -1,0 +1,7649 @@
+{
+  "spots": {
+    "airport-beach": {
+      "lat": 20.9042,
+      "lon": -156.6833,
+      "profile": [
+        {
+          "bearingDeg": 0,
+          "horizonAngleDeg": 4.57
+        },
+        {
+          "bearingDeg": 5,
+          "horizonAngleDeg": 5.14
+        },
+        {
+          "bearingDeg": 10,
+          "horizonAngleDeg": 5.43
+        },
+        {
+          "bearingDeg": 15,
+          "horizonAngleDeg": 5.71
+        },
+        {
+          "bearingDeg": 20,
+          "horizonAngleDeg": 5.99
+        },
+        {
+          "bearingDeg": 25,
+          "horizonAngleDeg": 6.28
+        },
+        {
+          "bearingDeg": 30,
+          "horizonAngleDeg": 6.28
+        },
+        {
+          "bearingDeg": 35,
+          "horizonAngleDeg": 5.85
+        },
+        {
+          "bearingDeg": 40,
+          "horizonAngleDeg": 6.13
+        },
+        {
+          "bearingDeg": 45,
+          "horizonAngleDeg": 6.42
+        },
+        {
+          "bearingDeg": 50,
+          "horizonAngleDeg": 6.7
+        },
+        {
+          "bearingDeg": 55,
+          "horizonAngleDeg": 6.84
+        },
+        {
+          "bearingDeg": 60,
+          "horizonAngleDeg": 7.55
+        },
+        {
+          "bearingDeg": 65,
+          "horizonAngleDeg": 7.83
+        },
+        {
+          "bearingDeg": 70,
+          "horizonAngleDeg": 7.69
+        },
+        {
+          "bearingDeg": 75,
+          "horizonAngleDeg": 7.63
+        },
+        {
+          "bearingDeg": 80,
+          "horizonAngleDeg": 8.17
+        },
+        {
+          "bearingDeg": 85,
+          "horizonAngleDeg": 7.95
+        },
+        {
+          "bearingDeg": 90,
+          "horizonAngleDeg": 8.56
+        },
+        {
+          "bearingDeg": 95,
+          "horizonAngleDeg": 7.26
+        },
+        {
+          "bearingDeg": 100,
+          "horizonAngleDeg": 8.1
+        },
+        {
+          "bearingDeg": 105,
+          "horizonAngleDeg": 7.72
+        },
+        {
+          "bearingDeg": 110,
+          "horizonAngleDeg": 7.1
+        },
+        {
+          "bearingDeg": 115,
+          "horizonAngleDeg": 6.28
+        },
+        {
+          "bearingDeg": 120,
+          "horizonAngleDeg": 6.04
+        },
+        {
+          "bearingDeg": 125,
+          "horizonAngleDeg": 5
+        },
+        {
+          "bearingDeg": 130,
+          "horizonAngleDeg": 5
+        },
+        {
+          "bearingDeg": 135,
+          "horizonAngleDeg": 4.71
+        },
+        {
+          "bearingDeg": 140,
+          "horizonAngleDeg": 4.29
+        },
+        {
+          "bearingDeg": 145,
+          "horizonAngleDeg": 4.14
+        },
+        {
+          "bearingDeg": 150,
+          "horizonAngleDeg": 3.86
+        },
+        {
+          "bearingDeg": 155,
+          "horizonAngleDeg": 3.29
+        },
+        {
+          "bearingDeg": 160,
+          "horizonAngleDeg": 2.43
+        },
+        {
+          "bearingDeg": 165,
+          "horizonAngleDeg": 1.72
+        },
+        {
+          "bearingDeg": 170,
+          "horizonAngleDeg": 1.86
+        },
+        {
+          "bearingDeg": 175,
+          "horizonAngleDeg": 2.57
+        },
+        {
+          "bearingDeg": 180,
+          "horizonAngleDeg": 2.43
+        },
+        {
+          "bearingDeg": 185,
+          "horizonAngleDeg": 1.86
+        },
+        {
+          "bearingDeg": 190,
+          "horizonAngleDeg": 1
+        },
+        {
+          "bearingDeg": 195,
+          "horizonAngleDeg": 0.71
+        },
+        {
+          "bearingDeg": 200,
+          "horizonAngleDeg": 0.71
+        },
+        {
+          "bearingDeg": 205,
+          "horizonAngleDeg": 0.43
+        },
+        {
+          "bearingDeg": 210,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 215,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 220,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 225,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 230,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 235,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 240,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 245,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 250,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 255,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 260,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 265,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 270,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 275,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 280,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 285,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 290,
+          "horizonAngleDeg": 0.86
+        },
+        {
+          "bearingDeg": 295,
+          "horizonAngleDeg": 1.43
+        },
+        {
+          "bearingDeg": 300,
+          "horizonAngleDeg": 1.57
+        },
+        {
+          "bearingDeg": 305,
+          "horizonAngleDeg": 1.43
+        },
+        {
+          "bearingDeg": 310,
+          "horizonAngleDeg": 1.57
+        },
+        {
+          "bearingDeg": 315,
+          "horizonAngleDeg": 2
+        },
+        {
+          "bearingDeg": 320,
+          "horizonAngleDeg": 2.86
+        },
+        {
+          "bearingDeg": 325,
+          "horizonAngleDeg": 3
+        },
+        {
+          "bearingDeg": 330,
+          "horizonAngleDeg": 3
+        },
+        {
+          "bearingDeg": 335,
+          "horizonAngleDeg": 2.86
+        },
+        {
+          "bearingDeg": 340,
+          "horizonAngleDeg": 3
+        },
+        {
+          "bearingDeg": 345,
+          "horizonAngleDeg": 4.14
+        },
+        {
+          "bearingDeg": 350,
+          "horizonAngleDeg": 4.43
+        },
+        {
+          "bearingDeg": 355,
+          "horizonAngleDeg": 4.43
+        }
+      ]
+    },
+    "ala-wharf": {
+      "lat": 20.8989,
+      "lon": -156.6855,
+      "profile": [
+        {
+          "bearingDeg": 0,
+          "horizonAngleDeg": 1.47
+        },
+        {
+          "bearingDeg": 5,
+          "horizonAngleDeg": 1.86
+        },
+        {
+          "bearingDeg": 10,
+          "horizonAngleDeg": 2.05
+        },
+        {
+          "bearingDeg": 15,
+          "horizonAngleDeg": 2.19
+        },
+        {
+          "bearingDeg": 20,
+          "horizonAngleDeg": 2.52
+        },
+        {
+          "bearingDeg": 25,
+          "horizonAngleDeg": 2.56
+        },
+        {
+          "bearingDeg": 30,
+          "horizonAngleDeg": 2.85
+        },
+        {
+          "bearingDeg": 35,
+          "horizonAngleDeg": 3.33
+        },
+        {
+          "bearingDeg": 40,
+          "horizonAngleDeg": 3.67
+        },
+        {
+          "bearingDeg": 45,
+          "horizonAngleDeg": 3.86
+        },
+        {
+          "bearingDeg": 50,
+          "horizonAngleDeg": 4.62
+        },
+        {
+          "bearingDeg": 55,
+          "horizonAngleDeg": 4.37
+        },
+        {
+          "bearingDeg": 60,
+          "horizonAngleDeg": 5.71
+        },
+        {
+          "bearingDeg": 65,
+          "horizonAngleDeg": 6.62
+        },
+        {
+          "bearingDeg": 70,
+          "horizonAngleDeg": 7.18
+        },
+        {
+          "bearingDeg": 75,
+          "horizonAngleDeg": 7.29
+        },
+        {
+          "bearingDeg": 80,
+          "horizonAngleDeg": 7.07
+        },
+        {
+          "bearingDeg": 85,
+          "horizonAngleDeg": 8.07
+        },
+        {
+          "bearingDeg": 90,
+          "horizonAngleDeg": 7.25
+        },
+        {
+          "bearingDeg": 95,
+          "horizonAngleDeg": 8.11
+        },
+        {
+          "bearingDeg": 100,
+          "horizonAngleDeg": 7.44
+        },
+        {
+          "bearingDeg": 105,
+          "horizonAngleDeg": 7.08
+        },
+        {
+          "bearingDeg": 110,
+          "horizonAngleDeg": 4.04
+        },
+        {
+          "bearingDeg": 115,
+          "horizonAngleDeg": 6.36
+        },
+        {
+          "bearingDeg": 120,
+          "horizonAngleDeg": 3.83
+        },
+        {
+          "bearingDeg": 125,
+          "horizonAngleDeg": 3.78
+        },
+        {
+          "bearingDeg": 130,
+          "horizonAngleDeg": 3
+        },
+        {
+          "bearingDeg": 135,
+          "horizonAngleDeg": 2.62
+        },
+        {
+          "bearingDeg": 140,
+          "horizonAngleDeg": 2.57
+        },
+        {
+          "bearingDeg": 145,
+          "horizonAngleDeg": 1.9
+        },
+        {
+          "bearingDeg": 150,
+          "horizonAngleDeg": 1.67
+        },
+        {
+          "bearingDeg": 155,
+          "horizonAngleDeg": 1.57
+        },
+        {
+          "bearingDeg": 160,
+          "horizonAngleDeg": 1.43
+        },
+        {
+          "bearingDeg": 165,
+          "horizonAngleDeg": 1
+        },
+        {
+          "bearingDeg": 170,
+          "horizonAngleDeg": 0.71
+        },
+        {
+          "bearingDeg": 175,
+          "horizonAngleDeg": 0.28
+        },
+        {
+          "bearingDeg": 180,
+          "horizonAngleDeg": 0.04
+        },
+        {
+          "bearingDeg": 185,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 190,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 195,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 200,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 205,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 210,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 215,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 220,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 225,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 230,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 235,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 240,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 245,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 250,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 255,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 260,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 265,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 270,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 275,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 280,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 285,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 290,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 295,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 300,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 305,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 310,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 315,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 320,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 325,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 330,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 335,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 340,
+          "horizonAngleDeg": 0.06
+        },
+        {
+          "bearingDeg": 345,
+          "horizonAngleDeg": 0.28
+        },
+        {
+          "bearingDeg": 350,
+          "horizonAngleDeg": 0.57
+        },
+        {
+          "bearingDeg": 355,
+          "horizonAngleDeg": 0.81
+        }
+      ]
+    },
+    "black-rock-kaanapali": {
+      "lat": 20.926149,
+      "lon": -156.69621,
+      "profile": [
+        {
+          "bearingDeg": 0,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 5,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 10,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 15,
+          "horizonAngleDeg": 0.08
+        },
+        {
+          "bearingDeg": 20,
+          "horizonAngleDeg": 0.18
+        },
+        {
+          "bearingDeg": 25,
+          "horizonAngleDeg": 0.44
+        },
+        {
+          "bearingDeg": 30,
+          "horizonAngleDeg": 0.85
+        },
+        {
+          "bearingDeg": 35,
+          "horizonAngleDeg": 1.57
+        },
+        {
+          "bearingDeg": 40,
+          "horizonAngleDeg": 1.56
+        },
+        {
+          "bearingDeg": 45,
+          "horizonAngleDeg": 1.76
+        },
+        {
+          "bearingDeg": 50,
+          "horizonAngleDeg": 2.19
+        },
+        {
+          "bearingDeg": 55,
+          "horizonAngleDeg": 2.62
+        },
+        {
+          "bearingDeg": 60,
+          "horizonAngleDeg": 3.16
+        },
+        {
+          "bearingDeg": 65,
+          "horizonAngleDeg": 3.1
+        },
+        {
+          "bearingDeg": 70,
+          "horizonAngleDeg": 3.97
+        },
+        {
+          "bearingDeg": 75,
+          "horizonAngleDeg": 4.26
+        },
+        {
+          "bearingDeg": 80,
+          "horizonAngleDeg": 5.4
+        },
+        {
+          "bearingDeg": 85,
+          "horizonAngleDeg": 4.79
+        },
+        {
+          "bearingDeg": 90,
+          "horizonAngleDeg": 5.91
+        },
+        {
+          "bearingDeg": 95,
+          "horizonAngleDeg": 6.22
+        },
+        {
+          "bearingDeg": 100,
+          "horizonAngleDeg": 5.87
+        },
+        {
+          "bearingDeg": 105,
+          "horizonAngleDeg": 5.15
+        },
+        {
+          "bearingDeg": 110,
+          "horizonAngleDeg": 5.84
+        },
+        {
+          "bearingDeg": 115,
+          "horizonAngleDeg": 3.7
+        },
+        {
+          "bearingDeg": 120,
+          "horizonAngleDeg": 4.6
+        },
+        {
+          "bearingDeg": 125,
+          "horizonAngleDeg": 4.45
+        },
+        {
+          "bearingDeg": 130,
+          "horizonAngleDeg": 3.57
+        },
+        {
+          "bearingDeg": 135,
+          "horizonAngleDeg": 2.4
+        },
+        {
+          "bearingDeg": 140,
+          "horizonAngleDeg": 1.51
+        },
+        {
+          "bearingDeg": 145,
+          "horizonAngleDeg": 1.57
+        },
+        {
+          "bearingDeg": 150,
+          "horizonAngleDeg": 2.57
+        },
+        {
+          "bearingDeg": 155,
+          "horizonAngleDeg": 3.72
+        },
+        {
+          "bearingDeg": 160,
+          "horizonAngleDeg": 3.43
+        },
+        {
+          "bearingDeg": 165,
+          "horizonAngleDeg": 2.72
+        },
+        {
+          "bearingDeg": 170,
+          "horizonAngleDeg": 2
+        },
+        {
+          "bearingDeg": 175,
+          "horizonAngleDeg": 0.76
+        },
+        {
+          "bearingDeg": 180,
+          "horizonAngleDeg": 0.38
+        },
+        {
+          "bearingDeg": 185,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 190,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 195,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 200,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 205,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 210,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 215,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 220,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 225,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 230,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 235,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 240,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 245,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 250,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 255,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 260,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 265,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 270,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 275,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 280,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 285,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 290,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 295,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 300,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 305,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 310,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 315,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 320,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 325,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 330,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 335,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 340,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 345,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 350,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 355,
+          "horizonAngleDeg": 0
+        }
+      ]
+    },
+    "brenneckes-ledge": {
+      "lat": 21.873,
+      "lon": -159.458,
+      "profile": [
+        {
+          "bearingDeg": 0,
+          "horizonAngleDeg": 2.01
+        },
+        {
+          "bearingDeg": 5,
+          "horizonAngleDeg": 1.84
+        },
+        {
+          "bearingDeg": 10,
+          "horizonAngleDeg": 1.79
+        },
+        {
+          "bearingDeg": 15,
+          "horizonAngleDeg": 2.76
+        },
+        {
+          "bearingDeg": 20,
+          "horizonAngleDeg": 3.21
+        },
+        {
+          "bearingDeg": 25,
+          "horizonAngleDeg": 2.39
+        },
+        {
+          "bearingDeg": 30,
+          "horizonAngleDeg": 3.14
+        },
+        {
+          "bearingDeg": 35,
+          "horizonAngleDeg": 1.25
+        },
+        {
+          "bearingDeg": 40,
+          "horizonAngleDeg": 1.04
+        },
+        {
+          "bearingDeg": 45,
+          "horizonAngleDeg": 1.3
+        },
+        {
+          "bearingDeg": 50,
+          "horizonAngleDeg": 1.62
+        },
+        {
+          "bearingDeg": 55,
+          "horizonAngleDeg": 1.09
+        },
+        {
+          "bearingDeg": 60,
+          "horizonAngleDeg": 1.03
+        },
+        {
+          "bearingDeg": 65,
+          "horizonAngleDeg": 0.85
+        },
+        {
+          "bearingDeg": 70,
+          "horizonAngleDeg": 0.71
+        },
+        {
+          "bearingDeg": 75,
+          "horizonAngleDeg": 0.9
+        },
+        {
+          "bearingDeg": 80,
+          "horizonAngleDeg": 1
+        },
+        {
+          "bearingDeg": 85,
+          "horizonAngleDeg": 1.24
+        },
+        {
+          "bearingDeg": 90,
+          "horizonAngleDeg": 1.43
+        },
+        {
+          "bearingDeg": 95,
+          "horizonAngleDeg": 1
+        },
+        {
+          "bearingDeg": 100,
+          "horizonAngleDeg": 1.43
+        },
+        {
+          "bearingDeg": 105,
+          "horizonAngleDeg": 0.81
+        },
+        {
+          "bearingDeg": 110,
+          "horizonAngleDeg": 0.04
+        },
+        {
+          "bearingDeg": 115,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 120,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 125,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 130,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 135,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 140,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 145,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 150,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 155,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 160,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 165,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 170,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 175,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 180,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 185,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 190,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 195,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 200,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 205,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 210,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 215,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 220,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 225,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 230,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 235,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 240,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 245,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 250,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 255,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 260,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 265,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 270,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 275,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 280,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 285,
+          "horizonAngleDeg": 0.34
+        },
+        {
+          "bearingDeg": 290,
+          "horizonAngleDeg": 0.54
+        },
+        {
+          "bearingDeg": 295,
+          "horizonAngleDeg": 0.71
+        },
+        {
+          "bearingDeg": 300,
+          "horizonAngleDeg": 1.02
+        },
+        {
+          "bearingDeg": 305,
+          "horizonAngleDeg": 1.2
+        },
+        {
+          "bearingDeg": 310,
+          "horizonAngleDeg": 1.05
+        },
+        {
+          "bearingDeg": 315,
+          "horizonAngleDeg": 1.07
+        },
+        {
+          "bearingDeg": 320,
+          "horizonAngleDeg": 1.35
+        },
+        {
+          "bearingDeg": 325,
+          "horizonAngleDeg": 1.43
+        },
+        {
+          "bearingDeg": 330,
+          "horizonAngleDeg": 1.7
+        },
+        {
+          "bearingDeg": 335,
+          "horizonAngleDeg": 1.34
+        },
+        {
+          "bearingDeg": 340,
+          "horizonAngleDeg": 1.29
+        },
+        {
+          "bearingDeg": 345,
+          "horizonAngleDeg": 1.4
+        },
+        {
+          "bearingDeg": 350,
+          "horizonAngleDeg": 1.36
+        },
+        {
+          "bearingDeg": 355,
+          "horizonAngleDeg": 1.47
+        }
+      ]
+    },
+    "china-walls": {
+      "lat": 21.261473,
+      "lon": -157.711477,
+      "profile": [
+        {
+          "bearingDeg": 0,
+          "horizonAngleDeg": 0.72
+        },
+        {
+          "bearingDeg": 5,
+          "horizonAngleDeg": 0.71
+        },
+        {
+          "bearingDeg": 10,
+          "horizonAngleDeg": 1.86
+        },
+        {
+          "bearingDeg": 15,
+          "horizonAngleDeg": 2
+        },
+        {
+          "bearingDeg": 20,
+          "horizonAngleDeg": 2.99
+        },
+        {
+          "bearingDeg": 25,
+          "horizonAngleDeg": 2.72
+        },
+        {
+          "bearingDeg": 30,
+          "horizonAngleDeg": 3.29
+        },
+        {
+          "bearingDeg": 35,
+          "horizonAngleDeg": 3.72
+        },
+        {
+          "bearingDeg": 40,
+          "horizonAngleDeg": 3.86
+        },
+        {
+          "bearingDeg": 45,
+          "horizonAngleDeg": 4.43
+        },
+        {
+          "bearingDeg": 50,
+          "horizonAngleDeg": 5.66
+        },
+        {
+          "bearingDeg": 55,
+          "horizonAngleDeg": 7.68
+        },
+        {
+          "bearingDeg": 60,
+          "horizonAngleDeg": 8.06
+        },
+        {
+          "bearingDeg": 65,
+          "horizonAngleDeg": 7.55
+        },
+        {
+          "bearingDeg": 70,
+          "horizonAngleDeg": 8.11
+        },
+        {
+          "bearingDeg": 75,
+          "horizonAngleDeg": 8.25
+        },
+        {
+          "bearingDeg": 80,
+          "horizonAngleDeg": 8.67
+        },
+        {
+          "bearingDeg": 85,
+          "horizonAngleDeg": 8.53
+        },
+        {
+          "bearingDeg": 90,
+          "horizonAngleDeg": 8.25
+        },
+        {
+          "bearingDeg": 95,
+          "horizonAngleDeg": 7.83
+        },
+        {
+          "bearingDeg": 100,
+          "horizonAngleDeg": 7.55
+        },
+        {
+          "bearingDeg": 105,
+          "horizonAngleDeg": 7.26
+        },
+        {
+          "bearingDeg": 110,
+          "horizonAngleDeg": 6.28
+        },
+        {
+          "bearingDeg": 115,
+          "horizonAngleDeg": 4.29
+        },
+        {
+          "bearingDeg": 120,
+          "horizonAngleDeg": 2.57
+        },
+        {
+          "bearingDeg": 125,
+          "horizonAngleDeg": 1.43
+        },
+        {
+          "bearingDeg": 130,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 135,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 140,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 145,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 150,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 155,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 160,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 165,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 170,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 175,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 180,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 185,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 190,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 195,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 200,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 205,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 210,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 215,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 220,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 225,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 230,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 235,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 240,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 245,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 250,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 255,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 260,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 265,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 270,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 275,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 280,
+          "horizonAngleDeg": 0.03
+        },
+        {
+          "bearingDeg": 285,
+          "horizonAngleDeg": 0.07
+        },
+        {
+          "bearingDeg": 290,
+          "horizonAngleDeg": 1
+        },
+        {
+          "bearingDeg": 295,
+          "horizonAngleDeg": 1.43
+        },
+        {
+          "bearingDeg": 300,
+          "horizonAngleDeg": 1.98
+        },
+        {
+          "bearingDeg": 305,
+          "horizonAngleDeg": 2.41
+        },
+        {
+          "bearingDeg": 310,
+          "horizonAngleDeg": 3.01
+        },
+        {
+          "bearingDeg": 315,
+          "horizonAngleDeg": 2.4
+        },
+        {
+          "bearingDeg": 320,
+          "horizonAngleDeg": 1.63
+        },
+        {
+          "bearingDeg": 325,
+          "horizonAngleDeg": 3.46
+        },
+        {
+          "bearingDeg": 330,
+          "horizonAngleDeg": 3.96
+        },
+        {
+          "bearingDeg": 335,
+          "horizonAngleDeg": 4.21
+        },
+        {
+          "bearingDeg": 340,
+          "horizonAngleDeg": 4.28
+        },
+        {
+          "bearingDeg": 345,
+          "horizonAngleDeg": 5.14
+        },
+        {
+          "bearingDeg": 350,
+          "horizonAngleDeg": 4.34
+        },
+        {
+          "bearingDeg": 355,
+          "horizonAngleDeg": 1.05
+        }
+      ]
+    },
+    "electric-beach": {
+      "lat": 21.354627,
+      "lon": -158.13633,
+      "profile": [
+        {
+          "bearingDeg": 0,
+          "horizonAngleDeg": 0.35
+        },
+        {
+          "bearingDeg": 5,
+          "horizonAngleDeg": 0.54
+        },
+        {
+          "bearingDeg": 10,
+          "horizonAngleDeg": 1.91
+        },
+        {
+          "bearingDeg": 15,
+          "horizonAngleDeg": 4.66
+        },
+        {
+          "bearingDeg": 20,
+          "horizonAngleDeg": 6.09
+        },
+        {
+          "bearingDeg": 25,
+          "horizonAngleDeg": 7.73
+        },
+        {
+          "bearingDeg": 30,
+          "horizonAngleDeg": 7.43
+        },
+        {
+          "bearingDeg": 35,
+          "horizonAngleDeg": 7.36
+        },
+        {
+          "bearingDeg": 40,
+          "horizonAngleDeg": 7.73
+        },
+        {
+          "bearingDeg": 45,
+          "horizonAngleDeg": 8.59
+        },
+        {
+          "bearingDeg": 50,
+          "horizonAngleDeg": 7.51
+        },
+        {
+          "bearingDeg": 55,
+          "horizonAngleDeg": 6.9
+        },
+        {
+          "bearingDeg": 60,
+          "horizonAngleDeg": 6.92
+        },
+        {
+          "bearingDeg": 65,
+          "horizonAngleDeg": 6.68
+        },
+        {
+          "bearingDeg": 70,
+          "horizonAngleDeg": 5.96
+        },
+        {
+          "bearingDeg": 75,
+          "horizonAngleDeg": 5.03
+        },
+        {
+          "bearingDeg": 80,
+          "horizonAngleDeg": 5.03
+        },
+        {
+          "bearingDeg": 85,
+          "horizonAngleDeg": 3.76
+        },
+        {
+          "bearingDeg": 90,
+          "horizonAngleDeg": 3.84
+        },
+        {
+          "bearingDeg": 95,
+          "horizonAngleDeg": 3.12
+        },
+        {
+          "bearingDeg": 100,
+          "horizonAngleDeg": 4.52
+        },
+        {
+          "bearingDeg": 105,
+          "horizonAngleDeg": 4.57
+        },
+        {
+          "bearingDeg": 110,
+          "horizonAngleDeg": 3.76
+        },
+        {
+          "bearingDeg": 115,
+          "horizonAngleDeg": 2.52
+        },
+        {
+          "bearingDeg": 120,
+          "horizonAngleDeg": 1.14
+        },
+        {
+          "bearingDeg": 125,
+          "horizonAngleDeg": 0.95
+        },
+        {
+          "bearingDeg": 130,
+          "horizonAngleDeg": 0.81
+        },
+        {
+          "bearingDeg": 135,
+          "horizonAngleDeg": 0.52
+        },
+        {
+          "bearingDeg": 140,
+          "horizonAngleDeg": 0.66
+        },
+        {
+          "bearingDeg": 145,
+          "horizonAngleDeg": 0.14
+        },
+        {
+          "bearingDeg": 150,
+          "horizonAngleDeg": 0.16
+        },
+        {
+          "bearingDeg": 155,
+          "horizonAngleDeg": 0.02
+        },
+        {
+          "bearingDeg": 160,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 165,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 170,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 175,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 180,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 185,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 190,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 195,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 200,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 205,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 210,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 215,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 220,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 225,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 230,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 235,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 240,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 245,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 250,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 255,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 260,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 265,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 270,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 275,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 280,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 285,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 290,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 295,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 300,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 305,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 310,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 315,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 320,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 325,
+          "horizonAngleDeg": 0.02
+        },
+        {
+          "bearingDeg": 330,
+          "horizonAngleDeg": 0.03
+        },
+        {
+          "bearingDeg": 335,
+          "horizonAngleDeg": 0.11
+        },
+        {
+          "bearingDeg": 340,
+          "horizonAngleDeg": 0.15
+        },
+        {
+          "bearingDeg": 345,
+          "horizonAngleDeg": 0.18
+        },
+        {
+          "bearingDeg": 350,
+          "horizonAngleDeg": 0.22
+        },
+        {
+          "bearingDeg": 355,
+          "horizonAngleDeg": 0.23
+        }
+      ]
+    },
+    "hanauma-bay": {
+      "lat": 21.268517,
+      "lon": -157.693045,
+      "profile": [
+        {
+          "bearingDeg": 0,
+          "horizonAngleDeg": 3
+        },
+        {
+          "bearingDeg": 5,
+          "horizonAngleDeg": 4
+        },
+        {
+          "bearingDeg": 10,
+          "horizonAngleDeg": 4.86
+        },
+        {
+          "bearingDeg": 15,
+          "horizonAngleDeg": 5.57
+        },
+        {
+          "bearingDeg": 20,
+          "horizonAngleDeg": 5.99
+        },
+        {
+          "bearingDeg": 25,
+          "horizonAngleDeg": 6.13
+        },
+        {
+          "bearingDeg": 30,
+          "horizonAngleDeg": 5.14
+        },
+        {
+          "bearingDeg": 35,
+          "horizonAngleDeg": 3.86
+        },
+        {
+          "bearingDeg": 40,
+          "horizonAngleDeg": 3
+        },
+        {
+          "bearingDeg": 45,
+          "horizonAngleDeg": 3
+        },
+        {
+          "bearingDeg": 50,
+          "horizonAngleDeg": 2.43
+        },
+        {
+          "bearingDeg": 55,
+          "horizonAngleDeg": 1.57
+        },
+        {
+          "bearingDeg": 60,
+          "horizonAngleDeg": 1.72
+        },
+        {
+          "bearingDeg": 65,
+          "horizonAngleDeg": 2.15
+        },
+        {
+          "bearingDeg": 70,
+          "horizonAngleDeg": 2.43
+        },
+        {
+          "bearingDeg": 75,
+          "horizonAngleDeg": 1.86
+        },
+        {
+          "bearingDeg": 80,
+          "horizonAngleDeg": 1
+        },
+        {
+          "bearingDeg": 85,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 90,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 95,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 100,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 105,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 110,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 115,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 120,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 125,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 130,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 135,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 140,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 145,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 150,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 155,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 160,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 165,
+          "horizonAngleDeg": 1
+        },
+        {
+          "bearingDeg": 170,
+          "horizonAngleDeg": 4.43
+        },
+        {
+          "bearingDeg": 175,
+          "horizonAngleDeg": 6.13
+        },
+        {
+          "bearingDeg": 180,
+          "horizonAngleDeg": 6.7
+        },
+        {
+          "bearingDeg": 185,
+          "horizonAngleDeg": 8.39
+        },
+        {
+          "bearingDeg": 190,
+          "horizonAngleDeg": 8.81
+        },
+        {
+          "bearingDeg": 195,
+          "horizonAngleDeg": 8.81
+        },
+        {
+          "bearingDeg": 200,
+          "horizonAngleDeg": 8.39
+        },
+        {
+          "bearingDeg": 205,
+          "horizonAngleDeg": 8.11
+        },
+        {
+          "bearingDeg": 210,
+          "horizonAngleDeg": 8.25
+        },
+        {
+          "bearingDeg": 215,
+          "horizonAngleDeg": 8.81
+        },
+        {
+          "bearingDeg": 220,
+          "horizonAngleDeg": 8.95
+        },
+        {
+          "bearingDeg": 225,
+          "horizonAngleDeg": 9.37
+        },
+        {
+          "bearingDeg": 230,
+          "horizonAngleDeg": 9.65
+        },
+        {
+          "bearingDeg": 235,
+          "horizonAngleDeg": 9.79
+        },
+        {
+          "bearingDeg": 240,
+          "horizonAngleDeg": 9.51
+        },
+        {
+          "bearingDeg": 245,
+          "horizonAngleDeg": 9.13
+        },
+        {
+          "bearingDeg": 250,
+          "horizonAngleDeg": 8.76
+        },
+        {
+          "bearingDeg": 255,
+          "horizonAngleDeg": 7.4
+        },
+        {
+          "bearingDeg": 260,
+          "horizonAngleDeg": 5.52
+        },
+        {
+          "bearingDeg": 265,
+          "horizonAngleDeg": 3.95
+        },
+        {
+          "bearingDeg": 270,
+          "horizonAngleDeg": 2.48
+        },
+        {
+          "bearingDeg": 275,
+          "horizonAngleDeg": 2
+        },
+        {
+          "bearingDeg": 280,
+          "horizonAngleDeg": 1.28
+        },
+        {
+          "bearingDeg": 285,
+          "horizonAngleDeg": 1.19
+        },
+        {
+          "bearingDeg": 290,
+          "horizonAngleDeg": 1.09
+        },
+        {
+          "bearingDeg": 295,
+          "horizonAngleDeg": 1
+        },
+        {
+          "bearingDeg": 300,
+          "horizonAngleDeg": 2.35
+        },
+        {
+          "bearingDeg": 305,
+          "horizonAngleDeg": 2.82
+        },
+        {
+          "bearingDeg": 310,
+          "horizonAngleDeg": 3.25
+        },
+        {
+          "bearingDeg": 315,
+          "horizonAngleDeg": 3.16
+        },
+        {
+          "bearingDeg": 320,
+          "horizonAngleDeg": 4.44
+        },
+        {
+          "bearingDeg": 325,
+          "horizonAngleDeg": 4.38
+        },
+        {
+          "bearingDeg": 330,
+          "horizonAngleDeg": 4.62
+        },
+        {
+          "bearingDeg": 335,
+          "horizonAngleDeg": 3.04
+        },
+        {
+          "bearingDeg": 340,
+          "horizonAngleDeg": 1.99
+        },
+        {
+          "bearingDeg": 345,
+          "horizonAngleDeg": 1.19
+        },
+        {
+          "bearingDeg": 350,
+          "horizonAngleDeg": 1.67
+        },
+        {
+          "bearingDeg": 355,
+          "horizonAngleDeg": 2
+        }
+      ]
+    },
+    "honolua-bay": {
+      "lat": 21.01461,
+      "lon": -156.639667,
+      "profile": [
+        {
+          "bearingDeg": 0,
+          "horizonAngleDeg": 2.72
+        },
+        {
+          "bearingDeg": 5,
+          "horizonAngleDeg": 3.29
+        },
+        {
+          "bearingDeg": 10,
+          "horizonAngleDeg": 3.86
+        },
+        {
+          "bearingDeg": 15,
+          "horizonAngleDeg": 4.14
+        },
+        {
+          "bearingDeg": 20,
+          "horizonAngleDeg": 4.29
+        },
+        {
+          "bearingDeg": 25,
+          "horizonAngleDeg": 4.71
+        },
+        {
+          "bearingDeg": 30,
+          "horizonAngleDeg": 5.43
+        },
+        {
+          "bearingDeg": 35,
+          "horizonAngleDeg": 5.99
+        },
+        {
+          "bearingDeg": 40,
+          "horizonAngleDeg": 6.56
+        },
+        {
+          "bearingDeg": 45,
+          "horizonAngleDeg": 7.55
+        },
+        {
+          "bearingDeg": 50,
+          "horizonAngleDeg": 8.53
+        },
+        {
+          "bearingDeg": 55,
+          "horizonAngleDeg": 9.09
+        },
+        {
+          "bearingDeg": 60,
+          "horizonAngleDeg": 9.65
+        },
+        {
+          "bearingDeg": 65,
+          "horizonAngleDeg": 9.92
+        },
+        {
+          "bearingDeg": 70,
+          "horizonAngleDeg": 10.2
+        },
+        {
+          "bearingDeg": 75,
+          "horizonAngleDeg": 10.62
+        },
+        {
+          "bearingDeg": 80,
+          "horizonAngleDeg": 9.92
+        },
+        {
+          "bearingDeg": 85,
+          "horizonAngleDeg": 8.11
+        },
+        {
+          "bearingDeg": 90,
+          "horizonAngleDeg": 5.57
+        },
+        {
+          "bearingDeg": 95,
+          "horizonAngleDeg": 4
+        },
+        {
+          "bearingDeg": 100,
+          "horizonAngleDeg": 3.29
+        },
+        {
+          "bearingDeg": 105,
+          "horizonAngleDeg": 2.93
+        },
+        {
+          "bearingDeg": 110,
+          "horizonAngleDeg": 3.76
+        },
+        {
+          "bearingDeg": 115,
+          "horizonAngleDeg": 3.69
+        },
+        {
+          "bearingDeg": 120,
+          "horizonAngleDeg": 4.41
+        },
+        {
+          "bearingDeg": 125,
+          "horizonAngleDeg": 4.71
+        },
+        {
+          "bearingDeg": 130,
+          "horizonAngleDeg": 4.38
+        },
+        {
+          "bearingDeg": 135,
+          "horizonAngleDeg": 4.76
+        },
+        {
+          "bearingDeg": 140,
+          "horizonAngleDeg": 5.18
+        },
+        {
+          "bearingDeg": 145,
+          "horizonAngleDeg": 6.28
+        },
+        {
+          "bearingDeg": 150,
+          "horizonAngleDeg": 6.56
+        },
+        {
+          "bearingDeg": 155,
+          "horizonAngleDeg": 6.42
+        },
+        {
+          "bearingDeg": 160,
+          "horizonAngleDeg": 6.7
+        },
+        {
+          "bearingDeg": 165,
+          "horizonAngleDeg": 6.42
+        },
+        {
+          "bearingDeg": 170,
+          "horizonAngleDeg": 5.99
+        },
+        {
+          "bearingDeg": 175,
+          "horizonAngleDeg": 6.42
+        },
+        {
+          "bearingDeg": 180,
+          "horizonAngleDeg": 6.98
+        },
+        {
+          "bearingDeg": 185,
+          "horizonAngleDeg": 6.84
+        },
+        {
+          "bearingDeg": 190,
+          "horizonAngleDeg": 6.84
+        },
+        {
+          "bearingDeg": 195,
+          "horizonAngleDeg": 5.99
+        },
+        {
+          "bearingDeg": 200,
+          "horizonAngleDeg": 4.71
+        },
+        {
+          "bearingDeg": 205,
+          "horizonAngleDeg": 3.15
+        },
+        {
+          "bearingDeg": 210,
+          "horizonAngleDeg": 2
+        },
+        {
+          "bearingDeg": 215,
+          "horizonAngleDeg": 2.86
+        },
+        {
+          "bearingDeg": 220,
+          "horizonAngleDeg": 3.29
+        },
+        {
+          "bearingDeg": 225,
+          "horizonAngleDeg": 0.86
+        },
+        {
+          "bearingDeg": 230,
+          "horizonAngleDeg": 0.39
+        },
+        {
+          "bearingDeg": 235,
+          "horizonAngleDeg": 0.56
+        },
+        {
+          "bearingDeg": 240,
+          "horizonAngleDeg": 0.44
+        },
+        {
+          "bearingDeg": 245,
+          "horizonAngleDeg": 0.33
+        },
+        {
+          "bearingDeg": 250,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 255,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 260,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 265,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 270,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 275,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 280,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 285,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 290,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 295,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 300,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 305,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 310,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 315,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 320,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 325,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 330,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 335,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 340,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 345,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 350,
+          "horizonAngleDeg": 1.14
+        },
+        {
+          "bearingDeg": 355,
+          "horizonAngleDeg": 1.86
+        }
+      ]
+    },
+    "kaiwi-point": {
+      "lat": 19.78,
+      "lon": -156.02,
+      "profile": [
+        {
+          "bearingDeg": 0,
+          "horizonAngleDeg": 6.7
+        },
+        {
+          "bearingDeg": 5,
+          "horizonAngleDeg": 6.84
+        },
+        {
+          "bearingDeg": 10,
+          "horizonAngleDeg": 7.12
+        },
+        {
+          "bearingDeg": 15,
+          "horizonAngleDeg": 7.41
+        },
+        {
+          "bearingDeg": 20,
+          "horizonAngleDeg": 7.55
+        },
+        {
+          "bearingDeg": 25,
+          "horizonAngleDeg": 7.69
+        },
+        {
+          "bearingDeg": 30,
+          "horizonAngleDeg": 7.83
+        },
+        {
+          "bearingDeg": 35,
+          "horizonAngleDeg": 8.11
+        },
+        {
+          "bearingDeg": 40,
+          "horizonAngleDeg": 8.25
+        },
+        {
+          "bearingDeg": 45,
+          "horizonAngleDeg": 8.39
+        },
+        {
+          "bearingDeg": 50,
+          "horizonAngleDeg": 8.53
+        },
+        {
+          "bearingDeg": 55,
+          "horizonAngleDeg": 8.67
+        },
+        {
+          "bearingDeg": 60,
+          "horizonAngleDeg": 8.95
+        },
+        {
+          "bearingDeg": 65,
+          "horizonAngleDeg": 8.95
+        },
+        {
+          "bearingDeg": 70,
+          "horizonAngleDeg": 9.09
+        },
+        {
+          "bearingDeg": 75,
+          "horizonAngleDeg": 9.37
+        },
+        {
+          "bearingDeg": 80,
+          "horizonAngleDeg": 9.65
+        },
+        {
+          "bearingDeg": 85,
+          "horizonAngleDeg": 9.65
+        },
+        {
+          "bearingDeg": 90,
+          "horizonAngleDeg": 9.51
+        },
+        {
+          "bearingDeg": 95,
+          "horizonAngleDeg": 9.79
+        },
+        {
+          "bearingDeg": 100,
+          "horizonAngleDeg": 10.2
+        },
+        {
+          "bearingDeg": 105,
+          "horizonAngleDeg": 10.34
+        },
+        {
+          "bearingDeg": 110,
+          "horizonAngleDeg": 10.34
+        },
+        {
+          "bearingDeg": 115,
+          "horizonAngleDeg": 10.34
+        },
+        {
+          "bearingDeg": 120,
+          "horizonAngleDeg": 10.34
+        },
+        {
+          "bearingDeg": 125,
+          "horizonAngleDeg": 10.2
+        },
+        {
+          "bearingDeg": 130,
+          "horizonAngleDeg": 10.06
+        },
+        {
+          "bearingDeg": 135,
+          "horizonAngleDeg": 10.06
+        },
+        {
+          "bearingDeg": 140,
+          "horizonAngleDeg": 9.92
+        },
+        {
+          "bearingDeg": 145,
+          "horizonAngleDeg": 9.79
+        },
+        {
+          "bearingDeg": 150,
+          "horizonAngleDeg": 9.65
+        },
+        {
+          "bearingDeg": 155,
+          "horizonAngleDeg": 9.23
+        },
+        {
+          "bearingDeg": 160,
+          "horizonAngleDeg": 8.81
+        },
+        {
+          "bearingDeg": 165,
+          "horizonAngleDeg": 8.67
+        },
+        {
+          "bearingDeg": 170,
+          "horizonAngleDeg": 8.81
+        },
+        {
+          "bearingDeg": 175,
+          "horizonAngleDeg": 9.09
+        },
+        {
+          "bearingDeg": 180,
+          "horizonAngleDeg": 8.81
+        },
+        {
+          "bearingDeg": 185,
+          "horizonAngleDeg": 8.53
+        },
+        {
+          "bearingDeg": 190,
+          "horizonAngleDeg": 8.39
+        },
+        {
+          "bearingDeg": 195,
+          "horizonAngleDeg": 8.11
+        },
+        {
+          "bearingDeg": 200,
+          "horizonAngleDeg": 8.11
+        },
+        {
+          "bearingDeg": 205,
+          "horizonAngleDeg": 7.83
+        },
+        {
+          "bearingDeg": 210,
+          "horizonAngleDeg": 7.26
+        },
+        {
+          "bearingDeg": 215,
+          "horizonAngleDeg": 6.7
+        },
+        {
+          "bearingDeg": 220,
+          "horizonAngleDeg": 6.42
+        },
+        {
+          "bearingDeg": 225,
+          "horizonAngleDeg": 6.13
+        },
+        {
+          "bearingDeg": 230,
+          "horizonAngleDeg": 6.13
+        },
+        {
+          "bearingDeg": 235,
+          "horizonAngleDeg": 6.13
+        },
+        {
+          "bearingDeg": 240,
+          "horizonAngleDeg": 6.13
+        },
+        {
+          "bearingDeg": 245,
+          "horizonAngleDeg": 5.71
+        },
+        {
+          "bearingDeg": 250,
+          "horizonAngleDeg": 5.57
+        },
+        {
+          "bearingDeg": 255,
+          "horizonAngleDeg": 5.43
+        },
+        {
+          "bearingDeg": 260,
+          "horizonAngleDeg": 5.14
+        },
+        {
+          "bearingDeg": 265,
+          "horizonAngleDeg": 4.86
+        },
+        {
+          "bearingDeg": 270,
+          "horizonAngleDeg": 4.57
+        },
+        {
+          "bearingDeg": 275,
+          "horizonAngleDeg": 4.57
+        },
+        {
+          "bearingDeg": 280,
+          "horizonAngleDeg": 4.57
+        },
+        {
+          "bearingDeg": 285,
+          "horizonAngleDeg": 4.57
+        },
+        {
+          "bearingDeg": 290,
+          "horizonAngleDeg": 4.71
+        },
+        {
+          "bearingDeg": 295,
+          "horizonAngleDeg": 4.86
+        },
+        {
+          "bearingDeg": 300,
+          "horizonAngleDeg": 4.86
+        },
+        {
+          "bearingDeg": 305,
+          "horizonAngleDeg": 5.14
+        },
+        {
+          "bearingDeg": 310,
+          "horizonAngleDeg": 5.14
+        },
+        {
+          "bearingDeg": 315,
+          "horizonAngleDeg": 5.14
+        },
+        {
+          "bearingDeg": 320,
+          "horizonAngleDeg": 5.57
+        },
+        {
+          "bearingDeg": 325,
+          "horizonAngleDeg": 5.71
+        },
+        {
+          "bearingDeg": 330,
+          "horizonAngleDeg": 5.99
+        },
+        {
+          "bearingDeg": 335,
+          "horizonAngleDeg": 6.13
+        },
+        {
+          "bearingDeg": 340,
+          "horizonAngleDeg": 5.99
+        },
+        {
+          "bearingDeg": 345,
+          "horizonAngleDeg": 6.28
+        },
+        {
+          "bearingDeg": 350,
+          "horizonAngleDeg": 6.56
+        },
+        {
+          "bearingDeg": 355,
+          "horizonAngleDeg": 6.7
+        }
+      ]
+    },
+    "kealakekua-bay": {
+      "lat": 19.4789,
+      "lon": -156.0004,
+      "profile": [
+        {
+          "bearingDeg": 0,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 5,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 10,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 15,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 20,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 25,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 30,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 35,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 40,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 45,
+          "horizonAngleDeg": 0.16
+        },
+        {
+          "bearingDeg": 50,
+          "horizonAngleDeg": 0.43
+        },
+        {
+          "bearingDeg": 55,
+          "horizonAngleDeg": 0.9
+        },
+        {
+          "bearingDeg": 60,
+          "horizonAngleDeg": 1.12
+        },
+        {
+          "bearingDeg": 65,
+          "horizonAngleDeg": 1.32
+        },
+        {
+          "bearingDeg": 70,
+          "horizonAngleDeg": 1.43
+        },
+        {
+          "bearingDeg": 75,
+          "horizonAngleDeg": 1.56
+        },
+        {
+          "bearingDeg": 80,
+          "horizonAngleDeg": 1.34
+        },
+        {
+          "bearingDeg": 85,
+          "horizonAngleDeg": 0.86
+        },
+        {
+          "bearingDeg": 90,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 95,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 100,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 105,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 110,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 115,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 120,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 125,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 130,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 135,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 140,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 145,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 150,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 155,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 160,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 165,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 170,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 175,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 180,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 185,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 190,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 195,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 200,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 205,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 210,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 215,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 220,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 225,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 230,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 235,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 240,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 245,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 250,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 255,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 260,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 265,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 270,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 275,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 280,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 285,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 290,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 295,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 300,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 305,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 310,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 315,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 320,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 325,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 330,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 335,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 340,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 345,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 350,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 355,
+          "horizonAngleDeg": 0
+        }
+      ]
+    },
+    "koloa-landing": {
+      "lat": 21.87788,
+      "lon": -159.461,
+      "profile": [
+        {
+          "bearingDeg": 0,
+          "horizonAngleDeg": 2.86
+        },
+        {
+          "bearingDeg": 5,
+          "horizonAngleDeg": 2.57
+        },
+        {
+          "bearingDeg": 10,
+          "horizonAngleDeg": 2.43
+        },
+        {
+          "bearingDeg": 15,
+          "horizonAngleDeg": 2.57
+        },
+        {
+          "bearingDeg": 20,
+          "horizonAngleDeg": 2.86
+        },
+        {
+          "bearingDeg": 25,
+          "horizonAngleDeg": 2.72
+        },
+        {
+          "bearingDeg": 30,
+          "horizonAngleDeg": 2.72
+        },
+        {
+          "bearingDeg": 35,
+          "horizonAngleDeg": 2.86
+        },
+        {
+          "bearingDeg": 40,
+          "horizonAngleDeg": 2.86
+        },
+        {
+          "bearingDeg": 45,
+          "horizonAngleDeg": 2.72
+        },
+        {
+          "bearingDeg": 50,
+          "horizonAngleDeg": 2.57
+        },
+        {
+          "bearingDeg": 55,
+          "horizonAngleDeg": 2.43
+        },
+        {
+          "bearingDeg": 60,
+          "horizonAngleDeg": 2.43
+        },
+        {
+          "bearingDeg": 65,
+          "horizonAngleDeg": 2.43
+        },
+        {
+          "bearingDeg": 70,
+          "horizonAngleDeg": 2.15
+        },
+        {
+          "bearingDeg": 75,
+          "horizonAngleDeg": 2.15
+        },
+        {
+          "bearingDeg": 80,
+          "horizonAngleDeg": 2
+        },
+        {
+          "bearingDeg": 85,
+          "horizonAngleDeg": 1.86
+        },
+        {
+          "bearingDeg": 90,
+          "horizonAngleDeg": 1.72
+        },
+        {
+          "bearingDeg": 95,
+          "horizonAngleDeg": 1.86
+        },
+        {
+          "bearingDeg": 100,
+          "horizonAngleDeg": 1.57
+        },
+        {
+          "bearingDeg": 105,
+          "horizonAngleDeg": 1.14
+        },
+        {
+          "bearingDeg": 110,
+          "horizonAngleDeg": 0.71
+        },
+        {
+          "bearingDeg": 115,
+          "horizonAngleDeg": 0.57
+        },
+        {
+          "bearingDeg": 120,
+          "horizonAngleDeg": 0.57
+        },
+        {
+          "bearingDeg": 125,
+          "horizonAngleDeg": 0.71
+        },
+        {
+          "bearingDeg": 130,
+          "horizonAngleDeg": 1
+        },
+        {
+          "bearingDeg": 135,
+          "horizonAngleDeg": 1.14
+        },
+        {
+          "bearingDeg": 140,
+          "horizonAngleDeg": 0.86
+        },
+        {
+          "bearingDeg": 145,
+          "horizonAngleDeg": 0.28
+        },
+        {
+          "bearingDeg": 150,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 155,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 160,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 165,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 170,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 175,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 180,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 185,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 190,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 195,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 200,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 205,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 210,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 215,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 220,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 225,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 230,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 235,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 240,
+          "horizonAngleDeg": 0.14
+        },
+        {
+          "bearingDeg": 245,
+          "horizonAngleDeg": 0.57
+        },
+        {
+          "bearingDeg": 250,
+          "horizonAngleDeg": 0.86
+        },
+        {
+          "bearingDeg": 255,
+          "horizonAngleDeg": 1.29
+        },
+        {
+          "bearingDeg": 260,
+          "horizonAngleDeg": 1.72
+        },
+        {
+          "bearingDeg": 265,
+          "horizonAngleDeg": 1.72
+        },
+        {
+          "bearingDeg": 270,
+          "horizonAngleDeg": 1.72
+        },
+        {
+          "bearingDeg": 275,
+          "horizonAngleDeg": 1.72
+        },
+        {
+          "bearingDeg": 280,
+          "horizonAngleDeg": 1.86
+        },
+        {
+          "bearingDeg": 285,
+          "horizonAngleDeg": 1.86
+        },
+        {
+          "bearingDeg": 290,
+          "horizonAngleDeg": 2
+        },
+        {
+          "bearingDeg": 295,
+          "horizonAngleDeg": 2.43
+        },
+        {
+          "bearingDeg": 300,
+          "horizonAngleDeg": 2.57
+        },
+        {
+          "bearingDeg": 305,
+          "horizonAngleDeg": 2.43
+        },
+        {
+          "bearingDeg": 310,
+          "horizonAngleDeg": 2.43
+        },
+        {
+          "bearingDeg": 315,
+          "horizonAngleDeg": 2.57
+        },
+        {
+          "bearingDeg": 320,
+          "horizonAngleDeg": 2.72
+        },
+        {
+          "bearingDeg": 325,
+          "horizonAngleDeg": 2.57
+        },
+        {
+          "bearingDeg": 330,
+          "horizonAngleDeg": 2.86
+        },
+        {
+          "bearingDeg": 335,
+          "horizonAngleDeg": 3
+        },
+        {
+          "bearingDeg": 340,
+          "horizonAngleDeg": 3.15
+        },
+        {
+          "bearingDeg": 345,
+          "horizonAngleDeg": 3.15
+        },
+        {
+          "bearingDeg": 350,
+          "horizonAngleDeg": 2.86
+        },
+        {
+          "bearingDeg": 355,
+          "horizonAngleDeg": 2.86
+        }
+      ]
+    },
+    "makena-landing": {
+      "lat": 20.653606,
+      "lon": -156.441495,
+      "profile": [
+        {
+          "bearingDeg": 0,
+          "horizonAngleDeg": 0.57
+        },
+        {
+          "bearingDeg": 5,
+          "horizonAngleDeg": 1
+        },
+        {
+          "bearingDeg": 10,
+          "horizonAngleDeg": 1.57
+        },
+        {
+          "bearingDeg": 15,
+          "horizonAngleDeg": 1.72
+        },
+        {
+          "bearingDeg": 20,
+          "horizonAngleDeg": 2
+        },
+        {
+          "bearingDeg": 25,
+          "horizonAngleDeg": 2.41
+        },
+        {
+          "bearingDeg": 30,
+          "horizonAngleDeg": 2.94
+        },
+        {
+          "bearingDeg": 35,
+          "horizonAngleDeg": 3.42
+        },
+        {
+          "bearingDeg": 40,
+          "horizonAngleDeg": 3.84
+        },
+        {
+          "bearingDeg": 45,
+          "horizonAngleDeg": 4.33
+        },
+        {
+          "bearingDeg": 50,
+          "horizonAngleDeg": 4.58
+        },
+        {
+          "bearingDeg": 55,
+          "horizonAngleDeg": 5.12
+        },
+        {
+          "bearingDeg": 60,
+          "horizonAngleDeg": 5.67
+        },
+        {
+          "bearingDeg": 65,
+          "horizonAngleDeg": 6.58
+        },
+        {
+          "bearingDeg": 70,
+          "horizonAngleDeg": 7.08
+        },
+        {
+          "bearingDeg": 75,
+          "horizonAngleDeg": 7.55
+        },
+        {
+          "bearingDeg": 80,
+          "horizonAngleDeg": 7.99
+        },
+        {
+          "bearingDeg": 85,
+          "horizonAngleDeg": 8.24
+        },
+        {
+          "bearingDeg": 90,
+          "horizonAngleDeg": 8.52
+        },
+        {
+          "bearingDeg": 95,
+          "horizonAngleDeg": 8.84
+        },
+        {
+          "bearingDeg": 100,
+          "horizonAngleDeg": 7.69
+        },
+        {
+          "bearingDeg": 105,
+          "horizonAngleDeg": 7.2
+        },
+        {
+          "bearingDeg": 110,
+          "horizonAngleDeg": 6
+        },
+        {
+          "bearingDeg": 115,
+          "horizonAngleDeg": 5.43
+        },
+        {
+          "bearingDeg": 120,
+          "horizonAngleDeg": 5.17
+        },
+        {
+          "bearingDeg": 125,
+          "horizonAngleDeg": 4.81
+        },
+        {
+          "bearingDeg": 130,
+          "horizonAngleDeg": 4.66
+        },
+        {
+          "bearingDeg": 135,
+          "horizonAngleDeg": 4.47
+        },
+        {
+          "bearingDeg": 140,
+          "horizonAngleDeg": 3.71
+        },
+        {
+          "bearingDeg": 145,
+          "horizonAngleDeg": 3.19
+        },
+        {
+          "bearingDeg": 150,
+          "horizonAngleDeg": 2.76
+        },
+        {
+          "bearingDeg": 155,
+          "horizonAngleDeg": 2.29
+        },
+        {
+          "bearingDeg": 160,
+          "horizonAngleDeg": 2.15
+        },
+        {
+          "bearingDeg": 165,
+          "horizonAngleDeg": 1.9
+        },
+        {
+          "bearingDeg": 170,
+          "horizonAngleDeg": 1.86
+        },
+        {
+          "bearingDeg": 175,
+          "horizonAngleDeg": 1.28
+        },
+        {
+          "bearingDeg": 180,
+          "horizonAngleDeg": 1.09
+        },
+        {
+          "bearingDeg": 185,
+          "horizonAngleDeg": 1
+        },
+        {
+          "bearingDeg": 190,
+          "horizonAngleDeg": 1.04
+        },
+        {
+          "bearingDeg": 195,
+          "horizonAngleDeg": 0.81
+        },
+        {
+          "bearingDeg": 200,
+          "horizonAngleDeg": 0.38
+        },
+        {
+          "bearingDeg": 205,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 210,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 215,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 220,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 225,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 230,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 235,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 240,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 245,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 250,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 255,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 260,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 265,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 270,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 275,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 280,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 285,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 290,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 295,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 300,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 305,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 310,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 315,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 320,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 325,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 330,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 335,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 340,
+          "horizonAngleDeg": 0.14
+        },
+        {
+          "bearingDeg": 345,
+          "horizonAngleDeg": 0.14
+        },
+        {
+          "bearingDeg": 350,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 355,
+          "horizonAngleDeg": 0.12
+        }
+      ]
+    },
+    "makua": {
+      "lat": 21.531326,
+      "lon": -158.234336,
+      "profile": [
+        {
+          "bearingDeg": 0,
+          "horizonAngleDeg": 8.09
+        },
+        {
+          "bearingDeg": 5,
+          "horizonAngleDeg": 9
+        },
+        {
+          "bearingDeg": 10,
+          "horizonAngleDeg": 10.15
+        },
+        {
+          "bearingDeg": 15,
+          "horizonAngleDeg": 10.24
+        },
+        {
+          "bearingDeg": 20,
+          "horizonAngleDeg": 11.03
+        },
+        {
+          "bearingDeg": 25,
+          "horizonAngleDeg": 13.54
+        },
+        {
+          "bearingDeg": 30,
+          "horizonAngleDeg": 11.35
+        },
+        {
+          "bearingDeg": 35,
+          "horizonAngleDeg": 9.58
+        },
+        {
+          "bearingDeg": 40,
+          "horizonAngleDeg": 9.89
+        },
+        {
+          "bearingDeg": 45,
+          "horizonAngleDeg": 10.56
+        },
+        {
+          "bearingDeg": 50,
+          "horizonAngleDeg": 9.47
+        },
+        {
+          "bearingDeg": 55,
+          "horizonAngleDeg": 8.11
+        },
+        {
+          "bearingDeg": 60,
+          "horizonAngleDeg": 7.02
+        },
+        {
+          "bearingDeg": 65,
+          "horizonAngleDeg": 5.53
+        },
+        {
+          "bearingDeg": 70,
+          "horizonAngleDeg": 4.31
+        },
+        {
+          "bearingDeg": 75,
+          "horizonAngleDeg": 3.48
+        },
+        {
+          "bearingDeg": 80,
+          "horizonAngleDeg": 3.69
+        },
+        {
+          "bearingDeg": 85,
+          "horizonAngleDeg": 4.28
+        },
+        {
+          "bearingDeg": 90,
+          "horizonAngleDeg": 3.88
+        },
+        {
+          "bearingDeg": 95,
+          "horizonAngleDeg": 5.08
+        },
+        {
+          "bearingDeg": 100,
+          "horizonAngleDeg": 5.25
+        },
+        {
+          "bearingDeg": 105,
+          "horizonAngleDeg": 4.89
+        },
+        {
+          "bearingDeg": 110,
+          "horizonAngleDeg": 3.57
+        },
+        {
+          "bearingDeg": 115,
+          "horizonAngleDeg": 5.09
+        },
+        {
+          "bearingDeg": 120,
+          "horizonAngleDeg": 5.77
+        },
+        {
+          "bearingDeg": 125,
+          "horizonAngleDeg": 8.31
+        },
+        {
+          "bearingDeg": 130,
+          "horizonAngleDeg": 7.68
+        },
+        {
+          "bearingDeg": 135,
+          "horizonAngleDeg": 6.04
+        },
+        {
+          "bearingDeg": 140,
+          "horizonAngleDeg": 4.37
+        },
+        {
+          "bearingDeg": 145,
+          "horizonAngleDeg": 2.26
+        },
+        {
+          "bearingDeg": 150,
+          "horizonAngleDeg": 1.61
+        },
+        {
+          "bearingDeg": 155,
+          "horizonAngleDeg": 0.86
+        },
+        {
+          "bearingDeg": 160,
+          "horizonAngleDeg": 0.73
+        },
+        {
+          "bearingDeg": 165,
+          "horizonAngleDeg": 0.44
+        },
+        {
+          "bearingDeg": 170,
+          "horizonAngleDeg": 0.14
+        },
+        {
+          "bearingDeg": 175,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 180,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 185,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 190,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 195,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 200,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 205,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 210,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 215,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 220,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 225,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 230,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 235,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 240,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 245,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 250,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 255,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 260,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 265,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 270,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 275,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 280,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 285,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 290,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 295,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 300,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 305,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 310,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 315,
+          "horizonAngleDeg": 0.03
+        },
+        {
+          "bearingDeg": 320,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 325,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 330,
+          "horizonAngleDeg": 0.02
+        },
+        {
+          "bearingDeg": 335,
+          "horizonAngleDeg": 0.2
+        },
+        {
+          "bearingDeg": 340,
+          "horizonAngleDeg": 0.88
+        },
+        {
+          "bearingDeg": 345,
+          "horizonAngleDeg": 2.79
+        },
+        {
+          "bearingDeg": 350,
+          "horizonAngleDeg": 4.56
+        },
+        {
+          "bearingDeg": 355,
+          "horizonAngleDeg": 6.32
+        }
+      ]
+    },
+    "makua-beach": {
+      "lat": 21.527379,
+      "lon": -158.229536,
+      "profile": [
+        {
+          "bearingDeg": 0,
+          "horizonAngleDeg": 7.39
+        },
+        {
+          "bearingDeg": 5,
+          "horizonAngleDeg": 8.82
+        },
+        {
+          "bearingDeg": 10,
+          "horizonAngleDeg": 9.65
+        },
+        {
+          "bearingDeg": 15,
+          "horizonAngleDeg": 10.41
+        },
+        {
+          "bearingDeg": 20,
+          "horizonAngleDeg": 9.71
+        },
+        {
+          "bearingDeg": 25,
+          "horizonAngleDeg": 9.8
+        },
+        {
+          "bearingDeg": 30,
+          "horizonAngleDeg": 10.15
+        },
+        {
+          "bearingDeg": 35,
+          "horizonAngleDeg": 10.78
+        },
+        {
+          "bearingDeg": 40,
+          "horizonAngleDeg": 9.11
+        },
+        {
+          "bearingDeg": 45,
+          "horizonAngleDeg": 8.48
+        },
+        {
+          "bearingDeg": 50,
+          "horizonAngleDeg": 7.54
+        },
+        {
+          "bearingDeg": 55,
+          "horizonAngleDeg": 5.94
+        },
+        {
+          "bearingDeg": 60,
+          "horizonAngleDeg": 5.21
+        },
+        {
+          "bearingDeg": 65,
+          "horizonAngleDeg": 4.31
+        },
+        {
+          "bearingDeg": 70,
+          "horizonAngleDeg": 5.15
+        },
+        {
+          "bearingDeg": 75,
+          "horizonAngleDeg": 6.6
+        },
+        {
+          "bearingDeg": 80,
+          "horizonAngleDeg": 6.66
+        },
+        {
+          "bearingDeg": 85,
+          "horizonAngleDeg": 4.01
+        },
+        {
+          "bearingDeg": 90,
+          "horizonAngleDeg": 3.5
+        },
+        {
+          "bearingDeg": 95,
+          "horizonAngleDeg": 4.14
+        },
+        {
+          "bearingDeg": 100,
+          "horizonAngleDeg": 5.88
+        },
+        {
+          "bearingDeg": 105,
+          "horizonAngleDeg": 5.02
+        },
+        {
+          "bearingDeg": 110,
+          "horizonAngleDeg": 6.87
+        },
+        {
+          "bearingDeg": 115,
+          "horizonAngleDeg": 11.22
+        },
+        {
+          "bearingDeg": 120,
+          "horizonAngleDeg": 13.23
+        },
+        {
+          "bearingDeg": 125,
+          "horizonAngleDeg": 11.09
+        },
+        {
+          "bearingDeg": 130,
+          "horizonAngleDeg": 8.39
+        },
+        {
+          "bearingDeg": 135,
+          "horizonAngleDeg": 5.92
+        },
+        {
+          "bearingDeg": 140,
+          "horizonAngleDeg": 8.48
+        },
+        {
+          "bearingDeg": 145,
+          "horizonAngleDeg": 11.99
+        },
+        {
+          "bearingDeg": 150,
+          "horizonAngleDeg": 12.63
+        },
+        {
+          "bearingDeg": 155,
+          "horizonAngleDeg": 9.18
+        },
+        {
+          "bearingDeg": 160,
+          "horizonAngleDeg": 5.71
+        },
+        {
+          "bearingDeg": 165,
+          "horizonAngleDeg": 3.67
+        },
+        {
+          "bearingDeg": 170,
+          "horizonAngleDeg": 1
+        },
+        {
+          "bearingDeg": 175,
+          "horizonAngleDeg": 0.57
+        },
+        {
+          "bearingDeg": 180,
+          "horizonAngleDeg": 0.14
+        },
+        {
+          "bearingDeg": 185,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 190,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 195,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 200,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 205,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 210,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 215,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 220,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 225,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 230,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 235,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 240,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 245,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 250,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 255,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 260,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 265,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 270,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 275,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 280,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 285,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 290,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 295,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 300,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 305,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 310,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 315,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 320,
+          "horizonAngleDeg": 0.03
+        },
+        {
+          "bearingDeg": 325,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 330,
+          "horizonAngleDeg": 0.04
+        },
+        {
+          "bearingDeg": 335,
+          "horizonAngleDeg": 0.23
+        },
+        {
+          "bearingDeg": 340,
+          "horizonAngleDeg": 0.94
+        },
+        {
+          "bearingDeg": 345,
+          "horizonAngleDeg": 3.13
+        },
+        {
+          "bearingDeg": 350,
+          "horizonAngleDeg": 5.09
+        },
+        {
+          "bearingDeg": 355,
+          "horizonAngleDeg": 6.62
+        }
+      ]
+    },
+    "manta-heaven": {
+      "lat": 19.9636,
+      "lon": -155.8928,
+      "profile": [
+        {
+          "bearingDeg": 0,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 5,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 10,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 15,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 20,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 25,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 30,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 35,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 40,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 45,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 50,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 55,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 60,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 65,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 70,
+          "horizonAngleDeg": 0.03
+        },
+        {
+          "bearingDeg": 75,
+          "horizonAngleDeg": 0.03
+        },
+        {
+          "bearingDeg": 80,
+          "horizonAngleDeg": 0.21
+        },
+        {
+          "bearingDeg": 85,
+          "horizonAngleDeg": 0.12
+        },
+        {
+          "bearingDeg": 90,
+          "horizonAngleDeg": 0.19
+        },
+        {
+          "bearingDeg": 95,
+          "horizonAngleDeg": 0.3
+        },
+        {
+          "bearingDeg": 100,
+          "horizonAngleDeg": 0.43
+        },
+        {
+          "bearingDeg": 105,
+          "horizonAngleDeg": 0.4
+        },
+        {
+          "bearingDeg": 110,
+          "horizonAngleDeg": 0.58
+        },
+        {
+          "bearingDeg": 115,
+          "horizonAngleDeg": 0.72
+        },
+        {
+          "bearingDeg": 120,
+          "horizonAngleDeg": 0.77
+        },
+        {
+          "bearingDeg": 125,
+          "horizonAngleDeg": 0.78
+        },
+        {
+          "bearingDeg": 130,
+          "horizonAngleDeg": 0.73
+        },
+        {
+          "bearingDeg": 135,
+          "horizonAngleDeg": 0.69
+        },
+        {
+          "bearingDeg": 140,
+          "horizonAngleDeg": 0.57
+        },
+        {
+          "bearingDeg": 145,
+          "horizonAngleDeg": 0.56
+        },
+        {
+          "bearingDeg": 150,
+          "horizonAngleDeg": 0.49
+        },
+        {
+          "bearingDeg": 155,
+          "horizonAngleDeg": 0.35
+        },
+        {
+          "bearingDeg": 160,
+          "horizonAngleDeg": 0.27
+        },
+        {
+          "bearingDeg": 165,
+          "horizonAngleDeg": 0.22
+        },
+        {
+          "bearingDeg": 170,
+          "horizonAngleDeg": 0.23
+        },
+        {
+          "bearingDeg": 175,
+          "horizonAngleDeg": 0.21
+        },
+        {
+          "bearingDeg": 180,
+          "horizonAngleDeg": 0.15
+        },
+        {
+          "bearingDeg": 185,
+          "horizonAngleDeg": 0.12
+        },
+        {
+          "bearingDeg": 190,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 195,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 200,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 205,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 210,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 215,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 220,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 225,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 230,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 235,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 240,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 245,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 250,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 255,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 260,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 265,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 270,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 275,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 280,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 285,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 290,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 295,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 300,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 305,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 310,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 315,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 320,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 325,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 330,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 335,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 340,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 345,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 350,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 355,
+          "horizonAngleDeg": 0
+        }
+      ]
+    },
+    "mokuleia": {
+      "lat": 21.580952,
+      "lon": -158.253094,
+      "profile": [
+        {
+          "bearingDeg": 0,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 5,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 10,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 15,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 20,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 25,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 30,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 35,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 40,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 45,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 50,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 55,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 60,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 65,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 70,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 75,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 80,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 85,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 90,
+          "horizonAngleDeg": 0.14
+        },
+        {
+          "bearingDeg": 95,
+          "horizonAngleDeg": 0.28
+        },
+        {
+          "bearingDeg": 100,
+          "horizonAngleDeg": 0.66
+        },
+        {
+          "bearingDeg": 105,
+          "horizonAngleDeg": 2.6
+        },
+        {
+          "bearingDeg": 110,
+          "horizonAngleDeg": 6.36
+        },
+        {
+          "bearingDeg": 115,
+          "horizonAngleDeg": 6.49
+        },
+        {
+          "bearingDeg": 120,
+          "horizonAngleDeg": 7.45
+        },
+        {
+          "bearingDeg": 125,
+          "horizonAngleDeg": 8.7
+        },
+        {
+          "bearingDeg": 130,
+          "horizonAngleDeg": 11.81
+        },
+        {
+          "bearingDeg": 135,
+          "horizonAngleDeg": 14.35
+        },
+        {
+          "bearingDeg": 140,
+          "horizonAngleDeg": 13.85
+        },
+        {
+          "bearingDeg": 145,
+          "horizonAngleDeg": 12.86
+        },
+        {
+          "bearingDeg": 150,
+          "horizonAngleDeg": 10.48
+        },
+        {
+          "bearingDeg": 155,
+          "horizonAngleDeg": 9.41
+        },
+        {
+          "bearingDeg": 160,
+          "horizonAngleDeg": 10.71
+        },
+        {
+          "bearingDeg": 165,
+          "horizonAngleDeg": 13.4
+        },
+        {
+          "bearingDeg": 170,
+          "horizonAngleDeg": 13.99
+        },
+        {
+          "bearingDeg": 175,
+          "horizonAngleDeg": 13.81
+        },
+        {
+          "bearingDeg": 180,
+          "horizonAngleDeg": 13.85
+        },
+        {
+          "bearingDeg": 185,
+          "horizonAngleDeg": 13.4
+        },
+        {
+          "bearingDeg": 190,
+          "horizonAngleDeg": 12.9
+        },
+        {
+          "bearingDeg": 195,
+          "horizonAngleDeg": 11.72
+        },
+        {
+          "bearingDeg": 200,
+          "horizonAngleDeg": 11.58
+        },
+        {
+          "bearingDeg": 205,
+          "horizonAngleDeg": 11.44
+        },
+        {
+          "bearingDeg": 210,
+          "horizonAngleDeg": 11.21
+        },
+        {
+          "bearingDeg": 215,
+          "horizonAngleDeg": 11.12
+        },
+        {
+          "bearingDeg": 220,
+          "horizonAngleDeg": 10.94
+        },
+        {
+          "bearingDeg": 225,
+          "horizonAngleDeg": 8.99
+        },
+        {
+          "bearingDeg": 230,
+          "horizonAngleDeg": 6.27
+        },
+        {
+          "bearingDeg": 235,
+          "horizonAngleDeg": 3
+        },
+        {
+          "bearingDeg": 240,
+          "horizonAngleDeg": 1.14
+        },
+        {
+          "bearingDeg": 245,
+          "horizonAngleDeg": 0.47
+        },
+        {
+          "bearingDeg": 250,
+          "horizonAngleDeg": 0.23
+        },
+        {
+          "bearingDeg": 255,
+          "horizonAngleDeg": 0.23
+        },
+        {
+          "bearingDeg": 260,
+          "horizonAngleDeg": 0.06
+        },
+        {
+          "bearingDeg": 265,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 270,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 275,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 280,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 285,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 290,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 295,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 300,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 305,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 310,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 315,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 320,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 325,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 330,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 335,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 340,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 345,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 350,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 355,
+          "horizonAngleDeg": 0
+        }
+      ]
+    },
+    "molokini-crater": {
+      "lat": 20.6323,
+      "lon": -156.496,
+      "profile": [
+        {
+          "bearingDeg": 0,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 5,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 10,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 15,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 20,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 25,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 30,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 35,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 40,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 45,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 50,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 55,
+          "horizonAngleDeg": 0.12
+        },
+        {
+          "bearingDeg": 60,
+          "horizonAngleDeg": 0.3
+        },
+        {
+          "bearingDeg": 65,
+          "horizonAngleDeg": 0.39
+        },
+        {
+          "bearingDeg": 70,
+          "horizonAngleDeg": 0.53
+        },
+        {
+          "bearingDeg": 75,
+          "horizonAngleDeg": 0.8
+        },
+        {
+          "bearingDeg": 80,
+          "horizonAngleDeg": 1.01
+        },
+        {
+          "bearingDeg": 85,
+          "horizonAngleDeg": 0.91
+        },
+        {
+          "bearingDeg": 90,
+          "horizonAngleDeg": 0.75
+        },
+        {
+          "bearingDeg": 95,
+          "horizonAngleDeg": 0.65
+        },
+        {
+          "bearingDeg": 100,
+          "horizonAngleDeg": 0.37
+        },
+        {
+          "bearingDeg": 105,
+          "horizonAngleDeg": 0.1
+        },
+        {
+          "bearingDeg": 110,
+          "horizonAngleDeg": 0.1
+        },
+        {
+          "bearingDeg": 115,
+          "horizonAngleDeg": 0.03
+        },
+        {
+          "bearingDeg": 120,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 125,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 130,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 135,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 140,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 145,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 150,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 155,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 160,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 165,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 170,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 175,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 180,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 185,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 190,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 195,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 200,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 205,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 210,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 215,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 220,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 225,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 230,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 235,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 240,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 245,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 250,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 255,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 260,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 265,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 270,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 275,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 280,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 285,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 290,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 295,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 300,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 305,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 310,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 315,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 320,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 325,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 330,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 335,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 340,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 345,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 350,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 355,
+          "horizonAngleDeg": 0
+        }
+      ]
+    },
+    "niihau": {
+      "lat": 22.025141,
+      "lon": -160.095816,
+      "profile": [
+        {
+          "bearingDeg": 0,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 5,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 10,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 15,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 20,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 25,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 30,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 35,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 40,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 45,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 50,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 55,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 60,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 65,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 70,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 75,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 80,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 85,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 90,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 95,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 100,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 105,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 110,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 115,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 120,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 125,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 130,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 135,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 140,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 145,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 150,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 155,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 160,
+          "horizonAngleDeg": 0.21
+        },
+        {
+          "bearingDeg": 165,
+          "horizonAngleDeg": 0.18
+        },
+        {
+          "bearingDeg": 170,
+          "horizonAngleDeg": 0.21
+        },
+        {
+          "bearingDeg": 175,
+          "horizonAngleDeg": 0.71
+        },
+        {
+          "bearingDeg": 180,
+          "horizonAngleDeg": 1.72
+        },
+        {
+          "bearingDeg": 185,
+          "horizonAngleDeg": 0.86
+        },
+        {
+          "bearingDeg": 190,
+          "horizonAngleDeg": 0.57
+        },
+        {
+          "bearingDeg": 195,
+          "horizonAngleDeg": 0.28
+        },
+        {
+          "bearingDeg": 200,
+          "horizonAngleDeg": 0.42
+        },
+        {
+          "bearingDeg": 205,
+          "horizonAngleDeg": 0.47
+        },
+        {
+          "bearingDeg": 210,
+          "horizonAngleDeg": 0.62
+        },
+        {
+          "bearingDeg": 215,
+          "horizonAngleDeg": 0.52
+        },
+        {
+          "bearingDeg": 220,
+          "horizonAngleDeg": 0.71
+        },
+        {
+          "bearingDeg": 225,
+          "horizonAngleDeg": 1.14
+        },
+        {
+          "bearingDeg": 230,
+          "horizonAngleDeg": 1.57
+        },
+        {
+          "bearingDeg": 235,
+          "horizonAngleDeg": 1.29
+        },
+        {
+          "bearingDeg": 240,
+          "horizonAngleDeg": 1.14
+        },
+        {
+          "bearingDeg": 245,
+          "horizonAngleDeg": 1.29
+        },
+        {
+          "bearingDeg": 250,
+          "horizonAngleDeg": 0.86
+        },
+        {
+          "bearingDeg": 255,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 260,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 265,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 270,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 275,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 280,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 285,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 290,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 295,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 300,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 305,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 310,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 315,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 320,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 325,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 330,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 335,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 340,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 345,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 350,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 355,
+          "horizonAngleDeg": 0
+        }
+      ]
+    },
+    "sharks-cove": {
+      "lat": 21.654521,
+      "lon": -158.065133,
+      "profile": [
+        {
+          "bearingDeg": 0,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 5,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 10,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 15,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 20,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 25,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 30,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 35,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 40,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 45,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 50,
+          "horizonAngleDeg": 0.23
+        },
+        {
+          "bearingDeg": 55,
+          "horizonAngleDeg": 0.35
+        },
+        {
+          "bearingDeg": 60,
+          "horizonAngleDeg": 1.95
+        },
+        {
+          "bearingDeg": 65,
+          "horizonAngleDeg": 2.75
+        },
+        {
+          "bearingDeg": 70,
+          "horizonAngleDeg": 2.83
+        },
+        {
+          "bearingDeg": 75,
+          "horizonAngleDeg": 4.76
+        },
+        {
+          "bearingDeg": 80,
+          "horizonAngleDeg": 4.62
+        },
+        {
+          "bearingDeg": 85,
+          "horizonAngleDeg": 4.95
+        },
+        {
+          "bearingDeg": 90,
+          "horizonAngleDeg": 5.66
+        },
+        {
+          "bearingDeg": 95,
+          "horizonAngleDeg": 6.27
+        },
+        {
+          "bearingDeg": 100,
+          "horizonAngleDeg": 6.55
+        },
+        {
+          "bearingDeg": 105,
+          "horizonAngleDeg": 6.55
+        },
+        {
+          "bearingDeg": 110,
+          "horizonAngleDeg": 6.37
+        },
+        {
+          "bearingDeg": 115,
+          "horizonAngleDeg": 6.27
+        },
+        {
+          "bearingDeg": 120,
+          "horizonAngleDeg": 5.85
+        },
+        {
+          "bearingDeg": 125,
+          "horizonAngleDeg": 5.37
+        },
+        {
+          "bearingDeg": 130,
+          "horizonAngleDeg": 5.61
+        },
+        {
+          "bearingDeg": 135,
+          "horizonAngleDeg": 5.52
+        },
+        {
+          "bearingDeg": 140,
+          "horizonAngleDeg": 5.28
+        },
+        {
+          "bearingDeg": 145,
+          "horizonAngleDeg": 5
+        },
+        {
+          "bearingDeg": 150,
+          "horizonAngleDeg": 4.57
+        },
+        {
+          "bearingDeg": 155,
+          "horizonAngleDeg": 4.33
+        },
+        {
+          "bearingDeg": 160,
+          "horizonAngleDeg": 2.9
+        },
+        {
+          "bearingDeg": 165,
+          "horizonAngleDeg": 2.37
+        },
+        {
+          "bearingDeg": 170,
+          "horizonAngleDeg": 2.3
+        },
+        {
+          "bearingDeg": 175,
+          "horizonAngleDeg": 2.2
+        },
+        {
+          "bearingDeg": 180,
+          "horizonAngleDeg": 1.99
+        },
+        {
+          "bearingDeg": 185,
+          "horizonAngleDeg": 1.7
+        },
+        {
+          "bearingDeg": 190,
+          "horizonAngleDeg": 0.84
+        },
+        {
+          "bearingDeg": 195,
+          "horizonAngleDeg": 0.53
+        },
+        {
+          "bearingDeg": 200,
+          "horizonAngleDeg": 0.39
+        },
+        {
+          "bearingDeg": 205,
+          "horizonAngleDeg": 0.24
+        },
+        {
+          "bearingDeg": 210,
+          "horizonAngleDeg": 0.01
+        },
+        {
+          "bearingDeg": 215,
+          "horizonAngleDeg": 0.04
+        },
+        {
+          "bearingDeg": 220,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 225,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 230,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 235,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 240,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 245,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 250,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 255,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 260,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 265,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 270,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 275,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 280,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 285,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 290,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 295,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 300,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 305,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 310,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 315,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 320,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 325,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 330,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 335,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 340,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 345,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 350,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 355,
+          "horizonAngleDeg": 0
+        }
+      ]
+    },
+    "sheraton-caverns": {
+      "lat": 21.8735,
+      "lon": -159.4663,
+      "profile": [
+        {
+          "bearingDeg": 0,
+          "horizonAngleDeg": 1.42
+        },
+        {
+          "bearingDeg": 5,
+          "horizonAngleDeg": 2.18
+        },
+        {
+          "bearingDeg": 10,
+          "horizonAngleDeg": 2.51
+        },
+        {
+          "bearingDeg": 15,
+          "horizonAngleDeg": 2.14
+        },
+        {
+          "bearingDeg": 20,
+          "horizonAngleDeg": 2.72
+        },
+        {
+          "bearingDeg": 25,
+          "horizonAngleDeg": 2.57
+        },
+        {
+          "bearingDeg": 30,
+          "horizonAngleDeg": 2.07
+        },
+        {
+          "bearingDeg": 35,
+          "horizonAngleDeg": 1.74
+        },
+        {
+          "bearingDeg": 40,
+          "horizonAngleDeg": 1.52
+        },
+        {
+          "bearingDeg": 45,
+          "horizonAngleDeg": 0.95
+        },
+        {
+          "bearingDeg": 50,
+          "horizonAngleDeg": 1.13
+        },
+        {
+          "bearingDeg": 55,
+          "horizonAngleDeg": 1.44
+        },
+        {
+          "bearingDeg": 60,
+          "horizonAngleDeg": 1.11
+        },
+        {
+          "bearingDeg": 65,
+          "horizonAngleDeg": 1.08
+        },
+        {
+          "bearingDeg": 70,
+          "horizonAngleDeg": 0.79
+        },
+        {
+          "bearingDeg": 75,
+          "horizonAngleDeg": 0.57
+        },
+        {
+          "bearingDeg": 80,
+          "horizonAngleDeg": 0.33
+        },
+        {
+          "bearingDeg": 85,
+          "horizonAngleDeg": 0.29
+        },
+        {
+          "bearingDeg": 90,
+          "horizonAngleDeg": 0.19
+        },
+        {
+          "bearingDeg": 95,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 100,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 105,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 110,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 115,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 120,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 125,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 130,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 135,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 140,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 145,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 150,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 155,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 160,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 165,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 170,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 175,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 180,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 185,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 190,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 195,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 200,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 205,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 210,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 215,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 220,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 225,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 230,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 235,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 240,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 245,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 250,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 255,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 260,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 265,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 270,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 275,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 280,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 285,
+          "horizonAngleDeg": 0.35
+        },
+        {
+          "bearingDeg": 290,
+          "horizonAngleDeg": 0.49
+        },
+        {
+          "bearingDeg": 295,
+          "horizonAngleDeg": 1.25
+        },
+        {
+          "bearingDeg": 300,
+          "horizonAngleDeg": 1.31
+        },
+        {
+          "bearingDeg": 305,
+          "horizonAngleDeg": 1.5
+        },
+        {
+          "bearingDeg": 310,
+          "horizonAngleDeg": 1.56
+        },
+        {
+          "bearingDeg": 315,
+          "horizonAngleDeg": 1.27
+        },
+        {
+          "bearingDeg": 320,
+          "horizonAngleDeg": 1.51
+        },
+        {
+          "bearingDeg": 325,
+          "horizonAngleDeg": 1.52
+        },
+        {
+          "bearingDeg": 330,
+          "horizonAngleDeg": 1.91
+        },
+        {
+          "bearingDeg": 335,
+          "horizonAngleDeg": 2.29
+        },
+        {
+          "bearingDeg": 340,
+          "horizonAngleDeg": 1.76
+        },
+        {
+          "bearingDeg": 345,
+          "horizonAngleDeg": 1.8
+        },
+        {
+          "bearingDeg": 350,
+          "horizonAngleDeg": 1.44
+        },
+        {
+          "bearingDeg": 355,
+          "horizonAngleDeg": 1.41
+        }
+      ]
+    },
+    "three-tables": {
+      "lat": 21.6367,
+      "lon": -158.0633,
+      "profile": [
+        {
+          "bearingDeg": 0,
+          "horizonAngleDeg": 0.28
+        },
+        {
+          "bearingDeg": 5,
+          "horizonAngleDeg": 1.14
+        },
+        {
+          "bearingDeg": 10,
+          "horizonAngleDeg": 1.57
+        },
+        {
+          "bearingDeg": 15,
+          "horizonAngleDeg": 2.24
+        },
+        {
+          "bearingDeg": 20,
+          "horizonAngleDeg": 4.47
+        },
+        {
+          "bearingDeg": 25,
+          "horizonAngleDeg": 5
+        },
+        {
+          "bearingDeg": 30,
+          "horizonAngleDeg": 5.33
+        },
+        {
+          "bearingDeg": 35,
+          "horizonAngleDeg": 5.56
+        },
+        {
+          "bearingDeg": 40,
+          "horizonAngleDeg": 5.99
+        },
+        {
+          "bearingDeg": 45,
+          "horizonAngleDeg": 6.13
+        },
+        {
+          "bearingDeg": 50,
+          "horizonAngleDeg": 6.04
+        },
+        {
+          "bearingDeg": 55,
+          "horizonAngleDeg": 5.89
+        },
+        {
+          "bearingDeg": 60,
+          "horizonAngleDeg": 5.75
+        },
+        {
+          "bearingDeg": 65,
+          "horizonAngleDeg": 6.55
+        },
+        {
+          "bearingDeg": 70,
+          "horizonAngleDeg": 6.65
+        },
+        {
+          "bearingDeg": 75,
+          "horizonAngleDeg": 6.98
+        },
+        {
+          "bearingDeg": 80,
+          "horizonAngleDeg": 6.88
+        },
+        {
+          "bearingDeg": 85,
+          "horizonAngleDeg": 5.09
+        },
+        {
+          "bearingDeg": 90,
+          "horizonAngleDeg": 6.98
+        },
+        {
+          "bearingDeg": 95,
+          "horizonAngleDeg": 9.65
+        },
+        {
+          "bearingDeg": 100,
+          "horizonAngleDeg": 10.89
+        },
+        {
+          "bearingDeg": 105,
+          "horizonAngleDeg": 13.36
+        },
+        {
+          "bearingDeg": 110,
+          "horizonAngleDeg": 14.3
+        },
+        {
+          "bearingDeg": 115,
+          "horizonAngleDeg": 14.57
+        },
+        {
+          "bearingDeg": 120,
+          "horizonAngleDeg": 14.17
+        },
+        {
+          "bearingDeg": 125,
+          "horizonAngleDeg": 13.9
+        },
+        {
+          "bearingDeg": 130,
+          "horizonAngleDeg": 13.76
+        },
+        {
+          "bearingDeg": 135,
+          "horizonAngleDeg": 13.63
+        },
+        {
+          "bearingDeg": 140,
+          "horizonAngleDeg": 14.17
+        },
+        {
+          "bearingDeg": 145,
+          "horizonAngleDeg": 14.3
+        },
+        {
+          "bearingDeg": 150,
+          "horizonAngleDeg": 14.44
+        },
+        {
+          "bearingDeg": 155,
+          "horizonAngleDeg": 14.17
+        },
+        {
+          "bearingDeg": 160,
+          "horizonAngleDeg": 13.9
+        },
+        {
+          "bearingDeg": 165,
+          "horizonAngleDeg": 13.63
+        },
+        {
+          "bearingDeg": 170,
+          "horizonAngleDeg": 13.49
+        },
+        {
+          "bearingDeg": 175,
+          "horizonAngleDeg": 13.36
+        },
+        {
+          "bearingDeg": 180,
+          "horizonAngleDeg": 13.22
+        },
+        {
+          "bearingDeg": 185,
+          "horizonAngleDeg": 12.95
+        },
+        {
+          "bearingDeg": 190,
+          "horizonAngleDeg": 12.54
+        },
+        {
+          "bearingDeg": 195,
+          "horizonAngleDeg": 12.27
+        },
+        {
+          "bearingDeg": 200,
+          "horizonAngleDeg": 12
+        },
+        {
+          "bearingDeg": 205,
+          "horizonAngleDeg": 11.58
+        },
+        {
+          "bearingDeg": 210,
+          "horizonAngleDeg": 11.58
+        },
+        {
+          "bearingDeg": 215,
+          "horizonAngleDeg": 11.31
+        },
+        {
+          "bearingDeg": 220,
+          "horizonAngleDeg": 11.03
+        },
+        {
+          "bearingDeg": 225,
+          "horizonAngleDeg": 10.89
+        },
+        {
+          "bearingDeg": 230,
+          "horizonAngleDeg": 10.2
+        },
+        {
+          "bearingDeg": 235,
+          "horizonAngleDeg": 8.39
+        },
+        {
+          "bearingDeg": 240,
+          "horizonAngleDeg": 6.42
+        },
+        {
+          "bearingDeg": 245,
+          "horizonAngleDeg": 5.14
+        },
+        {
+          "bearingDeg": 250,
+          "horizonAngleDeg": 4.43
+        },
+        {
+          "bearingDeg": 255,
+          "horizonAngleDeg": 4
+        },
+        {
+          "bearingDeg": 260,
+          "horizonAngleDeg": 3.72
+        },
+        {
+          "bearingDeg": 265,
+          "horizonAngleDeg": 3.72
+        },
+        {
+          "bearingDeg": 270,
+          "horizonAngleDeg": 3.72
+        },
+        {
+          "bearingDeg": 275,
+          "horizonAngleDeg": 3.43
+        },
+        {
+          "bearingDeg": 280,
+          "horizonAngleDeg": 3
+        },
+        {
+          "bearingDeg": 285,
+          "horizonAngleDeg": 2.43
+        },
+        {
+          "bearingDeg": 290,
+          "horizonAngleDeg": 1.43
+        },
+        {
+          "bearingDeg": 295,
+          "horizonAngleDeg": 0.43
+        },
+        {
+          "bearingDeg": 300,
+          "horizonAngleDeg": 0.14
+        },
+        {
+          "bearingDeg": 305,
+          "horizonAngleDeg": 0.28
+        },
+        {
+          "bearingDeg": 310,
+          "horizonAngleDeg": 0.14
+        },
+        {
+          "bearingDeg": 315,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 320,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 325,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 330,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 335,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 340,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 345,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 350,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 355,
+          "horizonAngleDeg": 0
+        }
+      ]
+    },
+    "tunnels-reef": {
+      "lat": 22.223269,
+      "lon": -159.5705,
+      "profile": [
+        {
+          "bearingDeg": 0,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 5,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 10,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 15,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 20,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 25,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 30,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 35,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 40,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 45,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 50,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 55,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 60,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 65,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 70,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 75,
+          "horizonAngleDeg": 0.04
+        },
+        {
+          "bearingDeg": 80,
+          "horizonAngleDeg": 0.47
+        },
+        {
+          "bearingDeg": 85,
+          "horizonAngleDeg": 0.62
+        },
+        {
+          "bearingDeg": 90,
+          "horizonAngleDeg": 0.57
+        },
+        {
+          "bearingDeg": 95,
+          "horizonAngleDeg": 0.66
+        },
+        {
+          "bearingDeg": 100,
+          "horizonAngleDeg": 0.57
+        },
+        {
+          "bearingDeg": 105,
+          "horizonAngleDeg": 0.65
+        },
+        {
+          "bearingDeg": 110,
+          "horizonAngleDeg": 0.47
+        },
+        {
+          "bearingDeg": 115,
+          "horizonAngleDeg": 1.04
+        },
+        {
+          "bearingDeg": 120,
+          "horizonAngleDeg": 3.95
+        },
+        {
+          "bearingDeg": 125,
+          "horizonAngleDeg": 8.85
+        },
+        {
+          "bearingDeg": 130,
+          "horizonAngleDeg": 8.34
+        },
+        {
+          "bearingDeg": 135,
+          "horizonAngleDeg": 7.07
+        },
+        {
+          "bearingDeg": 140,
+          "horizonAngleDeg": 6.79
+        },
+        {
+          "bearingDeg": 145,
+          "horizonAngleDeg": 6.6
+        },
+        {
+          "bearingDeg": 150,
+          "horizonAngleDeg": 7.26
+        },
+        {
+          "bearingDeg": 155,
+          "horizonAngleDeg": 9.23
+        },
+        {
+          "bearingDeg": 160,
+          "horizonAngleDeg": 11.72
+        },
+        {
+          "bearingDeg": 165,
+          "horizonAngleDeg": 13.22
+        },
+        {
+          "bearingDeg": 170,
+          "horizonAngleDeg": 19.92
+        },
+        {
+          "bearingDeg": 175,
+          "horizonAngleDeg": 24.3
+        },
+        {
+          "bearingDeg": 180,
+          "horizonAngleDeg": 26.14
+        },
+        {
+          "bearingDeg": 185,
+          "horizonAngleDeg": 23.78
+        },
+        {
+          "bearingDeg": 190,
+          "horizonAngleDeg": 20.13
+        },
+        {
+          "bearingDeg": 195,
+          "horizonAngleDeg": 18.52
+        },
+        {
+          "bearingDeg": 200,
+          "horizonAngleDeg": 17.09
+        },
+        {
+          "bearingDeg": 205,
+          "horizonAngleDeg": 15.91
+        },
+        {
+          "bearingDeg": 210,
+          "horizonAngleDeg": 13.76
+        },
+        {
+          "bearingDeg": 215,
+          "horizonAngleDeg": 11.31
+        },
+        {
+          "bearingDeg": 220,
+          "horizonAngleDeg": 8.81
+        },
+        {
+          "bearingDeg": 225,
+          "horizonAngleDeg": 8.32
+        },
+        {
+          "bearingDeg": 230,
+          "horizonAngleDeg": 5.42
+        },
+        {
+          "bearingDeg": 235,
+          "horizonAngleDeg": 8.06
+        },
+        {
+          "bearingDeg": 240,
+          "horizonAngleDeg": 13.58
+        },
+        {
+          "bearingDeg": 245,
+          "horizonAngleDeg": 12.49
+        },
+        {
+          "bearingDeg": 250,
+          "horizonAngleDeg": 4.9
+        },
+        {
+          "bearingDeg": 255,
+          "horizonAngleDeg": 2.29
+        },
+        {
+          "bearingDeg": 260,
+          "horizonAngleDeg": 2.29
+        },
+        {
+          "bearingDeg": 265,
+          "horizonAngleDeg": 2.15
+        },
+        {
+          "bearingDeg": 270,
+          "horizonAngleDeg": 2
+        },
+        {
+          "bearingDeg": 275,
+          "horizonAngleDeg": 1.43
+        },
+        {
+          "bearingDeg": 280,
+          "horizonAngleDeg": 0.57
+        },
+        {
+          "bearingDeg": 285,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 290,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 295,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 300,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 305,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 310,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 315,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 320,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 325,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 330,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 335,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 340,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 345,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 350,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 355,
+          "horizonAngleDeg": 0
+        }
+      ]
+    },
+    "turtle-canyon": {
+      "lat": 21.274238,
+      "lon": -157.839264,
+      "profile": [
+        {
+          "bearingDeg": 0,
+          "horizonAngleDeg": 0.89
+        },
+        {
+          "bearingDeg": 5,
+          "horizonAngleDeg": 1.02
+        },
+        {
+          "bearingDeg": 10,
+          "horizonAngleDeg": 2.66
+        },
+        {
+          "bearingDeg": 15,
+          "horizonAngleDeg": 2.43
+        },
+        {
+          "bearingDeg": 20,
+          "horizonAngleDeg": 4.37
+        },
+        {
+          "bearingDeg": 25,
+          "horizonAngleDeg": 4.15
+        },
+        {
+          "bearingDeg": 30,
+          "horizonAngleDeg": 1.37
+        },
+        {
+          "bearingDeg": 35,
+          "horizonAngleDeg": 0.73
+        },
+        {
+          "bearingDeg": 40,
+          "horizonAngleDeg": 1.3
+        },
+        {
+          "bearingDeg": 45,
+          "horizonAngleDeg": 2.58
+        },
+        {
+          "bearingDeg": 50,
+          "horizonAngleDeg": 2.1
+        },
+        {
+          "bearingDeg": 55,
+          "horizonAngleDeg": 1.83
+        },
+        {
+          "bearingDeg": 60,
+          "horizonAngleDeg": 1.65
+        },
+        {
+          "bearingDeg": 65,
+          "horizonAngleDeg": 2.35
+        },
+        {
+          "bearingDeg": 70,
+          "horizonAngleDeg": 2.53
+        },
+        {
+          "bearingDeg": 75,
+          "horizonAngleDeg": 1.12
+        },
+        {
+          "bearingDeg": 80,
+          "horizonAngleDeg": 1.34
+        },
+        {
+          "bearingDeg": 85,
+          "horizonAngleDeg": 0.46
+        },
+        {
+          "bearingDeg": 90,
+          "horizonAngleDeg": 0.27
+        },
+        {
+          "bearingDeg": 95,
+          "horizonAngleDeg": 0.27
+        },
+        {
+          "bearingDeg": 100,
+          "horizonAngleDeg": 0.35
+        },
+        {
+          "bearingDeg": 105,
+          "horizonAngleDeg": 0.67
+        },
+        {
+          "bearingDeg": 110,
+          "horizonAngleDeg": 1.13
+        },
+        {
+          "bearingDeg": 115,
+          "horizonAngleDeg": 1.32
+        },
+        {
+          "bearingDeg": 120,
+          "horizonAngleDeg": 1.4
+        },
+        {
+          "bearingDeg": 125,
+          "horizonAngleDeg": 0.69
+        },
+        {
+          "bearingDeg": 130,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 135,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 140,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 145,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 150,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 155,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 160,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 165,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 170,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 175,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 180,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 185,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 190,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 195,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 200,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 205,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 210,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 215,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 220,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 225,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 230,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 235,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 240,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 245,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 250,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 255,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 260,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 265,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 270,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 275,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 280,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 285,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 290,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 295,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 300,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 305,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 310,
+          "horizonAngleDeg": 0.14
+        },
+        {
+          "bearingDeg": 315,
+          "horizonAngleDeg": 0.04
+        },
+        {
+          "bearingDeg": 320,
+          "horizonAngleDeg": 0.04
+        },
+        {
+          "bearingDeg": 325,
+          "horizonAngleDeg": 0.04
+        },
+        {
+          "bearingDeg": 330,
+          "horizonAngleDeg": 0.1
+        },
+        {
+          "bearingDeg": 335,
+          "horizonAngleDeg": 0.22
+        },
+        {
+          "bearingDeg": 340,
+          "horizonAngleDeg": 0.29
+        },
+        {
+          "bearingDeg": 345,
+          "horizonAngleDeg": 1.02
+        },
+        {
+          "bearingDeg": 350,
+          "horizonAngleDeg": 1.39
+        },
+        {
+          "bearingDeg": 355,
+          "horizonAngleDeg": 0.8
+        }
+      ]
+    },
+    "turtle-reef-turtle-bay": {
+      "lat": 21.702485,
+      "lon": -158.002095,
+      "profile": [
+        {
+          "bearingDeg": 0,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 5,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 10,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 15,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 20,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 25,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 30,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 35,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 40,
+          "horizonAngleDeg": 0.43
+        },
+        {
+          "bearingDeg": 45,
+          "horizonAngleDeg": 1.57
+        },
+        {
+          "bearingDeg": 50,
+          "horizonAngleDeg": 1.57
+        },
+        {
+          "bearingDeg": 55,
+          "horizonAngleDeg": 1.29
+        },
+        {
+          "bearingDeg": 60,
+          "horizonAngleDeg": 1.14
+        },
+        {
+          "bearingDeg": 65,
+          "horizonAngleDeg": 1.14
+        },
+        {
+          "bearingDeg": 70,
+          "horizonAngleDeg": 1.14
+        },
+        {
+          "bearingDeg": 75,
+          "horizonAngleDeg": 1.29
+        },
+        {
+          "bearingDeg": 80,
+          "horizonAngleDeg": 1.43
+        },
+        {
+          "bearingDeg": 85,
+          "horizonAngleDeg": 1.29
+        },
+        {
+          "bearingDeg": 90,
+          "horizonAngleDeg": 1.14
+        },
+        {
+          "bearingDeg": 95,
+          "horizonAngleDeg": 1
+        },
+        {
+          "bearingDeg": 100,
+          "horizonAngleDeg": 1.14
+        },
+        {
+          "bearingDeg": 105,
+          "horizonAngleDeg": 1.29
+        },
+        {
+          "bearingDeg": 110,
+          "horizonAngleDeg": 1.43
+        },
+        {
+          "bearingDeg": 115,
+          "horizonAngleDeg": 1.86
+        },
+        {
+          "bearingDeg": 120,
+          "horizonAngleDeg": 2.15
+        },
+        {
+          "bearingDeg": 125,
+          "horizonAngleDeg": 2
+        },
+        {
+          "bearingDeg": 130,
+          "horizonAngleDeg": 1.57
+        },
+        {
+          "bearingDeg": 135,
+          "horizonAngleDeg": 1.46
+        },
+        {
+          "bearingDeg": 140,
+          "horizonAngleDeg": 1.74
+        },
+        {
+          "bearingDeg": 145,
+          "horizonAngleDeg": 2.18
+        },
+        {
+          "bearingDeg": 150,
+          "horizonAngleDeg": 2.26
+        },
+        {
+          "bearingDeg": 155,
+          "horizonAngleDeg": 2.16
+        },
+        {
+          "bearingDeg": 160,
+          "horizonAngleDeg": 2.46
+        },
+        {
+          "bearingDeg": 165,
+          "horizonAngleDeg": 3.2
+        },
+        {
+          "bearingDeg": 170,
+          "horizonAngleDeg": 3.69
+        },
+        {
+          "bearingDeg": 175,
+          "horizonAngleDeg": 3.34
+        },
+        {
+          "bearingDeg": 180,
+          "horizonAngleDeg": 3.63
+        },
+        {
+          "bearingDeg": 185,
+          "horizonAngleDeg": 3.84
+        },
+        {
+          "bearingDeg": 190,
+          "horizonAngleDeg": 4.07
+        },
+        {
+          "bearingDeg": 195,
+          "horizonAngleDeg": 3.44
+        },
+        {
+          "bearingDeg": 200,
+          "horizonAngleDeg": 3.46
+        },
+        {
+          "bearingDeg": 205,
+          "horizonAngleDeg": 3.1
+        },
+        {
+          "bearingDeg": 210,
+          "horizonAngleDeg": 2.77
+        },
+        {
+          "bearingDeg": 215,
+          "horizonAngleDeg": 3.04
+        },
+        {
+          "bearingDeg": 220,
+          "horizonAngleDeg": 2.98
+        },
+        {
+          "bearingDeg": 225,
+          "horizonAngleDeg": 2.6
+        },
+        {
+          "bearingDeg": 230,
+          "horizonAngleDeg": 0.9
+        },
+        {
+          "bearingDeg": 235,
+          "horizonAngleDeg": 0.43
+        },
+        {
+          "bearingDeg": 240,
+          "horizonAngleDeg": 0.28
+        },
+        {
+          "bearingDeg": 245,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 250,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 255,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 260,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 265,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 270,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 275,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 280,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 285,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 290,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 295,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 300,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 305,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 310,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 315,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 320,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 325,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 330,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 335,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 340,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 345,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 350,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 355,
+          "horizonAngleDeg": 0
+        }
+      ]
+    },
+    "wailea-point-ulua-beach": {
+      "lat": 20.683277,
+      "lon": -156.444016,
+      "profile": [
+        {
+          "bearingDeg": 0,
+          "horizonAngleDeg": 1.29
+        },
+        {
+          "bearingDeg": 5,
+          "horizonAngleDeg": 1.86
+        },
+        {
+          "bearingDeg": 10,
+          "horizonAngleDeg": 2.15
+        },
+        {
+          "bearingDeg": 15,
+          "horizonAngleDeg": 2.57
+        },
+        {
+          "bearingDeg": 20,
+          "horizonAngleDeg": 2.43
+        },
+        {
+          "bearingDeg": 25,
+          "horizonAngleDeg": 2.29
+        },
+        {
+          "bearingDeg": 30,
+          "horizonAngleDeg": 2.29
+        },
+        {
+          "bearingDeg": 35,
+          "horizonAngleDeg": 2.57
+        },
+        {
+          "bearingDeg": 40,
+          "horizonAngleDeg": 2.66
+        },
+        {
+          "bearingDeg": 45,
+          "horizonAngleDeg": 2.96
+        },
+        {
+          "bearingDeg": 50,
+          "horizonAngleDeg": 3.31
+        },
+        {
+          "bearingDeg": 55,
+          "horizonAngleDeg": 3.72
+        },
+        {
+          "bearingDeg": 60,
+          "horizonAngleDeg": 3.91
+        },
+        {
+          "bearingDeg": 65,
+          "horizonAngleDeg": 4.27
+        },
+        {
+          "bearingDeg": 70,
+          "horizonAngleDeg": 4.81
+        },
+        {
+          "bearingDeg": 75,
+          "horizonAngleDeg": 5.29
+        },
+        {
+          "bearingDeg": 80,
+          "horizonAngleDeg": 5.82
+        },
+        {
+          "bearingDeg": 85,
+          "horizonAngleDeg": 6.24
+        },
+        {
+          "bearingDeg": 90,
+          "horizonAngleDeg": 6.72
+        },
+        {
+          "bearingDeg": 95,
+          "horizonAngleDeg": 7.03
+        },
+        {
+          "bearingDeg": 100,
+          "horizonAngleDeg": 7.35
+        },
+        {
+          "bearingDeg": 105,
+          "horizonAngleDeg": 7.45
+        },
+        {
+          "bearingDeg": 110,
+          "horizonAngleDeg": 7.15
+        },
+        {
+          "bearingDeg": 115,
+          "horizonAngleDeg": 6.9
+        },
+        {
+          "bearingDeg": 120,
+          "horizonAngleDeg": 6.85
+        },
+        {
+          "bearingDeg": 125,
+          "horizonAngleDeg": 6.46
+        },
+        {
+          "bearingDeg": 130,
+          "horizonAngleDeg": 5.06
+        },
+        {
+          "bearingDeg": 135,
+          "horizonAngleDeg": 4.67
+        },
+        {
+          "bearingDeg": 140,
+          "horizonAngleDeg": 3.82
+        },
+        {
+          "bearingDeg": 145,
+          "horizonAngleDeg": 3.15
+        },
+        {
+          "bearingDeg": 150,
+          "horizonAngleDeg": 2.86
+        },
+        {
+          "bearingDeg": 155,
+          "horizonAngleDeg": 2.86
+        },
+        {
+          "bearingDeg": 160,
+          "horizonAngleDeg": 2.43
+        },
+        {
+          "bearingDeg": 165,
+          "horizonAngleDeg": 2.15
+        },
+        {
+          "bearingDeg": 170,
+          "horizonAngleDeg": 1.86
+        },
+        {
+          "bearingDeg": 175,
+          "horizonAngleDeg": 1.86
+        },
+        {
+          "bearingDeg": 180,
+          "horizonAngleDeg": 1.57
+        },
+        {
+          "bearingDeg": 185,
+          "horizonAngleDeg": 1.29
+        },
+        {
+          "bearingDeg": 190,
+          "horizonAngleDeg": 0.57
+        },
+        {
+          "bearingDeg": 195,
+          "horizonAngleDeg": 0.14
+        },
+        {
+          "bearingDeg": 200,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 205,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 210,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 215,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 220,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 225,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 230,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 235,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 240,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 245,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 250,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 255,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 260,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 265,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 270,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 275,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 280,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 285,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 290,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 295,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 300,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 305,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 310,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 315,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 320,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 325,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 330,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 335,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 340,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 345,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 350,
+          "horizonAngleDeg": 0.14
+        },
+        {
+          "bearingDeg": 355,
+          "horizonAngleDeg": 0.43
+        }
+      ]
+    },
+    "waimea-bay": {
+      "lat": 21.64139,
+      "lon": -158.066588,
+      "profile": [
+        {
+          "bearingDeg": 0,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 5,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 10,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 15,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 20,
+          "horizonAngleDeg": 0.33
+        },
+        {
+          "bearingDeg": 25,
+          "horizonAngleDeg": 0.47
+        },
+        {
+          "bearingDeg": 30,
+          "horizonAngleDeg": 0.86
+        },
+        {
+          "bearingDeg": 35,
+          "horizonAngleDeg": 1.43
+        },
+        {
+          "bearingDeg": 40,
+          "horizonAngleDeg": 3.05
+        },
+        {
+          "bearingDeg": 45,
+          "horizonAngleDeg": 4.33
+        },
+        {
+          "bearingDeg": 50,
+          "horizonAngleDeg": 4.71
+        },
+        {
+          "bearingDeg": 55,
+          "horizonAngleDeg": 5.37
+        },
+        {
+          "bearingDeg": 60,
+          "horizonAngleDeg": 5.61
+        },
+        {
+          "bearingDeg": 65,
+          "horizonAngleDeg": 5.89
+        },
+        {
+          "bearingDeg": 70,
+          "horizonAngleDeg": 6.04
+        },
+        {
+          "bearingDeg": 75,
+          "horizonAngleDeg": 6.18
+        },
+        {
+          "bearingDeg": 80,
+          "horizonAngleDeg": 5.94
+        },
+        {
+          "bearingDeg": 85,
+          "horizonAngleDeg": 5.42
+        },
+        {
+          "bearingDeg": 90,
+          "horizonAngleDeg": 5.28
+        },
+        {
+          "bearingDeg": 95,
+          "horizonAngleDeg": 5.89
+        },
+        {
+          "bearingDeg": 100,
+          "horizonAngleDeg": 6.37
+        },
+        {
+          "bearingDeg": 105,
+          "horizonAngleDeg": 6.13
+        },
+        {
+          "bearingDeg": 110,
+          "horizonAngleDeg": 3.38
+        },
+        {
+          "bearingDeg": 115,
+          "horizonAngleDeg": 2.32
+        },
+        {
+          "bearingDeg": 120,
+          "horizonAngleDeg": 3.48
+        },
+        {
+          "bearingDeg": 125,
+          "horizonAngleDeg": 5.04
+        },
+        {
+          "bearingDeg": 130,
+          "horizonAngleDeg": 4.66
+        },
+        {
+          "bearingDeg": 135,
+          "horizonAngleDeg": 4.71
+        },
+        {
+          "bearingDeg": 140,
+          "horizonAngleDeg": 5.42
+        },
+        {
+          "bearingDeg": 145,
+          "horizonAngleDeg": 5.37
+        },
+        {
+          "bearingDeg": 150,
+          "horizonAngleDeg": 5.14
+        },
+        {
+          "bearingDeg": 155,
+          "horizonAngleDeg": 4.81
+        },
+        {
+          "bearingDeg": 160,
+          "horizonAngleDeg": 4.71
+        },
+        {
+          "bearingDeg": 165,
+          "horizonAngleDeg": 4.71
+        },
+        {
+          "bearingDeg": 170,
+          "horizonAngleDeg": 4.57
+        },
+        {
+          "bearingDeg": 175,
+          "horizonAngleDeg": 4.52
+        },
+        {
+          "bearingDeg": 180,
+          "horizonAngleDeg": 4.28
+        },
+        {
+          "bearingDeg": 185,
+          "horizonAngleDeg": 3.9
+        },
+        {
+          "bearingDeg": 190,
+          "horizonAngleDeg": 2.38
+        },
+        {
+          "bearingDeg": 195,
+          "horizonAngleDeg": 1.74
+        },
+        {
+          "bearingDeg": 200,
+          "horizonAngleDeg": 1.28
+        },
+        {
+          "bearingDeg": 205,
+          "horizonAngleDeg": 0.86
+        },
+        {
+          "bearingDeg": 210,
+          "horizonAngleDeg": 0.69
+        },
+        {
+          "bearingDeg": 215,
+          "horizonAngleDeg": 0.86
+        },
+        {
+          "bearingDeg": 220,
+          "horizonAngleDeg": 0.71
+        },
+        {
+          "bearingDeg": 225,
+          "horizonAngleDeg": 0.57
+        },
+        {
+          "bearingDeg": 230,
+          "horizonAngleDeg": 0.43
+        },
+        {
+          "bearingDeg": 235,
+          "horizonAngleDeg": 0.28
+        },
+        {
+          "bearingDeg": 240,
+          "horizonAngleDeg": 0.14
+        },
+        {
+          "bearingDeg": 245,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 250,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 255,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 260,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 265,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 270,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 275,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 280,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 285,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 290,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 295,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 300,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 305,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 310,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 315,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 320,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 325,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 330,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 335,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 340,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 345,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 350,
+          "horizonAngleDeg": 0
+        },
+        {
+          "bearingDeg": 355,
+          "horizonAngleDeg": 0
+        }
+      ]
+    }
+  },
+  "generatedAt": "2026-05-10T11:51:54.493Z"
+}
