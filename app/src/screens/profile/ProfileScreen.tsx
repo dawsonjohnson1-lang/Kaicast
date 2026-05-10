@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { useNavigation, CompositeNavigationProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -18,6 +18,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useProfilePhoto } from '@/hooks/useProfilePhoto';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { useUserDiveLogs, diveLogToReport } from '@/hooks/useDiveLogs';
+import { useSpots } from '@/hooks/useSpots';
 import { diveReports, favoriteSpots } from '@/api/mockData';
 import type { RootStackParamList, TabParamList } from '@/navigation/types';
 
@@ -37,13 +38,34 @@ export function ProfileScreen() {
   const { user, signOut } = useAuth();
   const { profile } = useUserProfile(user?.id);
   const { logs: userLogs } = useUserDiveLogs(user?.id);
+  const { spots } = useSpots();
   const fallbackPhoto = useProfilePhoto();
-  // Adapt the live dive logs into the DiveReport shape that
-  // <DiveReportCard /> consumes. Falls back to the mock list if the
-  // user hasn't logged anything yet so the screen never looks empty.
+  // Resolve spot ids → human names so log cards show "Electric Beach"
+  // not "electric-beach". Custom spots already carry their own name
+  // inline on the log; this lookup only matters for known spot ids.
+  const spotsById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const s of spots) m.set(s.id, s.name);
+    return m;
+  }, [spots]);
+
+  const authorName = profile?.name ?? user?.name ?? 'You';
   const userReports = userLogs.length
-    ? userLogs.map((l) => diveLogToReport(l, profile?.name ?? user?.name ?? 'You', l.spotId))
+    ? userLogs.map((l) =>
+        diveLogToReport(l, authorName, spotsById.get(l.spotId) ?? l.spotId),
+      )
     : diveReports;
+
+  // Live profile stats from the user's logs. When they have none yet
+  // we show the mock-derived totals so the cards aren't all "0".
+  const statsLive = userLogs.length > 0;
+  const maxDepthFt = statsLive
+    ? Math.max(...userLogs.map((l) => l.depthFt ?? 0))
+    : 65;
+  const uniqueSpots = statsLive
+    ? new Set(userLogs.map((l) => l.spotId)).size
+    : 6;
+  const totalLogs = statsLive ? userLogs.length : 25;
   const [tab, setTab] = useState<Tab>('Dashboard');
 
   // Prefer the live profile doc when present; fall back to the auth
@@ -104,9 +126,9 @@ export function ProfileScreen() {
       {tab === 'Dashboard' && (
         <View style={{ marginTop: spacing.xl, gap: spacing.xl }}>
           <View style={styles.tileGrid}>
-            <StatTile value="65" unit="ft" label="MAX DEPTH REPORTED"   borderColor={colors.excellent} />
-            <StatTile value="6"  unit=""   label="DIFFERENT SPOTS DIVED" borderColor={colors.accent} />
-            <StatTile value="25" unit=""   label="LOGGED DIVES"          borderColor={colors.scuba} />
+            <StatTile value={String(maxDepthFt)}  unit="ft" label="MAX DEPTH REPORTED"    borderColor={colors.excellent} />
+            <StatTile value={String(uniqueSpots)} unit=""   label="DIFFERENT SPOTS DIVED" borderColor={colors.accent} />
+            <StatTile value={String(totalLogs)}   unit=""   label="LOGGED DIVES"          borderColor={colors.scuba} />
           </View>
 
           <View>
