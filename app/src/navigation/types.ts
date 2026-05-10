@@ -3,8 +3,6 @@ import type { CompositeNavigationProp } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 
 export type AuthStackParamList = {
-  Loading: undefined;
-  Welcome: undefined;
   Login: undefined;
   CreateAccount: undefined;
   CreateAccountStep1: undefined;

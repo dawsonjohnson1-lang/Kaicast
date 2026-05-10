@@ -10,7 +10,6 @@ import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { Card } from '@/components/Card';
 import { Icon } from '@/components/Icon';
-import { AuthHero } from '@/components/AuthHero';
 import { colors, spacing, typography } from '@/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { friendlyAuthError } from '@/utils/authErrors';
@@ -52,7 +51,6 @@ export function LoginScreen() {
 
   return (
     <Screen contentStyle={{ paddingTop: 0 }} bg={colors.bg}>
-      <AuthHero height={360} />
       <Header onBack={() => nav.goBack()} transparent />
       <View style={styles.logo}>
         <Logo size={40} showWordmark />

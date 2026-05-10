@@ -1,9 +1,15 @@
-import React from 'react';
-import { Platform, View, Text, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import { Platform, View, Text, Image, Pressable, StyleSheet } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
 
 import { colors, spacing } from '@/theme';
+import { satelliteUrl, projectLatLonToImage, fitPointsToViewport } from '@/api/satellite';
 import type { Spot } from '@/types';
+
+// Bottom sheet on Explore opens to 55% by default — the static map
+// auto-fits spots into the top 45% so the cluster doesn't end up
+// hidden behind the sheet.
+const SHEET_COVER_FRAC = 0.55;
 
 // Lazy require @rnmapbox/maps so a top-level import doesn't crash on
 // bundle load in Expo Go (its native bridge throws "@rnmapbox/maps native
@@ -46,7 +52,7 @@ type SpotMapProps = {
 };
 
 export function SpotMap({ spots, onSpotPress }: SpotMapProps) {
-  if (!useMapbox) return <FauxMap />;
+  if (!useMapbox) return <FauxMap spots={spots} onSpotPress={onSpotPress} />;
 
   return (
     <MapView
@@ -74,9 +80,81 @@ export function SpotMap({ spots, onSpotPress }: SpotMapProps) {
   );
 }
 
-export function FauxMap() {
+type FauxMapProps = {
+  spots?: Spot[];
+  onSpotPress?: (spot: Spot) => void;
+};
+
+// Static satellite via ESRI World Imagery with absolute-positioned
+// pins. Not interactive (no pan/zoom) — Mapbox only loads in a custom
+// dev client. The viewport is auto-fit to the spots so the cluster
+// always lands in the top portion of the screen, above the bottom
+// sheet that covers the lower half.
+export function FauxMap({ spots = [], onSpotPress }: FauxMapProps) {
+  const [size, setSize] = useState<{ w: number; h: number } | null>(null);
+
+  const viewport = size
+    ? fitPointsToViewport(
+        spots.map((s) => ({ lat: s.lat, lon: s.lon })),
+        size.w,
+        size.h,
+        SHEET_COVER_FRAC,
+      )
+    : null;
+
+  const tileUri =
+    size && viewport
+      ? satelliteUrl(viewport.centerLat, viewport.centerLon, size.w, size.h, viewport.zoom)
+      : null;
+
   return (
-    <View style={mapStyles.wrap}>
+    <View
+      style={mapStyles.wrap}
+      onLayout={(e) => {
+        const { width, height } = e.nativeEvent.layout;
+        setSize({ w: Math.round(width), h: Math.round(height) });
+      }}
+    >
+      {tileUri && viewport ? (
+        <>
+          <Image source={{ uri: tileUri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(4,17,30,0.18)' }]} />
+          {size &&
+            spots.map((s) => {
+              const { x, y } = projectLatLonToImage(
+                s.lat,
+                s.lon,
+                viewport.centerLat,
+                viewport.centerLon,
+                viewport.zoom,
+                size.w,
+                size.h,
+              );
+              if (x < -20 || y < -20 || x > size.w + 20 || y > size.h + 20) return null;
+              return (
+                <Pressable
+                  key={s.id}
+                  onPress={() => onSpotPress?.(s)}
+                  hitSlop={10}
+                  style={[pinStyles.outer, { position: 'absolute', left: x - 7, top: y - 7 }]}
+                >
+                  <View style={pinStyles.inner} />
+                </Pressable>
+              );
+            })}
+        </>
+      ) : (
+        <SvgFallback />
+      )}
+    </View>
+  );
+}
+
+// Final fallback: rendered before `onLayout` fires (size still null) or
+// if `satelliteUrl` ever returns null. Same SVG sketch as before.
+function SvgFallback() {
+  return (
+    <>
       <Svg width="100%" height="100%" viewBox="0 0 400 380">
         {Array.from({ length: 8 }).map((_, i) => (
           <Path
@@ -102,7 +180,7 @@ export function FauxMap() {
       <Text style={mapStyles.island4}>Lana'i</Text>
       <Text style={mapStyles.island5}>Maui</Text>
       <Text style={mapStyles.maps}>Maps · Legal</Text>
-    </View>
+    </>
   );
 }
 

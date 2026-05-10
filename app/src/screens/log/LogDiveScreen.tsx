@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, Pressable } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { View, Text, StyleSheet, TextInput, Pressable, LayoutAnimation, Platform, UIManager } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 
 import { Screen } from '@/components/Screen';
@@ -12,12 +12,179 @@ import { Card } from '@/components/Card';
 import { Icon } from '@/components/Icon';
 import { AuthHero } from '@/components/AuthHero';
 import { SpotPicker, type PickedSpot } from '@/components/SpotPicker';
-import { colors, radius, spacing, typography } from '@/theme';
 import { useAuth } from '@/hooks/useAuth';
+import { useUserDiveLogs } from '@/hooks/useDiveLogs';
 import { submitDiveLog } from '@/api/diveLogs';
 import { fetchSpotReport } from '@/api/kaicast';
+import { colors, radius, spacing, typography } from '@/theme';
+import {
+  calcAirConsumed,
+  calcSAC,
+  calcSurfaceInterval,
+  formatSurfaceInterval,
+  ftToM,
+  mToFt,
+  fToC,
+  cToF,
+  psiToBar,
+  barToPsi,
+  lbsToKg,
+  kgToLbs,
+  cuftToL,
+  lToCuft,
+} from '@/utils/diveCalculations';
 import type { DiveType } from '@/types';
 import type { RootNav } from '@/navigation/types';
+
+// Enable LayoutAnimation on Android (no-op on iOS).
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+// Step-3 conditions enums — used for diver-reported ground-truth
+// against KaiCast predictions.
+type SurfaceState = 'glassy' | 'light_chop' | 'whitecaps' | 'breaking';
+type CurrentStrength = 'none' | 'light' | 'moderate' | 'strong';
+type CurrentDirection = 'with_shore' | 'against' | 'parallel' | 'variable' | 'reversing';
+type WaterColor = 'blue' | 'green' | 'brown' | 'silty';
+type Particulate = 'clean' | 'some' | 'heavy';
+type SurgeAtDepth = 'none' | 'mild' | 'strong';
+type MarineLifeActivity = 'low' | 'normal' | 'high';
+type OverallRating = 'poor' | 'fair' | 'good' | 'excellent';
+type ForecastAccuracy = 'much_worse' | 'worse' | 'as_predicted' | 'better' | 'much_better';
+
+const SURFACE_STATES: { id: SurfaceState; label: string }[] = [
+  { id: 'glassy', label: 'Glassy' },
+  { id: 'light_chop', label: 'Light chop' },
+  { id: 'whitecaps', label: 'Whitecaps' },
+  { id: 'breaking', label: 'Breaking' },
+];
+const CURRENT_STRENGTHS: { id: CurrentStrength; label: string }[] = [
+  { id: 'none', label: 'None' },
+  { id: 'light', label: 'Light' },
+  { id: 'moderate', label: 'Moderate' },
+  { id: 'strong', label: 'Strong' },
+];
+const CURRENT_DIRECTIONS: { id: CurrentDirection; label: string }[] = [
+  { id: 'with_shore', label: 'With shore' },
+  { id: 'against', label: 'Against' },
+  { id: 'parallel', label: 'Parallel' },
+  { id: 'variable', label: 'Variable' },
+  { id: 'reversing', label: 'Reversing' },
+];
+const WATER_COLORS: { id: WaterColor; label: string }[] = [
+  { id: 'blue', label: 'Blue' },
+  { id: 'green', label: 'Green' },
+  { id: 'brown', label: 'Brown' },
+  { id: 'silty', label: 'Silty' },
+];
+const PARTICULATES: { id: Particulate; label: string }[] = [
+  { id: 'clean', label: 'Clean' },
+  { id: 'some', label: 'Some particles' },
+  { id: 'heavy', label: 'Heavy' },
+];
+const SURGES: { id: SurgeAtDepth; label: string }[] = [
+  { id: 'none', label: 'None' },
+  { id: 'mild', label: 'Mild' },
+  { id: 'strong', label: 'Strong' },
+];
+const MARINE_LIFE: { id: MarineLifeActivity; label: string }[] = [
+  { id: 'low', label: 'Low' },
+  { id: 'normal', label: 'Normal' },
+  { id: 'high', label: 'High' },
+];
+const OVERALL_RATINGS: { id: OverallRating; label: string }[] = [
+  { id: 'poor', label: 'Poor' },
+  { id: 'fair', label: 'Fair' },
+  { id: 'good', label: 'Good' },
+  { id: 'excellent', label: 'Excellent' },
+];
+const FORECAST_ACCURACIES: { id: ForecastAccuracy; label: string }[] = [
+  { id: 'much_worse', label: 'Much worse' },
+  { id: 'worse', label: 'Worse' },
+  { id: 'as_predicted', label: 'As predicted' },
+  { id: 'better', label: 'Better' },
+  { id: 'much_better', label: 'Much better' },
+];
+
+type Hazard = 'jellyfish' | 'rip_current' | 'boat_traffic' | 'discharge_plume' | 'wildlife' | 'gear_failure' | 'other';
+const HAZARDS: { id: Hazard; label: string }[] = [
+  { id: 'jellyfish', label: 'Jellyfish' },
+  { id: 'rip_current', label: 'Rip current' },
+  { id: 'boat_traffic', label: 'Boat traffic' },
+  { id: 'discharge_plume', label: 'Discharge plume' },
+  { id: 'wildlife', label: 'Wildlife concern' },
+  { id: 'gear_failure', label: 'Gear failure' },
+  { id: 'other', label: 'Other' },
+];
+
+type ScubaSubType = 'shore' | 'boat' | 'drift' | 'night' | 'wreck' | 'cave' | 'training';
+type EntryType = 'giant_stride' | 'back_roll' | 'shore';
+type GasMix = 'air' | 'eanx' | 'trimix';
+type SuitType = 'wetsuit' | 'drysuit' | 'skin';
+type WetsuitThickness = '3mm' | '5mm' | '7mm';
+type TankUnit = 'cuft' | 'liters';
+type DepthUnit = 'ft' | 'm';
+type PressureUnit = 'psi' | 'bar';
+type TempUnit = 'F' | 'C';
+type WeightUnit = 'lbs' | 'kg';
+
+const SCUBA_SUB_TYPES: { id: ScubaSubType; label: string }[] = [
+  { id: 'shore', label: 'Shore' },
+  { id: 'boat', label: 'Boat' },
+  { id: 'drift', label: 'Drift' },
+  { id: 'night', label: 'Night' },
+  { id: 'wreck', label: 'Wreck' },
+  { id: 'cave', label: 'Cave' },
+  { id: 'training', label: 'Training' },
+];
+const ENTRY_TYPES: { id: EntryType; label: string }[] = [
+  { id: 'giant_stride', label: 'Giant stride' },
+  { id: 'back_roll', label: 'Back roll' },
+  { id: 'shore', label: 'Shore' },
+];
+const GAS_MIXES: { id: GasMix; label: string }[] = [
+  { id: 'air', label: 'Air' },
+  { id: 'eanx', label: 'EANx' },
+  { id: 'trimix', label: 'Trimix' },
+];
+const SUITS: { id: SuitType; label: string }[] = [
+  { id: 'wetsuit', label: 'Wetsuit' },
+  { id: 'drysuit', label: 'Drysuit' },
+  { id: 'skin', label: 'Skin' },
+];
+const TANK_UNITS: { id: TankUnit; label: string }[] = [
+  { id: 'cuft', label: 'cu ft' },
+  { id: 'liters', label: 'liters' },
+];
+const WETSUIT_THICKNESSES: { id: WetsuitThickness; label: string }[] = [
+  { id: '3mm', label: '3mm' },
+  { id: '5mm', label: '5mm' },
+  { id: '7mm', label: '7mm' },
+];
+
+// Convert a user-entered numeric string (in `unit`) to the schema base
+// unit. Returns 0 when the input isn't a number.
+function toBaseDepth(s: string, unit: DepthUnit): number {
+  const n = parseFloat(s);
+  if (!Number.isFinite(n)) return 0;
+  return unit === 'm' ? mToFt(n) : n;
+}
+function toBaseTempF(s: string, unit: TempUnit): number {
+  const n = parseFloat(s);
+  if (!Number.isFinite(n)) return 0;
+  return unit === 'C' ? cToF(n) : n;
+}
+function toBasePsi(s: string, unit: PressureUnit): number {
+  const n = parseFloat(s);
+  if (!Number.isFinite(n)) return 0;
+  return unit === 'bar' ? barToPsi(n) : n;
+}
+function toBaseLbs(s: string, unit: WeightUnit): number {
+  const n = parseFloat(s);
+  if (!Number.isFinite(n)) return 0;
+  return unit === 'kg' ? kgToLbs(n) : n;
+}
 
 type Step = 1 | 2 | 3 | 4 | 5;
 
@@ -29,15 +196,23 @@ const DIVE_TYPES: { id: DiveType; label: string }[] = [
 ];
 
 const GROUP_SIZES = ['Solo', 'With a buddy', 'Small group', 'Guide'];
-const SURFACE = ['Calm', 'Choppy', 'Rough'];
-const CURRENT = ['None', 'Light', 'Moderate', 'Strong'];
-const VIS = ['Crystal', 'Clean', 'Murky', 'Green'];
 
 export function LogDiveScreen() {
   const nav = useNavigation<RootNav>();
   const { user } = useAuth();
+  const { logs: userLogs } = useUserDiveLogs(user?.id);
   const [step, setStep] = useState<Step>(1);
   const [submitting, setSubmitting] = useState(false);
+
+  // Most recent prior log's loggedAt → drives the Surface Interval card
+  // in scuba step 2. `useUserDiveLogs` returns newest-first.
+  const previousDiveTimeOut: Date | null =
+    userLogs && userLogs.length > 0 ? userLogs[0].loggedAt ?? null : null;
+  const surfaceIntervalMin = useMemo(
+    () => calcSurfaceInterval(previousDiveTimeOut, new Date()),
+    [previousDiveTimeOut],
+  );
+  const diveNumber = (userLogs?.length ?? 0) + 1;
 
   const [type, setType] = useState<DiveType>('scuba');
   const [group, setGroup] = useState('Solo');
@@ -50,11 +225,89 @@ export function LogDiveScreen() {
   const [depth, setDepth] = useState('');
   const [weapon, setWeapon] = useState('');
 
-  const [surface, setSurface] = useState('Calm');
-  const [current, setCurrent] = useState('None');
-  const [vis, setVis] = useState('Clean');
+  // Step 3 — diver-reported conditions (validation against KaiCast).
+  // No defaults: undefined === "diver did not answer", which we want
+  // distinguished from a real answer in the analytics later.
+  const [visibilityFt, setVisibilityFt] = useState('');
+  const [surfaceState, setSurfaceState] = useState<SurfaceState | undefined>(undefined);
+  const [currentStrength, setCurrentStrength] = useState<CurrentStrength | undefined>(undefined);
+  const [currentDirection, setCurrentDirection] = useState<CurrentDirection | undefined>(undefined);
+  const [waterColor, setWaterColor] = useState<WaterColor | undefined>(undefined);
+  const [particulate, setParticulate] = useState<Particulate | undefined>(undefined);
+  const [surgeAtDepth, setSurgeAtDepth] = useState<SurgeAtDepth | undefined>(undefined);
+  const [marineLifeActivity, setMarineLifeActivity] = useState<MarineLifeActivity | undefined>(undefined);
+  const [overallRating, setOverallRating] = useState<OverallRating | undefined>(undefined);
+  const [forecastAccuracy, setForecastAccuracy] = useState<ForecastAccuracy | undefined>(undefined);
+  const [conditionsNotes, setConditionsNotes] = useState('');
+  const [hazardsExpanded, setHazardsExpanded] = useState(false);
+  const [hazards, setHazards] = useState<Hazard[]>([]);
+  const [hazardsOther, setHazardsOther] = useState('');
+  const [waterTemp, setWaterTemp] = useState('');
+
+  const toggleHazard = (h: Hazard) => {
+    setHazards((prev) => (prev.includes(h) ? prev.filter((x) => x !== h) : [...prev, h]));
+  };
 
   const [notes, setNotes] = useState('');
+
+  // ----- Scuba-only state (step 2 when type === 'scuba') ---------------
+  // All numeric inputs hold the user's entered string in the currently
+  // selected display unit. Conversion to base units (ft, psi, °F, lbs,
+  // cu ft) happens at submit time.
+  const [scubaSubType, setScubaSubType] = useState<ScubaSubType>('shore');
+  const [scubaEntry, setScubaEntry] = useState<EntryType>('giant_stride');
+  const [scubaMaxDepth, setScubaMaxDepth] = useState('');
+  const [scubaDepthUnit, setScubaDepthUnit] = useState<DepthUnit>('ft');
+  const [scubaVis, setScubaVis] = useState('');
+  const [scubaVisUnit, setScubaVisUnit] = useState<DepthUnit>('ft');
+  const [scubaTempSurface, setScubaTempSurface] = useState('');
+  const [scubaTempSurfaceUnit, setScubaTempSurfaceUnit] = useState<TempUnit>('F');
+  const [scubaTempBottom, setScubaTempBottom] = useState('');
+  const [scubaTempBottomUnit, setScubaTempBottomUnit] = useState<TempUnit>('F');
+  const [scubaGasMix, setScubaGasMix] = useState<GasMix>('air');
+  const [scubaO2, setScubaO2] = useState('');
+  const [scubaHe, setScubaHe] = useState('');
+  const [scubaStartPressure, setScubaStartPressure] = useState('');
+  const [scubaEndPressure, setScubaEndPressure] = useState('');
+  const [scubaPressureUnit, setScubaPressureUnit] = useState<PressureUnit>('psi');
+  const [scubaTankSize, setScubaTankSize] = useState('');
+  const [scubaTankUnit, setScubaTankUnit] = useState<TankUnit>('cuft');
+  const [scubaSafetyDepth, setScubaSafetyDepth] = useState('');
+  const [scubaSafetyDepthUnit, setScubaSafetyDepthUnit] = useState<DepthUnit>('ft');
+  const [scubaSafetyDuration, setScubaSafetyDuration] = useState('');
+  const [scubaWeight, setScubaWeight] = useState('');
+  const [scubaWeightUnit, setScubaWeightUnit] = useState<WeightUnit>('lbs');
+  const [scubaSuit, setScubaSuit] = useState<SuitType>('wetsuit');
+  const [scubaWetsuitThk, setScubaWetsuitThk] = useState<WetsuitThickness>('5mm');
+  const [scubaBuddy, setScubaBuddy] = useState('');
+
+  // Animate conditional reveals (O2/He, wetsuit thickness, hazards expand).
+  useEffect(() => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+  }, [scubaGasMix, scubaSuit, hazardsExpanded]);
+
+  // Live-calculated summary values for scuba step 2.
+  const scubaAirUsedPsi = useMemo(() => {
+    const s = parseFloat(scubaStartPressure);
+    const e = parseFloat(scubaEndPressure);
+    if (!Number.isFinite(s) || !Number.isFinite(e)) return null;
+    const startPsi = scubaPressureUnit === 'bar' ? s / 0.0689476 : s;
+    const endPsi = scubaPressureUnit === 'bar' ? e / 0.0689476 : e;
+    return calcAirConsumed(startPsi, endPsi);
+  }, [scubaStartPressure, scubaEndPressure, scubaPressureUnit]);
+
+  const scubaSacRate = useMemo(() => {
+    const depthBase = toBaseDepth(scubaMaxDepth, scubaDepthUnit);
+    const tankBase = scubaTankUnit === 'liters' ? lToCuft(parseFloat(scubaTankSize) || 0) : parseFloat(scubaTankSize) || 0;
+    const dur = duration ? parseInt(duration, 10) : 0;
+    if (scubaAirUsedPsi == null || !depthBase || !tankBase || dur <= 0) return null;
+    return calcSAC(scubaAirUsedPsi, tankBase, depthBase / 2, dur);
+  }, [scubaAirUsedPsi, scubaMaxDepth, scubaDepthUnit, scubaTankSize, scubaTankUnit, duration]);
+
+  // For scuba, step 3's conditions chips still apply, but we skip the
+  // standalone "water temp" question because step 2 captures it per
+  // surface/bottom.
+  const totalSteps = 4;
 
   const next = () => setStep(((step + 1) as Step));
   const back = () => (step === 1 ? nav.goBack() : setStep(((step - 1) as Step)));
@@ -79,6 +332,19 @@ export function LogDiveScreen() {
         }
       }
 
+      // For scuba, prefer the comprehensive step-2 max depth (converted
+      // to ft) over step-1's `depth`. For other activities, the latter
+      // is the only depth we collected.
+      const depthFt =
+        type === 'scuba'
+          ? toBaseDepth(scubaMaxDepth, scubaDepthUnit) || null
+          : depth
+            ? Number.parseInt(depth, 10)
+            : null;
+      const waterTempBase = type === 'scuba'
+        ? toBaseTempF(scubaTempSurface, scubaTempSurfaceUnit) || null
+        : waterTemp ? Number.parseFloat(waterTemp) : null;
+
       await submitDiveLog({
         uid: user.id,
         // For known spots, spotId matches the backend's SPOTS object so
@@ -93,14 +359,58 @@ export function LogDiveScreen() {
         diveType: type,
         groupSize: group,
         durationMin: duration ? Number.parseInt(duration, 10) : null,
-        depthFt: depth ? Number.parseInt(depth, 10) : null,
-        surface,
-        current,
-        visibility: vis,
+        depthFt,
+        // Conditions live in the new `conditions` object below.
+        // Legacy chip fields (surface/current/visibility) are no longer
+        // collected by the UI — leave them undefined.
+        waterTempF: waterTempBase,
         notes,
         privacy: 'public',
         photos: [],
         conditionsSnapshot,
+        conditions: {
+          visibilityFt: visibilityFt ? parseFloat(visibilityFt) : undefined,
+          surfaceState,
+          currentStrength,
+          currentDirection,
+          waterColor,
+          particulate,
+          surgeAtDepth,
+          marineLifeActivity,
+          overallRating,
+          forecastAccuracy,
+          notes: conditionsNotes.trim() || undefined,
+          hazards: hazards.length > 0 ? hazards : undefined,
+          hazardsOther: hazards.includes('other') && hazardsOther.trim() ? hazardsOther.trim() : undefined,
+        },
+        scuba: type === 'scuba'
+          ? {
+              diveSubType: scubaSubType,
+              entryType: scubaEntry,
+              maxDepthFt: toBaseDepth(scubaMaxDepth, scubaDepthUnit) || undefined,
+              visibilityFt: toBaseDepth(scubaVis, scubaVisUnit) || undefined,
+              waterTempSurfaceF: toBaseTempF(scubaTempSurface, scubaTempSurfaceUnit) || undefined,
+              waterTempBottomF: toBaseTempF(scubaTempBottom, scubaTempBottomUnit) || undefined,
+              gasMix: scubaGasMix,
+              o2Percent: scubaGasMix !== 'air' && scubaO2 ? Number.parseFloat(scubaO2) : undefined,
+              hePercent: scubaGasMix === 'trimix' && scubaHe ? Number.parseFloat(scubaHe) : undefined,
+              tankStartPsi: toBasePsi(scubaStartPressure, scubaPressureUnit) || undefined,
+              tankEndPsi: toBasePsi(scubaEndPressure, scubaPressureUnit) || undefined,
+              tankSizeCuft: scubaTankSize
+                ? scubaTankUnit === 'liters'
+                  ? lToCuft(parseFloat(scubaTankSize))
+                  : parseFloat(scubaTankSize)
+                : undefined,
+              safetyStopDepthFt: toBaseDepth(scubaSafetyDepth, scubaSafetyDepthUnit) || undefined,
+              safetyStopMin: scubaSafetyDuration ? parseFloat(scubaSafetyDuration) : undefined,
+              weightLbs: toBaseLbs(scubaWeight, scubaWeightUnit) || undefined,
+              suitType: scubaSuit,
+              wetsuitThickness: scubaSuit === 'wetsuit' ? scubaWetsuitThk : undefined,
+              buddyName: scubaBuddy.trim() || undefined,
+              airUsedPsi: scubaAirUsedPsi ?? undefined,
+              sacRate: scubaSacRate ?? undefined,
+            }
+          : undefined,
       });
       setStep(5);
     } catch (err) {
@@ -169,27 +479,19 @@ export function LogDiveScreen() {
         </View>
       )}
 
-      {step === 2 && (
+      {step === 2 && type !== 'scuba' && (
         <View>
           <Text style={[typography.h1, styles.titleSm]}>{labelForType(type)}</Text>
           <Text style={styles.sub}>Step 2 of 4 — activity-specific details</Text>
 
           <View style={{ height: spacing.xl }} />
           <Input label="Max depth (ft)" placeholder="40" keyboardType="number-pad" value={depth} onChangeText={setDepth} />
-          {(type === 'spear') && (
+          {type === 'spear' && (
             <>
               <View style={{ height: spacing.lg }} />
               <Input label="Weapon" placeholder="Speargun (band)" value={weapon} onChangeText={setWeapon} />
               <View style={{ height: spacing.lg }} />
               <Input label="Catch" placeholder="2 × Uku (4 lb, 3 lb)" />
-            </>
-          )}
-          {type === 'scuba' && (
-            <>
-              <View style={{ height: spacing.lg }} />
-              <Input label="Tank" placeholder="Aluminum 80, Nitrox 32%" />
-              <View style={{ height: spacing.lg }} />
-              <Input label="Bottom time (min)" placeholder="45" keyboardType="number-pad" />
             </>
           )}
           {type === 'freedive' && (
@@ -209,28 +511,300 @@ export function LogDiveScreen() {
         </View>
       )}
 
+      {step === 2 && type === 'scuba' && (
+        <View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+            <View style={styles.divePill}>
+              <Text style={styles.divePillText}>#{diveNumber}</Text>
+            </View>
+            <Text style={[typography.h1, styles.titleSm]}>Scuba details</Text>
+          </View>
+          <Text style={styles.sub}>Step 2 of 4 — comprehensive log</Text>
+
+          {/* Auto-calculated summary (2x2) */}
+          <View style={styles.summaryGrid}>
+            <CalcCard label="Duration" value={duration ? duration : '—'} unit="min" />
+            <CalcCard label="Air Used" value={scubaAirUsedPsi != null ? String(Math.round(scubaAirUsedPsi)) : '—'} unit="psi" />
+            <CalcCard label="SAC Rate" value={scubaSacRate != null ? scubaSacRate.toFixed(2) : '—'} unit="ft³/min" />
+            <CalcCard label="Surf. Interval" value={formatSurfaceInterval(surfaceIntervalMin)} unit="" />
+          </View>
+
+          <SectionLabel>Dive Info</SectionLabel>
+          <Text style={styles.label}>Dive Type</Text>
+          <View style={styles.chipRow}>
+            {SCUBA_SUB_TYPES.map((d) => (
+              <ChoiceChip key={d.id} label={d.label} selected={scubaSubType === d.id} onPress={() => setScubaSubType(d.id)} />
+            ))}
+          </View>
+          <Text style={[styles.label, { marginTop: spacing.lg }]}>Entry Type</Text>
+          <View style={styles.chipRow}>
+            {ENTRY_TYPES.map((e) => (
+              <ChoiceChip key={e.id} label={e.label} selected={scubaEntry === e.id} onPress={() => setScubaEntry(e.id)} />
+            ))}
+          </View>
+
+          <SectionLabel>Depth & Conditions</SectionLabel>
+          <NumberWithUnit
+            label="Max Depth"
+            value={scubaMaxDepth}
+            onChange={setScubaMaxDepth}
+            unit={scubaDepthUnit}
+            onUnitChange={(u) => setScubaDepthUnit(u as DepthUnit)}
+            options={['ft', 'm']}
+            placeholder="40"
+          />
+          <NumberWithUnit
+            label="Visibility"
+            value={scubaVis}
+            onChange={setScubaVis}
+            unit={scubaVisUnit}
+            onUnitChange={(u) => setScubaVisUnit(u as DepthUnit)}
+            options={['ft', 'm']}
+            placeholder="50"
+          />
+          <NumberWithUnit
+            label="Water Temp Surface"
+            value={scubaTempSurface}
+            onChange={setScubaTempSurface}
+            unit={scubaTempSurfaceUnit}
+            onUnitChange={(u) => setScubaTempSurfaceUnit(u as TempUnit)}
+            options={['F', 'C']}
+            placeholder="79"
+          />
+          <NumberWithUnit
+            label="Water Temp Bottom"
+            value={scubaTempBottom}
+            onChange={setScubaTempBottom}
+            unit={scubaTempBottomUnit}
+            onUnitChange={(u) => setScubaTempBottomUnit(u as TempUnit)}
+            options={['F', 'C']}
+            placeholder="74"
+          />
+
+          <SectionLabel>Tank & Gas</SectionLabel>
+          <Text style={styles.label}>Gas Mix</Text>
+          <View style={styles.chipRow}>
+            {GAS_MIXES.map((g) => (
+              <ChoiceChip key={g.id} label={g.label} selected={scubaGasMix === g.id} onPress={() => setScubaGasMix(g.id)} />
+            ))}
+          </View>
+          {scubaGasMix !== 'air' && (
+            <View style={{ marginTop: spacing.lg }}>
+              <Input label="O₂ %" placeholder="32" keyboardType="numeric" value={scubaO2} onChangeText={setScubaO2} />
+            </View>
+          )}
+          {scubaGasMix === 'trimix' && (
+            <View style={{ marginTop: spacing.lg }}>
+              <Input label="He %" placeholder="20" keyboardType="numeric" value={scubaHe} onChangeText={setScubaHe} />
+            </View>
+          )}
+          <NumberWithUnit
+            label="Start Pressure"
+            value={scubaStartPressure}
+            onChange={setScubaStartPressure}
+            unit={scubaPressureUnit}
+            onUnitChange={(u) => setScubaPressureUnit(u as PressureUnit)}
+            options={['psi', 'bar']}
+            placeholder="3000"
+          />
+          <NumberWithUnit
+            label="End Pressure"
+            value={scubaEndPressure}
+            onChange={setScubaEndPressure}
+            unit={scubaPressureUnit}
+            onUnitChange={(u) => setScubaPressureUnit(u as PressureUnit)}
+            options={['psi', 'bar']}
+            placeholder="500"
+          />
+          <View style={{ marginTop: spacing.lg }}>
+            <Input label="Tank Size" placeholder="80" keyboardType="numeric" value={scubaTankSize} onChangeText={setScubaTankSize} />
+          </View>
+          <Text style={[styles.label, { marginTop: spacing.lg }]}>Tank Unit</Text>
+          <View style={styles.chipRow}>
+            {TANK_UNITS.map((t) => (
+              <ChoiceChip key={t.id} label={t.label} selected={scubaTankUnit === t.id} onPress={() => setScubaTankUnit(t.id)} />
+            ))}
+          </View>
+          <CalcInlineRow label="Air Consumed" value={scubaAirUsedPsi != null ? `${Math.round(scubaAirUsedPsi)} psi` : '—'} />
+
+          <SectionLabel>Safety Stop</SectionLabel>
+          <NumberWithUnit
+            label="Depth"
+            value={scubaSafetyDepth}
+            onChange={setScubaSafetyDepth}
+            unit={scubaSafetyDepthUnit}
+            onUnitChange={(u) => setScubaSafetyDepthUnit(u as DepthUnit)}
+            options={['ft', 'm']}
+            placeholder="15"
+          />
+          <View style={{ marginTop: spacing.lg }}>
+            <Input label="Duration (min)" placeholder="3" keyboardType="numeric" value={scubaSafetyDuration} onChangeText={setScubaSafetyDuration} />
+          </View>
+
+          <SectionLabel>Equipment</SectionLabel>
+          <NumberWithUnit
+            label="Weight"
+            value={scubaWeight}
+            onChange={setScubaWeight}
+            unit={scubaWeightUnit}
+            onUnitChange={(u) => setScubaWeightUnit(u as WeightUnit)}
+            options={['lbs', 'kg']}
+            placeholder="14"
+          />
+          <Text style={[styles.label, { marginTop: spacing.lg }]}>Suit Type</Text>
+          <View style={styles.chipRow}>
+            {SUITS.map((s) => (
+              <ChoiceChip key={s.id} label={s.label} selected={scubaSuit === s.id} onPress={() => setScubaSuit(s.id)} />
+            ))}
+          </View>
+          {scubaSuit === 'wetsuit' && (
+            <>
+              <Text style={[styles.label, { marginTop: spacing.lg }]}>Wetsuit Thickness</Text>
+              <View style={styles.chipRow}>
+                {WETSUIT_THICKNESSES.map((w) => (
+                  <ChoiceChip key={w.id} label={w.label} selected={scubaWetsuitThk === w.id} onPress={() => setScubaWetsuitThk(w.id)} />
+                ))}
+              </View>
+            </>
+          )}
+
+          <SectionLabel>Buddy</SectionLabel>
+          <Input label="Buddy Name" placeholder="Buddy's name" value={scubaBuddy} onChangeText={setScubaBuddy} />
+        </View>
+      )}
+
       {step === 3 && (
         <View>
           <Text style={[typography.h1, styles.titleSm]}>Conditions</Text>
-          <Text style={styles.sub}>Step 3 of 4 — what was it like?</Text>
+          <Text style={styles.sub}>Step 3 of 4 — help us validate the forecast</Text>
 
-          <Text style={[styles.label, { marginTop: spacing.xl }]}>Surface</Text>
+          <Text style={[styles.label, { marginTop: spacing.xl }]}>Visibility (ft)</Text>
+          <Input placeholder="50" keyboardType="numeric" value={visibilityFt} onChangeText={setVisibilityFt} />
+
+          <Text style={[styles.label, { marginTop: spacing.xl }]}>Surface state</Text>
           <View style={styles.chipRow}>
-            {SURFACE.map((s) => <ChoiceChip key={s} label={s} selected={surface === s} onPress={() => setSurface(s)} />)}
+            {SURFACE_STATES.map((s) => (
+              <ChoiceChip key={s.id} label={s.label} selected={surfaceState === s.id} onPress={() => setSurfaceState(s.id)} />
+            ))}
           </View>
 
-          <Text style={[styles.label, { marginTop: spacing.xl }]}>Current</Text>
+          <Text style={[styles.label, { marginTop: spacing.xl }]}>Current strength</Text>
           <View style={styles.chipRow}>
-            {CURRENT.map((c) => <ChoiceChip key={c} label={c} selected={current === c} onPress={() => setCurrent(c)} />)}
+            {CURRENT_STRENGTHS.map((c) => (
+              <ChoiceChip key={c.id} label={c.label} selected={currentStrength === c.id} onPress={() => setCurrentStrength(c.id)} />
+            ))}
           </View>
 
-          <Text style={[styles.label, { marginTop: spacing.xl }]}>Visibility</Text>
+          <Text style={[styles.label, { marginTop: spacing.xl }]}>Current direction</Text>
           <View style={styles.chipRow}>
-            {VIS.map((v) => <ChoiceChip key={v} label={v} selected={vis === v} onPress={() => setVis(v)} />)}
+            {CURRENT_DIRECTIONS.map((c) => (
+              <ChoiceChip key={c.id} label={c.label} selected={currentDirection === c.id} onPress={() => setCurrentDirection(c.id)} />
+            ))}
           </View>
 
-          <Text style={[styles.label, { marginTop: spacing.xl }]}>Water temp</Text>
-          <Input placeholder="79 °F" keyboardType="number-pad" />
+          <Text style={[styles.label, { marginTop: spacing.xl }]}>Water color</Text>
+          <View style={styles.chipRow}>
+            {WATER_COLORS.map((w) => (
+              <ChoiceChip key={w.id} label={w.label} selected={waterColor === w.id} onPress={() => setWaterColor(w.id)} />
+            ))}
+          </View>
+
+          <Text style={[styles.label, { marginTop: spacing.xl }]}>Particulate</Text>
+          <View style={styles.chipRow}>
+            {PARTICULATES.map((p) => (
+              <ChoiceChip key={p.id} label={p.label} selected={particulate === p.id} onPress={() => setParticulate(p.id)} />
+            ))}
+          </View>
+
+          <Text style={[styles.label, { marginTop: spacing.xl }]}>Surge at depth</Text>
+          <View style={styles.chipRow}>
+            {SURGES.map((s) => (
+              <ChoiceChip key={s.id} label={s.label} selected={surgeAtDepth === s.id} onPress={() => setSurgeAtDepth(s.id)} />
+            ))}
+          </View>
+
+          <Text style={[styles.label, { marginTop: spacing.xl }]}>Marine life activity</Text>
+          <View style={styles.chipRow}>
+            {MARINE_LIFE.map((m) => (
+              <ChoiceChip key={m.id} label={m.label} selected={marineLifeActivity === m.id} onPress={() => setMarineLifeActivity(m.id)} />
+            ))}
+          </View>
+
+          <Text style={[styles.label, { marginTop: spacing.xl }]}>Overall rating</Text>
+          <View style={styles.chipRow}>
+            {OVERALL_RATINGS.map((r) => (
+              <ChoiceChip key={r.id} label={r.label} selected={overallRating === r.id} onPress={() => setOverallRating(r.id)} />
+            ))}
+          </View>
+
+          <Text style={[styles.label, { marginTop: spacing.xl }]}>vs Forecast</Text>
+          <View style={styles.chipRow}>
+            {FORECAST_ACCURACIES.map((f) => (
+              <ChoiceChip key={f.id} label={f.label} selected={forecastAccuracy === f.id} onPress={() => setForecastAccuracy(f.id)} />
+            ))}
+          </View>
+
+          {type !== 'scuba' && (
+            <>
+              <Text style={[styles.label, { marginTop: spacing.xl }]}>Water temp (°F)</Text>
+              <Input placeholder="79" keyboardType="numeric" value={waterTemp} onChangeText={setWaterTemp} />
+            </>
+          )}
+
+          <Text style={[styles.label, { marginTop: spacing.xl }]}>Notes on conditions</Text>
+          <TextInput
+            placeholder="e.g. viz dropped from 60 ft to 15 ft below 40 ft"
+            placeholderTextColor={colors.textMuted}
+            multiline
+            numberOfLines={3}
+            value={conditionsNotes}
+            onChangeText={setConditionsNotes}
+            style={styles.textareaSm}
+          />
+
+          <Pressable
+            onPress={() => setHazardsExpanded((v) => !v)}
+            style={styles.expandRow}
+            hitSlop={8}
+          >
+            <Icon
+              name={hazardsExpanded ? 'chevron-down' : 'chevron-right'}
+              size={14}
+              color={colors.accent}
+            />
+            <Text style={styles.expandLabel}>
+              {hazardsExpanded ? 'Hide hazards' : 'Report a hazard'}
+              {!hazardsExpanded && hazards.length > 0 ? ` (${hazards.length})` : ''}
+            </Text>
+          </Pressable>
+
+          {hazardsExpanded && (
+            <View style={{ marginTop: spacing.sm }}>
+              <Text style={styles.helperText}>
+                Tap any that apply. Multi-select.
+              </Text>
+              <View style={[styles.chipRow, { marginTop: spacing.sm }]}>
+                {HAZARDS.map((h) => (
+                  <ChoiceChip
+                    key={h.id}
+                    label={h.label}
+                    selected={hazards.includes(h.id)}
+                    onPress={() => toggleHazard(h.id)}
+                  />
+                ))}
+              </View>
+              {hazards.includes('other') && (
+                <View style={{ marginTop: spacing.lg }}>
+                  <Input
+                    label="Describe"
+                    placeholder="What happened?"
+                    value={hazardsOther}
+                    onChangeText={setHazardsOther}
+                  />
+                </View>
+              )}
+            </View>
+          )}
         </View>
       )}
 
@@ -315,6 +889,87 @@ function labelForType(t: DiveType) {
   }
 }
 
+// Section heading inside scuba step 2 — accent color, uppercase, micro
+// label per spec, but uses the project's typography/spacing tokens so
+// it harmonizes with the rest of the form.
+function SectionLabel({ children }: { children: string }) {
+  return <Text style={styles.sectionLabel}>{children.toUpperCase()}</Text>;
+}
+
+// 2x2 calc card. Re-uses the project's Card surface so it visually
+// fits with step 1, but tints to accent so it reads as derived/locked.
+function CalcCard({ label, value, unit }: { label: string; value: string; unit: string }) {
+  return (
+    <View style={styles.calcCard}>
+      <Text style={styles.calcLabel}>{label}</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4, marginTop: 4 }}>
+        <Text style={styles.calcValue}>{value}</Text>
+        {unit ? <Text style={styles.calcUnit}>{unit}</Text> : null}
+      </View>
+    </View>
+  );
+}
+
+// Inline calc row — shown beneath an input group when one number falls
+// out of the others (e.g., Air Consumed = start − end pressure).
+function CalcInlineRow({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.calcInline}>
+      <Text style={styles.calcInlineLabel}>{label}</Text>
+      <Text style={styles.calcInlineValue}>{value}</Text>
+    </View>
+  );
+}
+
+// Number Input + paired unit toggle. Styled to match the other Inputs
+// in the LogDive flow so it sits naturally in the form.
+function NumberWithUnit({
+  label,
+  value,
+  onChange,
+  unit,
+  onUnitChange,
+  options,
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  unit: string;
+  onUnitChange: (u: string) => void;
+  options: [string, string];
+  placeholder?: string;
+}) {
+  return (
+    <View style={{ marginTop: spacing.lg }}>
+      <Text style={styles.label}>{label}</Text>
+      <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm }}>
+        <Input
+          value={value}
+          onChangeText={onChange}
+          keyboardType="numeric"
+          placeholder={placeholder}
+          containerStyle={{ flex: 1 }}
+        />
+        <View style={styles.unitToggle}>
+          {options.map((o) => {
+            const active = o === unit;
+            return (
+              <Pressable
+                key={o}
+                onPress={() => onUnitChange(o)}
+                style={[styles.unitToggleBtn, active && styles.unitToggleBtnActive]}
+              >
+                <Text style={[styles.unitToggleText, active && styles.unitToggleTextActive]}>{o}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
+    </View>
+  );
+}
+
 const logHeroStyles = StyleSheet.create({
   headerOverlay: {
     position: 'absolute',
@@ -356,6 +1011,91 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
     marginTop: spacing.sm,
   },
+  textareaSm: {
+    backgroundColor: colors.cardAlt,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+    color: colors.textPrimary,
+    fontSize: 14,
+    minHeight: 80,
+    textAlignVertical: 'top',
+    marginTop: spacing.sm,
+  },
+  expandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: spacing.xl,
+    paddingVertical: spacing.sm,
+  },
+  expandLabel: { ...typography.bodySm, color: colors.accent, fontWeight: '600' },
+  helperText: { ...typography.bodySm, color: colors.textMuted, marginTop: spacing.sm },
   successWrap: { alignItems: 'center', marginTop: spacing.xxxl },
   checkBubble: { width: 84, height: 84, borderRadius: 999, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
+
+  // Scuba step 2
+  divePill: {
+    backgroundColor: colors.accentSoft,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: 999,
+  },
+  divePillText: { color: colors.accent, fontSize: 11, fontWeight: '700' },
+  sectionLabel: {
+    color: colors.accent,
+    fontSize: 10,
+    letterSpacing: 1.6,
+    fontWeight: '700',
+    marginTop: spacing.xl,
+    marginBottom: spacing.sm,
+  },
+  summaryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    marginTop: spacing.lg,
+  },
+  calcCard: {
+    flexBasis: '48%',
+    flexGrow: 1,
+    backgroundColor: colors.accentSoft,
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderStyle: 'dashed',
+    borderColor: colors.accent,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  calcLabel: { color: colors.textMuted, fontSize: 10, letterSpacing: 1, fontWeight: '600' },
+  calcValue: { color: colors.accent, fontSize: 22, fontWeight: '700' },
+  calcUnit: { color: colors.textMuted, fontSize: 11, fontWeight: '500' },
+  calcInline: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: colors.accentSoft,
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderStyle: 'dashed',
+    borderColor: colors.accent,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    marginTop: spacing.lg,
+  },
+  calcInlineLabel: { color: colors.textMuted, fontSize: 11 },
+  calcInlineValue: { color: colors.accent, fontSize: 14, fontWeight: '600' },
+  unitToggle: {
+    flexDirection: 'row',
+    backgroundColor: colors.cardAlt,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: 'hidden',
+  },
+  unitToggleBtn: { paddingHorizontal: 14, justifyContent: 'center', minWidth: 48 },
+  unitToggleBtnActive: { backgroundColor: colors.accentSoft },
+  unitToggleText: { color: colors.textSecondary, fontSize: 13, textAlign: 'center', fontWeight: '600' },
+  unitToggleTextActive: { color: colors.accent },
 });

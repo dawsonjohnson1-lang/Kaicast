@@ -70,6 +70,57 @@ export type DiveLogInput = {
   privacy?: DiveLogPrivacy;
   photos?: string[];
   conditionsSnapshot?: BackendReport | null;
+  /**
+   * Diver-reported conditions captured in step 3 of LogDive. These are
+   * the validation/ground-truth fields used to compare what divers
+   * actually experienced against what KaiCast predicted in
+   * conditionsSnapshot. Filled for all activities, not just scuba.
+   */
+  conditions?: {
+    visibilityFt?: number;
+    surfaceState?: 'glassy' | 'light_chop' | 'whitecaps' | 'breaking';
+    currentStrength?: 'none' | 'light' | 'moderate' | 'strong';
+    currentDirection?: 'with_shore' | 'against' | 'parallel' | 'variable' | 'reversing';
+    waterColor?: 'blue' | 'green' | 'brown' | 'silty';
+    particulate?: 'clean' | 'some' | 'heavy';
+    surgeAtDepth?: 'none' | 'mild' | 'strong';
+    marineLifeActivity?: 'low' | 'normal' | 'high';
+    overallRating?: 'poor' | 'fair' | 'good' | 'excellent';
+    forecastAccuracy?: 'much_worse' | 'worse' | 'as_predicted' | 'better' | 'much_better';
+    notes?: string;
+    /** Tier-3 hazards. Multi-select; `hazardsOther` carries the
+     *  free-text detail when 'other' is among them. */
+    hazards?: ('jellyfish' | 'rip_current' | 'boat_traffic' | 'discharge_plume' | 'wildlife' | 'gear_failure' | 'other')[];
+    hazardsOther?: string;
+  };
+  /**
+   * Scuba-only fields. All optional — present when diveType === 'scuba'
+   * and the user filled the comprehensive step-2 form. Stored on the
+   * same `diveLogs/{logId}` doc so listing/cross-reference still works.
+   */
+  scuba?: {
+    diveSubType?: 'shore' | 'boat' | 'drift' | 'night' | 'wreck' | 'cave' | 'training';
+    entryType?: 'giant_stride' | 'back_roll' | 'shore';
+    maxDepthFt?: number;
+    visibilityFt?: number;
+    waterTempSurfaceF?: number;
+    waterTempBottomF?: number;
+    gasMix?: 'air' | 'eanx' | 'trimix';
+    o2Percent?: number;
+    hePercent?: number;
+    tankStartPsi?: number;
+    tankEndPsi?: number;
+    tankSizeCuft?: number;
+    safetyStopDepthFt?: number;
+    safetyStopMin?: number;
+    weightLbs?: number;
+    suitType?: 'wetsuit' | 'drysuit' | 'skin';
+    wetsuitThickness?: '3mm' | '5mm' | '7mm';
+    buddyName?: string;
+    // Calculated, stored for fast logbook queries.
+    airUsedPsi?: number;
+    sacRate?: number;
+  };
 };
 
 export type DiveLogRecord = DiveLogInput & {
@@ -157,6 +208,8 @@ function normalizeRecord(id: string, data: any): DiveLogRecord {
     privacy: data.privacy,
     photos: data.photos ?? [],
     conditionsSnapshot: data.conditionsSnapshot ?? null,
+    conditions: data.conditions ?? undefined,
+    scuba: data.scuba ?? undefined,
     loggedAt: ts ? ts.toDate() : null,
   };
 }

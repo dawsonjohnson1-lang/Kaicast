@@ -48,6 +48,105 @@ function metersPerPixel(zoom: number): number {
   return WORLD_CIRC_M / (256 * Math.pow(2, zoom));
 }
 
+function mercatorYToLat(y: number): number {
+  const rad = Math.PI / 2 - 2 * Math.atan(Math.exp(-y / EARTH_R));
+  return (rad * 180) / Math.PI;
+}
+
+function mercatorXToLon(x: number): number {
+  return (x / EARTH_R) * (180 / Math.PI);
+}
+
+/**
+ * Project a lat/lon into pixel offsets within an image rendered by
+ * `satelliteUrl(centerLat, centerLon, width, height, zoom)`. Returns
+ * { x, y } where (0,0) is the image's top-left corner. Used to place
+ * overlay markers on top of the satellite tile.
+ */
+export function projectLatLonToImage(
+  lat: number,
+  lon: number,
+  centerLat: number,
+  centerLon: number,
+  zoom: number,
+  width: number,
+  height: number,
+): { x: number; y: number } {
+  const mpp = metersPerPixel(zoom);
+  const dx = (lonToMercatorX(lon) - lonToMercatorX(centerLon)) / mpp;
+  const dy = -(latToMercatorY(lat) - latToMercatorY(centerLat)) / mpp;
+  return { x: width / 2 + dx, y: height / 2 + dy };
+}
+
+/**
+ * Pick a center+zoom for `satelliteUrl` so the given points land
+ * inside the visible portion of the rendered image.
+ *
+ *   - The image fills (viewW × viewH).
+ *   - `sheetCoverFrac` (0–1) is the fraction of viewH covered by an
+ *     overlay (e.g. a bottom sheet) — the visible region is the top
+ *     (1 - sheetCoverFrac) portion. The chosen center is shifted
+ *     south so the visible region's center lands on the point centroid.
+ *   - `padding` (0–1) leaves breathing room around the bounding box
+ *     inside the visible region.
+ *   - When `points` is empty or has zero geographic extent, falls back
+ *     to a Hawaii-chain overview at zoom 6.2.
+ */
+export function fitPointsToViewport(
+  points: { lat: number; lon: number }[],
+  viewW: number,
+  viewH: number,
+  sheetCoverFrac = 0,
+  padding = 0.25,
+  fallbackCenter = { lat: 20.9, lon: -157.85 },
+  fallbackZoom = 6.2,
+  maxZoom = 12,
+): { centerLat: number; centerLon: number; zoom: number } {
+  if (points.length === 0 || viewW <= 0 || viewH <= 0) {
+    return { centerLat: fallbackCenter.lat, centerLon: fallbackCenter.lon, zoom: fallbackZoom };
+  }
+
+  const lats = points.map((p) => p.lat);
+  const lons = points.map((p) => p.lon);
+  const minLat = Math.min(...lats);
+  const maxLat = Math.max(...lats);
+  const minLon = Math.min(...lons);
+  const maxLon = Math.max(...lons);
+
+  const minMercX = lonToMercatorX(minLon);
+  const maxMercX = lonToMercatorX(maxLon);
+  const minMercY = latToMercatorY(minLat);
+  const maxMercY = latToMercatorY(maxLat);
+
+  const visibleH = viewH * (1 - sheetCoverFrac);
+  const fitW = Math.max(viewW * (1 - padding), 1);
+  const fitH = Math.max(visibleH * (1 - padding), 1);
+
+  // Guard against single-point inputs: give them a minimum bbox so we
+  // don't pick infinite zoom.
+  const spanX = Math.max(maxMercX - minMercX, 1);
+  const spanY = Math.max(maxMercY - minMercY, 1);
+  const requiredMpp = Math.max(spanX / fitW, spanY / fitH);
+  const rawZoom = Math.log2(WORLD_CIRC_M / (256 * requiredMpp));
+  const zoom = Math.min(Math.max(rawZoom, 1), maxZoom);
+
+  const mpp = metersPerPixel(zoom);
+  const centroidMercX = (minMercX + maxMercX) / 2;
+  const centroidMercY = (minMercY + maxMercY) / 2;
+
+  // Shift image center south of the visible centroid by the pixel
+  // distance between the image's geometric center and the visible
+  // region's center, so the centroid lands in the visible part.
+  const visibleOffsetPx = viewH / 2 - visibleH / 2;
+  const imageMercY = centroidMercY - visibleOffsetPx * mpp;
+
+  return {
+    centerLat: mercatorYToLat(imageMercY),
+    centerLon: mercatorXToLon(centroidMercX),
+    zoom,
+  };
+}
+
 /**
  * Build a satellite tile URL centered on the given lat/lon. Same
  * (lat, lon, width, height, zoom) always returns the literal same
