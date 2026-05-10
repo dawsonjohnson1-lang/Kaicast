@@ -84,7 +84,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const u: User = {
       id: 'demo',
       name: email.split('@')[0] || 'Diver',
-      handle: email.split('@')[0] || 'diver',
+      handle: (email.split('@')[0] || 'diver').toLowerCase(),
       email: email.trim(),
       homeSpot: "Three Tables, O'ahu",
     };
@@ -95,7 +95,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signUpWithEmail = useCallback(async (email: string, password: string) => {
     if (auth && db) {
       const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
-      const handle = email.split('@')[0] || 'diver';
+      // Lowercase the handle so the discovery prefix-search (which
+      // lowercases its query input) reliably matches every account,
+      // regardless of email casing at sign-up.
+      const handle = (email.split('@')[0] || 'diver').toLowerCase();
       // onboardingComplete starts false so the navigator routes the
       // newly-authed user into the onboarding stack instead of the
       // main app. CreateAccountAlmostThereScreen flips this to true.
@@ -153,7 +156,7 @@ export function useAuth() {
 // when the doc is missing (common right after sign-up before onboarding).
 async function loadUserProfile(fbUser: FirebaseUser): Promise<User> {
   const fallbackName = fbUser.displayName || fbUser.email?.split('@')[0] || 'Diver';
-  const fallbackHandle = fbUser.email?.split('@')[0] || 'diver';
+  const fallbackHandle = (fbUser.email?.split('@')[0] || 'diver').toLowerCase();
   const base: User = {
     id: fbUser.uid,
     name: fallbackName,
@@ -167,10 +170,22 @@ async function loadUserProfile(fbUser: FirebaseUser): Promise<User> {
     const snap = await getDoc(doc(db, 'users', fbUser.uid));
     if (!snap.exists()) return base;
     const data = snap.data();
+    const storedHandle = String(data.handle ?? base.handle);
+    // Self-healing migration: handles created before discovery search
+    // shipped were stored case-as-typed. Lowercase on next load so
+    // the user becomes discoverable. Fire-and-forget; failure here
+    // doesn't block sign-in.
+    if (storedHandle !== storedHandle.toLowerCase()) {
+      setDoc(
+        doc(db, 'users', fbUser.uid),
+        { handle: storedHandle.toLowerCase() },
+        { merge: true },
+      ).catch(() => undefined);
+    }
     return {
       ...base,
       name: data.name ?? base.name,
-      handle: data.handle ?? base.handle,
+      handle: storedHandle.toLowerCase(),
       homeSpot: data.homeSpot ?? base.homeSpot,
       photoUrl: data.photoUrl ?? base.photoUrl,
     };

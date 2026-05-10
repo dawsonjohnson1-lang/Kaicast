@@ -26,6 +26,7 @@ import { FollowersScreen } from '@/screens/profile/FollowersScreen';
 import { FollowingScreen } from '@/screens/profile/FollowingScreen';
 import { ProfileSettingsScreen } from '@/screens/profile/ProfileSettingsScreen';
 import { DeleteAccountScreen } from '@/screens/profile/DeleteAccountScreen';
+import { DiscoverUsersScreen } from '@/screens/profile/DiscoverUsersScreen';
 
 import type { AuthStackParamList, RootStackParamList, TabParamList } from './types';
 
@@ -135,6 +136,7 @@ export function AppNavigator() {
             <RootStack.Screen name="Following" component={FollowingScreen} />
             <RootStack.Screen name="ProfileSettings" component={ProfileSettingsScreen} />
             <RootStack.Screen name="DeleteAccount" component={DeleteAccountScreen} />
+            <RootStack.Screen name="DiscoverUsers" component={DiscoverUsersScreen} />
           </>
         )}
         {phase === 'onboarding' && (

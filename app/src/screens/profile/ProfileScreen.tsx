@@ -179,6 +179,13 @@ export function ProfileScreen() {
               style={{ flex: 1 }}
             />
           </View>
+          <Button
+            label="Find divers"
+            variant="primary"
+            iconLeft="search"
+            fullWidth
+            onPress={() => nav.navigate('DiscoverUsers')}
+          />
           {followingList.length === 0 ? (
             <Card>
               <Text style={[typography.bodySm, { color: colors.textSecondary, textAlign: 'center' }]}>

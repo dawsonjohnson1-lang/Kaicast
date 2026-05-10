@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 
 import { Screen } from '@/components/Screen';
@@ -38,6 +38,9 @@ export function FollowersScreen() {
           <Text style={styles.emptyText}>
             When other divers follow you, you'll see them here.
           </Text>
+          <Pressable style={styles.findBtn} onPress={() => nav.navigate('DiscoverUsers')}>
+            <Text style={styles.findBtnText}>Find divers</Text>
+          </Pressable>
         </View>
       ) : (
         <View style={{ gap: spacing.md, marginTop: spacing.lg }}>
@@ -122,4 +125,12 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     maxWidth: 280,
   },
+  findBtn: {
+    marginTop: spacing.xl,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.sm,
+    borderRadius: 999,
+    backgroundColor: colors.accent,
+  },
+  findBtnText: { ...typography.body, fontWeight: '700', color: colors.bg },
 });
