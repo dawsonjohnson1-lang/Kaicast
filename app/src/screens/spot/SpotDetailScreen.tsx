@@ -172,6 +172,26 @@ function OverviewTab({
         <SunShadowCard visibility={backend.now.visibility} />
       )}
 
+      {!!backend?.now?.visibility?.rationale?.length && (
+        <Card>
+          <Text style={typography.caption}>WHY {backend.now.visibility.estimatedVisibilityFeet ?? r.visibilityFt} FT?</Text>
+          <View style={{ marginTop: spacing.sm, gap: 6 }}>
+            {backend.now.visibility.rationale.map((line, idx) => {
+              const sign = line.match(/-(\d+)%/) ? '-' : line.match(/\+(\d+)%/) ? '+' : null;
+              const color =
+                sign === '+' ? colors.excellent :
+                sign === '-' ? '#FFB347' :
+                colors.textSecondary;
+              return (
+                <Text key={idx} style={{ ...typography.bodySm, color }}>
+                  {line}
+                </Text>
+              );
+            })}
+          </View>
+        </Card>
+      )}
+
       <Card>
         <View style={uvCardStyles.header}>
           <Text style={typography.caption}>UV RATING</Text>

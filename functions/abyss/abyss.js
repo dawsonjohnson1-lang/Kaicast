@@ -171,8 +171,22 @@ async function estimateVisibilityAbyss(opts) {
 
     // Apply solar light factor + wind chop on the heuristic path too.
     const lightMultiplier = 0.10 + 0.90 * light.factor;
-    const visM = legacy.estimatedVisibilityMeters * lightMultiplier * windChopMultiplier;
+    const visAfterLight = legacy.estimatedVisibilityMeters * lightMultiplier;
+    const visM = visAfterLight * windChopMultiplier;
     const visMRounded = Math.max(1, Math.round(visM));
+
+    const heurRationale = [];
+    const lightPct = Math.round((lightMultiplier - 1) * 100);
+    if (Math.abs(lightPct) >= 5) {
+      heurRationale.push(`Solar light + shadow: ${lightPct > 0 ? '+' : ''}${lightPct}%`);
+    }
+    const windPct = Math.round((windChopMultiplier - 1) * 100);
+    if (Math.abs(windPct) >= 5) {
+      heurRationale.push(`Surface chop / wind: ${windPct > 0 ? '+' : ''}${windPct}%`);
+    }
+    if (Number.isFinite(exposureFactor) && exposureFactor < 0.85) {
+      heurRationale.push(`Sheltered from swell: ${Math.round((exposureFactor - 1) * 100)}%`);
+    }
 
     return {
       estimatedVisibilityMeters: visMRounded,
@@ -194,6 +208,7 @@ async function estimateVisibilityAbyss(opts) {
       light,
       exposure: { factor: Math.round(exposureFactor * 100) / 100, swellFromDeg: waveDirectionDegFrom ?? null, rawWaveHeightM: rawWaveHeightM ?? null, effectiveWaveHeightM: waveHeightM ?? null },
       wind: { relation: windRel.relation, openOceanBearingDeg: windRel.openBearingDeg, angleFromOpenDeg: windRel.angleFromOpenDeg, chopMultiplier: Math.round(windChopMultiplier * 100) / 100 },
+      rationale: heurRationale,
       _fallbackReason: 'no-satellite-data',
     };
   }
@@ -266,6 +281,23 @@ async function estimateVisibilityAbyss(opts) {
   vis *= windChopMultiplier;
   const layerWind = vis;
 
+  // ── Build rationale so users see WHY visibility is what it is ──────────────
+  const rationale = [];
+  const pushDelta = (label, before, after) => {
+    if (!Number.isFinite(before) || !Number.isFinite(after)) return;
+    const pct = Math.round(((after - before) / Math.max(0.5, before)) * 100);
+    if (Math.abs(pct) < 5) return; // skip noise
+    const sign = pct > 0 ? '+' : '';
+    rationale.push(`${label}: ${sign}${pct}%`);
+  };
+  pushDelta('Wave energy / sediment', layerBaseline, layerWave);
+  pushDelta('Tide flushing',          layerWave,     layerTidal);
+  pushDelta('Runoff plume',           layerTidal,    layerRunoff);
+  pushDelta('Algal bloom',            layerRunoff,   layerBloom);
+  pushDelta('Suspended particulate',  layerBloom,    layerSpm);
+  pushDelta('Solar light + shadow',   layerSpm,      layerLight);
+  pushDelta('Surface chop / wind',    layerLight,    layerWind);
+
   // ── Final clamping & rating ────────────────────────────────────────────────
   vis = Math.max(1, Math.min(40, vis));
   const visFt = Math.round(vis * 3.28084);
@@ -303,6 +335,7 @@ async function estimateVisibilityAbyss(opts) {
       light: Math.round(layerLight * 10) / 10,
       wind: Math.round(layerWind * 10) / 10,
     },
+    rationale,
     waveImpact,
     sun: { altitudeDeg: sun.altitudeDeg, azimuthDeg: sun.azimuthDeg },
     shadow: shadow.shadowed

@@ -1813,6 +1813,8 @@ async function readCachedReport(spotId, nowMs, spot = null) {
     if (!data?.now?.visibility?.sun) continue;
     // Skip caches lacking per-day solar events (added after sun/shadow shipped).
     if (!data?.days?.[0]?.solar) continue;
+    // Skip caches lacking the rationale field (latest abyss revision).
+    if (!Array.isArray(data?.now?.visibility?.rationale)) continue;
     // Same for the per-day tide events (added after days[] shipped).
     // Skip if any day in the forecast is missing tideEvents.
     if (!data.days.every((d) => Array.isArray(d?.tideEvents))) continue;
