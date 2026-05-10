@@ -207,6 +207,25 @@ function buildHourKey(dateUtc) {
   );
 }
 
+// Walk back up to `maxLagHours` hours from `nowHourIso` looking for
+// the most recent value in the map. NDBC realtime2 observations
+// typically lag 30–90 minutes behind real time, so the literal "now"
+// hour bucket is almost always empty. Without this walkback every
+// fresh report comes back with null wave height / period / SST.
+function lookupRecent(map, nowHourIso, maxLagHours = 4) {
+  if (!map || !nowHourIso) return null;
+  const direct = map.get(nowHourIso);
+  if (direct != null) return direct;
+  const baseMs = new Date(nowHourIso).getTime();
+  if (!Number.isFinite(baseMs)) return null;
+  for (let h = 1; h <= maxLagHours; h++) {
+    const iso = new Date(baseMs - h * 3600000).toISOString().slice(0, 13) + ':00';
+    const found = map.get(iso);
+    if (found != null) return found;
+  }
+  return null;
+}
+
 function findClosestHour(hourlyItems, targetMs, maxGapMs = 2 * 3600000) {
   if (!Array.isArray(hourlyItems) || !hourlyItems.length) return null;
   let best = null;
@@ -878,9 +897,9 @@ async function buildSpotReport({ spot, owHourly, buoyData, nowMs }) {
     cloudCoverPercent: closestHour?.cloudCoverPercent ?? null,
     rainLast1hMM:      closestHour?.rainLast1hMM      ?? 0,
 
-    waveHeightM:       buoyData?.waveHMap?.get(nowHourIso) ?? null,
-    wavePeriodS:       buoyData?.wavePMap?.get(nowHourIso) ?? null,
-    waterTempC:        buoyData?.sstMap?.get(nowHourIso)   ?? null,
+    waveHeightM:       lookupRecent(buoyData?.waveHMap, nowHourIso),
+    wavePeriodS:       lookupRecent(buoyData?.wavePMap, nowHourIso),
+    waterTempC:        lookupRecent(buoyData?.sstMap,   nowHourIso),
   };
 
   // Tide cycle — select NOAA station for this spot and build the cycle.
@@ -1173,13 +1192,20 @@ async function runPipeline({ apiKey, publish = false }) {
 // Read the most recent hourly cached report for a spot (looking up to
 // 4 hours back). Returns null when nothing recent is cached. The
 // scheduler writes `kaicast_reports/{spotId}_{YYYYMMDDHH}` every hour.
-async function readCachedReport(spotId, nowMs) {
+async function readCachedReport(spotId, nowMs, spot = null) {
   const t = new Date(nowMs);
   for (let h = 0; h < 4; h++) {
     const at = new Date(t.getTime() - h * 3600000);
     const hourKey = buildHourKey(at);
     const snap = await db.collection('kaicast_reports').doc(`${spotId}_${hourKey}`).get();
-    if (snap.exists) return snap.data();
+    if (!snap.exists) continue;
+    const data = snap.data();
+    // Skip stale cache entries left over from the old "exact-hour"
+    // buoy lookup bug. If the spot has a buoy configured but the
+    // cached report has null wave height, recompute. Once the fixed
+    // pipeline runs the cache becomes trustworthy again.
+    if (spot?.buoyStation && data?.now?.metrics?.waveHeightM == null) continue;
+    return data;
   }
   return null;
 }
@@ -1210,7 +1236,7 @@ exports.getReport = onRequest(
 
     try {
       const nowMs = Date.now();
-      const cached = await readCachedReport(spotId, nowMs);
+      const cached = await readCachedReport(spotId, nowMs, spot);
       if (cached) {
         res.json(cached);
         return;
