@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, Pressable, ScrollView, StyleSheet, Linking } from 'react-native';
 import { useNavigation, CompositeNavigationProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
@@ -22,6 +22,7 @@ import { useSpots } from '@/hooks/useSpots';
 import { useFollowing } from '@/hooks/useFollowing';
 import * as Notifications from 'expo-notifications';
 import { registerForPush } from '@/api/push';
+import { LEGAL_URLS } from '@/constants/legal';
 import { diveReports, favoriteSpots } from '@/api/mockData';
 import type { RootStackParamList, TabParamList } from '@/navigation/types';
 
@@ -225,6 +226,10 @@ export function ProfileScreen() {
             <PushNotificationRow uid={user?.id} />
             <SettingRow icon="globe" label="Units" value="Imperial (ft, °F, PSI)" />
           </Card>
+          <Card padding={0}>
+            <LegalRow icon="shield" label="Privacy Policy" url={LEGAL_URLS.privacy} />
+            <LegalRow icon="lock" label="Terms of Service" url={LEGAL_URLS.terms} />
+          </Card>
           <Pressable style={styles.allSettingsBtn} onPress={() => nav.navigate('ProfileSettings')}>
             <Text style={{ ...typography.body, color: colors.accent, fontWeight: '600' }}>All settings</Text>
           </Pressable>
@@ -299,6 +304,18 @@ function PushNotificationRow({ uid }: { uid: string | undefined }) {
       </View>
       <Text style={[typography.body, { flex: 1 }]}>Push notifications</Text>
       <Text style={[settingStyles.value, { color: enabled ? colors.accent : colors.textSecondary }]}>{right}</Text>
+      <Icon name="chevron-right" size={16} color={colors.textMuted} />
+    </Pressable>
+  );
+}
+
+function LegalRow({ icon, label, url }: { icon: IconName; label: string; url: string }) {
+  return (
+    <Pressable style={settingStyles.row} onPress={() => Linking.openURL(url).catch(() => undefined)}>
+      <View style={settingStyles.iconWrap}>
+        <Icon name={icon} size={18} color={colors.textSecondary} />
+      </View>
+      <Text style={[typography.body, { flex: 1 }]}>{label}</Text>
       <Icon name="chevron-right" size={16} color={colors.textMuted} />
     </Pressable>
   );

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, Image, StyleSheet, Pressable } from 'react-native';
+import { View, Text, Image, StyleSheet, Pressable, Linking } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
@@ -13,6 +13,7 @@ import { Icon } from '@/components/Icon';
 import { colors, spacing, typography } from '@/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { friendlyAuthError } from '@/utils/authErrors';
+import { LEGAL_URLS } from '@/constants/legal';
 import type { AuthStackParamList } from '@/navigation/types';
 
 const googleIcon = require('@/assets/social-google.png');
@@ -109,6 +110,17 @@ export function CreateAccountScreen() {
       ) : null}
 
       <Button label="Create Account" fullWidth loading={submitting} onPress={onSubmit} />
+      <Text style={styles.legalAck}>
+        By creating an account you agree to KaiCast's{' '}
+        <Text style={styles.legalLink} onPress={() => Linking.openURL(LEGAL_URLS.terms).catch(() => undefined)}>
+          Terms of Service
+        </Text>
+        {' '}and{' '}
+        <Text style={styles.legalLink} onPress={() => Linking.openURL(LEGAL_URLS.privacy).catch(() => undefined)}>
+          Privacy Policy
+        </Text>
+        .
+      </Text>
       <Pressable style={styles.footer} onPress={() => nav.navigate('Login')}>
         <Text style={styles.footerText}>
           Already Have An Account? <Text style={{ color: colors.textPrimary, fontWeight: '700' }}>Sign In</Text>
@@ -157,4 +169,13 @@ const styles = StyleSheet.create({
   footer: { alignItems: 'center', marginTop: spacing.xl },
   footerText: { color: colors.textSecondary, fontSize: 13 },
   submitError: { ...typography.bodySm, color: colors.hazard, textAlign: 'center', marginBottom: spacing.md },
+  legalAck: {
+    ...typography.bodySm,
+    color: colors.textMuted,
+    textAlign: 'center',
+    marginTop: spacing.md,
+    paddingHorizontal: spacing.md,
+    lineHeight: 18,
+  },
+  legalLink: { color: colors.textPrimary, textDecorationLine: 'underline' },
 });
