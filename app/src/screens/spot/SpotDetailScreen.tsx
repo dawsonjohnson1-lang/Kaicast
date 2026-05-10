@@ -18,6 +18,7 @@ import { DirectionalReadingCard } from '@/components/DirectionalReadingCard';
 import { colors, radius, spacing, typography, RATING_COLORS } from '@/theme';
 import { diveReports, exploreSpots, featuredSpot } from '@/api/mockData';
 import { useSpotReport } from '@/hooks/useSpotReport';
+import type { BackendReport, BackendVisibility } from '@/api/kaicast';
 import type { RootNav, RootStackParamList } from '@/navigation/types';
 import type { Spot, SpotReport } from '@/types';
 import { ForecastTab as ForecastTabRebuild } from './forecast/ForecastTab';
@@ -110,7 +111,7 @@ export function SpotDetailScreen() {
           })}
         </ScrollView>
 
-        {tab === 'Overview' && <OverviewTab report={r} source={reportState.source} spot={spot} />}
+        {tab === 'Overview' && <OverviewTab report={r} source={reportState.source} spot={spot} backend={reportState.backend} />}
         {tab === 'Hazards' && <HazardsTabRebuild spot={spot} report={reportState.backend} />}
         {tab === 'Forecast' && <ForecastTabRebuild spot={spot} spotCoords={{ lat: spot.lat, lon: spot.lon }} />}
         {tab === 'Guide' && <GuideTabRebuild spot={spot} />}
@@ -142,7 +143,17 @@ export function SpotDetailScreen() {
   );
 }
 
-function OverviewTab({ report: r, source, spot }: { report: SpotReport; source: 'live' | 'mock'; spot: Spot }) {
+function OverviewTab({
+  report: r,
+  source,
+  spot,
+  backend,
+}: {
+  report: SpotReport;
+  source: 'live' | 'mock';
+  spot: Spot;
+  backend: BackendReport | null;
+}) {
   return (
     <View style={{ gap: spacing.md }}>
       <RatingHeader report={r} source={source} />
@@ -156,6 +167,10 @@ function OverviewTab({ report: r, source, spot }: { report: SpotReport; source: 
           sub="SWELL HEIGHT"
         />
       </Row>
+
+      {backend?.now?.visibility?.sun?.altitudeDeg != null && (
+        <SunShadowCard visibility={backend.now.visibility} />
+      )}
 
       <Card>
         <View style={uvCardStyles.header}>
@@ -208,6 +223,114 @@ function OverviewTab({ report: r, source, spot }: { report: SpotReport; source: 
     </View>
   );
 }
+
+function SunShadowCard({ visibility }: { visibility: BackendVisibility }) {
+  const sun = visibility.sun;
+  const shadow = visibility.shadow;
+  const light = visibility.light;
+  if (!sun || sun.altitudeDeg == null || sun.azimuthDeg == null) return null;
+
+  const altDeg = sun.altitudeDeg;
+  const azDeg  = sun.azimuthDeg;
+  const isNight = altDeg <= 0;
+  const inShadow = shadow?.shadowed === true && shadow?.reason === 'terrain';
+
+  // Plot the sun on a half-dome diagram. Compass azimuth → x position
+  // (270 = west = left edge, 90 = east = right edge). Altitude → y.
+  const SIZE = 140;
+  const cx = SIZE / 2;
+  const cy = SIZE - 8; // baseline near the bottom
+  const r  = SIZE / 2 - 12;
+  // Flat at horizon, vertical at zenith. Use altitude → vertical position.
+  const altClamped = Math.max(0, Math.min(90, altDeg));
+  const azRad = (azDeg - 90) * (Math.PI / 180); // 90° = right, 180° = down (south)
+  const sx = cx + r * Math.cos(azRad) * Math.cos(altClamped * Math.PI / 180);
+  const sy = cy - r * Math.sin(altClamped * Math.PI / 180);
+
+  const compassDir = (() => {
+    const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+    return dirs[Math.round(azDeg / 45) % 8];
+  })();
+
+  const lightPct = Math.round((light?.factor ?? 0) * 100);
+  const lightLabel =
+    isNight ? 'Night' :
+    inShadow ? 'In mountain shadow' :
+    lightPct >= 80 ? 'Direct sunlight' :
+    lightPct >= 50 ? 'Bright but indirect' :
+    lightPct >= 25 ? 'Low-light' : 'Twilight';
+
+  const lightColor =
+    isNight ? colors.textMuted :
+    inShadow ? '#FFB347' :
+    lightPct >= 80 ? colors.excellent :
+    lightPct >= 50 ? colors.accent :
+    colors.textSecondary;
+
+  return (
+    <Card>
+      <View style={sunStyles.header}>
+        <Text style={typography.caption}>SUN POSITION</Text>
+        <Text style={[sunStyles.lightLabel, { color: lightColor }]}>{lightLabel}</Text>
+      </View>
+      <View style={sunStyles.body}>
+        <View style={[sunStyles.dome, { width: SIZE, height: SIZE - 8 + 8 }]}>
+          {/* Horizon line */}
+          <View style={[sunStyles.horizon, { width: SIZE - 16, top: cy }]} />
+          {/* Sun position dot */}
+          <View
+            style={[
+              sunStyles.sunDot,
+              {
+                left: sx - 7,
+                top: sy - 7,
+                backgroundColor: isNight ? colors.textMuted : (inShadow ? '#FFB347' : '#FFD43B'),
+                opacity: isNight ? 0.45 : 1,
+              },
+            ]}
+          />
+          {/* Compass tick labels */}
+          <Text style={[sunStyles.tick, { left: 0, top: cy + 4 }]}>W</Text>
+          <Text style={[sunStyles.tick, { right: 0, top: cy + 4 }]}>E</Text>
+          <Text style={[sunStyles.tick, { left: cx - 4, top: cy + 4 }]}>S</Text>
+        </View>
+        <View style={{ flex: 1, gap: 6, paddingLeft: spacing.md }}>
+          <ReadoutRow label="Altitude" value={`${altDeg.toFixed(0)}°`} />
+          <ReadoutRow label="Azimuth"  value={`${azDeg.toFixed(0)}° ${compassDir}`} />
+          {Number.isFinite(shadow?.horizonDeg) && (shadow?.horizonDeg ?? 0) > 1 && (
+            <ReadoutRow
+              label="Terrain"
+              value={`${shadow!.horizonDeg!.toFixed(0)}° horizon`}
+              tint={inShadow ? '#FFB347' : undefined}
+            />
+          )}
+          <ReadoutRow label="Light" value={`${lightPct}%`} tint={lightColor} />
+        </View>
+      </View>
+    </Card>
+  );
+}
+
+function ReadoutRow({ label, value, tint }: { label: string; value: string; tint?: string }) {
+  return (
+    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
+      <Text style={{ ...typography.caption, color: colors.textMuted }}>{label}</Text>
+      <Text style={{ ...typography.body, color: tint ?? colors.textPrimary, fontWeight: '600' }}>
+        {value}
+      </Text>
+    </View>
+  );
+}
+
+const sunStyles = StyleSheet.create({
+  header:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
+  lightLabel: { ...typography.bodySm, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
+  body:       { flexDirection: 'row', alignItems: 'center', marginTop: spacing.md },
+  dome:       { position: 'relative' },
+  horizon:    { position: 'absolute', height: 1, backgroundColor: colors.border, left: 8 },
+  sunDot:     { position: 'absolute', width: 14, height: 14, borderRadius: 999 },
+  tick:       { position: 'absolute', ...typography.caption, color: colors.textMuted, fontSize: 9 },
+});
 
 function windDescriptor(mph: number): string {
   if (mph < 3) return 'CALM';

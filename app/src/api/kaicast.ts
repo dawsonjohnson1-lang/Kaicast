@@ -44,6 +44,38 @@ export type BackendAnalysis = {
   runoff: BackendRunoff;
 };
 
+export type BackendSun = {
+  altitudeDeg: number | null;
+  azimuthDeg: number | null;
+};
+
+export type BackendShadow = {
+  shadowed: boolean;
+  reason?: 'night' | 'terrain' | 'unknown' | null;
+  horizonDeg?: number | null;
+  marginDeg?: number | null;
+};
+
+export type BackendLight = {
+  factor: number;
+  direct?: number;
+  diffuse?: number;
+  reason?: string | null;
+};
+
+export type BackendVisibility = {
+  estimatedVisibilityMeters: number;
+  estimatedVisibilityFeet?: number;
+  rating?: string;
+  source?: 'satellite' | 'heuristic' | 'cache';
+  confidence?: number;
+  rationale?: string[];
+  sun?: BackendSun;
+  shadow?: BackendShadow;
+  light?: BackendLight;
+  layers?: Record<string, number | null>;
+};
+
 export type BackendReport = {
   spot: string;
   spotName: string;
@@ -70,7 +102,7 @@ export type BackendReport = {
     confidenceScore: number;
     tide: any;
     analysis: BackendAnalysis;
-    visibility: { estimatedVisibilityMeters: number; rationale?: string[] };
+    visibility: BackendVisibility;
     rating: { score: number; label: string; rationale?: string[] };
   };
   windows: any[];
