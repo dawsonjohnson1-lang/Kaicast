@@ -97,7 +97,7 @@ export function SpotDetailScreen() {
 
         {tab === 'Overview' && <OverviewTab report={r} source={reportState.source} spot={spot} />}
         {tab === 'Hazards' && <HazardsTabRebuild spot={spot} />}
-        {tab === 'Forecast' && <ForecastTabRebuild spotCoords={{ lat: spot.lat, lon: spot.lon }} />}
+        {tab === 'Forecast' && <ForecastTabRebuild spot={spot} spotCoords={{ lat: spot.lat, lon: spot.lon }} />}
         {tab === 'Guide' && <GuideTabRebuild spot={spot} />}
 
         {tab !== 'Guide' && (
@@ -289,7 +289,7 @@ function Row({ children }: { children: React.ReactNode }) {
 }
 
 const styles = StyleSheet.create({
-  hero: { height: 300, paddingHorizontal: 0, paddingBottom: spacing.xl },
+  hero: { height: 230, paddingHorizontal: 0, paddingBottom: spacing.xl },
   heroBody: { paddingHorizontal: spacing.xl, marginTop: spacing.lg },
   heroSub: { ...typography.bodySm, color: colors.textSecondary, marginTop: spacing.xs },
   body: { paddingHorizontal: spacing.xl, paddingTop: spacing.lg, backgroundColor: colors.bg },

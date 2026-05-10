@@ -1,8 +1,10 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 
-import { buildMockForecast, defaultHourFor } from '@/api/forecast-mock';
+import { defaultHourFor } from '@/api/forecast-mock';
+import { useForecast } from '@/hooks/useForecast';
 import { colors, typography } from '@/theme';
+import type { Spot } from '@/types';
 
 import { DayStrip, RatingBar, ConditionBanner } from './components';
 import {
@@ -31,11 +33,16 @@ import {
  * function of `(day, scrubberHour)`, so they don't need to change.
  */
 type ForecastTabProps = {
+  spot?: Spot;
   spotCoords?: { lat: number; lon: number };
 };
 
-export function ForecastTab({ spotCoords }: ForecastTabProps = {}) {
-  const days = useMemo(() => buildMockForecast(), []);
+export function ForecastTab({ spot, spotCoords }: ForecastTabProps = {}) {
+  // Hook returns 10 days of ForecastDay[]. Day 0 is the live
+  // BackendReport when the backend has a SPOTS entry for this spot;
+  // otherwise day 0 is the mock baseline (source === 'mock').
+  // Days 1–9 are always mock until a multi-day endpoint lands.
+  const { days, source } = useForecast(spot);
   const [selectedId, setSelectedId] = useState<string>(days[0].id);
 
   const day = days.find((d) => d.id === selectedId) ?? days[0];
