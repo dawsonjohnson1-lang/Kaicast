@@ -3,7 +3,7 @@ import { Platform, View, Text, Image, Pressable, StyleSheet } from 'react-native
 import Svg, { Circle, Path } from 'react-native-svg';
 
 import { colors, spacing } from '@/theme';
-import { satelliteUrl, projectLatLonToImage, fitPointsToViewport } from '@/api/satellite';
+import { darkMapUrl, satelliteUrl, projectLatLonToImage, fitPointsToViewport } from '@/api/satellite';
 import type { Spot } from '@/types';
 
 // Bottom sheet on Explore opens to 55% by default — the static map
@@ -102,9 +102,13 @@ export function FauxMap({ spots = [], onSpotPress }: FauxMapProps) {
       )
     : null;
 
+  // Prefer the dark Mapbox style — matches the native interactive map
+   // and reads better than satellite imagery for pin visibility. Falls
+   // through to ESRI satellite only when Mapbox token isn't configured.
   const tileUri =
     size && viewport
-      ? satelliteUrl(viewport.centerLat, viewport.centerLon, size.w, size.h, viewport.zoom)
+      ? darkMapUrl(viewport.centerLat, viewport.centerLon, size.w, size.h, viewport.zoom) ??
+        satelliteUrl(viewport.centerLat, viewport.centerLon, size.w, size.h, viewport.zoom)
       : null;
 
   return (
@@ -118,7 +122,6 @@ export function FauxMap({ spots = [], onSpotPress }: FauxMapProps) {
       {tileUri && viewport ? (
         <>
           <Image source={{ uri: tileUri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-          <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(4,17,30,0.18)' }]} />
           {size &&
             spots.map((s) => {
               const { x, y } = projectLatLonToImage(
@@ -131,14 +134,21 @@ export function FauxMap({ spots = [], onSpotPress }: FauxMapProps) {
                 size.h,
               );
               if (x < -20 || y < -20 || x > size.w + 20 || y > size.h + 20) return null;
+              // Pin = soft accent halo + bright accent core + white dot.
+              // The halo means overlapping pins still read as multiple
+              // points instead of merging into a single dot.
               return (
                 <Pressable
                   key={s.id}
                   onPress={() => onSpotPress?.(s)}
-                  hitSlop={10}
-                  style={[pinStyles.outer, { position: 'absolute', left: x - 7, top: y - 7 }]}
+                  hitSlop={12}
+                  style={{ position: 'absolute', left: x - 12, top: y - 12 }}
                 >
-                  <View style={pinStyles.inner} />
+                  <View style={pinStyles.halo}>
+                    <View style={pinStyles.outer}>
+                      <View style={pinStyles.inner} />
+                    </View>
+                  </View>
                 </Pressable>
               );
             })}
@@ -185,9 +195,17 @@ function SvgFallback() {
 }
 
 const pinStyles = StyleSheet.create({
+  halo: {
+    width: 24,
+    height: 24,
+    borderRadius: 999,
+    backgroundColor: 'rgba(9,161,251,0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   outer: {
-    width: 14,
-    height: 14,
+    width: 16,
+    height: 16,
     borderRadius: 999,
     backgroundColor: colors.accent,
     alignItems: 'center',
@@ -196,8 +214,8 @@ const pinStyles = StyleSheet.create({
     borderColor: '#fff',
   },
   inner: {
-    width: 4,
-    height: 4,
+    width: 5,
+    height: 5,
     borderRadius: 999,
     backgroundColor: '#fff',
   },

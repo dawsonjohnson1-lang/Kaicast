@@ -97,7 +97,7 @@ export function fitPointsToViewport(
   viewW: number,
   viewH: number,
   sheetCoverFrac = 0,
-  padding = 0.25,
+  padding = 0.15,
   fallbackCenter = { lat: 20.9, lon: -157.85 },
   fallbackZoom = 6.2,
   maxZoom = 12,
@@ -145,6 +145,43 @@ export function fitPointsToViewport(
     centerLon: mercatorXToLon(centroidMercX),
     zoom,
   };
+}
+
+/**
+ * Build a dark-themed map raster URL via Mapbox's Static Images API.
+ * Uses the same Web Mercator tile pyramid as `satelliteUrl`, so the
+ * same `projectLatLonToImage` math overlays pins correctly.
+ *
+ * Returns null when the public Mapbox token isn't configured, so
+ * callers can fall back to ESRI satellite (or a local SVG).
+ *
+ * Style: mapbox/dark-v11 (the deep-navy treatment shipped on the
+ * native Mapbox path). 2x device pixel ratio so labels stay crisp
+ * on Retina screens.
+ */
+export function darkMapUrl(
+  lat: number,
+  lon: number,
+  width: number,
+  height: number,
+  zoom: number,
+): string | null {
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return null;
+  const token = (typeof process !== 'undefined' ? process.env.EXPO_PUBLIC_MAPBOX_TOKEN : '') || '';
+  if (!token || token.length < 30 || token.includes('REPLACE_ME')) return null;
+
+  // Mapbox caps Static Images API at 1280×1280 logical px (with @2x
+  // returning 2560×2560 physical). Clamp to be safe.
+  const w = Math.max(1, Math.min(1280, Math.round(width)));
+  const h = Math.max(1, Math.min(1280, Math.round(height)));
+  const z = Math.max(0, Math.min(20, Number(zoom.toFixed(2))));
+
+  return (
+    `https://api.mapbox.com/styles/v1/mapbox/dark-v11/static/` +
+    `${lon.toFixed(5)},${lat.toFixed(5)},${z},0/` +
+    `${w}x${h}@2x?logo=false&attribution=false&access_token=${token}`
+  );
 }
 
 /**
