@@ -1398,10 +1398,18 @@ async function buildSpotReport({ spot, owHourly, buoyData, marineForecast, nowMs
     cloudCoverPercent:nowMetrics.cloudCoverPercent,
   });
 
+  // Effective wave height (after terrain shielding) for the rating —
+  // a 6 ft NW swell hits Honolua hard but the same 6 ft from S barely
+  // reaches it. Falls back to raw when shielding info is missing.
+  const nowEffectiveSwellFt =
+    nowVisibility?.exposure?.effectiveWaveHeightM != null
+      ? nowVisibility.exposure.effectiveWaveHeightM * 3.28084
+      : nowSwellFt;
+
   const nowRating = generateSnorkelRating({
     visibilityMeters: nowVisibility.estimatedVisibilityMeters,
     windKnots:        nowMetrics.windSpeedKts,
-    swellFeet:        nowSwellFt,
+    swellFeet:        nowEffectiveSwellFt,
     swellPeriodSec:   nowMetrics.wavePeriodS,
     currentKnots:     estimateCurrentFromWind(nowMetrics.windSpeedKts),
     waterTempC:       nowMetrics.waterTempC,
@@ -1498,10 +1506,15 @@ async function buildSpotReport({ spot, owHourly, buoyData, marineForecast, nowMs
       nasaPass:  process.env.NASA_EARTHDATA_PASSWORD,
     });
 
+    const winEffectiveSwellFt =
+      winVisibility?.exposure?.effectiveWaveHeightM != null
+        ? winVisibility.exposure.effectiveWaveHeightM * 3.28084
+        : winSwellFt;
+
     const winRating = generateSnorkelRating({
       visibilityMeters: winVisibility.estimatedVisibilityMeters,
       windKnots:        w.avg.windSpeedKts,
-      swellFeet:        winSwellFt,
+      swellFeet:        winEffectiveSwellFt,
       swellPeriodSec:   w.avg.wavePeriodS,
       currentKnots:     estimateCurrentFromWind(w.avg.windSpeedKts),
       waterTempC:       w.avg.waterTempC,

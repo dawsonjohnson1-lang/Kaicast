@@ -63,6 +63,20 @@ export type BackendLight = {
   reason?: string | null;
 };
 
+export type BackendExposure = {
+  factor: number;
+  swellFromDeg: number | null;
+  rawWaveHeightM: number | null;
+  effectiveWaveHeightM: number | null;
+};
+
+export type BackendWindRel = {
+  relation: 'onshore' | 'offshore' | 'cross' | 'unknown';
+  openOceanBearingDeg: number | null;
+  angleFromOpenDeg: number | null;
+  chopMultiplier: number;
+};
+
 export type BackendVisibility = {
   estimatedVisibilityMeters: number;
   estimatedVisibilityFeet?: number;
@@ -73,6 +87,8 @@ export type BackendVisibility = {
   sun?: BackendSun;
   shadow?: BackendShadow;
   light?: BackendLight;
+  exposure?: BackendExposure;
+  wind?: BackendWindRel;
   layers?: Record<string, number | null>;
 };
 

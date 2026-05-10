@@ -307,7 +307,32 @@ function SunShadowCard({ visibility }: { visibility: BackendVisibility }) {
           <ReadoutRow label="Light" value={`${lightPct}%`} tint={lightColor} />
         </View>
       </View>
+
+      {(visibility.wind?.relation === 'onshore' || visibility.wind?.relation === 'offshore' ||
+        ((visibility.exposure?.factor ?? 1) < 0.5)) && (
+        <View style={sunStyles.badgeRow}>
+          {visibility.wind?.relation === 'onshore' && (visibility.wind.chopMultiplier ?? 1) < 0.95 && (
+            <Badge label="Onshore wind" tone="warn" />
+          )}
+          {visibility.wind?.relation === 'offshore' && (
+            <Badge label="Offshore breeze" tone="good" />
+          )}
+          {(visibility.exposure?.factor ?? 1) < 0.5 && (
+            <Badge label="Sheltered from swell" tone="good" />
+          )}
+        </View>
+      )}
     </Card>
+  );
+}
+
+function Badge({ label, tone }: { label: string; tone: 'good' | 'warn' }) {
+  const bg = tone === 'good' ? 'rgba(39,214,103,0.14)' : 'rgba(255,179,71,0.16)';
+  const fg = tone === 'good' ? colors.excellent : '#FFB347';
+  return (
+    <View style={{ backgroundColor: bg, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 }}>
+      <Text style={{ ...typography.caption, color: fg, fontWeight: '700' }}>{label}</Text>
+    </View>
   );
 }
 
@@ -330,6 +355,7 @@ const sunStyles = StyleSheet.create({
   horizon:    { position: 'absolute', height: 1, backgroundColor: colors.border, left: 8 },
   sunDot:     { position: 'absolute', width: 14, height: 14, borderRadius: 999 },
   tick:       { position: 'absolute', ...typography.caption, color: colors.textMuted, fontSize: 9 },
+  badgeRow:   { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: spacing.md },
 });
 
 function windDescriptor(mph: number): string {
