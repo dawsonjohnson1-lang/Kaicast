@@ -156,8 +156,11 @@ async function fetchTideSeries(stationId, nowMs) {
   }
 
   try {
+    // Cover the past 6h (so the "now" tide cycle has anchor points
+     // before now) and the next 7 days (so per-day forecast tide
+     // events are available without an extra fetch).
     const beginMs = nowMs - 6 * 3600000;
-    const endMs   = nowMs + 30 * 3600000;
+    const endMs   = nowMs + 7 * 24 * 3600000;
 
     function fmtDate(ms) {
       const d = new Date(ms);

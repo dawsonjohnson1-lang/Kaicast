@@ -143,6 +143,18 @@ function buildDayFromAggregate(day: BackendDay, indexFromToday: number): Forecas
   const swellMaxFt = Math.round(((day.waveMaxM ?? swellAvgFt / M_TO_FT) * M_TO_FT) + 0.5);
   const swellRangeFt = `${swellMinFt}-${swellMaxFt}ft`;
 
+  // Per-day NOAA tide events (4 hilo points) — already in spot-local tz.
+  const tideEvents: TideEvent[] = (day.tideEvents ?? []).map((ev) => ({
+    type: ev.type,
+    timeLabel: ev.timeLabel,
+    hour24: ev.hour24,
+    heightFt: ev.heightFt,
+  }));
+  const tideTrend: 'rising' | 'falling' = (() => {
+    if (tideEvents.length < 2) return 'rising';
+    return tideEvents[1].heightFt > tideEvents[0].heightFt ? 'rising' : 'falling';
+  })();
+
   // Heuristic score 0-100: starts from wave-clean window logic. Light
   // wind + 1-2m swell + dry day = high score; rough seas, big winds,
   // or rainy = drops fast. Same shape as backend's snorkel rating but
@@ -156,7 +168,6 @@ function buildDayFromAggregate(day: BackendDay, indexFromToday: number): Forecas
   const windDeg = Number.isFinite(day.waveDirDeg) ? Number(day.waveDirDeg) : 90;
   const currentMph = Number((windMph * 0.07).toFixed(2));
   const currentDeg = (windDeg + 90) % 360;
-  const tideFt = 1.5;
 
   // Flat-ish hourly so the chart doesn't crash but doesn't lie about
   // having hourly resolution we don't have. Slight diurnal variation
@@ -173,7 +184,7 @@ function buildDayFromAggregate(day: BackendDay, indexFromToday: number): Forecas
       windDeg,
       currentMph,
       currentDeg,
-      tideFt,
+      tideFt: tideHeightFor(h, tideEvents),
       nearshoreEnergyKj: 60,
       offshoreEnergyKj: 90,
       consistency: Math.max(20, Math.min(95, score)),
@@ -195,8 +206,8 @@ function buildDayFromAggregate(day: BackendDay, indexFromToday: number): Forecas
     pmRating: tier,
     isToday: false,
     hourly,
-    tideEvents: [],
-    tideTrend: 'rising',
+    tideEvents,
+    tideTrend,
     ratingLabel: ratingLabelForTier(tier),
     ratingSegments: [{ startHour: 0, endHour: 24, color: RATING_COLORS[tier] }],
   };

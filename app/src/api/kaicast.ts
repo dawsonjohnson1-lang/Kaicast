@@ -88,6 +88,15 @@ export type BackendDay = {
   rainTotalMM: number | null;
   windAvgKts: number | null;
   windMaxKts: number | null;
+  tideEvents?: BackendDayTide[];
+};
+
+export type BackendDayTide = {
+  type: 'high' | 'low';
+  tsMs: number;
+  heightFt: number;
+  hour24: number;            // 0-23 in spot-local tz
+  timeLabel: string;         // e.g. "8:42am"
 };
 
 export type FetchNowResponse = {

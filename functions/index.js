@@ -1107,7 +1107,10 @@ async function buildSpotReport({ spot, owHourly, buoyData, marineForecast, nowMs
   // Daily forecast — aggregate Open-Meteo Marine hourly into 7 daily
   // buckets so the Forecast tab's day strip can show real wave / period
   // ranges. Date keys are local to the spot's tz when given, else UTC.
-  const days = buildDailyForecast({ marineForecast, owHourly, spot, nowMs });
+  const days = buildDailyForecast({
+    marineForecast, owHourly, spot, nowMs,
+    tideSeries: rawTideSeries,
+  });
 
   const qcFlags = [];
   if (!buoyData || !buoyData.waveHMap?.size) qcFlags.push('no-buoy');
@@ -1156,7 +1159,7 @@ async function buildSpotReport({ spot, owHourly, buoyData, marineForecast, nowMs
 // next 7 days. Each day gets min/max/avg wave height + dominant period
 // + dominant direction. Returns [] when no forecast data is available
 // so the client can fall back gracefully.
-function buildDailyForecast({ marineForecast, owHourly, spot, nowMs }) {
+function buildDailyForecast({ marineForecast, owHourly, spot, nowMs, tideSeries = [] }) {
   if (!marineForecast || !marineForecast.waveHMap?.size) return [];
 
   // Group hourly samples by spot-local calendar date so "today" matches
@@ -1166,6 +1169,14 @@ function buildDailyForecast({ marineForecast, owHourly, spot, nowMs }) {
   const fmt = new Intl.DateTimeFormat('en-CA', {
     timeZone: tz,
     year: 'numeric', month: '2-digit', day: '2-digit',
+  });
+  // Local-hour formatter so per-day tide events carry the right hour
+  // for the diver's calendar (Maui spots in Hawaii tz, etc).
+  const hourFmt = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz, hour12: false, hour: '2-digit',
+  });
+  const minuteFmt = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz, hour12: false, minute: '2-digit',
   });
 
   const buckets = new Map(); // YYYY-MM-DD -> { hs: [], ps: [], dirs: [], temps: [], rains: [], winds: [] }
@@ -1219,9 +1230,34 @@ function buildDailyForecast({ marineForecast, owHourly, spot, nowMs }) {
   const round1 = (n) => (n == null ? null : Math.round(n * 10) / 10);
   const round0 = (n) => (n == null ? null : Math.round(n));
 
+  // Bucket tide events (hilo predictions are NOAA H/L points) into
+  // each day's local calendar. Each event keeps its UTC tsMs, level
+  // in feet, type (high/low), local hour24 for the chart, and a
+  // human-readable timeLabel like "8:42am".
+  const tideBuckets = new Map();
+  for (const ev of (Array.isArray(tideSeries) ? tideSeries : [])) {
+    if (!ev || !Number.isFinite(ev.tsMs) || !Number.isFinite(ev.levelFt)) continue;
+    const dateKey = fmt.format(new Date(ev.tsMs));
+    if (!buckets.has(dateKey)) continue;
+    let arr = tideBuckets.get(dateKey);
+    if (!arr) { arr = []; tideBuckets.set(dateKey, arr); }
+    const hour24 = Number(hourFmt.format(new Date(ev.tsMs)));
+    const minute = Number(minuteFmt.format(new Date(ev.tsMs)));
+    const ampm = hour24 >= 12 ? 'pm' : 'am';
+    const h12  = ((hour24 + 11) % 12) + 1;
+    arr.push({
+      type: ev.type === 'H' ? 'high' : 'low',
+      tsMs: ev.tsMs,
+      heightFt: Math.round(ev.levelFt * 100) / 100,
+      hour24,
+      timeLabel: `${h12}:${String(minute).padStart(2, '0')}${ampm}`,
+    });
+  }
+
   const sortedKeys = [...buckets.keys()].sort();
   return sortedKeys.slice(0, 7).map((dateKey) => {
     const b = buckets.get(dateKey);
+    const tideEvents = (tideBuckets.get(dateKey) || []).sort((a, b) => a.tsMs - b.tsMs);
     return {
       date:           dateKey,
       waveMinM:       round1(Math.min(...b.hs)),
@@ -1233,6 +1269,7 @@ function buildDailyForecast({ marineForecast, owHourly, spot, nowMs }) {
       rainTotalMM:    round1(sum(b.rains)),
       windAvgKts:     round1(avg(b.winds)),
       windMaxKts:     round0(b.winds.length ? Math.max(...b.winds) : null),
+      tideEvents,
     };
   });
 }
@@ -1314,6 +1351,9 @@ async function readCachedReport(spotId, nowMs, spot = null) {
     // added — the days[] array is a meaningful upgrade and worth a
     // one-time recompute. Self-clears within an hour as caches refill.
     if (!Array.isArray(data?.days)) continue;
+    // Same for the per-day tide events (added after days[] shipped).
+    // Skip if any day in the forecast is missing tideEvents.
+    if (!data.days.every((d) => Array.isArray(d?.tideEvents))) continue;
     return data;
   }
   return null;
