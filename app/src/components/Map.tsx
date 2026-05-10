@@ -1,10 +1,17 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Platform, View, Text, Image, Pressable, StyleSheet } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
 
-import { colors, spacing } from '@/theme';
+import { colors, spacing, typography } from '@/theme';
 import { darkMapUrl, satelliteUrl, projectLatLonToImage, fitPointsToViewport } from '@/api/satellite';
 import type { Spot } from '@/types';
+
+// Pixel-grid clustering radius. Pins whose projected screen positions
+// fall in the same NxN cell merge into a single numbered cluster.
+// 60px is roughly two-pin-widths apart at current pin sizing — close
+// enough to feel clustered, far enough that genuinely-distinct spots
+// stay separate.
+const CLUSTER_GRID_PX = 60;
 
 // Bottom sheet on Explore opens to 55% by default — the static map
 // auto-fits spots into the top 45% so the cluster doesn't end up
@@ -49,10 +56,12 @@ if (Mapbox && useMapbox) {
 type SpotMapProps = {
   spots: Spot[];
   onSpotPress?: (spot: Spot) => void;
+  /** Tap-handler when a cluster of 2+ spots is pressed. */
+  onClusterPress?: (spots: Spot[]) => void;
 };
 
-export function SpotMap({ spots, onSpotPress }: SpotMapProps) {
-  if (!useMapbox) return <FauxMap spots={spots} onSpotPress={onSpotPress} />;
+export function SpotMap({ spots, onSpotPress, onClusterPress }: SpotMapProps) {
+  if (!useMapbox) return <FauxMap spots={spots} onSpotPress={onSpotPress} onClusterPress={onClusterPress} />;
 
   return (
     <MapView
@@ -83,6 +92,7 @@ export function SpotMap({ spots, onSpotPress }: SpotMapProps) {
 type FauxMapProps = {
   spots?: Spot[];
   onSpotPress?: (spot: Spot) => void;
+  onClusterPress?: (spots: Spot[]) => void;
 };
 
 // Static satellite via ESRI World Imagery with absolute-positioned
@@ -90,7 +100,7 @@ type FauxMapProps = {
 // dev client. The viewport is auto-fit to the spots so the cluster
 // always lands in the top portion of the screen, above the bottom
 // sheet that covers the lower half.
-export function FauxMap({ spots = [], onSpotPress }: FauxMapProps) {
+export function FauxMap({ spots = [], onSpotPress, onClusterPress }: FauxMapProps) {
   const [size, setSize] = useState<{ w: number; h: number } | null>(null);
 
   const viewport = size
@@ -122,41 +132,107 @@ export function FauxMap({ spots = [], onSpotPress }: FauxMapProps) {
       {tileUri && viewport ? (
         <>
           <Image source={{ uri: tileUri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-          {size &&
-            spots.map((s) => {
-              const { x, y } = projectLatLonToImage(
-                s.lat,
-                s.lon,
-                viewport.centerLat,
-                viewport.centerLon,
-                viewport.zoom,
-                size.w,
-                size.h,
-              );
-              if (x < -20 || y < -20 || x > size.w + 20 || y > size.h + 20) return null;
-              // Pin = soft accent halo + bright accent core + white dot.
-              // The halo means overlapping pins still read as multiple
-              // points instead of merging into a single dot.
-              return (
-                <Pressable
-                  key={s.id}
-                  onPress={() => onSpotPress?.(s)}
-                  hitSlop={12}
-                  style={{ position: 'absolute', left: x - 12, top: y - 12 }}
-                >
-                  <View style={pinStyles.halo}>
-                    <View style={pinStyles.outer}>
-                      <View style={pinStyles.inner} />
-                    </View>
-                  </View>
-                </Pressable>
-              );
-            })}
+          {size && (
+            <ClusteredPins
+              spots={spots}
+              size={size}
+              viewport={viewport}
+              onSpotPress={onSpotPress}
+              onClusterPress={onClusterPress}
+            />
+          )}
         </>
       ) : (
         <SvgFallback />
       )}
     </View>
+  );
+}
+
+// Project every spot to pixel space, bucket into a square pixel grid,
+// and render each non-empty bucket as either a single pin (1 spot)
+// or a numbered cluster badge (2+ spots). Tap behavior:
+//   - 1 spot   → onSpotPress(spot)
+//   - 2+ spots → onClusterPress(spots)  ← parent typically focuses
+//                the map onto just those spots so they spread apart
+//
+// Pure, deterministic, O(n) — recomputes whenever viewport or spots
+// change. Bucket centroid is the average of contained pin pixel
+// coords so the cluster badge sits over the visual cluster.
+function ClusteredPins({
+  spots,
+  size,
+  viewport,
+  onSpotPress,
+  onClusterPress,
+}: {
+  spots: Spot[];
+  size: { w: number; h: number };
+  viewport: { centerLat: number; centerLon: number; zoom: number };
+  onSpotPress?: (spot: Spot) => void;
+  onClusterPress?: (spots: Spot[]) => void;
+}) {
+  const clusters = useMemo(() => {
+    type Bucket = { sumX: number; sumY: number; spots: Spot[] };
+    const buckets = new Map<string, Bucket>();
+    for (const s of spots) {
+      const { x, y } = projectLatLonToImage(
+        s.lat, s.lon,
+        viewport.centerLat, viewport.centerLon, viewport.zoom,
+        size.w, size.h,
+      );
+      // Cull pins well outside the visible area so off-island stragglers
+      // don't waste a cluster bucket.
+      if (x < -40 || y < -40 || x > size.w + 40 || y > size.h + 40) continue;
+      const key = `${Math.floor(x / CLUSTER_GRID_PX)}_${Math.floor(y / CLUSTER_GRID_PX)}`;
+      let b = buckets.get(key);
+      if (!b) { b = { sumX: 0, sumY: 0, spots: [] }; buckets.set(key, b); }
+      b.sumX += x; b.sumY += y; b.spots.push(s);
+    }
+    return [...buckets.values()].map((b) => ({
+      x: b.sumX / b.spots.length,
+      y: b.sumY / b.spots.length,
+      spots: b.spots,
+    }));
+  }, [spots, size.w, size.h, viewport.centerLat, viewport.centerLon, viewport.zoom]);
+
+  return (
+    <>
+      {clusters.map((c, i) => {
+        if (c.spots.length === 1) {
+          const s = c.spots[0];
+          return (
+            <Pressable
+              key={s.id}
+              onPress={() => onSpotPress?.(s)}
+              hitSlop={12}
+              style={{ position: 'absolute', left: c.x - 12, top: c.y - 12 }}
+            >
+              <View style={pinStyles.halo}>
+                <View style={pinStyles.outer}>
+                  <View style={pinStyles.inner} />
+                </View>
+              </View>
+            </Pressable>
+          );
+        }
+        // 2+ spots — numbered cluster badge.
+        return (
+          <Pressable
+            key={`cluster-${i}`}
+            onPress={() => onClusterPress?.(c.spots)}
+            hitSlop={10}
+            style={{ position: 'absolute', left: c.x - 18, top: c.y - 18 }}
+          >
+            <View style={pinStyles.clusterHalo}>
+              <View style={pinStyles.cluster}>
+                <Text style={pinStyles.clusterText}>{c.spots.length}</Text>
+              </View>
+            </View>
+          </Pressable>
+        );
+      })}
+    </>
   );
 }
 
@@ -218,6 +294,32 @@ const pinStyles = StyleSheet.create({
     height: 5,
     borderRadius: 999,
     backgroundColor: '#fff',
+  },
+  clusterHalo: {
+    width: 36,
+    height: 36,
+    borderRadius: 999,
+    backgroundColor: 'rgba(9,161,251,0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cluster: {
+    minWidth: 28,
+    height: 28,
+    paddingHorizontal: 8,
+    borderRadius: 999,
+    backgroundColor: colors.accent,
+    borderWidth: 2,
+    borderColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  clusterText: {
+    ...typography.bodySm,
+    color: '#fff',
+    fontWeight: '800',
+    fontSize: 13,
+    lineHeight: 14,
   },
 });
 

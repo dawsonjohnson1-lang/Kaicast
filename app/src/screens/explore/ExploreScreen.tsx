@@ -40,6 +40,10 @@ export function ExploreScreen() {
   const { spots: allSpots } = useSpots();
   const [filter, setFilter] = useState<Filter>('Dive Spots');
   const [origin, setOrigin] = useState<{ lat: number; lon: number } | null>(null);
+  // When the user taps a cluster badge, focus the map on just those
+  // spot ids — re-fits the viewport to that subset so they spread
+  // apart visually. Null means "show every spot".
+  const [focusedIds, setFocusedIds] = useState<string[] | null>(null);
   const initials = (user?.name ?? 'D').split(' ').map((s) => s[0]).join('').slice(0, 2);
 
   useEffect(() => {
@@ -64,6 +68,13 @@ export function ExploreScreen() {
       .sort((a, b) => (a.distMi ?? 0) - (b.distMi ?? 0));
   }, [origin, allSpots]);
 
+  // Spots actually drawn on the map — full set or the focused subset.
+  const mapSpots = useMemo(() => {
+    if (!focusedIds) return allSpots;
+    const ids = new Set(focusedIds);
+    return allSpots.filter((s) => ids.has(s.id));
+  }, [allSpots, focusedIds]);
+
   return (
     <Screen scroll={false} padding={0}>
       <View style={StyleSheet.absoluteFill}>
@@ -74,8 +85,9 @@ export function ExploreScreen() {
           style={StyleSheet.absoluteFill}
         />
         <SpotMap
-          spots={allSpots}
+          spots={mapSpots}
           onSpotPress={(spot) => nav.navigate('SpotDetail', { spotId: spot.id })}
+          onClusterPress={(clusterSpots) => setFocusedIds(clusterSpots.map((s) => s.id))}
         />
         <View style={styles.appBarPad} pointerEvents="box-none">
           <AppBar userName={(user?.name ?? 'Diver').toUpperCase()} initials={initials} />
@@ -85,6 +97,12 @@ export function ExploreScreen() {
           <Pressable style={styles.fab}><Icon name="send" size={18} color={colors.textPrimary} /></Pressable>
           <Pressable style={styles.fab}><Icon name="globe" size={18} color={colors.textPrimary} /></Pressable>
         </View>
+        {focusedIds && (
+          <Pressable style={styles.allSpotsPill} onPress={() => setFocusedIds(null)}>
+            <Icon name="chevron-left" size={14} color="#fff" />
+            <Text style={styles.allSpotsText}>All spots</Text>
+          </Pressable>
+        )}
       </View>
 
       <BottomSheet
@@ -139,6 +157,21 @@ export function ExploreScreen() {
 const styles = StyleSheet.create({
   appBarPad: { paddingHorizontal: spacing.xl, paddingTop: spacing.lg },
   fabs: { position: 'absolute', right: spacing.xl, bottom: '60%', gap: spacing.sm },
+  allSpotsPill: {
+    position: 'absolute',
+    top: 110,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: 'rgba(20, 24, 36, 0.92)',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  allSpotsText: { ...typography.bodySm, color: '#fff', fontWeight: '700' },
   fab: {
     width: 44, height: 44, borderRadius: 999,
     backgroundColor: colors.cardAlt,
