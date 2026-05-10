@@ -2,16 +2,16 @@
 // requires a working privacy policy URL on the listing AND inside the
 // app (typically Settings → Privacy Policy). Same goes for Play.
 //
-// The drafts live at docs/privacy-policy.md and
-// docs/terms-of-service.md in the repo. Host them anywhere with a
-// stable HTTPS URL — GitHub Pages, Firebase Hosting, Webflow, a
-// static site — and point these constants at the published locations
-// before submitting to either store.
+// Source-of-truth markdown lives at docs/privacy-policy.md and
+// docs/terms-of-service.md. scripts/build-legal.js renders them to
+// styled HTML in functions/public/. Deploy via:
+//   node scripts/build-legal.js && firebase deploy --only hosting
 //
-// Until they're hosted, opening these in-app falls through to the
-// repo's GitHub URLs so QA / reviewers can still see content.
+// When you wire a custom domain (e.g. kaicast.app), update the URLs
+// below — the existing routes /privacy and /terms continue to work
+// on the new domain since the rewrites are domain-agnostic.
 
 export const LEGAL_URLS = {
-  privacy: 'https://kaicast.app/privacy',
-  terms:   'https://kaicast.app/terms',
+  privacy: 'https://kaicast-207dc.web.app/privacy',
+  terms:   'https://kaicast-207dc.web.app/terms',
 } as const;
