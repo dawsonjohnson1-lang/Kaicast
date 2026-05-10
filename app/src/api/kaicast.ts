@@ -74,6 +74,20 @@ export type BackendReport = {
     rating: { score: number; label: string; rationale?: string[] };
   };
   windows: any[];
+  days?: BackendDay[];
+};
+
+export type BackendDay = {
+  date: string;              // YYYY-MM-DD in spot's local tz
+  waveMinM: number | null;
+  waveMaxM: number | null;
+  waveAvgM: number | null;
+  wavePeriodS: number | null;
+  waveDirDeg: number | null;
+  airTempCAvg: number | null;
+  rainTotalMM: number | null;
+  windAvgKts: number | null;
+  windMaxKts: number | null;
 };
 
 export type FetchNowResponse = {

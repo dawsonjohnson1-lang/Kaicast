@@ -15,9 +15,9 @@
 // Days other than today keep coming from the mock generator. When
 // the backend grows a multi-day endpoint, swap that in here.
 
-import type { BackendReport } from '@/api/kaicast';
+import type { BackendReport, BackendDay } from '@/api/kaicast';
 import type { ForecastDay, HourlyPoint, TideEvent, ForecastRating } from '@/api/forecast-mock';
-import { RATING_COLORS, type RatingTier } from '@/theme/ratingColors';
+import { RATING_COLORS, RATING_LABELS, type RatingTier } from '@/theme/ratingColors';
 import { scoreToTier } from '@/utils/scoreToTier';
 
 const KTS_TO_MPH = 1.15078;
@@ -119,6 +119,125 @@ function bestRatingTier(windows: any[]): { tier: RatingTier; label: string } {
     }
   }
   return { tier: scoreToTier(best.score < 0 ? 50 : best.score), label: best.label };
+}
+
+// Build the next 6 ForecastDays from the backend's daily aggregates.
+// Today (index 0 of the report's days) is rendered separately by
+// backendReportToForecastDay using the hourly windows; this picks up
+// at "tomorrow" so the strip stays consistent. Hourly chart for these
+// days is a flat line at the day's average (no per-hour resolution
+// from the marine forecast aggregate), with an am/mid/pm rating
+// inferred from a heuristic that combines wave avg, wind avg, and
+// rainfall.
+export function backendDaysToForecastDays(
+  days: BackendDay[] | undefined,
+): ForecastDay[] {
+  if (!Array.isArray(days) || days.length === 0) return [];
+  return days.slice(1).map((day, idx) => buildDayFromAggregate(day, idx + 1));
+}
+
+function buildDayFromAggregate(day: BackendDay, indexFromToday: number): ForecastDay {
+  const date = new Date(day.date + 'T12:00:00');
+  const swellAvgFt = (day.waveAvgM ?? 0) * M_TO_FT;
+  const swellMinFt = Math.max(0, Math.round(((day.waveMinM ?? 0) * M_TO_FT) - 0.5));
+  const swellMaxFt = Math.round(((day.waveMaxM ?? swellAvgFt / M_TO_FT) * M_TO_FT) + 0.5);
+  const swellRangeFt = `${swellMinFt}-${swellMaxFt}ft`;
+
+  // Heuristic score 0-100: starts from wave-clean window logic. Light
+  // wind + 1-2m swell + dry day = high score; rough seas, big winds,
+  // or rainy = drops fast. Same shape as backend's snorkel rating but
+  // simplified for forecast aggregates that lack tide / visibility.
+  const score = aggregateDayScore(day);
+  const tier: ForecastRating = scoreToTier(score) as ForecastRating;
+
+  const windMph = ktsToMph(day.windAvgKts);
+  const airTempF = cToF(day.airTempCAvg);
+  const visFt = Math.round(estimateVisibilityFt(day));
+  const windDeg = Number.isFinite(day.waveDirDeg) ? Number(day.waveDirDeg) : 90;
+  const currentMph = Number((windMph * 0.07).toFixed(2));
+  const currentDeg = (windDeg + 90) % 360;
+  const tideFt = 1.5;
+
+  // Flat-ish hourly so the chart doesn't crash but doesn't lie about
+  // having hourly resolution we don't have. Slight diurnal variation
+  // for the chart to look alive.
+  const hourly: HourlyPoint[] = [];
+  for (let h = 0; h < 24; h++) {
+    const diurnal = Math.sin(((h - 6) / 24) * Math.PI * 2);
+    hourly.push({
+      hourLabel: HOUR_LABELS[h],
+      hour24: h,
+      visibilityFt: Math.max(5, visFt + Math.round(diurnal * 5)),
+      windMph: Math.max(0, windMph + Math.round(diurnal * 2)),
+      windGustMph: Math.max(0, windMph + 3),
+      windDeg,
+      currentMph,
+      currentDeg,
+      tideFt,
+      nearshoreEnergyKj: 60,
+      offshoreEnergyKj: 90,
+      consistency: Math.max(20, Math.min(95, score)),
+      weatherIcon: (day.rainTotalMM ?? 0) > 5 ? '🌧️' : ((day.rainTotalMM ?? 0) > 1 ? '🌥️' : '☀️'),
+      airTempF,
+      score,
+    });
+  }
+
+  return {
+    id: `d${indexFromToday}`,
+    label: date.toLocaleDateString([], { weekday: 'short' }),
+    date: `${date.getMonth() + 1}/${date.getDate()}`,
+    iso: day.date,
+    swellRangeFt,
+    rating: tier,
+    amRating: tier,
+    midRating: tier,
+    pmRating: tier,
+    isToday: false,
+    hourly,
+    tideEvents: [],
+    tideTrend: 'rising',
+    ratingLabel: ratingLabelForTier(tier),
+    ratingSegments: [{ startHour: 0, endHour: 24, color: RATING_COLORS[tier] }],
+  };
+}
+
+function aggregateDayScore(day: BackendDay): number {
+  let score = 70;
+  const swellM = day.waveAvgM ?? 0;
+  const wind   = day.windAvgKts ?? 0;
+  const rain   = day.rainTotalMM ?? 0;
+
+  // Swell: 0.5–1.5m sweet spot; bigger drops fast.
+  if (swellM > 3.5) score -= 35;
+  else if (swellM > 2.5) score -= 20;
+  else if (swellM > 1.8) score -= 8;
+  else if (swellM < 0.3) score -= 5;
+
+  // Wind: <10 kts ideal; >18 kts trashes visibility.
+  if (wind > 22) score -= 25;
+  else if (wind > 15) score -= 12;
+  else if (wind < 8)  score += 5;
+
+  // Rain: any meaningful rainfall pulls score (runoff risk).
+  if (rain > 25)      score -= 25;
+  else if (rain > 10) score -= 12;
+  else if (rain > 3)  score -= 5;
+
+  return Math.max(0, Math.min(100, Math.round(score)));
+}
+
+function estimateVisibilityFt(day: BackendDay): number {
+  // Visibility roughly inverse to swell height + rain. Calm clear
+  // days get ~60 ft, choppy/rainy ~15 ft.
+  const swellM = day.waveAvgM ?? 1;
+  const rain = day.rainTotalMM ?? 0;
+  const base = 60 - swellM * 10 - rain * 0.8;
+  return Math.max(8, Math.min(80, Math.round(base)));
+}
+
+function ratingLabelForTier(tier: RatingTier): string {
+  return RATING_LABELS[tier] ?? 'GOOD';
 }
 
 export function backendReportToForecastDay(

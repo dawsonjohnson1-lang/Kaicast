@@ -11,7 +11,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { fetchSpotReport, type BackendReport } from '@/api/kaicast';
 import { buildMockForecast, type ForecastDay } from '@/api/forecast-mock';
-import { backendReportToForecastDay } from '@/api/forecast-live';
+import { backendReportToForecastDay, backendDaysToForecastDays } from '@/api/forecast-live';
 import type { Spot } from '@/types';
 
 type State = {
@@ -41,7 +41,13 @@ export function useForecast(spot: Spot | undefined): State {
       .then((report: BackendReport) => {
         if (cancelled) return;
         const today = backendReportToForecastDay(report, baseline[0].id);
-        const merged = [today, ...baseline.slice(1)];
+        // Backend now ships a 7-day daily aggregate from Open-Meteo
+        // Marine. Replace the rest of the strip with real days when
+        // present; pad with mock to keep the 10-day strip length.
+        const liveDays = backendDaysToForecastDays(report.days);
+        const merged: ForecastDay[] = liveDays.length
+          ? [today, ...liveDays, ...baseline.slice(1 + liveDays.length)]
+          : [today, ...baseline.slice(1)];
         setState({ days: merged, source: 'live', loading: false });
       })
       .catch(() => {

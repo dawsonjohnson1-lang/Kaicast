@@ -10,6 +10,7 @@ const admin  = require('firebase-admin');
 
 const analysis        = require('./analysis');
 const { fetchBuoyHourly } = require('./buoy_Version2');
+const { fetchMarineForecast } = require('./marineForecast');
 const { pushAllReportsToWebflow } = require('./webflow');
 
 admin.initializeApp();
@@ -879,7 +880,7 @@ exports.getReport = onRequest(
 
 // ─── Report builder ───────────────────────────────────────────────────────────
 
-async function buildSpotReport({ spot, owHourly, buoyData, nowMs }) {
+async function buildSpotReport({ spot, owHourly, buoyData, marineForecast, nowMs }) {
   const nowDate    = new Date(nowMs);
   const generatedAt = nowDate.toISOString();
   const hourKey    = buildHourKey(nowDate);
@@ -1003,12 +1004,22 @@ async function buildSpotReport({ spot, owHourly, buoyData, nowMs }) {
     },
   });
 
-  // Merge buoy into hourly for window calculations
+  // Merge buoy + marine forecast into hourly for window calculations.
+  // Buoy data covers PAST hours (NDBC realtime obs); marine forecast
+  // covers FUTURE hours (Open-Meteo Marine). Past hours fall through
+  // to forecast as a fallback. Water temp comes from buoy only —
+  // Open-Meteo Marine doesn't expose SST.
   const hourlyWithBuoy = owHourly.hourly.map((h) => ({
     ...h,
-    waveHeightM: buoyData?.waveHMap?.get(h.isoHour) ?? null,
-    wavePeriodS: buoyData?.wavePMap?.get(h.isoHour) ?? null,
-    waterTempC:  buoyData?.sstMap?.get(h.isoHour)   ?? null,
+    waveHeightM:
+      buoyData?.waveHMap?.get(h.isoHour) ??
+      marineForecast?.waveHMap?.get(h.isoHour) ??
+      null,
+    wavePeriodS:
+      buoyData?.wavePMap?.get(h.isoHour) ??
+      marineForecast?.wavePMap?.get(h.isoHour) ??
+      null,
+    waterTempC:  buoyData?.sstMap?.get(h.isoHour) ?? null,
   }));
 
   const rawWindows = buildWindows(hourlyWithBuoy, nowMs, 8);
@@ -1093,16 +1104,23 @@ async function buildSpotReport({ spot, owHourly, buoyData, nowMs }) {
     };
   });
 
+  // Daily forecast — aggregate Open-Meteo Marine hourly into 7 daily
+  // buckets so the Forecast tab's day strip can show real wave / period
+  // ranges. Date keys are local to the spot's tz when given, else UTC.
+  const days = buildDailyForecast({ marineForecast, owHourly, spot, nowMs });
+
   const qcFlags = [];
   if (!buoyData || !buoyData.waveHMap?.size) qcFlags.push('no-buoy');
   if (nowMetrics.waterTempC == null) qcFlags.push('missing-sst');
   if (nowMetrics.waveHeightM == null) qcFlags.push('missing-wave-height');
   if (closestHour == null) qcFlags.push('no-openweather-match');
   if (!nowTideCycle) qcFlags.push('no-tide-cycle');
+  if (!marineForecast || !marineForecast.waveHMap?.size) qcFlags.push('no-marine-forecast');
 
   const sources = ['openweather'];
   if (spot.buoyStation && buoyData?.waveHMap?.size) sources.push(`ndbc:${spot.buoyStation}`);
   if (tideStationId && rawTideSeries.length) sources.push(`noaa-tides:${tideStationId}`);
+  if (marineForecast?.waveHMap?.size) sources.push('open-meteo-marine');
 
   return {
     spot:       spot.id,
@@ -1130,7 +1148,93 @@ async function buildSpotReport({ spot, owHourly, buoyData, nowMs }) {
       rating:     nowRating,
     },
     windows,
+    days,
   };
+}
+
+// Aggregate Open-Meteo Marine hourly data into daily summaries for the
+// next 7 days. Each day gets min/max/avg wave height + dominant period
+// + dominant direction. Returns [] when no forecast data is available
+// so the client can fall back gracefully.
+function buildDailyForecast({ marineForecast, owHourly, spot, nowMs }) {
+  if (!marineForecast || !marineForecast.waveHMap?.size) return [];
+
+  // Group hourly samples by spot-local calendar date so "today" matches
+  // the diver's day. Open-Meteo returns UTC ISO hours; we convert to
+  // the spot's tz (defaults to Pacific/Honolulu when unset).
+  const tz = spot.tz || 'Pacific/Honolulu';
+  const fmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone: tz,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  });
+
+  const buckets = new Map(); // YYYY-MM-DD -> { hs: [], ps: [], dirs: [], temps: [], rains: [], winds: [] }
+  function bucket(dateKey) {
+    let b = buckets.get(dateKey);
+    if (!b) {
+      b = { hs: [], ps: [], dirs: [], temps: [], rains: [], winds: [] };
+      buckets.set(dateKey, b);
+    }
+    return b;
+  }
+
+  for (const [iso, h] of marineForecast.waveHMap.entries()) {
+    const t = new Date(iso + 'Z');
+    if (!Number.isFinite(t.getTime())) continue;
+    const dateKey = fmt.format(t);
+    const b = bucket(dateKey);
+    b.hs.push(h);
+    const p = marineForecast.wavePMap?.get(iso);
+    if (Number.isFinite(p)) b.ps.push(p);
+    const d = marineForecast.waveDirMap?.get(iso);
+    if (Number.isFinite(d)) b.dirs.push(d);
+  }
+
+  // Layer in OpenWeather hourly air temp / wind / rain so each day has
+  // a full picture even on the days NDBC SST won't reach.
+  for (const h of owHourly?.hourly || []) {
+    const t = new Date(h.tsMs);
+    if (!Number.isFinite(t.getTime())) continue;
+    const dateKey = fmt.format(t);
+    const b = buckets.get(dateKey);
+    if (!b) continue;
+    if (Number.isFinite(h.airTempC))     b.temps.push(h.airTempC);
+    if (Number.isFinite(h.rainLast1hMM)) b.rains.push(h.rainLast1hMM);
+    if (Number.isFinite(h.windSpeedKts)) b.winds.push(h.windSpeedKts);
+  }
+
+  const avg = (arr) => (arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null);
+  const sum = (arr) => (arr.length ? arr.reduce((a, b) => a + b, 0) : null);
+
+  // Circular mean for direction (degrees)
+  function dirAvg(degs) {
+    if (!degs.length) return null;
+    const rads = degs.map((d) => (d * Math.PI) / 180);
+    const sx = rads.reduce((a, r) => a + Math.cos(r), 0);
+    const sy = rads.reduce((a, r) => a + Math.sin(r), 0);
+    const m = (Math.atan2(sy, sx) * 180) / Math.PI;
+    return Math.round((m + 360) % 360);
+  }
+
+  const round1 = (n) => (n == null ? null : Math.round(n * 10) / 10);
+  const round0 = (n) => (n == null ? null : Math.round(n));
+
+  const sortedKeys = [...buckets.keys()].sort();
+  return sortedKeys.slice(0, 7).map((dateKey) => {
+    const b = buckets.get(dateKey);
+    return {
+      date:           dateKey,
+      waveMinM:       round1(Math.min(...b.hs)),
+      waveMaxM:       round1(Math.max(...b.hs)),
+      waveAvgM:       round1(avg(b.hs)),
+      wavePeriodS:    round1(avg(b.ps)),
+      waveDirDeg:     dirAvg(b.dirs),
+      airTempCAvg:    round1(avg(b.temps)),
+      rainTotalMM:    round1(sum(b.rains)),
+      windAvgKts:     round1(avg(b.winds)),
+      windMaxKts:     round0(b.winds.length ? Math.max(...b.winds) : null),
+    };
+  });
 }
 
 // ─── Core pipeline ────────────────────────────────────────────────────────────
@@ -1156,12 +1260,13 @@ async function runPipeline({ apiKey, publish = false }) {
   for (const spot of SPOTS) {
     try {
       const owHourly = await fetchOpenWeatherHourly({ lat: spot.lat, lon: spot.lon, apiKey });
-      const hourKeys = owHourly.hourly.map((h) => h.isoHour);
       const buoyData = spot.buoyStation
-        ? await fetchBuoyHourly({ station: spot.buoyStation, hourKeys }).catch(() => null)
+        ? await fetchBuoyHourly({ station: spot.buoyStation }).catch(() => null)
         : null;
+      const marineForecast = await fetchMarineForecast({ lat: spot.lat, lon: spot.lon, days: 7 })
+        .catch(() => null);
 
-      const report = await buildSpotReport({ spot, owHourly, buoyData, nowMs });
+      const report = await buildSpotReport({ spot, owHourly, buoyData, marineForecast, nowMs });
       reports.push(report);
 
       const docId = `${spot.id}_${report.hourKey}`;
@@ -1205,6 +1310,10 @@ async function readCachedReport(spotId, nowMs, spot = null) {
     // cached report has null wave height, recompute. Once the fixed
     // pipeline runs the cache becomes trustworthy again.
     if (spot?.buoyStation && data?.now?.metrics?.waveHeightM == null) continue;
+    // Skip cache entries from before the multi-day forecast field was
+    // added — the days[] array is a meaningful upgrade and worth a
+    // one-time recompute. Self-clears within an hour as caches refill.
+    if (!Array.isArray(data?.days)) continue;
     return data;
   }
   return null;
@@ -1248,11 +1357,12 @@ exports.getReport = onRequest(
         return;
       }
       const owHourly = await fetchOpenWeatherHourly({ lat: spot.lat, lon: spot.lon, apiKey });
-      const hourKeys = owHourly.hourly.map((h) => h.isoHour);
       const buoyData = spot.buoyStation
-        ? await fetchBuoyHourly({ station: spot.buoyStation, hourKeys }).catch(() => null)
+        ? await fetchBuoyHourly({ station: spot.buoyStation }).catch(() => null)
         : null;
-      const report = await buildSpotReport({ spot, owHourly, buoyData, nowMs });
+      const marineForecast = await fetchMarineForecast({ lat: spot.lat, lon: spot.lon, days: 7 })
+        .catch(() => null);
+      const report = await buildSpotReport({ spot, owHourly, buoyData, marineForecast, nowMs });
 
       // Cache the freshly-computed report so the next request is fast.
       const docId = `${spot.id}_${report.hourKey}`;
