@@ -23,7 +23,7 @@
 const { fetchOceanColor, kd490ToVisibility } = require('./kd490');
 const { computeWaveImpactAtSite } = require('./waves');
 const { estimateVisibility } = require('../analysis');
-const { solarPosition, isShadowed, solarLightFactor, swellExposureFactor } = require('./solar');
+const { solarPosition, isShadowed, solarLightFactor, swellExposureFactor, classifyWindRelative } = require('./solar');
 const { getHorizonProfile } = require('./horizon');
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -82,7 +82,8 @@ const SPM_CLEAR_THRESHOLD = 5.0;
 async function estimateVisibilityAbyss(opts) {
   const {
     lat, lon, nowMs,
-    windKnots, waveHeightM: rawWaveHeightM, wavePeriodS,
+    windKnots, windDirectionDegFrom,
+    waveHeightM: rawWaveHeightM, wavePeriodS,
     waveDirectionDegFrom,
     tidePhase = 'unknown',
     rainRollups, runoff,
@@ -117,6 +118,32 @@ async function estimateVisibilityAbyss(opts) {
     ? rawWaveHeightM * exposureFactor
     : rawWaveHeightM;
 
+  // ── Wind chop / surface-condition factor ────────────────────────────────────
+  // Onshore wind kicks up local short-period chop that resuspends
+  // shallow sediment and stirs the upper water column — sandy spots
+  // feel this hardest. Offshore wind flattens the surface and
+  // actually cleans the upper layer slightly. The orientation comes
+  // from comparing wind-FROM bearing to the spot's open-ocean bearing.
+  const windRel = classifyWindRelative(horizonProfile, windDirectionDegFrom);
+  const sensFactor =
+    sedimentSensitivity === 'high' ? 1.4 :
+    sedimentSensitivity === 'low'  ? 0.5 : 1.0;
+  let windChopMultiplier = 1.0;
+  if (Number.isFinite(windKnots) && windKnots > 8) {
+    if (windRel.relation === 'onshore') {
+      // Onshore wind > threshold → chop. Severity scales with speed.
+      const choppinessKts = Math.max(0, windKnots - 8);
+      const onshoreStrength = Math.max(0, -windRel.factor); // 0..1
+      const reduction = Math.min(0.55, choppinessKts * 0.025 * sensFactor * onshoreStrength);
+      windChopMultiplier = 1 - reduction;
+    } else if (windRel.relation === 'offshore' && windKnots > 12) {
+      // Offshore breeze cleans the surface — small bonus.
+      const offshoreStrength = Math.max(0, windRel.factor); // 0..1
+      windChopMultiplier = 1 + 0.05 * offshoreStrength;
+    }
+    // 'cross' or 'unknown' → no adjustment.
+  }
+
   // ── Layer 0: Fetch satellite data ──────────────────────────────────────────
   let oceanColor = null;
   try {
@@ -142,11 +169,9 @@ async function estimateVisibilityAbyss(opts) {
       runoff,
     });
 
-    // Apply solar light factor even on the heuristic path — visibility
-    // drops sharply when a spot is in mountain shadow. 10% floor for
-    // ambient + flashlight scenarios.
+    // Apply solar light factor + wind chop on the heuristic path too.
     const lightMultiplier = 0.10 + 0.90 * light.factor;
-    const visM = legacy.estimatedVisibilityMeters * lightMultiplier;
+    const visM = legacy.estimatedVisibilityMeters * lightMultiplier * windChopMultiplier;
     const visMRounded = Math.max(1, Math.round(visM));
 
     return {
@@ -168,6 +193,7 @@ async function estimateVisibilityAbyss(opts) {
       shadow: shadow.shadowed ? { shadowed: true, reason: shadow.reason, horizonDeg: shadow.horizonDeg, marginDeg: shadow.marginDeg } : { shadowed: false, marginDeg: shadow.marginDeg, horizonDeg: shadow.horizonDeg },
       light,
       exposure: { factor: Math.round(exposureFactor * 100) / 100, swellFromDeg: waveDirectionDegFrom ?? null, rawWaveHeightM: rawWaveHeightM ?? null, effectiveWaveHeightM: waveHeightM ?? null },
+      wind: { relation: windRel.relation, openOceanBearingDeg: windRel.openBearingDeg, angleFromOpenDeg: windRel.angleFromOpenDeg, chopMultiplier: Math.round(windChopMultiplier * 100) / 100 },
       _fallbackReason: 'no-satellite-data',
     };
   }
@@ -236,6 +262,10 @@ async function estimateVisibilityAbyss(opts) {
   vis *= lightMultiplier;
   const layerLight = vis;
 
+  // ── Layer 8: Surface chop from wind direction ──────────────────────────────
+  vis *= windChopMultiplier;
+  const layerWind = vis;
+
   // ── Final clamping & rating ────────────────────────────────────────────────
   vis = Math.max(1, Math.min(40, vis));
   const visFt = Math.round(vis * 3.28084);
@@ -271,6 +301,7 @@ async function estimateVisibilityAbyss(opts) {
       bloom: Math.round(layerBloom * 10) / 10,
       spm: Math.round(layerSpm * 10) / 10,
       light: Math.round(layerLight * 10) / 10,
+      wind: Math.round(layerWind * 10) / 10,
     },
     waveImpact,
     sun: { altitudeDeg: sun.altitudeDeg, azimuthDeg: sun.azimuthDeg },

@@ -306,6 +306,58 @@ function computeDaySolarEvents(lat, lon, dateMs, tz, horizonProfile, stepMin = 5
   };
 }
 
+// ─── Shore opening bearing ──────────────────────────────────────────
+//
+// Bearing toward open ocean from the spot. Derived as the bearing
+// with the minimum horizon angle in the precomputed profile.
+// (Open ocean = no terrain in that direction = horizon ≈ 0°.)
+// Returns null when no profile available.
+function shoreOpeningBearing(horizonProfile) {
+  if (!Array.isArray(horizonProfile) || horizonProfile.length === 0) return null;
+  let minAngle = Infinity;
+  let openBearing = null;
+  for (const p of horizonProfile) {
+    if (p.horizonAngleDeg < minAngle) {
+      minAngle = p.horizonAngleDeg;
+      openBearing = p.bearingDeg;
+    }
+  }
+  return openBearing;
+}
+
+// ─── Wind chop classification (onshore / offshore / cross) ─────────
+//
+// `windFromDeg` is the bearing the wind is blowing FROM (meteorological
+// convention). Wind FROM the open-ocean direction = onshore (bad —
+// kicks up surface chop, dirty water). Wind FROM inland (180° from
+// open ocean) = offshore (good — flattens surface, cleaner water).
+//
+// Returns `{ relation, factor, openBearingDeg, angleFromOpenDeg }`:
+//   relation: 'onshore' | 'offshore' | 'cross' | 'unknown'
+//   factor: -1 (full onshore) → 0 (pure cross) → +1 (full offshore)
+function classifyWindRelative(horizonProfile, windFromDeg) {
+  if (!Number.isFinite(windFromDeg)) {
+    return { relation: 'unknown', factor: 0, openBearingDeg: null, angleFromOpenDeg: null };
+  }
+  const openBearingDeg = shoreOpeningBearing(horizonProfile);
+  if (openBearingDeg == null) {
+    return { relation: 'unknown', factor: 0, openBearingDeg: null, angleFromOpenDeg: null };
+  }
+  // angle between wind-from and open-ocean (0..180)
+  const a = Math.abs(((windFromDeg - openBearingDeg + 540) % 360) - 180);
+  // factor: cos((180-a)) maps 0° → -1, 180° → +1 with smooth taper
+  const factor = -Math.cos(a * Math.PI / 180);
+  let relation = 'cross';
+  if (a < 60) relation = 'onshore';
+  else if (a > 120) relation = 'offshore';
+  return {
+    relation,
+    factor: Math.round(factor * 100) / 100,
+    openBearingDeg,
+    angleFromOpenDeg: Math.round(a),
+  };
+}
+
 module.exports = {
   solarPosition,
   horizonAtAzimuth,
@@ -313,4 +365,6 @@ module.exports = {
   solarLightFactor,
   swellExposureFactor,
   computeDaySolarEvents,
+  shoreOpeningBearing,
+  classifyWindRelative,
 };
