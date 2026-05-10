@@ -30,6 +30,7 @@ module.exports = () => ({
     ios: {
       supportsTablet: false,
       bundleIdentifier: 'com.kaicast.app',
+      usesAppleSignIn: true,
     },
     android: {
       package: 'com.kaicast.app',
@@ -68,6 +69,11 @@ module.exports = () => ({
           color: '#09A1FB',
         },
       ],
+      // Sign in with Apple — Apple requires this any time we offer
+      // a third-party sign-in (Google etc.). The plugin enables the
+      // Sign in with Apple capability in the Xcode project at
+      // prebuild time. iOS only.
+      'expo-apple-authentication',
     ],
     extra: {
       kaicastApiBase: 'https://us-central1-kaicast-207dc.cloudfunctions.net',

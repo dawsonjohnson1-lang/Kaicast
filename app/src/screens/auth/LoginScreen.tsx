@@ -13,6 +13,13 @@ import { Icon } from '@/components/Icon';
 import { colors, spacing, typography } from '@/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { friendlyAuthError } from '@/utils/authErrors';
+import {
+  signInWithApple,
+  signInWithGoogle,
+  isAppleSignInAvailable,
+  isGoogleSignInConfigured,
+  SocialAuthError,
+} from '@/api/socialAuth';
 import type { AuthStackParamList } from '@/navigation/types';
 
 const googleIcon = require('@/assets/social-google.png');
@@ -26,6 +33,24 @@ export function LoginScreen() {
   const [showPw, setShowPw] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; pw?: string; submit?: string }>({});
+  const [appleAvailable, setAppleAvailable] = useState(false);
+
+  React.useEffect(() => {
+    isAppleSignInAvailable().then(setAppleAvailable);
+  }, []);
+
+  const onSocial = (provider: 'apple' | 'google') => async () => {
+    setErrors({});
+    try {
+      if (provider === 'apple') await signInWithApple();
+      else                       await signInWithGoogle();
+    } catch (err) {
+      const e = err as SocialAuthError;
+      if (e.code === 'cancelled') return;
+      setErrors({ submit: e.message });
+    }
+  };
+  const googleConfigured = isGoogleSignInConfigured();
 
   const validate = () => {
     const e: typeof errors = {};
@@ -60,10 +85,17 @@ export function LoginScreen() {
       <Text style={styles.sub}>Sign in to your Kaicast account.</Text>
 
       <View style={styles.socialRow}>
-        <SocialButton label="Facebook" iconSource={facebookIcon} />
-        <SocialButton label="Google" iconSource={googleIcon} />
+        <SocialButton label="Facebook" iconSource={facebookIcon} disabled />
+        <SocialButton
+          label="Google"
+          iconSource={googleIcon}
+          onPress={onSocial('google')}
+          disabled={!googleConfigured}
+        />
       </View>
-      <SocialButton label="Apple" iconKind="apple" full />
+      {appleAvailable && (
+        <SocialButton label="Apple" iconKind="apple" full onPress={onSocial('apple')} />
+      )}
 
       <View style={{ height: spacing.xxl }} />
 
@@ -119,23 +151,41 @@ function SocialButton({
   iconSource,
   iconKind,
   full,
+  onPress,
+  disabled,
 }: {
   label: string;
   iconSource?: any;
   iconKind?: 'apple';
   full?: boolean;
+  onPress?: () => void;
+  disabled?: boolean;
 }) {
+  const inner = (
+    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, gap: 10, opacity: disabled ? 0.5 : 1 }}>
+      {iconKind === 'apple' ? (
+        <Icon name="apple" size={18} color="#fff" />
+      ) : (
+        <Image source={iconSource} style={{ width: 18, height: 18 }} resizeMode="contain" />
+      )}
+      <Text style={{ ...typography.body, fontWeight: '600' }}>{label}</Text>
+    </View>
+  );
+  if (!onPress) {
+    return (
+      <Card padding={0} style={[styles.social, full ? { flex: 0, alignSelf: 'stretch' } : { flex: 1 }] as any}>
+        {inner}
+      </Card>
+    );
+  }
   return (
-    <Card padding={0} style={[styles.social, full ? { flex: 0, alignSelf: 'stretch' } : { flex: 1 }] as any}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, gap: 10 }}>
-        {iconKind === 'apple' ? (
-          <Icon name="apple" size={18} color="#fff" />
-        ) : (
-          <Image source={iconSource} style={{ width: 18, height: 18 }} resizeMode="contain" />
-        )}
-        <Text style={{ ...typography.body, fontWeight: '600' }}>{label}</Text>
-      </View>
-    </Card>
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      style={[styles.social, { backgroundColor: colors.cardAlt }, full ? { flex: 0, alignSelf: 'stretch' } : { flex: 1 }] as any}
+    >
+      {inner}
+    </Pressable>
   );
 }
 
