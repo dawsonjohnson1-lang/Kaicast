@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, Image } from 'react-native';
 import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
+import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import * as Location from 'expo-location';
@@ -45,6 +46,15 @@ export function ExploreScreen() {
   // apart visually. Null means "show every spot".
   const [focusedIds, setFocusedIds] = useState<string[] | null>(null);
   const sheetRef = useRef<BottomSheet>(null);
+  // Sheet's top-edge Y position (px from screen top). Tracks the sheet
+  // through drag gestures and snap animations so the FAB above it can
+  // ride along instead of staying pinned to a static % of viewport.
+  const sheetTopY = useSharedValue(0);
+  const fabAnimStyle = useAnimatedStyle(() => ({
+    // FAB sits 16 px above the sheet's top edge; translateY targets
+    // the FAB's top so the bottom lands sheetTopY - 16.
+    transform: [{ translateY: sheetTopY.value - 60 }],
+  }));
   const initials = (user?.name ?? 'D').split(' ').map((s) => s[0]).join('').slice(0, 2);
 
   useEffect(() => {
@@ -88,7 +98,6 @@ export function ExploreScreen() {
     if (ids.length) setFocusedIds(ids);
   };
   const onShowAll = () => setFocusedIds(null);
-  const onExpandList = () => sheetRef.current?.snapToIndex(1);
 
   return (
     <Screen scroll={false} padding={0}>
@@ -107,31 +116,16 @@ export function ExploreScreen() {
         <View style={styles.appBarPad} pointerEvents="box-none">
           <AppBar userName={(user?.name ?? 'Diver').toUpperCase()} initials={initials} />
         </View>
-        <View style={styles.fabs} pointerEvents="box-none">
+        <Animated.View style={[styles.locateFabWrap, fabAnimStyle]} pointerEvents="box-none">
           <Pressable
             style={styles.fab}
             onPress={onLocateMe}
             disabled={!origin}
             accessibilityLabel="Show spots nearest to me"
           >
-            <Icon name="send" size={18} color={origin ? colors.accent : colors.textMuted} />
+            <Icon name="compass-arrow" size={18} color={origin ? colors.accent : colors.textMuted} />
           </Pressable>
-          <Pressable
-            style={styles.fab}
-            onPress={onShowAll}
-            disabled={!focusedIds}
-            accessibilityLabel="Show every dive spot"
-          >
-            <Icon name="globe" size={18} color={focusedIds ? colors.accent : colors.textMuted} />
-          </Pressable>
-          <Pressable
-            style={styles.fab}
-            onPress={onExpandList}
-            accessibilityLabel="Open spot list"
-          >
-            <Icon name="search" size={18} color={colors.textPrimary} />
-          </Pressable>
-        </View>
+        </Animated.View>
         {focusedIds && (
           <Pressable style={styles.allSpotsPill} onPress={() => setFocusedIds(null)}>
             <Icon name="chevron-left" size={14} color="#fff" />
@@ -144,6 +138,7 @@ export function ExploreScreen() {
         ref={sheetRef}
         snapPoints={SNAP_POINTS}
         index={1}
+        animatedPosition={sheetTopY}
         backgroundStyle={{ backgroundColor: colors.bgElevated }}
         handleIndicatorStyle={{ backgroundColor: colors.border, width: 48, height: 4 }}
       >
@@ -193,6 +188,11 @@ export function ExploreScreen() {
 const styles = StyleSheet.create({
   appBarPad: { paddingHorizontal: spacing.xl, paddingTop: spacing.lg },
   fabs: { position: 'absolute', right: spacing.xl, bottom: '60%', gap: spacing.sm },
+  locateFabWrap: {
+    position: 'absolute',
+    top: 0,
+    right: spacing.xl,
+  },
   allSpotsPill: {
     position: 'absolute',
     top: 110,
