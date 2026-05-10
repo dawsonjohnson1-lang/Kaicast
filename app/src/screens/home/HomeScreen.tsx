@@ -28,12 +28,19 @@ export function HomeScreen() {
   // haven't favorited anything yet so the carousel never goes empty.
   const userFavorites = spots.filter((s) => favorites.has(s.id));
   const favoriteSpots = userFavorites.length ? userFavorites : spots.slice(0, 4);
-  // Featured spot drives the Condition Alerts feed. Use the first
-  // canonical spot when available; fall back to the static
-  // featuredSpot from mockData when the list isn't loaded yet.
-  const alertSpot = spots[0] ?? featuredSpot;
-  const { backend: alertReport } = useSpotReport(alertSpot);
-  const conditionAlerts = useAlerts(alertSpot.name, alertReport);
+  // Featured spot prefers the user's first favorite when they have
+  // one — otherwise rotates through the canonical list by week of
+  // year so the home hero isn't the same spot every day forever.
+  // Falls back to the static mock only while spots[] is still loading.
+  const rotatingIdx = (() => {
+    if (!spots.length) return 0;
+    const week = Math.floor(Date.now() / (7 * 86400000));
+    return week % spots.length;
+  })();
+  const headlineSpot =
+    userFavorites[0] ?? spots[rotatingIdx] ?? featuredSpot;
+  const { backend: alertReport } = useSpotReport(headlineSpot);
+  const conditionAlerts = useAlerts(headlineSpot.name, alertReport);
 
   const displayName = user?.name ?? 'Dawson';
   const initials = displayName.split(' ').map((s) => s[0]).join('').slice(0, 2);
@@ -49,8 +56,8 @@ export function HomeScreen() {
       />
 
       <FeaturedSpotCard
-        spot={featuredSpot}
-        onPress={() => nav.navigate('SpotDetail', { spotId: featuredSpot.id })}
+        spot={headlineSpot}
+        onPress={() => nav.navigate('SpotDetail', { spotId: headlineSpot.id })}
       />
 
       <View style={{ height: spacing.xxl }} />

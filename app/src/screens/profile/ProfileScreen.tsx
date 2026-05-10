@@ -40,7 +40,8 @@ export function ProfileScreen() {
   const { profile } = useUserProfile(user?.id);
   const { logs: userLogs } = useUserDiveLogs(user?.id);
   const { spots } = useSpots();
-  const { counts: followCounts, following: followingList } = useFollowing(user?.id);
+  const { counts: followCounts, following: followingList, followers: followersList } = useFollowing(user?.id);
+  const followersUidSet = useMemo(() => new Set(followersList.map((f) => f.uid)), [followersList]);
   const fallbackPhoto = useProfilePhoto();
   // Resolve spot ids → human names so log cards show "Electric Beach"
   // not "electric-beach". Custom spots already carry their own name
@@ -196,6 +197,7 @@ export function ProfileScreen() {
             followingList.slice(0, 5).map((f) => {
               const initials = f.name.split(' ').map((s) => s[0]).filter(Boolean).join('').slice(0, 2);
               const handle = f.handle ? `@${f.handle.replace(/^@/, '')}` : '';
+              const mutual = followersUidSet.has(f.uid);
               return (
                 <Card key={f.uid}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
@@ -208,7 +210,7 @@ export function ProfileScreen() {
                       <Text style={typography.h3}>{f.name || 'Diver'}</Text>
                       <Text style={{ ...typography.bodySm, color: colors.textSecondary }}>{handle}</Text>
                     </View>
-                    <Tag variant="freedive" label="Following" />
+                    {mutual && <Tag variant="freedive" label="Mutual" />}
                   </View>
                 </Card>
               );
