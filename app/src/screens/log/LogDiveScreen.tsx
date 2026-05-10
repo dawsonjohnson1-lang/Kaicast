@@ -15,6 +15,7 @@ import { SpotPicker, type PickedSpot } from '@/components/SpotPicker';
 import { colors, radius, spacing, typography } from '@/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { submitDiveLog } from '@/api/diveLogs';
+import { fetchSpotReport } from '@/api/kaicast';
 import type { DiveType } from '@/types';
 import type { RootNav } from '@/navigation/types';
 
@@ -62,6 +63,22 @@ export function LogDiveScreen() {
     if (!user) return;
     setSubmitting(true);
     try {
+      // For known spots, capture the BackendReport at log time so the
+      // log carries an objective conditions snapshot alongside the
+      // user-reported readings. Two-tap pivots later — "what did
+      // KaiCast think it was vs what the diver reported" — fall right
+      // out of this. Custom spots have no backend report; skip.
+      let conditionsSnapshot: Awaited<ReturnType<typeof fetchSpotReport>> | null = null;
+      if (spotPick?.kind === 'known') {
+        try {
+          conditionsSnapshot = await fetchSpotReport(spotPick.id);
+        } catch {
+          // Non-blocking — if the spot has no backend report yet, the
+          // log is still valid. conditionsSnapshot stays null.
+          conditionsSnapshot = null;
+        }
+      }
+
       await submitDiveLog({
         uid: user.id,
         // For known spots, spotId matches the backend's SPOTS object so
@@ -83,6 +100,7 @@ export function LogDiveScreen() {
         notes,
         privacy: 'public',
         photos: [],
+        conditionsSnapshot,
       });
       setStep(5);
     } catch (err) {

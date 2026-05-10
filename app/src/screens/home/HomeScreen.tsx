@@ -11,9 +11,11 @@ import { AlertRow } from '@/components/AlertRow';
 import { DiveReportCard } from '@/components/DiveReportCard';
 import { Button } from '@/components/Button';
 import { spacing } from '@/theme';
-import { conditionAlerts, diveReports, featuredSpot } from '@/api/mockData';
+import { diveReports, featuredSpot } from '@/api/mockData';
 import { useAuth } from '@/hooks/useAuth';
 import { useSpots } from '@/hooks/useSpots';
+import { useSpotReport } from '@/hooks/useSpotReport';
+import { useAlerts } from '@/hooks/useAlerts';
 import type { DashboardNav } from '@/navigation/types';
 
 export function HomeScreen() {
@@ -24,6 +26,12 @@ export function HomeScreen() {
   // Spots" carousel — once per-user favorites land, swap for a
   // user-scoped query.
   const favoriteSpots = spots.slice(0, 4);
+  // Featured spot drives the Condition Alerts feed. Use the first
+  // canonical spot when available; fall back to the static
+  // featuredSpot from mockData when the list isn't loaded yet.
+  const alertSpot = spots[0] ?? featuredSpot;
+  const { backend: alertReport } = useSpotReport(alertSpot);
+  const conditionAlerts = useAlerts(alertSpot.name, alertReport);
 
   const displayName = user?.name ?? 'Dawson';
   const initials = displayName.split(' ').map((s) => s[0]).join('').slice(0, 2);
