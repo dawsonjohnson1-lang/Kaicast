@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, Image } from 'react-native';
 import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -44,6 +44,7 @@ export function ExploreScreen() {
   // spot ids — re-fits the viewport to that subset so they spread
   // apart visually. Null means "show every spot".
   const [focusedIds, setFocusedIds] = useState<string[] | null>(null);
+  const sheetRef = useRef<BottomSheet>(null);
   const initials = (user?.name ?? 'D').split(' ').map((s) => s[0]).join('').slice(0, 2);
 
   useEffect(() => {
@@ -75,6 +76,20 @@ export function ExploreScreen() {
     return allSpots.filter((s) => ids.has(s.id));
   }, [allSpots, focusedIds]);
 
+  // FAB actions: focus on closest 5 spots to the user, reset, expand list.
+  const onLocateMe = () => {
+    if (!origin) return;
+    const NEAR_COUNT = 5;
+    const ids = [...allSpots]
+      .map((s) => ({ id: s.id, d: distanceMiles(origin.lat, origin.lon, s.lat, s.lon) }))
+      .sort((a, b) => a.d - b.d)
+      .slice(0, NEAR_COUNT)
+      .map((x) => x.id);
+    if (ids.length) setFocusedIds(ids);
+  };
+  const onShowAll = () => setFocusedIds(null);
+  const onExpandList = () => sheetRef.current?.snapToIndex(1);
+
   return (
     <Screen scroll={false} padding={0}>
       <View style={StyleSheet.absoluteFill}>
@@ -93,9 +108,29 @@ export function ExploreScreen() {
           <AppBar userName={(user?.name ?? 'Diver').toUpperCase()} initials={initials} />
         </View>
         <View style={styles.fabs} pointerEvents="box-none">
-          <Pressable style={styles.fab}><Icon name="search" size={18} color={colors.textPrimary} /></Pressable>
-          <Pressable style={styles.fab}><Icon name="send" size={18} color={colors.textPrimary} /></Pressable>
-          <Pressable style={styles.fab}><Icon name="globe" size={18} color={colors.textPrimary} /></Pressable>
+          <Pressable
+            style={styles.fab}
+            onPress={onLocateMe}
+            disabled={!origin}
+            accessibilityLabel="Show spots nearest to me"
+          >
+            <Icon name="send" size={18} color={origin ? colors.accent : colors.textMuted} />
+          </Pressable>
+          <Pressable
+            style={styles.fab}
+            onPress={onShowAll}
+            disabled={!focusedIds}
+            accessibilityLabel="Show every dive spot"
+          >
+            <Icon name="globe" size={18} color={focusedIds ? colors.accent : colors.textMuted} />
+          </Pressable>
+          <Pressable
+            style={styles.fab}
+            onPress={onExpandList}
+            accessibilityLabel="Open spot list"
+          >
+            <Icon name="search" size={18} color={colors.textPrimary} />
+          </Pressable>
         </View>
         {focusedIds && (
           <Pressable style={styles.allSpotsPill} onPress={() => setFocusedIds(null)}>
@@ -106,6 +141,7 @@ export function ExploreScreen() {
       </View>
 
       <BottomSheet
+        ref={sheetRef}
         snapPoints={SNAP_POINTS}
         index={1}
         backgroundStyle={{ backgroundColor: colors.bgElevated }}
