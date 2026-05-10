@@ -234,6 +234,13 @@ export function ProfileScreen() {
             <Text style={{ ...typography.body, color: colors.accent, fontWeight: '600' }}>All settings</Text>
           </Pressable>
           <Button label="Sign out" variant="danger" iconLeft="logout" onPress={signOut} />
+          <Pressable
+            style={styles.deleteAccountBtn}
+            onPress={() => nav.navigate('DeleteAccount')}
+            hitSlop={8}
+          >
+            <Text style={styles.deleteAccountText}>Delete account</Text>
+          </Pressable>
           <Text style={styles.version}>KaiCast 1.0.0 (build 142)</Text>
         </View>
       )}
@@ -395,6 +402,12 @@ const styles = StyleSheet.create({
   seeAll: { ...typography.bodySm, color: colors.accent, fontWeight: '600' },
   hRow: { gap: spacing.md, paddingRight: spacing.xl },
   allSettingsBtn: { alignSelf: 'center', paddingVertical: spacing.md },
+  deleteAccountBtn: { alignSelf: 'center', paddingVertical: spacing.md, marginTop: spacing.sm },
+  deleteAccountText: {
+    ...typography.bodySm,
+    color: colors.textMuted,
+    textDecorationLine: 'underline',
+  },
   version: { ...typography.caption, color: colors.textMuted, textAlign: 'center', marginTop: spacing.lg },
 });
 

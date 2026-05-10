@@ -18,6 +18,7 @@ export type RootStackParamList = {
   Followers: undefined;
   Following: undefined;
   ProfileSettings: undefined;
+  DeleteAccount: undefined;
 };
 
 export type TabParamList = {

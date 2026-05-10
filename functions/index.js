@@ -3,7 +3,7 @@
 'use strict';
 
 const { onSchedule } = require('firebase-functions/v2/scheduler');
-const { onRequest }  = require('firebase-functions/v2/https');
+const { onRequest, onCall, HttpsError }  = require('firebase-functions/v2/https');
 const { defineSecret } = require('firebase-functions/params');
 const logger = require('firebase-functions/logger');
 const admin  = require('firebase-admin');
@@ -1458,4 +1458,113 @@ exports.scheduler = onSchedule(
     }
     await runPipeline({ apiKey, publish: true });
   }
+);
+
+// ─── Account deletion (App Store gate) ───────────────────────────────────────
+//
+// Apple requires every app that supports account creation to also
+// support self-serve account deletion from inside the app. This
+// callable handles the cascading cleanup that's hard to do
+// client-side (the user can't delete docs in OTHER users' followers
+// / following subcollections under our security rules).
+//
+// Flow:
+//   1. Client re-authenticates the user (Firebase requires recent
+//      login for sensitive operations).
+//   2. Client invokes deleteUserAccount.
+//   3. Server fans out: removes the user's subcollections, dive
+//      logs, profile photo, mirrored social-graph entries, the
+//      user doc itself, and finally the auth user.
+//   4. Client signs out for clean local state.
+async function deleteSubcollection(parentPath, subName, batchSize = 200) {
+  const ref = db.collection(`${parentPath}/${subName}`);
+  while (true) {
+    const snap = await ref.limit(batchSize).get();
+    if (snap.empty) return;
+    const batch = db.batch();
+    snap.docs.forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+    if (snap.size < batchSize) return;
+  }
+}
+
+exports.deleteUserAccount = onCall(
+  { timeoutSeconds: 120, memory: '256MiB' },
+  async (req) => {
+    const uid = req.auth?.uid;
+    if (!uid) {
+      throw new HttpsError('unauthenticated', 'Sign in required.');
+    }
+
+    logger.info('deleteUserAccount: start', { uid });
+
+    // 1. Mirrored social-graph cleanup. Read the user's followers /
+    //    following lists FIRST so we know which other users have
+    //    edges pointing at this account, then delete those reverse
+    //    edges with admin privileges before nuking the local copies.
+    try {
+      const followingSnap = await db.collection(`users/${uid}/following`).get();
+      for (const d of followingSnap.docs) {
+        const otherUid = d.id;
+        await db.doc(`users/${otherUid}/followers/${uid}`).delete().catch(() => {});
+      }
+      const followersSnap = await db.collection(`users/${uid}/followers`).get();
+      for (const d of followersSnap.docs) {
+        const otherUid = d.id;
+        await db.doc(`users/${otherUid}/following/${uid}`).delete().catch(() => {});
+      }
+    } catch (err) {
+      logger.warn('deleteUserAccount: social-graph reverse cleanup partial', {
+        uid, error: err.message,
+      });
+    }
+
+    // 2. The user's own subcollections.
+    await Promise.all([
+      deleteSubcollection(`users/${uid}`, 'favorites'),
+      deleteSubcollection(`users/${uid}`, 'following'),
+      deleteSubcollection(`users/${uid}`, 'followers'),
+      deleteSubcollection(`users/${uid}`, 'devices'),
+    ]);
+
+    // 3. Dive logs (top-level collection keyed by uid).
+    try {
+      const logsSnap = await db.collection('diveLogs').where('uid', '==', uid).get();
+      const batch = db.batch();
+      logsSnap.docs.forEach((d) => batch.delete(d.ref));
+      if (!logsSnap.empty) await batch.commit();
+    } catch (err) {
+      logger.warn('deleteUserAccount: diveLogs cleanup failed', {
+        uid, error: err.message,
+      });
+    }
+
+    // 4. Profile photo in Storage (if present). Pattern matches the
+    //    paths written by the client photo-upload flow.
+    try {
+      const bucket = admin.storage().bucket();
+      const [files] = await bucket.getFiles({ prefix: `users/${uid}/` });
+      await Promise.all(files.map((f) => f.delete().catch(() => undefined)));
+    } catch (err) {
+      logger.warn('deleteUserAccount: storage cleanup partial', {
+        uid, error: err.message,
+      });
+    }
+
+    // 5. The users/{uid} doc itself.
+    await db.doc(`users/${uid}`).delete().catch(() => undefined);
+
+    // 6. Auth user. Once this runs the client's session is invalid.
+    try {
+      await admin.auth().deleteUser(uid);
+    } catch (err) {
+      logger.error('deleteUserAccount: auth deletion failed', {
+        uid, error: err.message,
+      });
+      throw new HttpsError('internal', 'Account data was deleted but auth user could not be removed. Contact support.');
+    }
+
+    logger.info('deleteUserAccount: complete', { uid });
+    return { ok: true };
+  },
 );
