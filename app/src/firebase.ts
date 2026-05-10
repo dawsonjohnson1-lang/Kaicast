@@ -23,7 +23,10 @@ import { initializeAuth, type Auth } from 'firebase/auth';
 const { getReactNativePersistence } = require('firebase/auth') as {
   getReactNativePersistence: (storage: unknown) => unknown;
 };
-import { getFirestore, type Firestore } from 'firebase/firestore';
+import {
+  initializeFirestore,
+  type Firestore,
+} from 'firebase/firestore';
 import { getStorage, type FirebaseStorage } from 'firebase/storage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -53,7 +56,13 @@ if (isConfigured) {
     auth = initializeAuth(app, {
       persistence: getReactNativePersistence(AsyncStorage) as any,
     });
-    db = getFirestore(app);
+    // React Native's default WebChannel transport often fails to
+     // deliver onSnapshot push updates (writes commit but listeners
+     // never fire until next remount). Auto-detect long polling fixes
+     // it without the perf cost of forcing it on every platform.
+    db = initializeFirestore(app, {
+      experimentalAutoDetectLongPolling: true,
+    });
     storage = getStorage(app);
   } catch (err) {
     // Defensive: if init throws (e.g. a misconfigured project), don't
