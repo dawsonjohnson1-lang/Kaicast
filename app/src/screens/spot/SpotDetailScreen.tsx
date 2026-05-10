@@ -24,6 +24,7 @@ import { ForecastTab as ForecastTabRebuild } from './forecast/ForecastTab';
 import { HazardsTab as HazardsTabRebuild } from './hazards/HazardsTab';
 import { GuideTab as GuideTabRebuild } from './guide/GuideTab';
 import { satelliteUrl } from '@/api/satellite';
+import { useSpotDiveLogs, diveLogToReport } from '@/hooks/useDiveLogs';
 
 function findSpot(id: string): Spot {
   return exploreSpots.find((s) => s.id === id) ?? featuredSpot;
@@ -41,6 +42,12 @@ export function SpotDetailScreen() {
   const spot = findSpot(route.params.spotId);
   const reportState = useSpotReport(spot);
   const r = reportState.data;
+  const { logs: spotLogs } = useSpotDiveLogs(spot.id);
+  // Live community feed for this spot. When nobody's logged a dive
+  // here yet, fall back to the mock list so the UI doesn't go blank.
+  const friendsReports = spotLogs.length
+    ? spotLogs.map((l) => diveLogToReport(l, 'Diver', spot.name))
+    : diveReports;
   const heroSatelliteUri = satelliteUrl(spot.lat, spot.lon, 800, 600, 16);
 
   return (
@@ -98,7 +105,7 @@ export function SpotDetailScreen() {
             <View style={{ height: spacing.xxl }} />
             <Text style={typography.h3}>Friends' Reports</Text>
             <View style={{ height: spacing.md }} />
-            {diveReports.map((rep) => (
+            {friendsReports.map((rep) => (
               <View key={rep.id} style={{ marginBottom: spacing.md }}>
                 <DiveReportCard report={rep} onPress={() => nav.navigate('DiveReportDetail', { reportId: rep.id })} />
               </View>

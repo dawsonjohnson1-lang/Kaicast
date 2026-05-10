@@ -17,6 +17,7 @@ import { colors, radius, spacing, typography } from '@/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfilePhoto } from '@/hooks/useProfilePhoto';
 import { useUserProfile } from '@/hooks/useUserProfile';
+import { useUserDiveLogs, diveLogToReport } from '@/hooks/useDiveLogs';
 import { diveReports, favoriteSpots } from '@/api/mockData';
 import type { RootStackParamList, TabParamList } from '@/navigation/types';
 
@@ -35,7 +36,14 @@ export function ProfileScreen() {
   const nav = useNavigation<Nav>();
   const { user, signOut } = useAuth();
   const { profile } = useUserProfile(user?.id);
+  const { logs: userLogs } = useUserDiveLogs(user?.id);
   const fallbackPhoto = useProfilePhoto();
+  // Adapt the live dive logs into the DiveReport shape that
+  // <DiveReportCard /> consumes. Falls back to the mock list if the
+  // user hasn't logged anything yet so the screen never looks empty.
+  const userReports = userLogs.length
+    ? userLogs.map((l) => diveLogToReport(l, profile?.name ?? user?.name ?? 'You', l.spotId))
+    : diveReports;
   const [tab, setTab] = useState<Tab>('Dashboard');
 
   // Prefer the live profile doc when present; fall back to the auth
@@ -113,7 +121,7 @@ export function ProfileScreen() {
           <View>
             <SectionHeader title="Your Reports" actionLabel="See all" onAction={() => {}} />
             <View style={{ gap: spacing.md }}>
-              {diveReports.map((r) => (
+              {userReports.map((r) => (
                 <DiveReportCard key={r.id} report={r} onPress={() => nav.navigate('DiveReportDetail', { reportId: r.id })} />
               ))}
             </View>
@@ -125,7 +133,7 @@ export function ProfileScreen() {
 
       {tab === 'Dive Reports' && (
         <View style={{ marginTop: spacing.xl, gap: spacing.md }}>
-          {diveReports.map((r) => (
+          {userReports.map((r) => (
             <DiveReportCard key={r.id} report={r} onPress={() => nav.navigate('DiveReportDetail', { reportId: r.id })} />
           ))}
         </View>
