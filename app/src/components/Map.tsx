@@ -1,9 +1,10 @@
 import React, { useMemo, useState } from 'react';
 import { Platform, View, Text, Image, Pressable, StyleSheet } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Circle, Path } from 'react-native-svg';
 
 import { colors, spacing, typography } from '@/theme';
-import { darkMapUrl, satelliteUrl, projectLatLonToImage, fitPointsToViewport } from '@/api/satellite';
+import { mapboxSatelliteUrl, satelliteUrl, projectLatLonToImage, fitPointsToViewport } from '@/api/satellite';
 import type { Spot } from '@/types';
 
 // Pixel-grid clustering radius. Pins whose projected screen positions
@@ -64,28 +65,52 @@ export function SpotMap({ spots, onSpotPress, onClusterPress }: SpotMapProps) {
   if (!useMapbox) return <FauxMap spots={spots} onSpotPress={onSpotPress} onClusterPress={onClusterPress} />;
 
   return (
-    <MapView
-      style={StyleSheet.absoluteFill}
-      styleURL="mapbox://styles/mapbox/dark-v11"
-      logoEnabled={false}
-      attributionEnabled={false}
-      compassEnabled={false}
-      scaleBarEnabled={false}
-    >
-      <Camera centerCoordinate={[-157.85, 20.9]} zoomLevel={6.2} animationMode="none" />
-      {spots.map((spot) => (
-        <PointAnnotation
-          key={spot.id}
-          id={spot.id}
-          coordinate={[spot.lon, spot.lat]}
-          onSelected={() => onSpotPress?.(spot)}
-        >
-          <View style={pinStyles.outer}>
-            <View style={pinStyles.inner} />
-          </View>
-        </PointAnnotation>
-      ))}
-    </MapView>
+    <View style={StyleSheet.absoluteFill}>
+      <MapView
+        style={StyleSheet.absoluteFill}
+        styleURL="mapbox://styles/mapbox/satellite-streets-v12"
+        logoEnabled={false}
+        attributionEnabled={false}
+        compassEnabled={false}
+        scaleBarEnabled={false}
+      >
+        <Camera centerCoordinate={[-157.85, 20.9]} zoomLevel={6.2} animationMode="none" />
+        {spots.map((spot) => (
+          <PointAnnotation
+            key={spot.id}
+            id={spot.id}
+            coordinate={[spot.lon, spot.lat]}
+            onSelected={() => onSpotPress?.(spot)}
+          >
+            <View style={pinStyles.outer}>
+              <View style={pinStyles.inner} />
+            </View>
+          </PointAnnotation>
+        ))}
+      </MapView>
+      {/* Nighttime tint overlay. pointerEvents=none so pan/zoom still
+          reach the underlying MapView untouched. */}
+      <NightOverlay />
+    </View>
+  );
+}
+
+// Strong dark gradient to give the satellite imagery a "nighttime"
+// feel — deep navy at the edges fading slightly lighter through the
+// center, on top of a flat ~50% darken so the bright tropical greens
+// and white sand don't dominate the page.
+function NightOverlay() {
+  return (
+    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+      <View style={StyleSheet.absoluteFill}>
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(4,12,24,0.55)' }]} />
+      </View>
+      <LinearGradient
+        colors={['rgba(2,8,18,0.45)', 'rgba(2,8,18,0.0)', 'rgba(2,8,18,0.50)']}
+        locations={[0, 0.5, 1]}
+        style={StyleSheet.absoluteFill}
+      />
+    </View>
   );
 }
 
@@ -112,12 +137,12 @@ export function FauxMap({ spots = [], onSpotPress, onClusterPress }: FauxMapProp
       )
     : null;
 
-  // Prefer the dark Mapbox style — matches the native interactive map
-   // and reads better than satellite imagery for pin visibility. Falls
-   // through to ESRI satellite only when Mapbox token isn't configured.
+  // Mapbox satellite imagery (Maxar) when the public token is set,
+  // ESRI satellite as a fallback. The night-tint overlay below dims
+  // both into the dark gradient look the design calls for.
   const tileUri =
     size && viewport
-      ? darkMapUrl(viewport.centerLat, viewport.centerLon, size.w, size.h, viewport.zoom) ??
+      ? mapboxSatelliteUrl(viewport.centerLat, viewport.centerLon, size.w, size.h, viewport.zoom) ??
         satelliteUrl(viewport.centerLat, viewport.centerLon, size.w, size.h, viewport.zoom)
       : null;
 
@@ -132,6 +157,7 @@ export function FauxMap({ spots = [], onSpotPress, onClusterPress }: FauxMapProp
       {tileUri && viewport ? (
         <>
           <Image source={{ uri: tileUri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+          <NightOverlay />
           {size && (
             <ClusteredPins
               spots={spots}

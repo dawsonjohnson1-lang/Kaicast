@@ -148,18 +148,18 @@ export function fitPointsToViewport(
 }
 
 /**
- * Build a dark-themed map raster URL via Mapbox's Static Images API.
+ * Build a Mapbox satellite raster URL via the Static Images API.
  * Uses the same Web Mercator tile pyramid as `satelliteUrl`, so the
  * same `projectLatLonToImage` math overlays pins correctly.
  *
  * Returns null when the public Mapbox token isn't configured, so
  * callers can fall back to ESRI satellite (or a local SVG).
  *
- * Style: mapbox/dark-v11 (the deep-navy treatment shipped on the
- * native Mapbox path). 2x device pixel ratio so labels stay crisp
- * on Retina screens.
+ * Style: mapbox/satellite-streets-v12 — real Maxar imagery with
+ * subtle place labels, then the consumer overlays a dark gradient
+ * for the "nighttime" treatment.
  */
-export function darkMapUrl(
+export function mapboxSatelliteUrl(
   lat: number,
   lon: number,
   width: number,
@@ -178,7 +178,7 @@ export function darkMapUrl(
   const z = Math.max(0, Math.min(20, Number(zoom.toFixed(2))));
 
   return (
-    `https://api.mapbox.com/styles/v1/mapbox/dark-v11/static/` +
+    `https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/static/` +
     `${lon.toFixed(5)},${lat.toFixed(5)},${z},0/` +
     `${w}x${h}@2x?logo=false&attribution=false&access_token=${token}`
   );
