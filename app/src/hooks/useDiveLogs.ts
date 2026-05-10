@@ -103,6 +103,7 @@ function normalize(id: string, data: any): DiveLogRecord {
     id,
     uid: data.uid,
     spotId: data.spotId,
+    customSpot: data.customSpot ?? undefined,
     diveType: data.diveType,
     groupSize: data.groupSize,
     durationMin: data.durationMin ?? null,
@@ -134,11 +135,15 @@ export function diveLogToReport(
   const surface = ((log.surface ?? 'SAFE').toUpperCase() as DiveReport['surface']);
   const current = ((log.current ?? 'NONE').toUpperCase() as DiveReport['current']);
   const visibility = ((log.visibility ?? 'CLEAN').toUpperCase() as DiveReport['visibility']);
+  // Custom-spot logs win over the caller's spotName so user-typed
+  // names show up correctly in feeds even when the caller doesn't
+  // know how to resolve the synthetic spotId.
+  const resolvedName = log.customSpot?.name ?? spotName;
   return {
     id: log.id,
     authorInitials: initials || 'KC',
     authorName,
-    spotName,
+    spotName: resolvedName,
     postedAgo: relativeTime(log.loggedAt),
     diveType: (log.diveType as DiveType) ?? 'freedive',
     depthFt: log.depthFt ?? 0,

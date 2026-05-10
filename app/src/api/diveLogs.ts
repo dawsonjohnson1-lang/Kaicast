@@ -51,6 +51,13 @@ export type DiveLogPrivacy = 'public' | 'friends' | 'private';
 export type DiveLogInput = {
   uid: string;
   spotId: string;
+  /**
+   * Set when the user added an ad-hoc spot in the picker. Carries the
+   * human-readable name and lat/lon inline so the log is meaningful
+   * even though the backend has no canonical SPOTS entry. Known-spot
+   * picks leave this undefined.
+   */
+  customSpot?: { name: string; lat: number; lon: number };
   diveType: DiveType;
   groupSize?: string;
   durationMin?: number | null;
@@ -137,6 +144,7 @@ function normalizeRecord(id: string, data: any): DiveLogRecord {
     id,
     uid: data.uid,
     spotId: data.spotId,
+    customSpot: data.customSpot ?? undefined,
     diveType: data.diveType,
     groupSize: data.groupSize,
     durationMin: data.durationMin ?? null,

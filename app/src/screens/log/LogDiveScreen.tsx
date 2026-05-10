@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput } from 'react-native';
+import { View, Text, StyleSheet, TextInput, Pressable } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 
 import { Screen } from '@/components/Screen';
@@ -11,6 +11,7 @@ import { ChoiceChip } from '@/components/ChoiceChip';
 import { Card } from '@/components/Card';
 import { Icon } from '@/components/Icon';
 import { AuthHero } from '@/components/AuthHero';
+import { SpotPicker, type PickedSpot } from '@/components/SpotPicker';
 import { colors, radius, spacing, typography } from '@/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { submitDiveLog } from '@/api/diveLogs';
@@ -42,7 +43,8 @@ export function LogDiveScreen() {
   const [date, setDate] = useState('04/16/2026');
   const [time, setTime] = useState('--:-- --');
   const [duration, setDuration] = useState('');
-  const [location, setLocation] = useState('');
+  const [spotPick, setSpotPick] = useState<PickedSpot | null>(null);
+  const [spotPickerOpen, setSpotPickerOpen] = useState(false);
 
   const [depth, setDepth] = useState('');
   const [weapon, setWeapon] = useState('');
@@ -62,10 +64,15 @@ export function LogDiveScreen() {
     try {
       await submitDiveLog({
         uid: user.id,
-        // TODO(spot-resolution): the form's `location` field is a free-text
-        // input today; once the spot picker lands, replace this with the
-        // selected spot's id so logs link cleanly to BackendReports.
-        spotId: location.trim() || 'unknown',
+        // For known spots, spotId matches the backend's SPOTS object so
+        // the report cross-reference works. For custom spots we get a
+        // synthetic id and stash the human-readable name + lat/lon
+        // inline on the log so it's still meaningful.
+        spotId: spotPick?.id ?? 'unknown',
+        customSpot:
+          spotPick?.kind === 'custom'
+            ? { name: spotPick.name, lat: spotPick.lat, lon: spotPick.lon }
+            : undefined,
         diveType: type,
         groupSize: group,
         durationMin: duration ? Number.parseInt(duration, 10) : null,
@@ -125,7 +132,12 @@ export function LogDiveScreen() {
           </View>
 
           <Text style={[styles.label, { marginTop: spacing.xl }]}>Location</Text>
-          <Input placeholder="Select your spot" value={location} onChangeText={setLocation} />
+          <Pressable onPress={() => setSpotPickerOpen(true)} style={styles.spotPickerField}>
+            <Text style={[typography.body, { color: spotPick ? colors.textPrimary : colors.textMuted, flex: 1 }]}>
+              {spotPick ? spotPick.name : 'Select your spot'}
+            </Text>
+            <Icon name="chevron-down" size={16} color={colors.textSecondary} />
+          </Pressable>
 
           <Text style={[styles.label, { marginTop: spacing.xl }]}>Size or type of group</Text>
           <View style={styles.chipRow}>
@@ -262,6 +274,16 @@ export function LogDiveScreen() {
       ) : (
         <Button label="Done" fullWidth onPress={() => nav.popToTop()} />
       )}
+
+      <SpotPicker
+        open={spotPickerOpen}
+        value={spotPick}
+        onClose={() => setSpotPickerOpen(false)}
+        onSelect={(s) => {
+          setSpotPick(s);
+          setSpotPickerOpen(false);
+        }}
+      />
     </Screen>
   );
 }
@@ -287,6 +309,18 @@ const logHeroStyles = StyleSheet.create({
 
 const styles = StyleSheet.create({
   titleSm: { fontSize: 22, lineHeight: 26 },
+  spotPickerField: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.cardAlt,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: 14,
+    marginTop: spacing.sm,
+  },
   sub: { ...typography.body, color: colors.textSecondary, marginTop: spacing.sm },
   label: { ...typography.bodySm, color: colors.textSecondary, fontWeight: '600' },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.sm },
