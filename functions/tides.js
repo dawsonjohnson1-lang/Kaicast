@@ -18,39 +18,28 @@ const logger = require('firebase-functions/logger');
 // ---------------------------------------------------------------------------
 
 /**
- * Known NOAA CO-OPS tide stations around Oahu, tagged by coast.
- * Each entry: { id, name, lat, lon, coast }
+ * NOAA CO-OPS tide stations across the main Hawaiian Islands, tagged
+ * by island + coast. Each entry: { id, name, lat, lon, island, coast }.
  *
- * Only the south-coast Honolulu gauge (1612340) is a confirmed real station.
- * The north / east / west entries are commented out until real IDs are available.
- *
- * TODO: Uncomment and fill in real NOAA CO-OPS station IDs for north/east/west
- *       once they are confirmed. The code will fall back to the Honolulu gauge
- *       for any coast that has no registered station.
- *
- * Required Webflow CMS slugs for tide cycle fields (for reference):
- *   low_tide_1_time, low_tide_1_height,
- *   rising_tide_time, rising_tide_height,
- *   high_tide_time, high_tide_height,
- *   falling_tide_time, falling_tide_height,
- *   low_tide_2_time, low_tide_2_height,
- *   current_tide_state, current_tide_height
+ * All IDs verified against the NOAA tidesandcurrents.noaa.gov API.
+ * Spots configure an explicit `tideStation` in SPOTS (functions/index.js)
+ * to override the heuristic; this registry is the fallback for any
+ * spot that doesn't, and for user-submitted custom spots.
  */
 const NOAA_TIDE_STATIONS = [
-  // South coast (real station — Honolulu Harbor tide gauge)
-  { id: '1612340', name: 'Honolulu, HI', lat: 21.3067, lon: -157.867, coast: 'south' },
+  // Oahu
+  { id: '1612340', name: 'Honolulu',  lat: 21.3067, lon: -157.867,  island: 'oahu',     coast: 'south' },
+  { id: '1612480', name: 'Mokuoloe',  lat: 21.4331, lon: -157.7900, island: 'oahu',     coast: 'east'  },
 
-  // TODO: North coast — replace XXXXXXX with real NOAA CO-OPS station ID
-  // (nearest candidate: Haleiwa Small Boat Harbor area, North Shore)
-  // { id: 'XXXXXXX', name: 'Haleiwa / North Shore', lat: 21.5960, lon: -158.1044, coast: 'north' },
+  // Maui
+  { id: '1615680', name: 'Kahului',   lat: 20.8950, lon: -156.4750, island: 'maui',     coast: 'north' },
 
-  // TODO: East coast — replace XXXXXXX with real NOAA CO-OPS station ID
-  // (nearest candidate: Kaneohe Bay / Kailua area)
-  // { id: 'XXXXXXX', name: 'Kaneohe Bay', lat: 21.4011, lon: -157.7400, coast: 'east' },
+  // Kauai
+  { id: '1611400', name: 'Nawiliwili',lat: 21.9544, lon: -159.3561, island: 'kauai',    coast: 'east'  },
 
-  // TODO: West coast — replace XXXXXXX with real NOAA CO-OPS station ID
-  // (nearest candidate: Barbers Point / Ko Olina area)
-  // { id: 'XXXXXXX', name: "Barbers Point / Ko Olina", lat: 21.3098, lon: -158.0903, coast: 'west' },
+  // Big Island (Hawaiʻi)
+  { id: '1617760', name: 'Hilo',      lat: 19.7300, lon: -155.0556, island: 'hawaii',   coast: 'east'  },
+  { id: '1617433', name: 'Kawaihae',  lat: 20.0367, lon: -155.8294, island: 'hawaii',   coast: 'west'  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -77,41 +66,36 @@ function distKm(lat1, lon1, lat2, lon2) {
  * Choose the best NOAA tide station for a spot.
  *
  * Selection priority:
- *  1. spot.noaaTideStation  (manual override — always respected)
- *  2. Nearest station on the same coast as the spot
- *  3. Nearest station overall (fallback if no same-coast station exists)
+ *  1. spot.noaaTideStation / spot.tideStation (manual override)
+ *  2. Nearest station by haversine distance across all registered
+ *     stations. The previous Oahu-coast prefilter caused Maui spots
+ *     (Molokini) to match Honolulu — that's why this is now strictly
+ *     distance-based. Stations span all main Hawaiian islands so the
+ *     nearest will naturally be on the correct island.
  *
  * Returns a station ID string, or null if the registry is empty.
  *
- * @param {object} spot - spot config { lat, lon, coast, noaaTideStation? }
+ * @param {object} spot - spot config { lat, lon, coast?, noaaTideStation?, tideStation? }
  * @returns {string|null}
  */
 function chooseNoaaTideStationForSpot(spot) {
   if (!spot) return null;
 
-  // Manual per-spot override
+  // Manual per-spot override (either field name accepted)
+  if (spot.tideStation)     return String(spot.tideStation);
   if (spot.noaaTideStation) return String(spot.noaaTideStation);
 
   if (!NOAA_TIDE_STATIONS.length) return null;
 
-  const coast = spot.coast || null;
-
-  // Try to find stations on the same coast first
-  const sameCoast = coast
-    ? NOAA_TIDE_STATIONS.filter((s) => s.coast === coast)
-    : [];
-  const pool = sameCoast.length ? sameCoast : NOAA_TIDE_STATIONS;
-
   let nearest = null;
   let bestDist = Infinity;
-  for (const s of pool) {
+  for (const s of NOAA_TIDE_STATIONS) {
     const d = distKm(spot.lat ?? 0, spot.lon ?? 0, s.lat, s.lon);
     if (d < bestDist) {
       bestDist = d;
       nearest = s;
     }
   }
-
   return nearest ? nearest.id : null;
 }
 

@@ -161,12 +161,9 @@ const SPOTS = [
     // a south-shore atoll but better than the Oahu buoys until a Maui
     // south-shore station is wired up.
     buoyStation: '51205',
-    // TODO(tides): NOAA station 1615680 (Kahului, Maui) is the right
-    // gauge for Maui spots, but tides.js currently only registers
-    // 1612340 (Honolulu). Falls back to Honolulu — accurate timing is
-    // off by 10–20 min. Add Kahului to NOAA_TIDE_STATIONS in tides.js
-    // when ready.
-    tideStation: '1612340',
+    // Kahului (Maui) — the right gauge for Maui spots. Honolulu would
+    // be off by 10–20 min and slightly different range.
+    tideStation: '1615680',
     // Open-ocean crater rim — no streams, no drainage. Deeper water
     // handles bigger swell than nearshore Oahu spots.
     runoffSensitivity: 'low',
@@ -1354,6 +1351,13 @@ async function readCachedReport(spotId, nowMs, spot = null) {
     // Same for the per-day tide events (added after days[] shipped).
     // Skip if any day in the forecast is missing tideEvents.
     if (!data.days.every((d) => Array.isArray(d?.tideEvents))) continue;
+    // Skip if the cached report's tide source doesn't match the spot's
+    // currently-configured tide station (e.g. Maui spots switched from
+    // Honolulu to Kahului — old cache should not be served).
+    if (spot?.tideStation && Array.isArray(data?.sources)) {
+      const expected = `noaa-tides:${spot.tideStation}`;
+      if (!data.sources.includes(expected)) continue;
+    }
     return data;
   }
   return null;
