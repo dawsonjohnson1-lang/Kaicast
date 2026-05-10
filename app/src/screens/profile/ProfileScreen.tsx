@@ -19,6 +19,7 @@ import { useProfilePhoto } from '@/hooks/useProfilePhoto';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { useUserDiveLogs, diveLogToReport } from '@/hooks/useDiveLogs';
 import { useSpots } from '@/hooks/useSpots';
+import { useFollowing } from '@/hooks/useFollowing';
 import { diveReports, favoriteSpots } from '@/api/mockData';
 import type { RootStackParamList, TabParamList } from '@/navigation/types';
 
@@ -30,15 +31,13 @@ type Nav = CompositeNavigationProp<
 type Tab = 'Dashboard' | 'Dive Reports' | 'Friends' | 'Settings';
 const TABS: Tab[] = ['Dashboard', 'Dive Reports', 'Friends', 'Settings'];
 
-const FOLLOWERS_COUNT = 45;
-const FOLLOWING_COUNT = 12;
-
 export function ProfileScreen() {
   const nav = useNavigation<Nav>();
   const { user, signOut } = useAuth();
   const { profile } = useUserProfile(user?.id);
   const { logs: userLogs } = useUserDiveLogs(user?.id);
   const { spots } = useSpots();
+  const { counts: followCounts, following: followingList } = useFollowing(user?.id);
   const fallbackPhoto = useProfilePhoto();
   // Resolve spot ids → human names so log cards show "Electric Beach"
   // not "electric-beach". Custom spots already carry their own name
@@ -101,11 +100,11 @@ export function ProfileScreen() {
         <Text style={styles.location}>{homeLocation}</Text>
         <View style={styles.statsRow}>
           <Pressable style={styles.statCol} onPress={() => nav.navigate('Followers')}>
-            <Text style={styles.statBold}>{FOLLOWERS_COUNT}</Text>
+            <Text style={styles.statBold}>{followCounts.followers}</Text>
             <Text style={styles.statMuted}>Followers</Text>
           </Pressable>
           <Pressable style={styles.statCol} onPress={() => nav.navigate('Following')}>
-            <Text style={styles.statBold}>{FOLLOWING_COUNT}</Text>
+            <Text style={styles.statBold}>{followCounts.following}</Text>
             <Text style={styles.statMuted}>Following</Text>
           </Pressable>
         </View>
@@ -164,25 +163,47 @@ export function ProfileScreen() {
       {tab === 'Friends' && (
         <View style={{ marginTop: spacing.xl, gap: spacing.md }}>
           <View style={{ flexDirection: 'row', gap: spacing.md }}>
-            <Button label="12 Followers" variant="secondary" onPress={() => nav.navigate('Followers')} style={{ flex: 1 }} />
-            <Button label="34 Following" variant="secondary" onPress={() => nav.navigate('Following')} style={{ flex: 1 }} />
+            <Button
+              label={`${followCounts.followers} Followers`}
+              variant="secondary"
+              onPress={() => nav.navigate('Followers')}
+              style={{ flex: 1 }}
+            />
+            <Button
+              label={`${followCounts.following} Following`}
+              variant="secondary"
+              onPress={() => nav.navigate('Following')}
+              style={{ flex: 1 }}
+            />
           </View>
-          {[
-            { name: 'Mike Kahale', handle: '@mike_kahale' },
-            { name: 'Sara Lopes', handle: '@saralopes' },
-            { name: 'Tomo Tanaka', handle: '@tomo' },
-          ].map((f) => (
-            <Card key={f.handle}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
-                <Avatar initials={f.name.split(' ').map((s) => s[0]).join('')} size={42} />
-                <View style={{ flex: 1 }}>
-                  <Text style={typography.h3}>{f.name}</Text>
-                  <Text style={{ ...typography.bodySm, color: colors.textSecondary }}>{f.handle}</Text>
-                </View>
-                <Tag variant="freedive" label="Following" />
-              </View>
+          {followingList.length === 0 ? (
+            <Card>
+              <Text style={[typography.bodySm, { color: colors.textSecondary, textAlign: 'center' }]}>
+                You're not following anyone yet.
+              </Text>
             </Card>
-          ))}
+          ) : (
+            followingList.slice(0, 5).map((f) => {
+              const initials = f.name.split(' ').map((s) => s[0]).filter(Boolean).join('').slice(0, 2);
+              const handle = f.handle ? `@${f.handle.replace(/^@/, '')}` : '';
+              return (
+                <Card key={f.uid}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+                    <Avatar
+                      initials={initials}
+                      size={42}
+                      imageSource={f.photoUrl ? { uri: f.photoUrl } : undefined}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text style={typography.h3}>{f.name || 'Diver'}</Text>
+                      <Text style={{ ...typography.bodySm, color: colors.textSecondary }}>{handle}</Text>
+                    </View>
+                    <Tag variant="freedive" label="Following" />
+                  </View>
+                </Card>
+              );
+            })
+          )}
         </View>
       )}
 
