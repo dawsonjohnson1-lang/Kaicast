@@ -128,6 +128,52 @@ const SPOTS = [
     maxCleanSwellFt: 4,
     hardNoGoSwellFt: 7,
   },
+  {
+    id: 'electric-beach',
+    name: 'Electric Beach',
+    lat: 21.355,
+    lon: -158.122,
+    tz: 'Pacific/Honolulu',
+    coast: 'west',
+    // Match Makua (also west coast Oahu) — NDBC 51202 is the closest
+    // operational buoy on this side of the island.
+    buoyStation: '51202',
+    tideStation: '1612340',
+    // Kahe Point is the warm outflow channel for the power plant.
+    // Not classic storm runoff; treating as medium because the outfall
+    // pushes detritus during heavy rainfall periods.
+    runoffSensitivity: 'medium',
+    nearStreamMouth: false,
+    nearDrainage: true,
+    maxCleanSwellFt: 4,
+    hardNoGoSwellFt: 7,
+  },
+  {
+    id: 'molokini',
+    name: 'Molokini',
+    lat: 20.633,
+    lon: -156.495,
+    tz: 'Pacific/Honolulu',
+    coast: 'south',
+    // First Maui spot in this list. NDBC 51205 (Pauwela, Maui north
+    // shore) is the closest buoy with consistent data — not ideal for
+    // a south-shore atoll but better than the Oahu buoys until a Maui
+    // south-shore station is wired up.
+    buoyStation: '51205',
+    // TODO(tides): NOAA station 1615680 (Kahului, Maui) is the right
+    // gauge for Maui spots, but tides.js currently only registers
+    // 1612340 (Honolulu). Falls back to Honolulu — accurate timing is
+    // off by 10–20 min. Add Kahului to NOAA_TIDE_STATIONS in tides.js
+    // when ready.
+    tideStation: '1612340',
+    // Open-ocean crater rim — no streams, no drainage. Deeper water
+    // handles bigger swell than nearshore Oahu spots.
+    runoffSensitivity: 'low',
+    nearStreamMouth: false,
+    nearDrainage: false,
+    maxCleanSwellFt: 5,
+    hardNoGoSwellFt: 10,
+  },
 ];
 
 // ─── Geographic helpers ───────────────────────────────────────────────────────
@@ -1123,6 +1169,79 @@ async function runPipeline({ apiKey, publish = false }) {
 }
 
 // ─── Firebase Functions ───────────────────────────────────────────────────────
+
+// Read the most recent hourly cached report for a spot (looking up to
+// 4 hours back). Returns null when nothing recent is cached. The
+// scheduler writes `kaicast_reports/{spotId}_{YYYYMMDDHH}` every hour.
+async function readCachedReport(spotId, nowMs) {
+  const t = new Date(nowMs);
+  for (let h = 0; h < 4; h++) {
+    const at = new Date(t.getTime() - h * 3600000);
+    const hourKey = buildHourKey(at);
+    const snap = await db.collection('kaicast_reports').doc(`${spotId}_${hourKey}`).get();
+    if (snap.exists) return snap.data();
+  }
+  return null;
+}
+
+// Per-spot HTTP endpoint consumed by the app's useSpotReport hook.
+// Always tries the hourly cache first (sub-second response), falls
+// back to a fresh compute when the cache is empty or stale (5–15 s).
+exports.getReport = onRequest(
+  { secrets: ALL_SECRETS, timeoutSeconds: 60, memory: '512MiB' },
+  async (req, res) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    if (req.method === 'OPTIONS') {
+      res.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
+      res.status(204).send('');
+      return;
+    }
+
+    const spotId = String(req.query.spotId || '').trim();
+    if (!spotId) {
+      res.status(400).json({ error: 'spotId query param is required' });
+      return;
+    }
+    const spot = SPOTS.find((s) => s.id === spotId);
+    if (!spot) {
+      res.status(404).json({ error: `Unknown spot: ${spotId}` });
+      return;
+    }
+
+    try {
+      const nowMs = Date.now();
+      const cached = await readCachedReport(spotId, nowMs);
+      if (cached) {
+        res.json(cached);
+        return;
+      }
+
+      const apiKey = OPENWEATHER_API_KEY.value();
+      if (!apiKey) {
+        res.status(500).json({ error: 'OPENWEATHER_API_KEY is not configured' });
+        return;
+      }
+      const owHourly = await fetchOpenWeatherHourly({ lat: spot.lat, lon: spot.lon, apiKey });
+      const hourKeys = owHourly.hourly.map((h) => h.isoHour);
+      const buoyData = spot.buoyStation
+        ? await fetchBuoyHourly({ station: spot.buoyStation, hourKeys }).catch(() => null)
+        : null;
+      const report = await buildSpotReport({ spot, owHourly, buoyData, nowMs });
+
+      // Cache the freshly-computed report so the next request is fast.
+      const docId = `${spot.id}_${report.hourKey}`;
+      await db.collection('kaicast_reports').doc(docId).set({
+        ...report,
+        savedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      res.json(report);
+    } catch (err) {
+      logger.error('getReport failed', { spotId, error: err.message });
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
 
 exports.fetchKaiCastNow = onRequest(
   { secrets: ALL_SECRETS, timeoutSeconds: 300, memory: '512MiB' },
