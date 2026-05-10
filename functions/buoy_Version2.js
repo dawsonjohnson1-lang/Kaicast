@@ -90,9 +90,11 @@ async function parseNdbcRealtime2Text(text) {
     return -1;
   }
 
-  const hvIdx = findIndexFor(['WVHT', 'WVH', 'HTSGW', 'WAVEHEIGHT', 'WVHT_S']);
-  // DPD / APD / TP / P1 / PER
-  const perIdx = findIndexFor(['DPD', 'APD', 'TP', 'P1', 'PER', 'PERIOD', 'MWD']);
+  const hvIdx  = findIndexFor(['WVHT', 'WVH', 'HTSGW', 'WAVEHEIGHT', 'WVHT_S']);
+  // DPD = dominant period, APD = average period. MWD = mean wave
+  // direction (degrees) — distinct field; do NOT collapse with period.
+  const perIdx = findIndexFor(['DPD', 'APD', 'TP', 'P1', 'PER', 'PERIOD']);
+  const dirIdx = findIndexFor(['MWD', 'WDIR_WAVE', 'WAVEDIR']);
   const wtmpIdx = findIndexFor(['WTMP', 'WTEMP', 'WATERTEMP']);
 
   for (const dl of dataLines) {
@@ -132,7 +134,7 @@ async function parseNdbcRealtime2Text(text) {
     const dt = new Date(Date.UTC(year, month - 1, day, hour, minute || 0));
     const isoHour = isoHourFromDateUTC(dt);
 
-    if (!acc[isoHour]) acc[isoHour] = { hv: [], per: [], wtmp: [] };
+    if (!acc[isoHour]) acc[isoHour] = { hv: [], per: [], dir: [], wtmp: [] };
 
     // Safe safe reads for hv/per/wtmp via indexes
     if (hvIdx >= 0 && tokens[hvIdx] && tokens[hvIdx] !== 'MM') {
@@ -154,24 +156,40 @@ async function parseNdbcRealtime2Text(text) {
       if (Number.isFinite(per)) acc[isoHour].per.push(per);
     }
 
+    if (dirIdx >= 0 && tokens[dirIdx] && tokens[dirIdx] !== 'MM') {
+      const dir = Number(tokens[dirIdx]);
+      if (Number.isFinite(dir) && dir >= 0 && dir <= 360) acc[isoHour].dir.push(dir);
+    }
+
     if (wtmpIdx >= 0 && tokens[wtmpIdx] && tokens[wtmpIdx] !== 'MM') {
       const wtmp = Number(tokens[wtmpIdx]);
       if (Number.isFinite(wtmp)) acc[isoHour].wtmp.push(wtmp);
     }
   }
 
+  // Circular mean for direction so 359° + 1° averages to 0° not 180°.
+  function circularMean(degs) {
+    if (!degs.length) return null;
+    const rads = degs.map((d) => (d * Math.PI) / 180);
+    const sx = rads.reduce((a, r) => a + Math.cos(r), 0);
+    const sy = rads.reduce((a, r) => a + Math.sin(r), 0);
+    return ((Math.atan2(sy, sx) * 180) / Math.PI + 360) % 360;
+  }
+
   const waveHMap = new Map();
   const wavePMap = new Map();
+  const waveDirMap = new Map();
   const sstMap = new Map();
 
   for (const iso of Object.keys(acc)) {
     const entry = acc[iso];
-    if (entry.hv && entry.hv.length) waveHMap.set(iso, Math.round(avg(entry.hv) * 100) / 100);
+    if (entry.hv && entry.hv.length)   waveHMap.set(iso, Math.round(avg(entry.hv) * 100) / 100);
     if (entry.per && entry.per.length) wavePMap.set(iso, Math.round(avg(entry.per) * 10) / 10);
+    if (entry.dir && entry.dir.length) waveDirMap.set(iso, Math.round(circularMean(entry.dir)));
     if (entry.wtmp && entry.wtmp.length) sstMap.set(iso, normalizeWtmpValue(avg(entry.wtmp)));
   }
 
-  return { waveHMap, wavePMap, sstMap };
+  return { waveHMap, wavePMap, waveDirMap, sstMap };
 }
 
 /**
@@ -183,7 +201,12 @@ async function parseNdbcRealtime2Text(text) {
  * back from "now" to find the most recent available reading.
  */
 async function fetchBuoyHourly({ station, cacheTtlMs = DEFAULT_CACHE_TTL_MS } = {}) {
-  const empty = () => ({ waveHMap: new Map(), wavePMap: new Map(), sstMap: new Map() });
+  const empty = () => ({
+    waveHMap: new Map(),
+    wavePMap: new Map(),
+    waveDirMap: new Map(),
+    sstMap: new Map(),
+  });
   if (!station) return empty();
 
   const now = Date.now();

@@ -212,9 +212,39 @@ function solarLightFactor({ sun, shadow, cloudCoverPercent = 0 }) {
   };
 }
 
+// ─── Swell exposure (direction-aware shielding) ────────────────────
+//
+// Buoys report open-ocean wave height. A west-Maui spot gets full
+// energy from a NW swell but barely a ripple from the same height
+// SE swell because the island blocks it. The horizon profile already
+// encodes which compass bearings have terrain; reuse it: if the swell
+// is coming FROM a direction with a significant land angle, the
+// spot is shielded.
+//
+//   horizonAt(swellDirFrom) < 0.2°  → factor 1.00 (open ocean)
+//   horizonAt(swellDirFrom) > 1.0°  → factor 0.15 (terrain in path
+//                                                   — residual energy
+//                                                   from diffraction
+//                                                   around headlands)
+//   0.2° to 1.0°                    → linear taper
+//
+// `swellDirectionDegFrom` follows the oceanographic convention:
+// the bearing the swell is coming from, e.g. 270° = westerly swell
+// moving east. Returns 1.0 when no profile is available so the
+// model still works for spots without a precomputed horizon.
+function swellExposureFactor(horizonProfile, swellDirectionDegFrom) {
+  if (!Array.isArray(horizonProfile) || horizonProfile.length === 0) return 1.0;
+  if (!Number.isFinite(swellDirectionDegFrom)) return 1.0;
+  const horizonDeg = horizonAtAzimuth(horizonProfile, swellDirectionDegFrom);
+  if (horizonDeg < 0.2) return 1.0;
+  if (horizonDeg > 1.0) return 0.15;
+  return 1.0 - (horizonDeg - 0.2) * 1.0625;
+}
+
 module.exports = {
   solarPosition,
   horizonAtAzimuth,
   isShadowed,
   solarLightFactor,
+  swellExposureFactor,
 };

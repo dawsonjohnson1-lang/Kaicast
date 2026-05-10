@@ -1294,9 +1294,13 @@ async function buildSpotReport({ spot, owHourly, buoyData, marineForecast, nowMs
     cloudCoverPercent: closestHour?.cloudCoverPercent ?? null,
     rainLast1hMM:      closestHour?.rainLast1hMM      ?? 0,
 
-    waveHeightM:       lookupRecent(buoyData?.waveHMap, nowHourIso),
-    wavePeriodS:       lookupRecent(buoyData?.wavePMap, nowHourIso),
-    waterTempC:        lookupRecent(buoyData?.sstMap,   nowHourIso),
+    waveHeightM:           lookupRecent(buoyData?.waveHMap, nowHourIso),
+    wavePeriodS:           lookupRecent(buoyData?.wavePMap, nowHourIso),
+    waveDirectionDegFrom:
+      lookupRecent(buoyData?.waveDirMap, nowHourIso) ??
+      marineForecast?.waveDirMap?.get(nowHourIso) ??
+      null,
+    waterTempC:            lookupRecent(buoyData?.sstMap, nowHourIso),
   };
 
   // Tide cycle — select NOAA station for this spot and build the cycle.
@@ -1366,10 +1370,11 @@ async function buildSpotReport({ spot, owHourly, buoyData, marineForecast, nowMs
     lat: spot.lat,
     lon: spot.lon,
     nowMs,
-    windKnots:         nowMetrics.windSpeedKts,
-    waveHeightM:       nowMetrics.waveHeightM,
-    wavePeriodS:       nowMetrics.wavePeriodS,
-    tidePhase:         nowTideCycle?.currentTideState ?? 'unknown',
+    windKnots:            nowMetrics.windSpeedKts,
+    waveHeightM:          nowMetrics.waveHeightM,
+    wavePeriodS:          nowMetrics.wavePeriodS,
+    waveDirectionDegFrom: nowMetrics.waveDirectionDegFrom,
+    tidePhase:            nowTideCycle?.currentTideState ?? 'unknown',
     rainRollups,
     runoff:            nowRunoff,
     cloudCoverPercent: nowMetrics.cloudCoverPercent,
@@ -1473,10 +1478,11 @@ async function buildSpotReport({ spot, owHourly, buoyData, marineForecast, nowMs
       lat: spot.lat,
       lon: spot.lon,
       nowMs: winMidMsForVis,
-      windKnots:         w.avg.windSpeedKts,
-      waveHeightM:       w.avg.waveHeightM,
-      wavePeriodS:       w.avg.wavePeriodS,
-      tidePhase:         winTideCycle?.currentTideState ?? 'unknown',
+      windKnots:            w.avg.windSpeedKts,
+      waveHeightM:          w.avg.waveHeightM,
+      wavePeriodS:          w.avg.wavePeriodS,
+      waveDirectionDegFrom: marineForecast?.waveDirMap?.get(w.startIso) ?? null,
+      tidePhase:            winTideCycle?.currentTideState ?? 'unknown',
       rainRollups:       winRainRollups,
       runoff:            winRunoff,
       cloudCoverPercent: w.avg.cloudCoverPercent,

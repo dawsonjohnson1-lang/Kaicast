@@ -23,7 +23,7 @@
 const { fetchOceanColor, kd490ToVisibility } = require('./kd490');
 const { computeWaveImpactAtSite } = require('./waves');
 const { estimateVisibility } = require('../analysis');
-const { solarPosition, isShadowed, solarLightFactor } = require('./solar');
+const { solarPosition, isShadowed, solarLightFactor, swellExposureFactor } = require('./solar');
 const { getHorizonProfile } = require('./horizon');
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -82,7 +82,8 @@ const SPM_CLEAR_THRESHOLD = 5.0;
 async function estimateVisibilityAbyss(opts) {
   const {
     lat, lon, nowMs,
-    windKnots, waveHeightM, wavePeriodS,
+    windKnots, waveHeightM: rawWaveHeightM, wavePeriodS,
+    waveDirectionDegFrom,
     tidePhase = 'unknown',
     rainRollups, runoff,
     cloudCoverPercent, hourLocal,
@@ -104,6 +105,17 @@ async function estimateVisibilityAbyss(opts) {
   const horizonProfile = getHorizonProfile(spot.id);
   const shadow = isShadowed({ horizonProfile, sun });
   const light = solarLightFactor({ sun, shadow, cloudCoverPercent });
+
+  // ── Swell direction shielding ───────────────────────────────────────────────
+  // Buoys / marine forecast give open-ocean wave height. If the swell
+  // direction is blocked by terrain (e.g. an east swell hitting a
+  // west-Maui spot shielded by Haleakala), the spot sees a fraction
+  // of that energy. Falls through to 1.0 (no shielding) when we
+  // don't know the direction or have no horizon profile.
+  const exposureFactor = swellExposureFactor(horizonProfile, waveDirectionDegFrom);
+  const waveHeightM = Number.isFinite(rawWaveHeightM)
+    ? rawWaveHeightM * exposureFactor
+    : rawWaveHeightM;
 
   // ── Layer 0: Fetch satellite data ──────────────────────────────────────────
   let oceanColor = null;
@@ -155,6 +167,7 @@ async function estimateVisibilityAbyss(opts) {
       sun: { altitudeDeg: sun.altitudeDeg, azimuthDeg: sun.azimuthDeg },
       shadow: shadow.shadowed ? { shadowed: true, reason: shadow.reason, horizonDeg: shadow.horizonDeg, marginDeg: shadow.marginDeg } : { shadowed: false, marginDeg: shadow.marginDeg, horizonDeg: shadow.horizonDeg },
       light,
+      exposure: { factor: Math.round(exposureFactor * 100) / 100, swellFromDeg: waveDirectionDegFrom ?? null, rawWaveHeightM: rawWaveHeightM ?? null, effectiveWaveHeightM: waveHeightM ?? null },
       _fallbackReason: 'no-satellite-data',
     };
   }
@@ -265,6 +278,12 @@ async function estimateVisibilityAbyss(opts) {
       ? { shadowed: true, reason: shadow.reason, horizonDeg: shadow.horizonDeg, marginDeg: shadow.marginDeg }
       : { shadowed: false, marginDeg: shadow.marginDeg, horizonDeg: shadow.horizonDeg },
     light,
+    exposure: {
+      factor: Math.round(exposureFactor * 100) / 100,
+      swellFromDeg: waveDirectionDegFrom ?? null,
+      rawWaveHeightM: rawWaveHeightM ?? null,
+      effectiveWaveHeightM: waveHeightM ?? null,
+    },
     _fallbackReason: null,
   };
 }
