@@ -37,12 +37,25 @@ const {
 
 // ─── Secrets ─────────────────────────────────────────────────────────────────
 
-const OPENWEATHER_API_KEY = defineSecret('OPENWEATHER_API_KEY');
-const WEBFLOW_API_TOKEN   = defineSecret('WEBFLOW_API_TOKEN');
-const WEBFLOW_SPOTS_CID   = defineSecret('WEBFLOW_SPOTS_CID');
-const WEBFLOW_WINDOWS_CID = defineSecret('WEBFLOW_WINDOWS_CID');
+const OPENWEATHER_API_KEY        = defineSecret('OPENWEATHER_API_KEY');
+const WEBFLOW_API_TOKEN          = defineSecret('WEBFLOW_API_TOKEN');
+const WEBFLOW_SPOTS_CID          = defineSecret('WEBFLOW_SPOTS_CID');
+const WEBFLOW_WINDOWS_CID        = defineSecret('WEBFLOW_WINDOWS_CID');
+const CMEMS_USERNAME             = defineSecret('CMEMS_USERNAME');
+const CMEMS_PASSWORD             = defineSecret('CMEMS_PASSWORD');
+const NASA_EARTHDATA_USERNAME    = defineSecret('NASA_EARTHDATA_USERNAME');
+const NASA_EARTHDATA_PASSWORD    = defineSecret('NASA_EARTHDATA_PASSWORD');
 
-const ALL_SECRETS = [OPENWEATHER_API_KEY, WEBFLOW_API_TOKEN, WEBFLOW_SPOTS_CID, WEBFLOW_WINDOWS_CID];
+const ALL_SECRETS = [
+  OPENWEATHER_API_KEY,
+  WEBFLOW_API_TOKEN,
+  WEBFLOW_SPOTS_CID,
+  WEBFLOW_WINDOWS_CID,
+  CMEMS_USERNAME,
+  CMEMS_PASSWORD,
+  NASA_EARTHDATA_USERNAME,
+  NASA_EARTHDATA_PASSWORD,
+];
 
 // ─── Spots ────────────────────────────────────────────────────────────────────
 //
