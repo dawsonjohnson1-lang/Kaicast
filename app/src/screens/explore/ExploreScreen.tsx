@@ -11,8 +11,8 @@ import { Icon } from '@/components/Icon';
 import { SpotMap } from '@/components/Map';
 import { satelliteUrl } from '@/api/satellite';
 import { colors, radius, spacing, typography, RATING_COLORS, RATING_LABELS } from '@/theme';
-import { exploreSpots } from '@/api/mockData';
 import { useAuth } from '@/hooks/useAuth';
+import { useSpots } from '@/hooks/useSpots';
 import type { RootNav } from '@/navigation/types';
 import type { Spot } from '@/types';
 
@@ -37,6 +37,7 @@ type ExploreSpot = Spot & { distMi?: number };
 export function ExploreScreen() {
   const nav = useNavigation<RootNav>();
   const { user } = useAuth();
+  const { spots: allSpots } = useSpots();
   const [filter, setFilter] = useState<Filter>('Dive Spots');
   const [origin, setOrigin] = useState<{ lat: number; lon: number } | null>(null);
   const initials = (user?.name ?? 'D').split(' ').map((s) => s[0]).join('').slice(0, 2);
@@ -57,11 +58,11 @@ export function ExploreScreen() {
   }, []);
 
   const sortedSpots: ExploreSpot[] = useMemo(() => {
-    if (!origin) return exploreSpots;
-    return [...exploreSpots]
+    if (!origin) return allSpots;
+    return [...allSpots]
       .map((s) => ({ ...s, distMi: distanceMiles(origin.lat, origin.lon, s.lat, s.lon) }))
       .sort((a, b) => (a.distMi ?? 0) - (b.distMi ?? 0));
-  }, [origin]);
+  }, [origin, allSpots]);
 
   return (
     <Screen scroll={false} padding={0}>
@@ -73,7 +74,7 @@ export function ExploreScreen() {
           style={StyleSheet.absoluteFill}
         />
         <SpotMap
-          spots={exploreSpots}
+          spots={allSpots}
           onSpotPress={(spot) => nav.navigate('SpotDetail', { spotId: spot.id })}
         />
         <View style={styles.appBarPad} pointerEvents="box-none">

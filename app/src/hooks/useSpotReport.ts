@@ -12,6 +12,12 @@ import type { ConditionRating, Spot, SpotReport } from '@/types';
  */
 export type SpotReportState = {
   data: SpotReport;
+  /**
+   * Raw backend report when source === 'live'. Hazards/Forecast tabs
+   * read straight from this for fields the merged SpotReport shape
+   * doesn't carry (e.g. analysis.moon, analysis.runoff, windows[]).
+   */
+  backend: BackendReport | null;
   source: 'live' | 'mock';
   loading: boolean;
   error: string | null;
@@ -30,6 +36,7 @@ export type SpotReportState = {
 export function useSpotReport(spot: Spot): SpotReportState {
   const [state, setState] = useState<SpotReportState>({
     data: electricBeachReport,
+    backend: null,
     source: 'mock',
     loading: true,
     error: null,
@@ -45,14 +52,14 @@ export function useSpotReport(spot: Spot): SpotReportState {
       .then((backend) => {
         if (cancelled) return;
         const merged = mergeBackendIntoReport(backend, spot);
-        setState({ data: merged, source: 'live', loading: false, error: null });
+        setState({ data: merged, backend, source: 'live', loading: false, error: null });
       })
       .catch((err: unknown) => {
         if (cancelled) return;
         const msg = err instanceof Error ? err.message : String(err);
         // Fall back to the mock so the UI doesn't go blank. `source` =
         // 'mock' so screens can show a DEMO badge.
-        setState({ data: electricBeachReport, source: 'mock', loading: false, error: msg });
+        setState({ data: electricBeachReport, backend: null, source: 'mock', loading: false, error: msg });
       });
 
     return () => {

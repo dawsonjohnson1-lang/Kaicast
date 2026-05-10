@@ -63,15 +63,22 @@ export function ForecastTab({ spot, spotCoords }: ForecastTabProps = {}) {
     <View style={styles.root}>
       <View style={styles.headerRow}>
         <DayStrip days={days} selectedId={selectedId} onSelect={setSelectedId} />
-        {!isAtDefault ? (
-          <Pressable
-            hitSlop={8}
-            onPress={() => setScrubberHour(defaultHour)}
-            style={styles.nowBtn}
-          >
-            <Text style={styles.nowBtnText}>NOW</Text>
-          </Pressable>
-        ) : null}
+        <View style={styles.headerActions}>
+          {source === 'mock' ? (
+            <View style={styles.demoBadge}>
+              <Text style={styles.demoBadgeText}>DEMO</Text>
+            </View>
+          ) : null}
+          {!isAtDefault ? (
+            <Pressable
+              hitSlop={8}
+              onPress={() => setScrubberHour(defaultHour)}
+              style={styles.nowBtn}
+            >
+              <Text style={styles.nowBtnText}>NOW</Text>
+            </Pressable>
+          ) : null}
+        </View>
       </View>
 
       <View style={{ height: 16 }} />
@@ -104,4 +111,14 @@ const styles = StyleSheet.create({
     backgroundColor: colors.accentSoft,
   },
   nowBtnText: { ...typography.caption, color: colors.accent, fontWeight: '700' },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  demoBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: colors.warnSoft,
+    borderWidth: 1,
+    borderColor: 'rgba(245,176,65,0.35)',
+  },
+  demoBadgeText: { ...typography.caption, color: colors.warn, fontWeight: '700', fontSize: 9, letterSpacing: 0.8 },
 });

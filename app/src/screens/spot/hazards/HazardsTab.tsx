@@ -5,6 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Card } from '@/components/Card';
 import { colors, radius, spacing, typography } from '@/theme';
 import type { Spot } from '@/types';
+import type { BackendReport } from '@/api/kaicast';
 import { getHazardsReport } from './data';
 import type {
   HazardsReport,
@@ -15,18 +16,25 @@ import type {
 
 type Props = {
   spot?: Spot;
+  /**
+   * Live backend report. When provided, the Hazards tab derives its
+   * runoff/jellyfish/moon signals from `report.now.analysis` instead
+   * of the local mock. Pass null/undefined when the spot has no
+   * backend report (fallback to the synthetic mock baseline).
+   */
+  report?: BackendReport | null;
 };
 
-export function HazardsTab({ spot }: Props) {
-  const report = getHazardsReport(spot);
+export function HazardsTab({ spot, report }: Props) {
+  const ui = getHazardsReport(spot, report ?? null);
 
   return (
     <View style={{ gap: spacing.md }}>
-      <StatusBanner level={report.status.level} text={report.status.text} />
-      <UvSection value={report.uv.value} severity={report.uv.severity} />
-      <RunoffSection cards={report.runoff} note={report.runoffNote} />
-      <MarineLifeSection species={report.marineLife} />
-      <SafetySection cards={report.safety} />
+      <StatusBanner level={ui.status.level} text={ui.status.text} />
+      <UvSection value={ui.uv.value} severity={ui.uv.severity} />
+      <RunoffSection cards={ui.runoff} note={ui.runoffNote} />
+      <MarineLifeSection species={ui.marineLife} />
+      <SafetySection cards={ui.safety} />
     </View>
   );
 }

@@ -96,7 +96,7 @@ export function SpotDetailScreen() {
         </ScrollView>
 
         {tab === 'Overview' && <OverviewTab report={r} source={reportState.source} spot={spot} />}
-        {tab === 'Hazards' && <HazardsTabRebuild spot={spot} />}
+        {tab === 'Hazards' && <HazardsTabRebuild spot={spot} report={reportState.backend} />}
         {tab === 'Forecast' && <ForecastTabRebuild spot={spot} spotCoords={{ lat: spot.lat, lon: spot.lon }} />}
         {tab === 'Guide' && <GuideTabRebuild spot={spot} />}
 

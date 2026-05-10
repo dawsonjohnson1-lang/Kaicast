@@ -4,6 +4,46 @@ const API_BASE: string =
   (Constants.expoConfig?.extra as { kaicastApiBase?: string } | undefined)?.kaicastApiBase ??
   'https://us-central1-kaicast-207dc.cloudfunctions.net';
 
+// Mirrors the shape produced by `analysis.fetchMoonPhase` on the
+// server. moonIllumination is a percentage (0–100), not a 0–1
+// fraction — divide by 100 if you need that.
+export type BackendMoon = {
+  moonPhase: string;          // "Waning Crescent", "Full Moon", …
+  moonIllumination: number;   // 0–100 %
+  daysSinceFullMoon: number;
+  tz?: string;
+  lat?: number;
+  lon?: number;
+};
+
+// `analysis.evaluateJellyfishAndNightDive` output. The server is
+// currently conservative — both flags are false in baseline — but
+// the schema is here for the day it starts emitting real signals.
+export type BackendJellyfish = {
+  jellyfishWarning: boolean;
+  nightDivingOk: boolean;
+  jellyfishNote: string;
+  nightDiveNote: string;
+};
+
+// `analysis.assessRunoffRisk` → `estimateRunoffRisk` output.
+export type BackendRunoffSeverity = 'none' | 'low' | 'moderate' | 'high' | 'extreme';
+export type BackendRunoff = {
+  severity: BackendRunoffSeverity;
+  healthRisk: 'low' | 'moderate' | 'high';
+  safeToEnter: boolean;
+  waterQualityFeel: 'clean' | 'slightly-stained' | 'murky' | 'brown';
+  scorePenalty: number;
+  drivers: string[];
+  confidence: number;     // 0–1
+};
+
+export type BackendAnalysis = {
+  moon: BackendMoon;
+  jellyfish: BackendJellyfish;
+  runoff: BackendRunoff;
+};
+
 export type BackendReport = {
   spot: string;
   spotName: string;
@@ -29,7 +69,7 @@ export type BackendReport = {
     };
     confidenceScore: number;
     tide: any;
-    analysis: { moon: any; jellyfish: any; runoff: any };
+    analysis: BackendAnalysis;
     visibility: { estimatedVisibilityMeters: number; rationale?: string[] };
     rating: { score: number; label: string; rationale?: string[] };
   };

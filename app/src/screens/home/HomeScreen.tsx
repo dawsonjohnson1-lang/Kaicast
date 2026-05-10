@@ -11,13 +11,19 @@ import { AlertRow } from '@/components/AlertRow';
 import { DiveReportCard } from '@/components/DiveReportCard';
 import { Button } from '@/components/Button';
 import { spacing } from '@/theme';
-import { conditionAlerts, diveReports, favoriteSpots, featuredSpot } from '@/api/mockData';
+import { conditionAlerts, diveReports, featuredSpot } from '@/api/mockData';
 import { useAuth } from '@/hooks/useAuth';
+import { useSpots } from '@/hooks/useSpots';
 import type { DashboardNav } from '@/navigation/types';
 
 export function HomeScreen() {
   const nav = useNavigation<DashboardNav>();
   const { user } = useAuth();
+  const { spots } = useSpots();
+  // Top 4 spots from the canonical list as the dashboard's "Favorite
+  // Spots" carousel — once per-user favorites land, swap for a
+  // user-scoped query.
+  const favoriteSpots = spots.slice(0, 4);
 
   const displayName = user?.name ?? 'Dawson';
   const initials = displayName.split(' ').map((s) => s[0]).join('').slice(0, 2);
