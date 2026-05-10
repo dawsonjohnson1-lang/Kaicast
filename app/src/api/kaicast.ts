@@ -121,6 +121,14 @@ export type BackendDay = {
   windAvgKts: number | null;
   windMaxKts: number | null;
   tideEvents?: BackendDayTide[];
+  solar?: BackendDaySolar;
+};
+
+export type BackendDaySolar = {
+  firstLightMs: number | null;  // first moment sun above local terrain horizon
+  lastLightMs:  number | null;  // last moment sun above local terrain horizon
+  solarNoonMs:  number | null;  // time of peak altitude
+  peakAltDeg:   number | null;
 };
 
 export type BackendDayTide = {

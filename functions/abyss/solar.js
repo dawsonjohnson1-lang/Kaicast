@@ -241,10 +241,76 @@ function swellExposureFactor(horizonProfile, swellDirectionDegFrom) {
   return 1.0 - (horizonDeg - 0.2) * 1.0625;
 }
 
+// ─── Daily solar events (sunrise / sunset / noon) ──────────────────
+//
+// Walks the day in `stepMin` increments computing sun altitude, with
+// the local terrain horizon factored in. Returns "first light" and
+// "last light" — the moments the sun crosses the LOCAL horizon at
+// the spot, which can be 30+ min later than the geometric sunrise
+// behind a tall ridge (e.g. Hanauma's east-facing crater rim, Honolua
+// behind West Maui Mountains).
+//
+// dateLocalMs should be any time on the target day in the spot's
+// local timezone — the function snaps to local-day boundaries via
+// `tz`. Returns null events when no sun-up window exists at the
+// given lat/date (polar / extreme cases — never relevant in Hawaii).
+function computeDaySolarEvents(lat, lon, dateMs, tz, horizonProfile, stepMin = 5) {
+  if (!Number.isFinite(lat) || !Number.isFinite(lon) || !Number.isFinite(dateMs)) {
+    return { firstLightMs: null, lastLightMs: null, solarNoonMs: null, peakAltDeg: null };
+  }
+  // Snap to local 00:00 of the date in `tz`. Intl gives us the local
+  // y/m/d; we then construct UTC noon and walk back.
+  const fmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone: tz || 'Pacific/Honolulu',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  });
+  const localDate = fmt.format(new Date(dateMs)); // YYYY-MM-DD
+  // Hawaii / Pacific are UTC-10; without a full tz library use a
+  // half-day window centered on local noon UTC = local midnight + 12h.
+  // Walking from local-midnight UTC + offset for tz offset works for
+  // any tz with no DST (Hawaii doesn't have DST).
+  const tzOffsetMin = tz === 'Pacific/Honolulu' ? -600 : 0;
+  // Build the local 00:00 of that calendar date in UTC ms.
+  const [y, m, d] = localDate.split('-').map((n) => Number(n));
+  const startUtc = Date.UTC(y, m - 1, d, 0, 0, 0) - tzOffsetMin * 60000;
+
+  let firstLightMs = null;
+  let lastLightMs = null;
+  let solarNoonMs = null;
+  let peakAltDeg = -Infinity;
+  let prevShadowed = true;
+  const totalSteps = Math.floor((24 * 60) / stepMin);
+
+  for (let s = 0; s <= totalSteps; s++) {
+    const t = startUtc + s * stepMin * 60000;
+    const sun = solarPosition(lat, lon, t);
+    if (sun.altitudeDeg == null) continue;
+    if (sun.altitudeDeg > peakAltDeg) {
+      peakAltDeg = sun.altitudeDeg;
+      solarNoonMs = t;
+    }
+    const sh = isShadowed({ horizonProfile, sun });
+    const shadowed = sh.shadowed;
+    if (prevShadowed && !shadowed) {
+      if (firstLightMs == null) firstLightMs = t;
+    }
+    if (!shadowed) lastLightMs = t;
+    prevShadowed = shadowed;
+  }
+
+  return {
+    firstLightMs,
+    lastLightMs,
+    solarNoonMs,
+    peakAltDeg: peakAltDeg === -Infinity ? null : Math.round(peakAltDeg * 10) / 10,
+  };
+}
+
 module.exports = {
   solarPosition,
   horizonAtAzimuth,
   isShadowed,
   solarLightFactor,
   swellExposureFactor,
+  computeDaySolarEvents,
 };
