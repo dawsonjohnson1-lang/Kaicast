@@ -8,6 +8,7 @@ import { colors } from '@/theme';
 import { TabBar } from './TabBar';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserProfile } from '@/hooks/useUserProfile';
+import { usePushRegistration } from '@/hooks/usePushRegistration';
 
 import { LoginScreen } from '@/screens/auth/LoginScreen';
 import { CreateAccountScreen } from '@/screens/auth/CreateAccountScreen';
@@ -93,6 +94,10 @@ function MainTabs() {
 export function AppNavigator() {
   const { user, isAuthed, loading: authLoading } = useAuth();
   const { profile, loading: profileLoading } = useUserProfile(user?.id);
+  // Refreshes the push token doc whenever a user is authed AND has
+  // already granted notification permission. Doesn't prompt — that's
+  // user-initiated via the Settings toggle.
+  usePushRegistration(user?.id);
 
   // Three phases:
   //   1. unauthed → AuthNav (CreateAccount / Login)

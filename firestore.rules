@@ -41,6 +41,13 @@ service cloud.firestore {
         allow read: if true;
         allow write: if request.auth != null && request.auth.uid == otherUid;
       }
+
+      // Push device tokens: users/{uid}/devices/{tokenId}
+      // Owner-only read AND write — push tokens are sensitive enough
+      // that we don't want them publicly readable.
+      match /devices/{tokenId} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
     }
 
     match /diveLogs/{logId} {

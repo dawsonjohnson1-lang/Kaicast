@@ -60,6 +60,14 @@ module.exports = () => ({
           },
         },
       ],
+      [
+        'expo-notifications',
+        {
+          // Default Android channel — push messages without an
+          // explicit channelId land here. Color matches our accent.
+          color: '#09A1FB',
+        },
+      ],
     ],
     extra: {
       kaicastApiBase: 'https://us-central1-kaicast-207dc.cloudfunctions.net',

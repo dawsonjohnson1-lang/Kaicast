@@ -20,6 +20,8 @@ import { useUserProfile } from '@/hooks/useUserProfile';
 import { useUserDiveLogs, diveLogToReport } from '@/hooks/useDiveLogs';
 import { useSpots } from '@/hooks/useSpots';
 import { useFollowing } from '@/hooks/useFollowing';
+import * as Notifications from 'expo-notifications';
+import { registerForPush } from '@/api/push';
 import { diveReports, favoriteSpots } from '@/api/mockData';
 import type { RootStackParamList, TabParamList } from '@/navigation/types';
 
@@ -220,7 +222,7 @@ export function ProfileScreen() {
             <SettingRow icon="pin" label="Home spot" value={user?.homeSpot ?? "Three Tables, O'ahu"} />
           </Card>
           <Card padding={0}>
-            <SettingRow icon="bell" label="Push notifications" right="On" />
+            <PushNotificationRow uid={user?.id} />
             <SettingRow icon="globe" label="Units" value="Imperial (ft, °F, PSI)" />
           </Card>
           <Pressable style={styles.allSettingsBtn} onPress={() => nav.navigate('ProfileSettings')}>
@@ -256,6 +258,49 @@ function SectionHeader({ title, actionLabel, onAction }: { title: string; action
         </Pressable>
       ) : null}
     </View>
+  );
+}
+
+function PushNotificationRow({ uid }: { uid: string | undefined }) {
+  const [enabled, setEnabled] = React.useState<boolean | null>(null);
+  const [busy, setBusy] = React.useState(false);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    Notifications.getPermissionsAsync().then(({ status }) => {
+      if (!cancelled) setEnabled(status === 'granted');
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  const onToggle = async () => {
+    if (!uid || busy) return;
+    setBusy(true);
+    try {
+      if (!enabled) {
+        const tok = await registerForPush(uid);
+        setEnabled(!!tok);
+      } else {
+        // Can't programmatically revoke iOS permission — surface an
+        // alert pointing the user at OS Settings on a real follow-up.
+        // For now, just unset the in-app indicator.
+        setEnabled(false);
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const right = busy ? '…' : enabled === true ? 'On' : 'Off';
+  return (
+    <Pressable style={settingStyles.row} onPress={onToggle} disabled={busy}>
+      <View style={settingStyles.iconWrap}>
+        <Icon name="bell" size={18} color={colors.textSecondary} />
+      </View>
+      <Text style={[typography.body, { flex: 1 }]}>Push notifications</Text>
+      <Text style={[settingStyles.value, { color: enabled ? colors.accent : colors.textSecondary }]}>{right}</Text>
+      <Icon name="chevron-right" size={16} color={colors.textMuted} />
+    </Pressable>
   );
 }
 
