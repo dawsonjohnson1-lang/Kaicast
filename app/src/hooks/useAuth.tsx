@@ -10,6 +10,7 @@ import {
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 import { auth, db, firebaseConfigured } from '@/firebase';
+import { setUser as sentrySetUser } from '@/util/sentry';
 
 const STORAGE_KEY = 'kaicast.auth.user.v1';
 
@@ -52,11 +53,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const unsub = onAuthStateChanged(auth, async (fbUser: FirebaseUser | null) => {
       if (!fbUser) {
         setUser(null);
+        sentrySetUser(null);
         setLoading(false);
         return;
       }
       const profile = await loadUserProfile(fbUser);
       setUser(profile);
+      sentrySetUser({ id: profile.id, email: profile.email });
       setLoading(false);
     });
     return unsub;

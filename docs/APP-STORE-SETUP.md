@@ -70,6 +70,29 @@ CreateAccount screens enables itself automatically.
 
 ---
 
+## 3.5 Crash reporting (Sentry)
+
+Already scaffolded in `app/src/util/sentry.ts` + wired into `App.tsx`
+and `useAuth.tsx`. Activate with one env var.
+
+1. Sign up at https://sentry.io (free tier = 5k events/month)
+2. Create a project: platform **React Native**, name `kaicast`
+3. Copy the DSN (looks like `https://abc@o123.ingest.sentry.io/456`)
+4. Add to `app/.env`:
+   ```
+   EXPO_PUBLIC_SENTRY_DSN=https://...@...sentry.io/...
+   ```
+
+The app calls `initSentry()` at bootstrap; when DSN is unset every
+helper is a no-op. Signed-in users are tagged automatically so
+events show alongside the affected user.
+
+(Optional, post-launch) Wire `sentry-expo` source-map uploads in
+your EAS build for symbolicated stack traces. See
+https://docs.sentry.io/platforms/react-native/manual-setup/expo/
+
+---
+
 ## 4. Push notifications: APNs key
 
 Required for production iOS push delivery (Expo Go works in dev).
