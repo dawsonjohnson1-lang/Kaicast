@@ -97,6 +97,8 @@ export function ForecastTab({ spot, spotCoords }: ForecastTabProps = {}) {
         <ConsistencyCard day={day} scrubberHour={scrubberHour} onScrub={setScrubberHour} />
         <WeatherStrip day={day} />
       </View>
+
+      <Text style={styles.attribution}>abyss forecast</Text>
     </View>
   );
 }
@@ -121,4 +123,12 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(245,176,65,0.35)',
   },
   demoBadgeText: { ...typography.caption, color: colors.warn, fontWeight: '700', fontSize: 9, letterSpacing: 0.8 },
+  attribution: {
+    fontSize: 10,
+    color: 'rgba(255,255,255,0.28)',
+    letterSpacing: 0.6,
+    textAlign: 'center',
+    marginTop: 16,
+    fontWeight: '500',
+  },
 });

@@ -137,3 +137,31 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# ── Secrets — NEVER commit ──────────────────────────────────────────
+# Firebase service account JSONs (full admin access — treat like passwords)
+*firebase-adminsdk*.json
+*service-account*.json
+# Apple Sign in with Apple / APNs private keys
+*.p8
+# Expo / build local state
+.expo/
+.expo-shared/
+# Claude Code / personal IDE state
+.claude/
+.local-strays/
+# macOS noise
+.DS_Store
+**/.DS_Store
+
+# ── Scratch / mirrored copies of the project tree ────────────────────
+# Repo-root scratch entry & re-exports — only app/App.tsx is real.
+/App.tsx
+/KaiCast.tsx
+app/KaiCast.tsx
+# Mirrored / duplicated subtrees from local backups
+/Kaicast/
+app/app/
+# Adobe XD design exports — keep in source-of-truth, not in repo
+xd designs - 04/
+app/assets/xd designs - 04/
