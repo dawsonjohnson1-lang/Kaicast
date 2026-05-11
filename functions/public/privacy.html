@@ -68,164 +68,138 @@
   <a href="/" class="wordmark">KaiCast</a>
 </header>
 <main>
-<h1>Privacy Policy</h1>
-<p><strong>Effective date:</strong> 2026-05-09
-<strong>Last updated:</strong> 2026-05-09</p>
-<p>This Privacy Policy describes how KaiCast (&quot;KaiCast&quot;, &quot;we&quot;, &quot;us&quot;, or &quot;our&quot;) collects, uses, and shares information when you use the KaiCast mobile application (the &quot;App&quot;) and related services (collectively, the &quot;Service&quot;).</p>
-<blockquote>
-<p><strong>[REVIEW]</strong> Replace &quot;KaiCast&quot; with the registered legal entity name before publishing (e.g. &quot;KaiCast LLC&quot;). Confirm effective date when you ship.</p>
-</blockquote>
-<p>By using the Service, you agree to the collection and use of information as described in this Policy. If you do not agree, please do not use the Service.</p>
+<h1>KAICAST PRIVACY POLICY</h1>
+<p><strong>Effective Date:</strong> 2026-05-10<br><strong>Version:</strong> 1.0.0<br><strong>Entity:</strong> KaiCast, LLC (&quot;KaiCast,&quot; &quot;we,&quot; &quot;us,&quot; or &quot;our&quot;)</p>
 <hr>
-<h2>1. Information We Collect</h2>
-<h3>1.1 Information you provide</h3>
-<ul>
-<li><strong>Account information.</strong> Email address, password (handled and stored by Firebase Authentication; we never see plaintext passwords), display name, handle, and home dive spot.</li>
-<li><strong>Profile information.</strong> Optional profile photo, home island, home town, dive certification level, preferred dive type, and birth year (where applicable).</li>
-<li><strong>Dive logs.</strong> Date, time, duration, depth, location (named spot or custom coordinates you enter), surface conditions, current, visibility, group size, weapon (for spearfishing), notes, and any photos you attach.</li>
-<li><strong>Favorites and social graph.</strong> The dive spots you mark as favorites and the other KaiCast users you follow / who follow you.</li>
-</ul>
-<h3>1.2 Information collected automatically</h3>
-<ul>
-<li><strong>Device information.</strong> Platform (iOS or Android), device model, OS version, app version, and a unique device identifier used for push notifications (an Expo push token).</li>
-<li><strong>Conditions snapshot.</strong> When you submit a dive log for a known spot, we attach a snapshot of the live ocean and weather report for that spot at the time of submission. This lets you compare predicted vs. observed conditions later.</li>
-<li><strong>Diagnostic logs.</strong> When something fails (a network call, a write error, a permission denial), we may record the error message and a stack trace via Google Cloud Logging. We do not attach this to your account unless investigation requires it.</li>
-</ul>
-<h3>1.3 Information from third parties</h3>
-<p>We retrieve ocean and weather conditions from public-data sources (NOAA, NDBC, Open-Meteo) and forecasts and map tiles from commercial providers (OpenWeather, Mapbox, ESRI). These calls are made server-side; the providers do not receive your user identity.</p>
+<h2>1. INTRODUCTION</h2>
+<p>KaiCast operates an ocean conditions platform (the &quot;Service&quot;) that aggregates environmental data and user-submitted dive reports to generate condition scores for coastal dive sites. This Privacy Policy describes how we collect, use, disclose, and protect information about you when you use our Service.</p>
+<p>Please read this Privacy Policy carefully. By using the Service, you acknowledge that you have read, understood, and agree to the practices described in this Privacy Policy.</p>
+<p>If you have questions about this Privacy Policy, contact us at:<br><strong>Email:</strong> <a href="mailto:dawson@kaicast.com">dawson@kaicast.com</a><br><strong>Mailing Address:</strong> 91-1051 Laulauna St #3B, Ewa Beach, HI 96706</p>
 <hr>
-<h2>2. How We Use Information</h2>
-<p>We use the information we collect to:</p>
+<h2>2. INFORMATION WE COLLECT</h2>
+<h3>2.1 Information You Provide Directly</h3>
+<p><strong>Account Information:</strong> When you create an account, we collect your name, email address, password (stored in hashed form), and profile photo (if uploaded).</p>
+<p><strong>Dive Report Data:</strong> When you submit a dive report, we collect the information you choose to provide, which may include: dive site location, date and time, visibility rating, water temperature, current strength and direction, surge, marine life observations, surface conditions, depth, bottom time, reef health observations, overall conditions rating, photos, and free-text notes.</p>
+<p><strong>Communications:</strong> When you contact our support team or communicate with us through the Service, we collect the content of your communications.</p>
+<p><strong>Survey and Feedback Data:</strong> If you participate in surveys or provide feedback, we collect the information you submit.</p>
+<p><strong>Payment Information:</strong> When you purchase a subscription, we collect billing name and address. Payment card details are processed directly by our payment processor (Stripe, Inc.) and are not stored by KaiCast.</p>
+<h3>2.2 Information Collected Automatically</h3>
+<p><strong>Usage Data:</strong> We automatically collect information about how you interact with the Service, including pages viewed, features used, session duration, search queries, and actions taken.</p>
+<p><strong>Device Information:</strong> We collect information about the device you use to access the Service, including device type, operating system version, app version, unique device identifiers, and mobile network information.</p>
+<p><strong>Location Data:</strong> With your permission, we collect precise GPS location data to identify nearby dive sites and personalize your experience. You may disable location access through your device settings; note that this may limit certain features. We also collect approximate location from your IP address.</p>
+<p><strong>Log Data:</strong> Our servers automatically record information such as your IP address, browser type, referring URLs, and the date and time of requests.</p>
+<p><strong>Cookies and Similar Technologies:</strong> We use cookies and similar tracking technologies as described in our Cookie Policy.</p>
+<h3>2.3 Information from Third Parties</h3>
+<p>We may receive information about you from third parties, such as:</p>
 <ul>
-<li>Provide the core Service: live ocean conditions, multi-day forecasts, dive logging, social features, and push notifications.</li>
-<li>Authenticate you and protect your account.</li>
-<li>Improve forecast accuracy by cross-referencing conditions snapshots with diver-reported observations on the same day at the same spot. Aggregate, anonymized correlations may inform future model refinements.</li>
-<li>Send transactional messages (security alerts, important account notices). We do not send marketing email.</li>
-<li>Send opt-in push notifications you have enabled in Settings. You can disable push at any time in your device&#39;s system Settings; we will retain your token only until your device reports it as unregistered.</li>
-<li>Diagnose and resolve technical issues.</li>
+<li><strong>Social Login Providers:</strong> If you sign in using Google or Apple, we receive basic profile information (name, email, profile photo) from that provider, subject to your privacy settings with that provider.</li>
+<li><strong>Analytics Providers:</strong> We use analytics services to help understand how users interact with the Service.</li>
 </ul>
-<p>We do <strong>not</strong> sell your personal information.</p>
 <hr>
-<h2>3. How We Share Information</h2>
-<h3>3.1 Service providers (sub-processors)</h3>
-<p>We use the following third-party processors to operate the Service. Each is bound by data-processing terms requiring confidentiality and security commensurate with industry standards:</p>
+<h2>3. HOW WE USE YOUR INFORMATION</h2>
+<p>We use the information we collect for the following purposes:</p>
+<p><strong>Service Delivery:</strong> To create and manage your account, provide the features you request, process payments, and send transactional communications (account confirmations, subscription receipts, support responses).</p>
+<p><strong>Personalization:</strong> To customize your experience, including displaying relevant dive sites, condition scores, and dive reports based on your location and activity.</p>
+<p><strong>Service Improvement:</strong> To analyze how users use the Service, identify bugs and performance issues, and improve our features and algorithms. Dive report data may be used in anonymized and aggregated form to improve KaiCast&#39;s condition scoring models.</p>
+<p><strong>B2B Data Products:</strong> Aggregated and anonymized dive condition data may be incorporated into data products provided to hotel, resort, and tour operator partners. No personally identifiable information is shared with B2B partners without your explicit consent.</p>
+<p><strong>Safety and Security:</strong> To detect and prevent fraud, unauthorized access, abuse, and other harmful activity.</p>
+<p><strong>Legal Compliance:</strong> To comply with applicable laws, respond to legal process, and protect our rights and the rights of others.</p>
+<p><strong>Marketing Communications:</strong> To send you promotional emails and in-app notifications about new features, special offers, and updates — but only if you have opted in. You may opt out at any time.</p>
+<hr>
+<h2>4. HOW WE SHARE YOUR INFORMATION</h2>
+<p>We do not sell your personal information. We share your information only in the following circumstances:</p>
+<p><strong>4.1 Service Providers.</strong> We share information with trusted third-party service providers who perform services on our behalf, including:</p>
+<ul>
+<li><strong>Firebase / Google Cloud Platform:</strong> Cloud infrastructure, database, and authentication</li>
+<li><strong>Stripe, Inc.:</strong> Payment processing</li>
+<li><strong>Resend (resend.com):</strong> Transactional and marketing email delivery</li>
+<li><strong>Firebase Analytics (Google LLC):</strong> Usage analytics</li>
+</ul>
+<p>All service providers are contractually required to use your information only as directed by KaiCast and in accordance with this Privacy Policy.</p>
+<p><strong>4.2 B2B Partners.</strong> We share aggregated, anonymized data about dive conditions and platform usage with hotel, resort, and tour operator partners. This data does not contain information that identifies you personally.</p>
+<p><strong>4.3 Publicly Visible Content.</strong> Dive reports you submit are publicly visible on the Service by default, including your username, dive site, date, and conditions data. You may choose to submit reports anonymously where that feature is available.</p>
+<p><strong>4.4 Legal Requirements.</strong> We may disclose your information if required by law, subpoena, court order, or other legal process, or if we believe disclosure is necessary to protect the safety of any person, investigate fraud, or enforce our Terms of Service.</p>
+<p><strong>4.5 Business Transfers.</strong> If KaiCast is involved in a merger, acquisition, financing, or sale of assets, your information may be transferred as part of that transaction. We will provide notice before your personal information is transferred and becomes subject to a different privacy policy.</p>
+<p><strong>4.6 With Your Consent.</strong> We may share your information in other ways if you give us your explicit consent to do so.</p>
+<hr>
+<h2>5. YOUR RIGHTS AND CHOICES</h2>
+<p><strong>5.1 Access and Portability.</strong> You may request a copy of the personal information we hold about you, including your account data and submitted dive reports, in a portable format.</p>
+<p><strong>5.2 Correction.</strong> You may update or correct inaccurate account information at any time through your account settings, or by contacting us at <a href="mailto:dawson@kaicast.com">dawson@kaicast.com</a>.</p>
+<p><strong>5.3 Deletion.</strong> You may request deletion of your personal information by contacting us at <a href="mailto:dawson@kaicast.com">dawson@kaicast.com</a>. We will delete or anonymize your information within 30 days, subject to retention obligations described in Section 6 and legal holds.</p>
+<p><strong>5.4 Opt-Out of Marketing.</strong> You may opt out of marketing emails by clicking the &quot;unsubscribe&quot; link in any marketing email or by adjusting your notification settings in the app.</p>
+<p><strong>5.5 Location Data.</strong> You may disable location access at any time through your device settings.</p>
+<p><strong>5.6 California Residents (CCPA).</strong> If you are a California resident, you have the right to:</p>
+<ul>
+<li>Know what personal information we collect, use, disclose, or sell;</li>
+<li>Request deletion of your personal information;</li>
+<li>Opt out of the sale of your personal information (we do not sell personal information);</li>
+<li>Non-discrimination for exercising your privacy rights.</li>
+</ul>
+<p>To exercise your CCPA rights, contact us at <a href="mailto:dawson@kaicast.com">dawson@kaicast.com</a>. We will respond within 45 days.</p>
+<p><strong>5.7 Response Timeline.</strong> We will respond to all verifiable privacy requests within 30 days. If we require additional time, we will notify you.</p>
+<hr>
+<h2>6. DATA RETENTION</h2>
+<p>We retain your personal information for as long as necessary to provide the Service and fulfill the purposes described in this Privacy Policy, subject to the following:</p>
 <table>
 <thead>
 <tr>
-<th>Provider</th>
-<th>Purpose</th>
-<th>Data shared</th>
+<th>Data Type</th>
+<th>Retention Period</th>
 </tr>
 </thead>
 <tbody><tr>
-<td>Google Firebase (Authentication, Cloud Firestore, Cloud Storage, Cloud Functions)</td>
-<td>Identity, database, file storage, server compute</td>
-<td>Account, profile, logs, favorites, social graph, device tokens</td>
+<td>Account information</td>
+<td>Duration of account + 3 years post-deletion</td>
 </tr>
 <tr>
-<td>Expo (push notification gateway)</td>
-<td>Push delivery</td>
-<td>Device push tokens, notification payload</td>
+<td>Dive reports (public)</td>
+<td>Indefinite, unless you request deletion</td>
 </tr>
 <tr>
-<td>Mapbox</td>
-<td>Map tiles for the Explore map</td>
-<td>Spot coordinates only (no user identity)</td>
+<td>Usage and analytics data</td>
+<td>24 months rolling</td>
 </tr>
 <tr>
-<td>OpenWeather</td>
-<td>Hourly forecast weather</td>
-<td>Spot coordinates only</td>
+<td>Payment records</td>
+<td>7 years (regulatory requirement)</td>
 </tr>
 <tr>
-<td>Open-Meteo Marine</td>
-<td>7-day wave forecast</td>
-<td>Spot coordinates only (no user identity)</td>
+<td>Support communications</td>
+<td>3 years</td>
 </tr>
 <tr>
-<td>NOAA CO-OPS / NDBC</td>
-<td>Tide and buoy observations</td>
-<td>Public station IDs only</td>
-</tr>
-<tr>
-<td>ESRI World Imagery</td>
-<td>Satellite imagery tiles</td>
-<td>Spot coordinates only</td>
+<td>Server logs</td>
+<td>90 days</td>
 </tr>
 </tbody></table>
-<blockquote>
-<p><strong>[REVIEW]</strong> If you sign Mapbox / OpenWeather / Expo paid plans with custom DPAs, link them here.</p>
-</blockquote>
-<h3>3.2 Other users</h3>
-<p>Information you choose to share — your display name, handle, profile photo, public dive logs, favorites count, and social graph — is visible to other users of the Service. Logs you mark as private (where supported) are visible only to you. Your email address and device tokens are never shown to other users.</p>
-<h3>3.3 Legal requirements</h3>
-<p>We may disclose information if compelled to do so by law (subpoena, court order, or government request) or where we have a good-faith belief that disclosure is necessary to: (a) protect or defend our rights or property; (b) protect the safety of users or the public; or (c) investigate fraud or security incidents.</p>
-<h3>3.4 Business transfers</h3>
-<p>If KaiCast is acquired or merged, your information may be transferred to the successor entity, subject to this Policy.</p>
+<p>After the applicable retention period, we will delete or anonymize your information.</p>
 <hr>
-<h2>4. Data Retention</h2>
+<h2>7. DATA SECURITY</h2>
+<p>We implement technical and organizational security measures designed to protect your information against unauthorized access, disclosure, alteration, or destruction. These measures include:</p>
 <ul>
-<li>Account information is retained while your account is active and for up to 90 days after deletion to allow account recovery and resolve abuse investigations.</li>
-<li>Dive logs and the conditions snapshots attached to them are retained while your account is active. Deleting a log removes both the log and its snapshot.</li>
-<li>Cached condition reports (the per-spot hourly cache used to keep the app fast) are retained for up to 30 days before purge.</li>
-<li>Server logs are retained for up to 30 days unless required for an active investigation.</li>
+<li>Encryption of data in transit using TLS 1.2 or higher</li>
+<li>Encryption of data at rest</li>
+<li>Access controls limiting employee access to personal data on a need-to-know basis</li>
+<li>Firebase Security Rules governing database access</li>
+<li>Regular security assessments</li>
 </ul>
-<p>You may request deletion of your account and associated data at any time (see Section 7).</p>
+<p>No security system is impenetrable. We cannot guarantee the absolute security of your information. In the event of a data breach that poses a risk to your rights and freedoms, we will notify you and applicable regulators as required by law.</p>
 <hr>
-<h2>5. Children&#39;s Privacy</h2>
-<p>The Service is not directed to children under 13. We do not knowingly collect personal information from children under 13. If you believe a child has provided us with personal information, please contact us at the address below and we will delete it.</p>
-<blockquote>
-<p><strong>[REVIEW]</strong> If you intend to allow users under 16 in any region, this section needs additional GDPR-K language and verifiable parental-consent flows.</p>
-</blockquote>
+<h2>8. CHILDREN&#39;S PRIVACY</h2>
+<p>The Service is not directed to children under the age of 13. We do not knowingly collect personal information from children under 13. If we learn that we have collected personal information from a child under 13, we will promptly delete it. If you believe we may have collected information from a child under 13, contact us at <a href="mailto:dawson@kaicast.com">dawson@kaicast.com</a>.</p>
 <hr>
-<h2>6. Security</h2>
-<p>We use industry-standard safeguards including TLS in transit, encrypted Firebase Firestore at rest, password hashing handled by Firebase Authentication, and least-privilege Firestore security rules. No system is perfectly secure; we cannot guarantee absolute security but we will notify affected users of any breach involving personal information consistent with applicable law.</p>
+<h2>9. THIRD-PARTY LINKS AND SERVICES</h2>
+<p>The Service may contain links to third-party websites or services. This Privacy Policy does not apply to those third parties. We encourage you to review the privacy policies of any third-party services you access.</p>
 <hr>
-<h2>7. Your Rights</h2>
-<p>Depending on where you live, you may have rights with respect to your personal information including:</p>
-<ul>
-<li>The right to <strong>access</strong> the information we hold about you.</li>
-<li>The right to <strong>correct</strong> inaccurate information.</li>
-<li>The right to <strong>delete</strong> your account and personal information.</li>
-<li>The right to <strong>export</strong> your information in a portable format.</li>
-<li>The right to <strong>object</strong> to or <strong>restrict</strong> certain processing.</li>
-<li>The right to <strong>withdraw consent</strong> for processing where consent is the legal basis.</li>
-</ul>
-<p>To exercise any of these rights, email <strong>[REVIEW: <a href="mailto:privacy@kaicast.com">privacy@kaicast.com</a>]</strong>. We will respond within 30 days.</p>
-<h3>7.1 California residents (CCPA / CPRA)</h3>
-<p>You have the right to know what categories of personal information we collect, to request deletion, and to opt out of &quot;sale&quot; or &quot;sharing&quot; of personal information. We do not sell or share personal information for cross-context behavioral advertising.</p>
-<h3>7.2 European Economic Area, UK, and Switzerland (GDPR / UK-GDPR)</h3>
-<p>The legal bases on which we rely include: performance of a contract (account and Service delivery), consent (push notifications, optional profile fields), and legitimate interests (security, fraud prevention, service improvement). You may lodge a complaint with your local supervisory authority. Our data controller of record is <strong>[REVIEW: legal entity name and address]</strong>.</p>
+<h2>10. INTERNATIONAL USERS</h2>
+<p>The Service is currently operated from the United States. If you access the Service from outside the United States, your information will be transferred to and processed in the United States. By using the Service, you consent to this transfer. As we expand internationally, we will implement additional safeguards as required by applicable law.</p>
 <hr>
-<h2>8. Account and Data Deletion</h2>
-<p>You may delete your account from within the App (Settings → Account → Delete account) <strong>[REVIEW: confirm in-app delete shipped]</strong> or by emailing <strong>[REVIEW: <a href="mailto:privacy@kaicast.com">privacy@kaicast.com</a>]</strong> from the address associated with your account. Deletion is irreversible. After deletion, your dive logs, social graph, favorites, and device tokens are removed within 30 days. Aggregated analytics derived from your usage prior to deletion may be retained in a non-identifiable form.</p>
+<h2>11. CHANGES TO THIS PRIVACY POLICY</h2>
+<p>We may update this Privacy Policy from time to time. We will notify you of material changes by email and/or prominent in-app notice before the change takes effect. The updated Privacy Policy will be effective as of the posted effective date. We encourage you to review this Privacy Policy periodically.</p>
 <hr>
-<h2>9. International Transfers</h2>
-<p>KaiCast servers are operated by Google Cloud and may be located in regions outside your country of residence (primarily us-central1, Iowa, USA). Where required, we rely on Standard Contractual Clauses or equivalent transfer mechanisms approved by the relevant authorities.</p>
-<hr>
-<h2>10. Diving Safety Notice</h2>
-<p>KaiCast provides ocean condition forecasts derived from public buoy, weather, and tide data. <strong>Forecasts can be wrong, sources can be delayed, and conditions can change rapidly.</strong> Nothing in the Service is a substitute for in-person observation, proper training, current certification, dive planning, equipment checks, or the judgment of a qualified dive professional. <strong>Diving is inherently dangerous and you assume all risk.</strong> See our Terms of Service for further details.</p>
-<hr>
-<h2>11. Changes to This Policy</h2>
-<p>We may update this Policy from time to time. If we make material changes, we will notify you in-app and update the &quot;Effective date&quot; above. Your continued use of the Service after changes take effect constitutes acceptance of the revised Policy.</p>
-<hr>
-<h2>12. Contact</h2>
-<p>Questions, requests, or complaints:</p>
-<ul>
-<li><strong>Email:</strong> [REVIEW: <a href="mailto:privacy@kaicast.com">privacy@kaicast.com</a>]</li>
-<li><strong>Postal:</strong> [REVIEW: company name and mailing address]</li>
-</ul>
-<hr>
-<blockquote>
-<p><strong>Reviewer checklist before publishing:</strong></p>
-<ul>
-<li><input disabled="" type="checkbox"> Replace every <code>[REVIEW]</code> placeholder with real legal entity, address, and contact email.</li>
-<li><input disabled="" type="checkbox"> Confirm effective date.</li>
-<li><input disabled="" type="checkbox"> If you collect anything not listed in Section 1, add it.</li>
-<li><input disabled="" type="checkbox"> If you add any sub-processor (analytics, crash reporting, marketing email), update Section 3.1.</li>
-<li><input disabled="" type="checkbox"> Have a lawyer in your jurisdiction review before publishing — this draft is a starting point, not legal advice.</li>
-</ul>
-</blockquote>
+<h2>12. CONTACT US</h2>
+<p>For questions, concerns, or to exercise your privacy rights:</p>
+<p><strong>Email:</strong> <a href="mailto:dawson@kaicast.com">dawson@kaicast.com</a><br><strong>Mailing Address:</strong> 91-1051 Laulauna St #3B, Ewa Beach, HI 96706</p>
 
 </main>
 <footer>

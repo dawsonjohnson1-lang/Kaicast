@@ -130,6 +130,27 @@ function googleClientId(): string | null {
   return process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_WEB || null;
 }
 
+/**
+ * Build the redirect URI for the active platform's Google OAuth client.
+ *
+ * iOS clients in Google Cloud Console require the redirect URI to be
+ * the reverse-DNS form of the client ID — e.g.
+ *   client = 123-abc.apps.googleusercontent.com
+ *   redirect = com.googleusercontent.apps.123-abc:/oauth2redirect/google
+ * The matching URL scheme must be registered in Info.plist
+ * CFBundleURLTypes (see app.config.js).
+ *
+ * Android / Web fall back to expo-auth-session's app-scheme proxy
+ * (kaicast://) which Google's Android client is happy with.
+ */
+function googleRedirectUri(clientId: string): string {
+  if (Platform.OS === 'ios') {
+    const prefix = clientId.replace(/\.apps\.googleusercontent\.com$/, '');
+    return `com.googleusercontent.apps.${prefix}:/oauth2redirect/google`;
+  }
+  return AuthSession.makeRedirectUri({ scheme: 'kaicast' });
+}
+
 export async function signInWithGoogle(): Promise<void> {
   if (!firebaseConfigured || !auth) {
     throw new SocialAuthError('not-configured', 'Sign in with Google is unavailable in demo mode.');
@@ -142,7 +163,7 @@ export async function signInWithGoogle(): Promise<void> {
     );
   }
 
-  const redirectUri = AuthSession.makeRedirectUri({ scheme: 'kaicast' });
+  const redirectUri = googleRedirectUri(clientId);
 
   const request = new AuthSession.AuthRequest({
     clientId,

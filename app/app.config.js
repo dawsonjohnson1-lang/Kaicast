@@ -5,6 +5,15 @@
 
 const downloadToken = process.env.MAPBOX_DOWNLOADS_TOKEN ?? '';
 
+// Google iOS OAuth client requires its reverse-DNS scheme registered
+// in Info.plist so the OAuth callback can route back into the app.
+// Derived from the iOS OAuth client ID at config-eval time so a
+// rotated client only needs the .env updated, not app.config.js.
+const iosGoogleClientId = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_IOS ?? '';
+const googleIosUrlScheme = iosGoogleClientId
+  ? 'com.googleusercontent.apps.' + iosGoogleClientId.replace(/\.apps\.googleusercontent\.com$/, '')
+  : null;
+
 if (!downloadToken) {
   // eslint-disable-next-line no-console
   console.warn(
@@ -36,6 +45,14 @@ module.exports = () => ({
       supportsTablet: false,
       bundleIdentifier: 'com.kaicast.app',
       usesAppleSignIn: true,
+      infoPlist: {
+        // Required for Google Sign In iOS — the OAuth callback URI
+        // (com.googleusercontent.apps.XXX:/oauth2redirect/google) must
+        // route back to the app via this registered scheme.
+        CFBundleURLTypes: googleIosUrlScheme
+          ? [{ CFBundleURLSchemes: [googleIosUrlScheme] }]
+          : [],
+      },
     },
     android: {
       package: 'com.kaicast.app',

@@ -8,12 +8,14 @@ submission. Sorted by who has to do it.
 ## 🔴 Hard blockers — YOUR action
 
 ### Legal
-- [ ] Replace every `[REVIEW]` placeholder in `docs/privacy-policy.md`
-      (entity name, address, contact email, jurisdiction, support email)
-- [ ] Replace every `[REVIEW]` placeholder in `docs/terms-of-service.md`
-- [ ] Run `node scripts/build-legal.js && firebase deploy --only hosting`
-- [ ] Have a lawyer scan §10 (Disclaimer) and §11 (Liability Cap) of
-      `terms-of-service.md` — diving safety apps have real exposure
+- [x] Replace every `[REVIEW]` placeholder in `docs/privacy-policy.md`
+      → KaiCast, LLC / 91-1051 Laulauna St #3B, Ewa Beach, HI 96706 /
+      dawson@kaicast.com
+- [x] Replace every `[REVIEW]` placeholder in `docs/terms-of-service.md`
+- [x] Deployed live at https://kaicast-207dc.web.app/privacy and /terms
+- [ ] Have a lawyer scan §6 (Condition Scores Safety Disclaimer) and
+      §10-12 (Liability) of `terms-of-service.md` — diving safety
+      apps have real exposure
 - [ ] (Optional) Buy / wire a custom domain (e.g. `kaicast.app`),
       then update `app/src/constants/legal.ts` URLs
 
@@ -29,10 +31,15 @@ submission. Sorted by who has to do it.
 - [ ] Create **APNs Auth Key** (separate `.p8`) → upload to Expo dashboard
 
 ### Google Cloud Console
-- [ ] Create three OAuth 2.0 Client IDs:
-  - [ ] iOS — bundle `com.kaicast.app`
-  - [ ] Android — package `com.kaicast.app` + SHA-1 fingerprint
-  - [ ] Web — used by Firebase back-channel
+- [x] iOS OAuth Client — bundle `com.kaicast.app` →
+      `1063830863719-fbj3hdadd2c8kvofio53pdd00eq5kdrs.apps.googleusercontent.com`
+      (wired into `app/.env` and `app.config.js` URL scheme)
+- [ ] Android OAuth Client — package `com.kaicast.app` + SHA-1 from
+      debug and release keystores. Get SHA-1 via
+      `eas credentials -p android` once you've run `eas build` once.
+- [ ] Web OAuth Client — used by Firebase Auth back-channel (paste
+      Web client ID + secret into Firebase Console → Authentication
+      → Sign-in method → Google)
 
 ### Firebase Console
 - [ ] Enable Apple provider in Authentication → Sign-in method
