@@ -93,11 +93,10 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // abyss_diver_reports has been deprecated by the path-B switch
-    // (diveLogs now carries deltas + predicted_at_time inline). The
-    // legacy collection from the pre-callable trigger may still have
-    // docs; deny new client access so it doesn't leak. Cloud Functions
-    // bypass these rules.
+    // abyss_diver_reports is deprecated and drained
+    // (scripts/drain-abyss-diver-reports.mjs). diveLogs now carries
+    // deltas + predicted_at_time inline. Rule kept as a tripwire so
+    // anything inadvertently re-creating the collection is denied.
     match /abyss_diver_reports/{document=**} {
       allow read:  if false;
       allow write: if false;

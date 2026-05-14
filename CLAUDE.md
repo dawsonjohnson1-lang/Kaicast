@@ -88,8 +88,9 @@ After path-B switch:
 - `kaicast_reports`, `community_overlays`, `abyss_calibration`,
   `spot_stats` — public READ, no client write.
 - `abyss_diver_reports` — fully denied. Deprecated by the path-B
-  switch; any legacy docs there are orphaned (the data is now inline
-  on `diveLogs.deltas + .predicted_at_time`).
+  switch and drained via `scripts/drain-abyss-diver-reports.mjs`
+  (the legacy trigger never actually wrote any production docs).
+  Rule kept as a tripwire.
 - `users` and its subcollections (favorites, following, followers,
   devices) — unchanged.
 
