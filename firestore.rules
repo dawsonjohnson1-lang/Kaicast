@@ -50,12 +50,57 @@ service cloud.firestore {
       }
     }
 
+    // diveLogs/{logId} is the canonical dive_observation. Writes are
+    // server-only (via the submitDiveLog callable, which uses Admin
+    // SDK and bypasses these rules). Reads are restricted so a buggy
+    // or malicious client can't scrape the full corpus:
+    //   - the authenticated author of the log, OR
+    //   - any log a guide has reviewed and explicitly verified
+    //     (verified_by_guide != null). Public community feed (when
+    //     it ships) gets a separate `public: true` flag + rule.
     match /diveLogs/{logId} {
-      allow read: if true;
-      allow create: if request.auth != null
-                     && request.auth.uid == request.resource.data.uid;
-      allow update, delete: if request.auth != null
-                            && request.auth.uid == resource.data.uid;
+      allow read: if request.auth != null
+                  && (request.auth.uid == resource.data.uid
+                      || resource.data.verified_by_guide != null);
+      allow write: if false;
+    }
+
+    // Hourly per-spot snapshot doc. Public read so the client app
+    // can render without an auth round-trip. Writes are server-only.
+    match /kaicast_reports/{reportId} {
+      allow read:  if true;
+      allow write: if false;
+    }
+
+    // Rolling community-observed conditions overlay per spot.
+    // Updated transactionally by submitDiveLog. Public read.
+    match /community_overlays/{spotId} {
+      allow read:  if true;
+      allow write: if false;
+    }
+
+    // Per-spot calibration bias offsets (server-managed by future
+    // nightly job). Public read so the client can show "model
+    // calibration: ±2 ft at this spot" later.
+    match /abyss_calibration/{spotId} {
+      allow read:  if true;
+      allow write: if false;
+    }
+
+    // Per-spot daily rollup stats. Server-managed, public read.
+    match /spot_stats/{spotId}/{document=**} {
+      allow read:  if true;
+      allow write: if false;
+    }
+
+    // abyss_diver_reports has been deprecated by the path-B switch
+    // (diveLogs now carries deltas + predicted_at_time inline). The
+    // legacy collection from the pre-callable trigger may still have
+    // docs; deny new client access so it doesn't leak. Cloud Functions
+    // bypass these rules.
+    match /abyss_diver_reports/{document=**} {
+      allow read:  if false;
+      allow write: if false;
     }
 
     match /spots/{spotId} {

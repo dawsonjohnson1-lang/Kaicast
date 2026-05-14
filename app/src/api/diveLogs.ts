@@ -38,9 +38,11 @@ import {
   serverTimestamp,
   Timestamp,
 } from 'firebase/firestore';
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { db, firebaseConfigured } from '@/firebase';
+import { app, db, firebaseConfigured } from '@/firebase';
 import type { BackendReport } from '@/api/kaicast';
 import type { DiveType } from '@/types';
 
@@ -131,17 +133,22 @@ export type DiveLogRecord = DiveLogInput & {
 /**
  * Persist a dive log. Returns the new record's id.
  *
- * - When Firebase is configured: writes to `diveLogs/{logId}`.
- * - Otherwise: appends to a local AsyncStorage queue under
- *   `kaicast.diveLogs.stub.v1` so the form still gives feedback.
+ * Now routes through the server-side `submitDiveLog` callable so the
+ * prediction snapshot is resolved server-trusted (not client-supplied).
+ * The client never writes to `diveLogs/` directly anymore — rules deny it.
+ *
+ * - Firebase configured: invoke the callable; it returns { log_id }.
+ * - Otherwise: append to local AsyncStorage queue (demo mode unchanged).
  */
 export async function submitDiveLog(input: DiveLogInput): Promise<string> {
-  if (firebaseConfigured && db) {
-    const ref = await addDoc(collection(db, 'diveLogs'), {
-      ...input,
-      loggedAt: serverTimestamp(),
-    });
-    return ref.id;
+  if (firebaseConfigured && app) {
+    const fn = httpsCallable<unknown, { log_id: string }>(
+      getFunctions(app, 'us-central1'),
+      'submitDiveLog',
+    );
+    const payload = toCallablePayload(input);
+    const res = await fn(payload);
+    return res.data.log_id;
   }
   // Stub fallback.
   const id = `stub_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -151,6 +158,51 @@ export async function submitDiveLog(input: DiveLogInput): Promise<string> {
   queue.unshift(record);
   await AsyncStorage.setItem(STUB_QUEUE_KEY, JSON.stringify(queue.slice(0, 200)));
   return id;
+}
+
+/**
+ * Maps the legacy camelCase DiveLogInput shape (consumed by the
+ * LogDive screens for years) onto the snake_case payload the
+ * `submitDiveLog` callable expects. Keeps the rest of the app
+ * unchanged — only this one mapper has to stay in sync with the
+ * server schema in functions/types/schema.js.
+ */
+function toCallablePayload(input: DiveLogInput): Record<string, unknown> {
+  const c = input.conditions ?? {};
+  const s = input.scuba ?? {};
+  const observed = {
+    visibility_ft:        c.visibilityFt ?? s.visibilityFt ?? null,
+    surface_state:        c.surfaceState ?? null,
+    current_strength:     c.currentStrength ?? null,
+    current_direction:    c.currentDirection ?? null,
+    water_color:          c.waterColor ?? null,
+    particulate:          c.particulate ?? null,
+    surge_at_depth:       c.surgeAtDepth ?? null,
+    marine_life_activity: c.marineLifeActivity ?? null,
+    overall_rating:       c.overallRating ?? null,
+    water_temp_surface_f: s.waterTempSurfaceF ?? input.waterTempF ?? null,
+    water_temp_bottom_f:  s.waterTempBottomF ?? null,
+    max_depth_ft:         s.maxDepthFt ?? input.depthFt ?? null,
+    duration_min:         input.durationMin ?? null,
+    hazards:              c.hazards ?? [],
+    hazards_other_text:   c.hazardsOther ?? null,
+  };
+  return {
+    spot_id:   input.spotId,
+    dive_at:   Date.now(),  // when the form submits; LogDive doesn't currently
+                            //  carry an explicit dive_at — change this once it does
+    dive_type: input.diveType,
+    privacy:   input.privacy === 'private' ? 'private' : 'public',
+    observed,
+    scuba:     Object.keys(s).length ? s : null,
+    photos:    input.photos ?? [],
+    notes:     input.notes ?? null,
+    client_platform:
+      Platform.OS === 'ios'     ? 'ios'     :
+      Platform.OS === 'android' ? 'android' :
+      Platform.OS === 'web'     ? 'web'     : 'unknown',
+    client_version: '1.0.0',
+  };
 }
 
 /** List the most recent dive logs for a given user (newest first). */

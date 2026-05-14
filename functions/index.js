@@ -4,7 +4,6 @@
 
 const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { onRequest, onCall, HttpsError }  = require('firebase-functions/v2/https');
-const { onDocumentCreated } = require('firebase-functions/v2/firestore');
 const { defineSecret } = require('firebase-functions/params');
 const logger = require('firebase-functions/logger');
 const admin  = require('firebase-admin');
@@ -2051,83 +2050,28 @@ exports.deleteUserAccount = onCall(
 );
 
 
-// ─── Abyss calibration: ingest diver-reported visibility ─────────────────────
+// ─── Snapshot-on-submit dive log pipeline ────────────────────────────────────
 //
-// When a user logs a dive, capture both the diver's reported visibility
-// AND what abyss predicted (from the conditionsSnapshot already attached
-// to the log). Stores at `abyss_diver_reports/{spotId}/reports/{reportId}`
-// so the per-site bias correction can grow over time. Phase-1 calibration:
-// after ~30 reports per site, the running mean error / bias is computed
-// and applied as a baseline offset to future predictions.
+// submitDiveLog: server-side callable that resolves the prediction
+// snapshot at dive_at, computes signed deltas, writes the diveLogs doc
+// transactionally with the per-spot community overlay. Replaces the
+// old onDocumentCreated trigger — server-trusted snapshot resolution
+// is essential so a buggy or malicious client can't corrupt the
+// calibration dataset.
 //
-// Reads both `conditions.visibilityFt` (any activity) and
-// `scuba.visibilityFt` (scuba-specific field) — they're equivalent for
-// our purposes; scuba forms just put the field in a nested block.
-const { ingestDiverReport } = require('./abyss/calibration');
+// archiveHourly: scheduled at :05 every hour, copies the just-finished
+// hour's kaicast_reports snapshot into gs://kaicast-historical/. Lets
+// submitDiveLog resolve snapshots for dives older than Firestore TTL.
+//
+// See functions/types/schema.js for the canonical doc shapes.
 
-exports.onDiveLogCreated = onDocumentCreated(
-  { document: 'diveLogs/{logId}', memory: '256MiB', timeoutSeconds: 60 },
-  async (event) => {
-    const snap = event.data;
-    if (!snap) return;
-    const data = snap.data();
-    if (!data) return;
+exports.submitDiveLog  = require('./submitDiveLog').submitDiveLog;
+exports.archiveHourly  = require('./archiveHourly').archiveHourly;
 
-    const spotId = data.spotId;
-    if (!spotId) return;
+// Legacy onDiveLogCreated trigger removed — its responsibilities
+// (ingesting reported_vis vs predicted_vis into abyss_diver_reports)
+// are now part of the submitDiveLog callable, with the same data
+// stored inline on each diveLogs doc as `predicted_at_time` + `deltas`.
+// The nightly calibration job (separate scope) consumes those fields
+// directly off diveLogs instead of the old abyss_diver_reports mirror.
 
-    // Pull reported vis. ft → m. Prefer the activity-agnostic
-    // conditions.visibilityFt; fall back to scuba.visibilityFt.
-    const reportedFt =
-      data.conditions?.visibilityFt ??
-      data.scuba?.visibilityFt ??
-      null;
-    if (!Number.isFinite(reportedFt) || reportedFt <= 0) return;
-    const reportedVisM = reportedFt / 3.28084;
-
-    // Pull predicted vis (snapshotted at log time).
-    const modelPredictionM =
-      data.conditionsSnapshot?.now?.visibility?.estimatedVisibilityMeters ??
-      null;
-
-    const diveTimeMs =
-      data.loggedAt?.toMillis ? data.loggedAt.toMillis() :
-      data.loggedAt instanceof Date ? data.loggedAt.getTime() :
-      Date.now();
-
-    // Build a minimal conditions context — the heavy snapshot is
-    // already on the dive log itself; calibration just needs the
-    // key inputs that drove the prediction.
-    const conditions = data.conditionsSnapshot?.now ? {
-      waveHeightM:        data.conditionsSnapshot.now.metrics?.waveHeightM ?? null,
-      wavePeriodS:        data.conditionsSnapshot.now.metrics?.wavePeriodS ?? null,
-      windSpeedKts:       data.conditionsSnapshot.now.metrics?.windSpeedKts ?? null,
-      tidePhase:          data.conditionsSnapshot.now.tide?.currentTideState ?? null,
-      kd490:              data.conditionsSnapshot.now.visibility?.kd490 ?? null,
-      exposureFactor:     data.conditionsSnapshot.now.visibility?.exposure?.factor ?? null,
-      windRelation:       data.conditionsSnapshot.now.visibility?.wind?.relation ?? null,
-      sunAltitudeDeg:     data.conditionsSnapshot.now.visibility?.sun?.altitudeDeg ?? null,
-      shadowed:           data.conditionsSnapshot.now.visibility?.shadow?.shadowed ?? null,
-    } : {};
-
-    try {
-      const result = await ingestDiverReport({
-        spotId,
-        reportedVisM,
-        diveDepthM: data.scuba?.maxDepthFt ? data.scuba.maxDepthFt / 3.28084 : null,
-        diveTimeMs,
-        conditions,
-        modelPredictionM,
-        db,
-      });
-      logger.info('abyss: diver report ingested', {
-        spotId, reportId: result.reportId, reportedVisM, modelPredictionM,
-        modelError: result.modelError,
-      });
-    } catch (err) {
-      logger.warn('abyss: diver report ingest failed', {
-        spotId, error: err.message,
-      });
-    }
-  },
-);
