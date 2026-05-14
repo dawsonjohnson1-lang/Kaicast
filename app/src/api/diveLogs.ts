@@ -54,6 +54,13 @@ export type DiveLogInput = {
   uid: string;
   spotId: string;
   /**
+   * Unix ms when the dive actually happened. The LogDive form parses
+   * its date + time fields into this; if both are unparseable we fall
+   * back to "now" inside the submit pipeline. The server clamps
+   * dive_at to [now − 1yr, now + 24h].
+   */
+  diveAt?: number;
+  /**
    * Set when the user added an ad-hoc spot in the picker. Carries the
    * human-readable name and lat/lon inline so the log is meaningful
    * even though the backend has no canonical SPOTS entry. Known-spot
@@ -189,8 +196,7 @@ function toCallablePayload(input: DiveLogInput): Record<string, unknown> {
   };
   return {
     spot_id:   input.spotId,
-    dive_at:   Date.now(),  // when the form submits; LogDive doesn't currently
-                            //  carry an explicit dive_at — change this once it does
+    dive_at:   Number.isFinite(input.diveAt) ? input.diveAt : Date.now(),
     dive_type: input.diveType,
     privacy:   input.privacy === 'private' ? 'private' : 'public',
     observed,

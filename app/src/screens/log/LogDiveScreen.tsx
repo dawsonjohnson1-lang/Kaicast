@@ -180,6 +180,28 @@ function toBasePsi(s: string, unit: PressureUnit): number {
   if (!Number.isFinite(n)) return 0;
   return unit === 'bar' ? barToPsi(n) : n;
 }
+/**
+ * Parse the step-1 `date` and `time` text inputs into a Unix ms
+ * timestamp. Accepts `MM/DD/YYYY` (the form's default shape) and a
+ * variety of clock formats — `2:30 PM`, `14:30`, etc. Returns
+ * Date.now() if neither parses (or if the resulting date is more
+ * than 24h in the future, which the server would reject anyway).
+ */
+function parseDiveAt(dateText: string, timeText: string): number {
+  const fallback = Date.now();
+  const dt = (dateText || '').trim();
+  const tt = (timeText || '').trim();
+  // Treat placeholder time as missing.
+  const timeClean = tt && !tt.includes('--') ? tt : '12:00 PM';
+  const combined = dt ? `${dt} ${timeClean}` : '';
+  if (!combined) return fallback;
+  const ms = Date.parse(combined);
+  if (!Number.isFinite(ms)) return fallback;
+  // Clamp anything more than 24h ahead — the server would reject it.
+  if (ms > fallback + 24 * 3600 * 1000) return fallback;
+  return ms;
+}
+
 function toBaseLbs(s: string, unit: WeightUnit): number {
   const n = parseFloat(s);
   if (!Number.isFinite(n)) return 0;
@@ -352,6 +374,10 @@ export function LogDiveScreen() {
         // synthetic id and stash the human-readable name + lat/lon
         // inline on the log so it's still meaningful.
         spotId: spotPick?.id ?? 'unknown',
+        // Parse the step-1 date + time strings into a Unix ms. Robust
+        // to either field being blank / placeholder — falls back to
+        // Date.now() server-side. Server then clamps to ±1yr window.
+        diveAt: parseDiveAt(date, time),
         customSpot:
           spotPick?.kind === 'custom'
             ? { name: spotPick.name, lat: spotPick.lat, lon: spotPick.lon }

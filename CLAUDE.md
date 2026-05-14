@@ -75,10 +75,10 @@ thin `toCallablePayload()` mapper from the legacy camelCase
 `DiveLogInput` to the snake_case payload the callable expects. Other
 client touch points stay unchanged.
 
-The mapper currently hardcodes `dive_at: Date.now()` because the
-LogDive form doesn't yet collect an explicit dive timestamp. When
-the form grows a date/time picker, plumb that value through and
-update the mapper accordingly.
+`dive_at` is parsed from the LogDive form's step-1 `date` + `time`
+text inputs via `parseDiveAt()` in `LogDiveScreen.tsx`. Falls back
+to `Date.now()` if either field is unparseable. Server clamps to
+[now − 1 yr, now + 24 h].
 
 ## Firestore rules state
 

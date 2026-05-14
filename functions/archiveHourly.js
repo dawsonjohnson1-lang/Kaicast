@@ -19,8 +19,11 @@
  * Day boundary: HST (UTC−10), no DST. Matches the diver's mental model
  * ("the dive happened on Tuesday") rather than UTC.
  *
- * Schedule: minute :05 every hour (after the :00 scheduler that
- * writes kaicast_reports — gives it 5 min slack).
+ * Schedule: minute :05 every HST hour (after the :00 hourly
+ * scheduler that writes kaicast_reports — gives it 5 min slack).
+ * Pacific/Honolulu timezone keeps every cron in the codebase on
+ * the same clock so log timestamps line up cleanly. Hawaii has no
+ * DST so this is equivalent to UTC−10 year-round.
  *
  * Region: us-central1.
  *
@@ -83,7 +86,7 @@ function projectForArchive(report) {
 exports.archiveHourly = onSchedule(
   {
     schedule: '5 * * * *',
-    timeZone: 'Etc/UTC',
+    timeZone: 'Pacific/Honolulu',
     region: 'us-central1',
     timeoutSeconds: 540,
     memory: '512MiB',
