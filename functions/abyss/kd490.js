@@ -35,20 +35,25 @@ const logger = require('firebase-functions/logger');
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-const CACHE_TTL_MS = 6 * 3600 * 1000; // 6 hours
-const GRID_STEP = 0.04;               // ~4 km — coarser than dataset for dedupe
-const FETCH_TIMEOUT_MS = 12000;
+// Cache TTLs are split: a SUCCESS lasts a full day (the daily product
+// updates ~once/day), but a FAILURE only sticks for 30 min so we
+// recover quickly from a transient outage without hammering ERDDAP
+// during it.
+const CACHE_TTL_OK_MS    = 24 * 3600 * 1000;
+const CACHE_TTL_FAIL_MS  = 30 * 60 * 1000;
+const GRID_STEP          = 0.04; // ~4 km — coarser than dataset for dedupe
+const FETCH_TIMEOUT_MS   = 6000; // tight — if ERDDAP is slow we want to give up + serve heuristic
 
 const ERDDAP_BASE = 'https://coastwatch.noaa.gov/erddap/griddap';
 const KD490_DATASET = 'noaacwNPPN20S3AkdSCIDINEOF2kmDaily';
 const CHL_DATASET   = 'noaacwNPPN20S3ASCIDINEOF2kmDaily';
 
-// How many days back to walk when looking for a non-null sample.
-// The DINEOF gap-filled product is "near-real-time" but in practice
-// runs 7-14 days behind during typical NRT lag (NESDIS processing,
-// QC). 14 days lets us cover the slowest weeks while still catching
-// stale-source warnings when the dataset goes truly silent.
-const MAX_LOOKBACK_DAYS = 14;
+// DINEOF runs ~7-14 days behind real time. Start the lookback at the
+// 11-day-ago hot spot (most likely to have data) and walk back from
+// there. Walking forward would just hit the trailing edge of empty
+// future dates and waste timeout budget.
+const LOOKBACK_START_DAYS = 11;
+const LOOKBACK_RANGE_DAYS = 7;  // try -11, -12, -13, ..., -17
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -96,7 +101,9 @@ async function getCached(db, lat, lon) {
     if (!snap.exists) return null;
     const data = snap.data();
     if (!data || !data.fetchedAt) return null;
-    if (Date.now() - data.fetchedAt > CACHE_TTL_MS) return null;
+    const age = Date.now() - data.fetchedAt;
+    const ttl = data.kd490 == null ? CACHE_TTL_FAIL_MS : CACHE_TTL_OK_MS;
+    if (age > ttl) return null;
     return data;
   } catch {
     return null;
@@ -146,7 +153,8 @@ function parseErddapScalarCsv(text) {
  */
 async function fetchErddapPoint({ dataset, varname, lat, lon, nowMs }) {
   const targetMs = Number.isFinite(nowMs) ? nowMs : Date.now();
-  for (let d = 0; d <= MAX_LOOKBACK_DAYS; d++) {
+  let firstErr = null;
+  for (let d = LOOKBACK_START_DAYS; d < LOOKBACK_START_DAYS + LOOKBACK_RANGE_DAYS; d++) {
     const t = erddapTimeAt(targetMs - d * 86400000);
     const url =
       `${ERDDAP_BASE}/${dataset}.csv?` +
@@ -159,14 +167,17 @@ async function fetchErddapPoint({ dataset, varname, lat, lon, nowMs }) {
     try {
       r = await timedFetch(url);
     } catch (err) {
-      logger.warn(`abyss/kd490: ERDDAP ${dataset} fetch error`, { error: err.message });
-      continue;
+      firstErr = err.message;
+      // Network-level error (timeout, DNS, TLS) — likely upstream
+      // outage. No point trying more dates against the same dead host.
+      logger.warn(`abyss/kd490: ERDDAP ${dataset} fetch error`, { error: err.message, daysBack: d });
+      return null;
     }
     if (!r.ok) {
-      // 404 here can mean "no data for that exact day" — keep walking back.
+      // 404 here = "no data for that exact day" — keep walking back.
       if (r.status === 404) continue;
       logger.warn(`abyss/kd490: ERDDAP ${dataset} HTTP ${r.status}`);
-      continue;
+      return null;
     }
     const text = await r.text();
     const v = parseErddapScalarCsv(text);
@@ -174,6 +185,7 @@ async function fetchErddapPoint({ dataset, varname, lat, lon, nowMs }) {
       return { value: v, ageDays: d };
     }
   }
+  if (firstErr) logger.warn(`abyss/kd490: ERDDAP ${dataset} no data in lookback window`);
   return null;
 }
 
@@ -212,6 +224,14 @@ async function fetchOceanColor({ lat, lon, nowMs, db }) {
 
   if (!kd490Res) {
     logger.info('abyss/kd490: no satellite data available', { lat, lon });
+    // Cache a soft-failure marker so we don't hammer ERDDAP every
+    // single getReport invocation while it's down. CACHE_TTL_FAIL_MS
+    // (30 min) means we'll retry soonish but not on every request.
+    await setCache(db, lat, lon, {
+      kd490: null, chlorophyll: null, spm: null,
+      source: 'erddap-unavailable',
+      ageHours: null, confidence: null,
+    });
     return null;
   }
 
