@@ -13,6 +13,7 @@ const { fetchBuoyHourly } = require('./buoy_Version2');
 const { fetchMarineForecast } = require('./marineForecast');
 const { pushAllReportsToWebflow } = require('./webflow');
 const { estimateVisibilityAbyss } = require('./abyss/abyss');
+const { fetchOceanColor } = require('./abyss/kd490');
 const { computeDaySolarEvents } = require('./abyss/solar');
 const { getHorizonProfile } = require('./abyss/horizon');
 const { getSubsurfaceProfile } = require('./abyss/subsurface');
@@ -841,6 +842,21 @@ async function buildSpotReport({ spot, owHourly, buoyData, marineForecast, nowMs
   const nowLocalHour = nowDate.getUTCHours(); // TODO: convert to spot tz when needed
   const nowSwellFt   = nowMetrics.waveHeightM != null ? nowMetrics.waveHeightM * 3.28084 : null;
 
+  // Fetch satellite ocean-color ONCE for the whole spot. The "now"
+  // visibility call and every window's visibility call use the same
+  // lat/lon, so they all need the same KD490 value — sharing one
+  // result avoids 10–20 concurrent ERDDAP fetches per spot (cache
+  // can't help when they all race the cache read in parallel before
+  // any one of them writes). `null` is a valid value: it means the
+  // upstream fetch returned nothing and downstream should fall back
+  // to the heuristic. We swallow throws here for the same reason.
+  let spotOceanColor = null;
+  try {
+    spotOceanColor = await fetchOceanColor({ lat: spot.lat, lon: spot.lon, nowMs, db });
+  } catch (err) {
+    logger.warn('buildSpotReport: fetchOceanColor threw', { spotId: spot.id, error: err.message });
+  }
+
   // Abyss: data-grounded layered visibility model. Falls back to the
   // legacy heuristic internally when satellite ocean-color isn't
   // configured, but ALWAYS layers on the solar + topographic-shadow
@@ -861,6 +877,7 @@ async function buildSpotReport({ spot, owHourly, buoyData, marineForecast, nowMs
     cloudCoverPercent: nowMetrics.cloudCoverPercent,
     hourLocal:         nowLocalHour,
     db,
+    oceanColor:        spotOceanColor,
   });
 
   const moonData     = await fetchMoonPhase(nowDate, spot.lat, spot.lon, spot.tz);
@@ -974,6 +991,7 @@ async function buildSpotReport({ spot, owHourly, buoyData, marineForecast, nowMs
       cloudCoverPercent: w.avg.cloudCoverPercent,
       hourLocal:         winLocalHour,
       db,
+      oceanColor:        spotOceanColor,
     });
 
     const winEffectiveSwellFt =

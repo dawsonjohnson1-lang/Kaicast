@@ -72,7 +72,12 @@ const SPM_CLEAR_THRESHOLD = 5.0;
  * @param {number} [opts.hourLocal]
  * @param {object} opts.spot - full spot config with Abyss fields
  * @param {number} [opts.targetDepthM] - override target depth
- * @param {object} [opts.db] - Firestore for cache
+ * @param {object} [opts.db] - Firestore for cache (used only when oceanColor is undefined)
+ * @param {object|null} [opts.oceanColor] - pre-fetched ocean-color result.
+ *   When the caller provides this (even as `null`), the internal
+ *   fetchOceanColor() call is skipped. The scheduler/getReport pipeline
+ *   passes one fetch result into all per-window invocations to avoid a
+ *   thundering-herd on the ERDDAP endpoint.
  * @returns {object} Abyss visibility result
  */
 async function estimateVisibilityAbyss(opts) {
@@ -88,6 +93,11 @@ async function estimateVisibilityAbyss(opts) {
     targetDepthM,
     db,
   } = opts;
+  // `oceanColor` is read separately because the meaningful sentinel is
+  // "present in opts" — `null` is a valid value meaning "we tried and
+  // got nothing", which should still skip the internal fetch.
+  const oceanColorProvided = Object.prototype.hasOwnProperty.call(opts, 'oceanColor');
+  const providedOceanColor = oceanColorProvided ? opts.oceanColor : undefined;
 
   const siteDepth = spot.maxDepthM || 10;
   const diveDepth = targetDepthM || spot.typicalDiveDepthM || siteDepth * 0.6;
@@ -140,12 +150,18 @@ async function estimateVisibilityAbyss(opts) {
     // 'cross' or 'unknown' → no adjustment.
   }
 
-  // ── Layer 0: Fetch satellite data ──────────────────────────────────────────
-  let oceanColor = null;
+  // ── Layer 0: Satellite data (pre-fetched or fetch ourselves) ───────────────
+  // Prefer caller-provided result: in the scheduler/getReport hot path,
+  // buildSpotReport fetches once per spot and threads the result into
+  // every per-window invocation, avoiding 10–20 concurrent ERDDAP
+  // fetches per spot.
+  let oceanColor = oceanColorProvided ? providedOceanColor : null;
   try {
-    oceanColor = await fetchOceanColor({
-      lat, lon, nowMs, db,
-    });
+    if (!oceanColorProvided) {
+      oceanColor = await fetchOceanColor({
+        lat, lon, nowMs, db,
+      });
+    }
   } catch {
     // Satellite fetch failed — will fall back to heuristic
   }
