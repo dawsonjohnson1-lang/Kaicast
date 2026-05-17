@@ -21,7 +21,7 @@
  */
 
 const { fetchOceanColor, kd490ToVisibility } = require('./kd490');
-const { computeWaveImpactAtSite } = require('./waves');
+const { computeWaveImpactAtSite } = require('./wave-physics');
 const { estimateVisibility } = require('../analysis');
 const { solarPosition, isShadowed, solarLightFactor, swellExposureFactor, classifyWindRelative } = require('./solar');
 const { getHorizonProfile } = require('./horizon');

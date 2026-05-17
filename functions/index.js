@@ -15,6 +15,7 @@ const { pushAllReportsToWebflow } = require('./webflow');
 const { estimateVisibilityAbyss } = require('./abyss/abyss');
 const { computeDaySolarEvents } = require('./abyss/solar');
 const { getHorizonProfile } = require('./abyss/horizon');
+const { getSubsurfaceProfile } = require('./abyss/subsurface');
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -1045,6 +1046,14 @@ async function buildSpotReport({ spot, owHourly, buoyData, marineForecast, nowMs
   if (tideStationId && rawTideSeries.length) sources.push(`noaa-tides:${tideStationId}`);
   if (marineForecast?.waveHMap?.size) sources.push('open-meteo-marine');
 
+  // Subsurface temperature/thermocline. Geographic provider selection
+  // (PacIOOS for Hawaii, CMEMS global fallback, heuristic last resort);
+  // returns null when no provider can serve this spot.
+  const subsurface = await getSubsurfaceProfile(spot, {
+    surfaceTempC: nowMetrics.waterTempC,
+  });
+  if (subsurface?.source) sources.push(`subsurface:${subsurface.source}`);
+
   return {
     spot:       spot.id,
     spotName:   spot.name,
@@ -1069,6 +1078,13 @@ async function buildSpotReport({ spot, owHourly, buoyData, marineForecast, nowMs
       },
       visibility: nowVisibility,
       rating:     nowRating,
+      subsurface: subsurface ? {
+        thermoclineDepthM: subsurface.thermoclineDepthM,
+        surfaceTempC:      subsurface.surfaceTempC,
+        profile:           subsurface.profile,
+        source:            subsurface.source,
+        confidence:        subsurface.confidence,
+      } : null,
     },
     windows,
     days,

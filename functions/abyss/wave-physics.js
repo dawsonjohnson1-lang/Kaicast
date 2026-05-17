@@ -1,27 +1,21 @@
 /* eslint-env node */
-/* global fetch */
 
 /**
- * Abyss — Wave energy at depth module.
+ * Abyss — Wave physics (pure computation).
  *
- * Combines:
- * 1. WaveWatch III forecast from NOAA NOMADS (7-day, 6-hourly)
- * 2. Linear wave theory for orbital velocity at depth
- * 3. Sediment resuspension thresholds per substrate type
+ * Linear (Airy) wave theory + sediment resuspension heuristics. No I/O.
+ * Consumes wave height/period from upstream (NDBC buoy, Open-Meteo
+ * marine forecast) and computes what the diver actually feels at depth.
  *
  * Exports:
- *  - fetchWW3Forecast({ lat, lon, nowMs })
+ *  - solveWavenumber(omega, d)
+ *  - waveOrbitalVelocityAtDepth(H, T, d, z)
  *  - computeWaveImpactAtSite({ waveHeightM, wavePeriodS, siteDepthM, targetDepthM, sedimentType })
  *  - decomposeSwellByPeriod({ waveHeightM, wavePeriodS })
- *  - waveOrbitalVelocityAtDepth(H, T, d, z)
- *  - solveWavenumber(omega, d)
  */
-
-const logger = require('firebase-functions/logger');
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-const FETCH_TIMEOUT_MS = 12000;
 const G = 9.81; // gravitational acceleration (m/s²)
 
 // Sediment resuspension thresholds (orbital velocity in m/s required to lift sediment)
@@ -233,85 +227,9 @@ function decomposeSwellByPeriod({ waveHeightM, wavePeriodS } = {}) {
   };
 }
 
-// ─── WaveWatch III forecast fetch ────────────────────────────────────────────
-
-/**
- * Fetch WaveWatch III 7-day forecast from NOAA NOMADS for a lat/lon.
- * Returns 6-hourly forecast points.
- *
- * @param {object} opts
- * @param {number} opts.lat
- * @param {number} opts.lon
- * @param {number} opts.nowMs
- * @returns {Array<{ tsMs, waveHeightM, wavePeriodS, waveDirectionDeg }>}
- */
-async function fetchWW3Forecast({ lat, lon, nowMs }) {
-  const d = new Date(nowMs);
-  const dateStr =
-    String(d.getUTCFullYear()) +
-    String(d.getUTCMonth() + 1).padStart(2, '0') +
-    String(d.getUTCDate()).padStart(2, '0');
-
-  // WW3 global 0.5° grid on NOMADS
-  // Try the GFS wave filter endpoint with sub-region extraction
-  const leftlon = lon - 1;
-  const rightlon = lon + 1;
-  const toplat = lat + 1;
-  const bottomlat = lat - 1;
-
-  // Try cycle hours in reverse (most recent first): 18, 12, 06, 00
-  const cycles = ['18', '12', '06', '00'];
-
-  for (const cycle of cycles) {
-    const url =
-      `https://nomads.ncep.noaa.gov/cgi-bin/filter_wave.pl` +
-      `?dir=%2Fgfs.${dateStr}%2F${cycle}%2Fwave%2Fgridded` +
-      `&file=gfswave.t${cycle}z.global.0p25.f000.grib2` +
-      `&var_HTSGW=on&var_PERPW=on&var_DIRPW=on` +
-      `&subregion=&leftlon=${leftlon}&rightlon=${rightlon}` +
-      `&toplat=${toplat}&bottomlat=${bottomlat}`;
-
-    try {
-      const r = await timedFetch(url);
-      if (!r.ok) continue;
-
-      // GRIB2 is binary — we can't easily parse it in pure Node.js without a library.
-      // For the MVP, we rely on existing NDBC buoy data for current conditions
-      // and use WW3 for trend information only.
-      // TODO: Use NOMADS OpenDAP ASCII endpoint for parseable forecast data
-      logger.info('abyss/waves: WW3 endpoint responded', { cycle, status: r.status });
-
-      // For now, return empty array — the wave impact calculations work with
-      // existing buoy data from the pipeline. WW3 forecast integration will
-      // be added when we implement the OpenDAP ASCII parsing.
-      return [];
-    } catch (err) {
-      logger.warn('abyss/waves: WW3 fetch error', { cycle, error: err.message });
-    }
-  }
-
-  logger.info('abyss/waves: WW3 forecast unavailable, using buoy data only');
-  return [];
-}
-
-/** Fetch with timeout. */
-async function timedFetch(url, opts = {}) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-  try {
-    const r = await fetch(url, { ...opts, signal: controller.signal });
-    clearTimeout(timer);
-    return r;
-  } catch (err) {
-    clearTimeout(timer);
-    throw err;
-  }
-}
-
 module.exports = {
-  fetchWW3Forecast,
+  solveWavenumber,
+  waveOrbitalVelocityAtDepth,
   computeWaveImpactAtSite,
   decomposeSwellByPeriod,
-  waveOrbitalVelocityAtDepth,
-  solveWavenumber,
 };
