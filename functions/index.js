@@ -41,20 +41,18 @@ const OPENWEATHER_API_KEY        = defineSecret('OPENWEATHER_API_KEY');
 const WEBFLOW_API_TOKEN          = defineSecret('WEBFLOW_API_TOKEN');
 const WEBFLOW_SPOTS_CID          = defineSecret('WEBFLOW_SPOTS_CID');
 const WEBFLOW_WINDOWS_CID        = defineSecret('WEBFLOW_WINDOWS_CID');
-const CMEMS_USERNAME             = defineSecret('CMEMS_USERNAME');
-const CMEMS_PASSWORD             = defineSecret('CMEMS_PASSWORD');
-const NASA_EARTHDATA_USERNAME    = defineSecret('NASA_EARTHDATA_USERNAME');
-const NASA_EARTHDATA_PASSWORD    = defineSecret('NASA_EARTHDATA_PASSWORD');
+// CMEMS_USERNAME / CMEMS_PASSWORD / NASA_EARTHDATA_USERNAME /
+// NASA_EARTHDATA_PASSWORD used to live here. The KD490/CHL fetcher
+// now pulls from NOAA CoastWatch ERDDAP (public, no auth) so those
+// secrets are no longer needed. Values still exist in Secret Manager;
+// rotate + delete via `firebase functions:secrets:destroy` once
+// you've confirmed the satellite path is firing cleanly.
 
 const ALL_SECRETS = [
   OPENWEATHER_API_KEY,
   WEBFLOW_API_TOKEN,
   WEBFLOW_SPOTS_CID,
   WEBFLOW_WINDOWS_CID,
-  CMEMS_USERNAME,
-  CMEMS_PASSWORD,
-  NASA_EARTHDATA_USERNAME,
-  NASA_EARTHDATA_PASSWORD,
 ];
 
 // ─── Spots ────────────────────────────────────────────────────────────────────
@@ -863,10 +861,6 @@ async function buildSpotReport({ spot, owHourly, buoyData, marineForecast, nowMs
     cloudCoverPercent: nowMetrics.cloudCoverPercent,
     hourLocal:         nowLocalHour,
     db,
-    cmemsUser: process.env.CMEMS_USERNAME,
-    cmemsPass: process.env.CMEMS_PASSWORD,
-    nasaUser:  process.env.NASA_EARTHDATA_USERNAME,
-    nasaPass:  process.env.NASA_EARTHDATA_PASSWORD,
   });
 
   const moonData     = await fetchMoonPhase(nowDate, spot.lat, spot.lon, spot.tz);
@@ -980,10 +974,6 @@ async function buildSpotReport({ spot, owHourly, buoyData, marineForecast, nowMs
       cloudCoverPercent: w.avg.cloudCoverPercent,
       hourLocal:         winLocalHour,
       db,
-      cmemsUser: process.env.CMEMS_USERNAME,
-      cmemsPass: process.env.CMEMS_PASSWORD,
-      nasaUser:  process.env.NASA_EARTHDATA_USERNAME,
-      nasaPass:  process.env.NASA_EARTHDATA_PASSWORD,
     });
 
     const winEffectiveSwellFt =

@@ -73,10 +73,6 @@ const SPM_CLEAR_THRESHOLD = 5.0;
  * @param {object} opts.spot - full spot config with Abyss fields
  * @param {number} [opts.targetDepthM] - override target depth
  * @param {object} [opts.db] - Firestore for cache
- * @param {string} [opts.cmemsUser]
- * @param {string} [opts.cmemsPass]
- * @param {string} [opts.nasaUser]
- * @param {string} [opts.nasaPass]
  * @returns {object} Abyss visibility result
  */
 async function estimateVisibilityAbyss(opts) {
@@ -90,7 +86,7 @@ async function estimateVisibilityAbyss(opts) {
     cloudCoverPercent, hourLocal,
     spot = {},
     targetDepthM,
-    db, cmemsUser, cmemsPass, nasaUser, nasaPass,
+    db,
   } = opts;
 
   const siteDepth = spot.maxDepthM || 10;
@@ -149,7 +145,6 @@ async function estimateVisibilityAbyss(opts) {
   try {
     oceanColor = await fetchOceanColor({
       lat, lon, nowMs, db,
-      cmemsUser, cmemsPass, nasaUser, nasaPass,
     });
   } catch {
     // Satellite fetch failed — will fall back to heuristic
