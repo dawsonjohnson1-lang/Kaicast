@@ -1,0 +1,17 @@
+{
+  "name": "kaicast-desktop",
+  "version": "0.0.1",
+  "private": true,
+  "description": "KaiCast desktop screens (React Native Web). Build wiring TBD — for now this package exists to typecheck the screens against the same RN/React versions the mobile app uses.",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "react": "18.2.0",
+    "react-native": "0.74.5"
+  },
+  "devDependencies": {
+    "@types/react": "~18.2.79",
+    "typescript": "~5.3.3"
+  }
+}
