@@ -14,12 +14,17 @@ import { DesktopNav } from './components/DesktopNav';
 import { ConditionPill } from './components/ConditionPill';
 import { DiveReportCard, type DiveReportCardProps } from './components/DiveReportCard';
 import { KaiCastMap } from './components/maps/KaiCastMap';
-import type { NavigateFn } from './router';
-
-// Electric Beach mock — used by the mini-map in the Spot Info tab.
-// When SPOT is upgraded to dynamic data, these come from there.
-const SPOT_LAT = 21.354;
-const SPOT_LNG = -158.118;
+import { useBreakpoint, pick } from './hooks/useBreakpoint';
+import type { NavigateFn, RouteParams } from './router';
+import { findSpot, mapboxSatelliteUrl, SPOTS } from './data/spots';
+import {
+  useSpotReport,
+  tierFromRating,
+  bestWindowLabel,
+  relativeTime,
+  backendDayToDesktopDay,
+  type BackendReport,
+} from './data/getReport';
 
 /**
  * Spot Detail / Forecast — desktop screen.
@@ -35,21 +40,59 @@ const SPOT_LNG = -158.118;
  * Mock data matches the Figma reference (Electric Beach, O'ahu).
  */
 
-// ─── Mock data ────────────────────────────────────────────────────────────
+// ─── Resolved-spot context ────────────────────────────────────────────────
+//
+// Hero / mini-map / breadcrumb read from this so a single resolved
+// Spot record drives every "this spot" rendering. Conditions data
+// (rating, summary, etc.) stays static for now — until the desktop
+// wires up the live getReport endpoint, only the identity bits
+// (name, region, coords) change per spot.
 
-const SPOT = {
+type ResolvedSpot = {
+  id: string;
+  name: string;
+  region: string;
+  lat: number;
+  lon: number;
+};
+
+const DEFAULT_SPOT: ResolvedSpot = {
+  id: 'electric-beach',
   name: 'Electric Beach',
-  region: "O'ahu · Leeward Coast",
-  coords: '21.354°N, 158.118°W',
-  distance: '4.2 mi away',
-  updatedAt: 'Updated 2 min ago',
+  region: 'Oahu',
+  lat: 21.354627,
+  lon: -158.13633,
+};
+
+const SpotCtx = React.createContext<ResolvedSpot>(DEFAULT_SPOT);
+function useSpotCtx(): ResolvedSpot {
+  return React.useContext(SpotCtx);
+}
+
+type LiveReport = { data: BackendReport | null; loading: boolean; error: string | null };
+const ReportCtx = React.createContext<LiveReport>({ data: null, loading: false, error: null });
+function useReportCtx(): LiveReport {
+  return React.useContext(ReportCtx);
+}
+
+function coordsLabel(lat: number, lon: number): string {
+  const ns = lat >= 0 ? 'N' : 'S';
+  const ew = lon >= 0 ? 'E' : 'W';
+  return `${Math.abs(lat).toFixed(3)}°${ns}, ${Math.abs(lon).toFixed(3)}°${ew}`;
+}
+
+// Static placeholder narrative — until the conditions/getReport
+// pipeline is wired here, this gives the hero a reasonable summary.
+const STATIC_NARRATIVE = {
   rating: 'excellent' as ConditionTier,
   summary:
-    'Crystal clear visibility with a building WNW groundswell makes for ideal afternoon conditions. Light trades hold through 5pm, then a midnight wind shift cleans up the surface for an early dawn patrol.',
+    'Light trades and a clean WNW groundswell keep the surface readable through the afternoon. Check tide and runoff before splashing.',
   bestWindow: '2pm – 5pm',
   activities: ['Freedive', 'Snorkel', 'Scuba'],
   currentLevel: 'Light · 0.4 kt',
   runoff: 'No runoff risk',
+  distance: '',
+  updatedAt: 'Static preview',
 };
 
 type ForecastDay = {
@@ -121,16 +164,32 @@ export interface SpotDetailScreenProps {
   /** Currently-selected primary nav tab. Defaults to Forecast (this screen IS the forecast). */
   activeNav?: 'dashboard' | 'forecast' | 'spots' | 'log';
   onNavigate?: NavigateFn;
+  params?: RouteParams;
 }
 
-export function SpotDetailScreen({ activeNav = 'forecast', onNavigate }: SpotDetailScreenProps) {
+export function SpotDetailScreen({ activeNav = 'forecast', onNavigate, params }: SpotDetailScreenProps) {
   const [tab, setTab] = React.useState('Forecast');
+  const bp = useBreakpoint();
+  const sidePad = pick(bp, 28, 16);
+
+  // Resolve the requested spot by id; fall back to Electric Beach so
+  // direct loads of /spot-detail without a param still render.
+  const resolved = React.useMemo<ResolvedSpot>(() => {
+    const hit = findSpot(params?.spotId);
+    return hit ?? DEFAULT_SPOT;
+  }, [params?.spotId]);
+
+  // Live `getReport` for the resolved spot. Drives rating tier,
+  // best-window, current, runoff, and freshness on the hero.
+  const report = useSpotReport(resolved.id);
 
   return (
+    <SpotCtx.Provider value={resolved}>
+    <ReportCtx.Provider value={report}>
     <ScrollView style={styles.page} contentContainerStyle={styles.pageContent}>
       <DesktopNav active={activeNav} onNavigate={onNavigate} />
 
-      <View style={styles.maxWidth}>
+      <View style={[styles.maxWidth, { paddingHorizontal: sidePad }]}>
         <Breadcrumb onNavigate={onNavigate} />
         <Hero />
         <ForecastStrip />
@@ -144,6 +203,8 @@ export function SpotDetailScreen({ activeNav = 'forecast', onNavigate }: SpotDet
         {tab === 'Conditions' ? <ConditionsTabBody /> : null}
       </View>
     </ScrollView>
+    </ReportCtx.Provider>
+    </SpotCtx.Provider>
   );
 }
 
@@ -160,12 +221,11 @@ function TabComingSoon({ name }: { name: string }) {
 // ─── Breadcrumb ───────────────────────────────────────────────────────────
 
 function Breadcrumb({ onNavigate }: { onNavigate?: NavigateFn }) {
-  // First parts navigate up; last is the current location and stays inert.
+  const spot = useSpotCtx();
   const parts: Array<{ label: string; to?: () => void }> = [
     { label: 'Hawaiian Islands', to: () => onNavigate?.('spots-map') },
-    { label: "O'ahu",             to: () => onNavigate?.('spots-map') },
-    { label: 'Leeward Coast',     to: () => onNavigate?.('conditions') },
-    { label: 'Electric Beach' },
+    { label: spot.region,        to: () => onNavigate?.('spots-map') },
+    { label: spot.name },
   ];
   return (
     <View style={styles.breadcrumb}>
@@ -190,45 +250,82 @@ function Breadcrumb({ onNavigate }: { onNavigate?: NavigateFn }) {
 // ─── Hero ─────────────────────────────────────────────────────────────────
 
 function Hero() {
+  const spot = useSpotCtx();
+  const { data: report, loading } = useReportCtx();
+  // Real satellite tile centered on this spot's coords. Falls back to
+  // the figma placeholder if VITE_MAPBOX_TOKEN is unset at build time.
+  const heroUri = mapboxSatelliteUrl(spot.lat, spot.lon, 1200, 720, 15) ?? (forecastHeroBg as string);
+
+  const rating = report?.now?.rating;
+  const tier = rating ? tierFromRating(rating) : STATIC_NARRATIVE.rating;
+  const summary = rating?.reason || rating?.cautionNote || STATIC_NARRATIVE.summary;
+  const bestWindow = bestWindowLabel(report?.windows) ?? STATIC_NARRATIVE.bestWindow;
+
+  // Live "current": backend doesn't carry a knots reading yet, so derive
+  // from wind (same heuristic the rating uses: kts × 0.07 → mph).
+  const windKts = (report?.now?.metrics?.windSpeedKts as number | undefined) ?? null;
+  const currentLabel = windKts != null
+    ? `${(windKts * 1.15078 * 0.07).toFixed(1)} mph drift`
+    : STATIC_NARRATIVE.currentLevel;
+
+  // Runoff badge.
+  const runoffSeverity = report?.now?.runoff?.severity;
+  const runoffLabel = runoffSeverity
+    ? runoffSeverity === 'none' || runoffSeverity === 'low'
+      ? 'No runoff risk'
+      : `${runoffSeverity.charAt(0).toUpperCase() + runoffSeverity.slice(1)} runoff`
+    : STATIC_NARRATIVE.runoff;
+
+  // Freshness from backend.generatedAt; fall back to "static preview"
+  // only when the request is still loading.
+  const updatedAt = report?.generatedAt
+    ? `Updated ${relativeTime(Date.parse(report.generatedAt))}`
+    : loading ? 'Loading…' : STATIC_NARRATIVE.updatedAt;
+
+  const metaParts = [
+    coordsLabel(spot.lat, spot.lon),
+    spot.region,
+    updatedAt,
+  ].filter(Boolean);
+
   return (
     <View style={styles.heroOuter}>
       <View style={styles.heroInner}>
         <View style={styles.heroHeaderRow}>
-          <Text style={styles.heroTitle}>{SPOT.name}</Text>
+          <Text style={styles.heroTitle}>{spot.name}</Text>
           <Stars n={5} size={22} />
           <View style={styles.heroBadgesRow}>
             <View style={styles.liveBadge}>
               <View style={styles.liveDot} />
               <Text style={styles.liveText}>LIVE</Text>
             </View>
-            <ConditionPill tier={SPOT.rating} size="md" />
+            <ConditionPill tier={tier} size="md" />
           </View>
         </View>
 
         <View style={styles.heroMetaRow}>
-          <MetaItem text={SPOT.coords} />
-          <MetaDot />
-          <MetaItem text={SPOT.distance} />
-          <MetaDot />
-          <MetaItem text="Leeward Coast" />
-          <MetaDot />
-          <MetaItem text={SPOT.updatedAt} />
+          {metaParts.map((m, i) => (
+            <React.Fragment key={i}>
+              {i > 0 ? <MetaDot /> : null}
+              <MetaItem text={m} />
+            </React.Fragment>
+          ))}
         </View>
 
         <View style={styles.heroBody}>
           <View style={styles.heroBodyLeft}>
-            <Text style={styles.heroSummary}>{SPOT.summary}</Text>
+            <Text style={styles.heroSummary}>{summary}</Text>
 
             <View style={styles.heroInlineFacts}>
-              <InlineFact label="Best window" value={SPOT.bestWindow} />
-              <InlineFact label="Activities" value={SPOT.activities.join(' · ')} />
-              <InlineFact label="Current" value={SPOT.currentLevel} />
-              <InlineFact label="Runoff" value={SPOT.runoff} />
+              <InlineFact label="Best window" value={bestWindow} />
+              <InlineFact label="Activities" value={STATIC_NARRATIVE.activities.join(' · ')} />
+              <InlineFact label="Current" value={currentLabel} />
+              <InlineFact label="Runoff" value={runoffLabel} />
             </View>
           </View>
 
           <Image
-            source={{ uri: forecastHeroBg }}
+            source={{ uri: heroUri }}
             style={styles.heroImage}
             resizeMode="cover"
           />
@@ -256,12 +353,24 @@ function InlineFact({ label, value }: { label: string; value: string }) {
 // ─── 7-day forecast strip ─────────────────────────────────────────────────
 
 function ForecastStrip() {
+  const { data: report } = useReportCtx();
+  // Map the backend's daily aggregates to the desktop ForecastDay shape.
+  // Fall back to the static FORECAST_DAYS mock only while we're waiting
+  // for the first report (or if the endpoint is down).
+  const days: ForecastDay[] = React.useMemo(() => {
+    const src = report?.days;
+    if (Array.isArray(src) && src.length > 0) {
+      return src.slice(0, 7).map(backendDayToDesktopDay) as ForecastDay[];
+    }
+    return FORECAST_DAYS;
+  }, [report]);
+
   return (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
         <View style={styles.cardHeaderLeft}>
           <View style={styles.cardHeaderDot} />
-          <Text style={styles.cardHeaderTitle}>7-day forecast · WNW swell building Thursday</Text>
+          <Text style={styles.cardHeaderTitle}>7-day forecast</Text>
         </View>
         <View style={styles.unitToggle}>
           <View style={[styles.unitToggleBtn, styles.unitToggleBtnActive]}>
@@ -274,8 +383,8 @@ function ForecastStrip() {
       </View>
 
       <View style={styles.forecastRow}>
-        {FORECAST_DAYS.map((d, i) => (
-          <ForecastDayCard key={d.label} day={d} isFirst={i === 0} />
+        {days.map((d, i) => (
+          <ForecastDayCard key={`${d.label}-${i}`} day={d} isFirst={i === 0} />
         ))}
       </View>
     </View>
@@ -440,6 +549,7 @@ const HISTORY_FACTS = [
 ];
 
 function SpotInfoTabBody() {
+  const spot = useSpotCtx();
   return (
     <View style={styles.mainGrid}>
       <View style={styles.mainLeft}>
@@ -452,10 +562,10 @@ function SpotInfoTabBody() {
         <InfoSection title="Location">
           <View style={styles.spotInfoMapWrap}>
             <KaiCastMap
-              markers={[{ id: SPOT.name, lng: SPOT_LNG, lat: SPOT_LAT, tier: SPOT.rating, label: SPOT.name }]}
-              center={[SPOT_LNG, SPOT_LAT]}
+              markers={[{ id: spot.id, lng: spot.lon, lat: spot.lat, tier: STATIC_NARRATIVE.rating, label: spot.name }]}
+              center={[spot.lon, spot.lat]}
               zoom={11.5}
-              selectedId={SPOT.name}
+              selectedId={spot.id}
               showZoomControls
             />
           </View>
