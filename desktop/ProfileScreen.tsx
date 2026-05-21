@@ -13,6 +13,7 @@ import { DesktopNav } from './components/DesktopNav';
 import { ConditionPill } from './components/ConditionPill';
 import { HeatmapCell } from './components/HeatmapCell';
 import { DiveReportCard, type DiveReportCardProps } from './components/DiveReportCard';
+import { initialsFromUser, useAuth } from './hooks/useAuth';
 import type { NavigateFn } from './router';
 
 /**
@@ -239,6 +240,18 @@ function ComingSoon({ name }: { name: string }) {
 // ─── Header ───────────────────────────────────────────────────────────────
 
 function ProfileHeader() {
+  const auth = useAuth();
+  // Display name + initials come from the signed-in Firebase user when
+  // available. Other fields (handle, location, bio, stats) stay mock
+  // until we have a user-profile collection in Firestore.
+  const displayName = auth.user?.displayName?.trim() || USER.name;
+  const displayInitials = initialsFromUser(auth.user, USER.initials);
+  const handle = auth.user?.email ? `@${auth.user.email.split('@')[0]}` : USER.handle;
+
+  const onSignOut = async () => {
+    try { await auth.signOut(); } catch {}
+  };
+
   return (
     <View style={styles.header}>
       <Image source={{ uri: profileHeaderBg }} style={styles.headerBg} resizeMode="cover" />
@@ -247,15 +260,19 @@ function ProfileHeader() {
       <View style={styles.headerContent}>
         <View style={styles.headerLeft}>
           <View style={styles.avatarOuter}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{USER.initials}</Text>
-            </View>
+            {auth.user?.photoURL ? (
+              <Image source={{ uri: auth.user.photoURL }} style={styles.avatar as object} resizeMode="cover" />
+            ) : (
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>{displayInitials}</Text>
+              </View>
+            )}
           </View>
 
           <View style={styles.headerNameWrap}>
-            <Text style={styles.headerName}>{USER.name}</Text>
+            <Text style={styles.headerName}>{displayName}</Text>
             <View style={styles.headerHandleRow}>
-              <Text style={styles.headerHandle}>{USER.handle}</Text>
+              <Text style={styles.headerHandle}>{handle}</Text>
               <View style={styles.headerHandleDot} />
               <Text style={styles.headerHandle}>{USER.location}</Text>
             </View>
@@ -271,14 +288,14 @@ function ProfileHeader() {
             </View>
 
             <View style={styles.headerButtonRow}>
+              {/* On your own profile, the "follow / message" pair becomes
+                  "edit / sign out". Real follow/message live on other
+                  divers' profiles once that flow exists. */}
               <Pressable style={[styles.headerBtn, styles.headerBtnPrimary]}>
-                <Text style={styles.headerBtnPrimaryText}>Follow</Text>
+                <Text style={styles.headerBtnPrimaryText}>Edit profile</Text>
               </Pressable>
-              <Pressable style={styles.headerBtn}>
-                <Text style={styles.headerBtnText}>Message</Text>
-              </Pressable>
-              <Pressable style={styles.headerBtnIcon}>
-                <Text style={styles.headerBtnIconText}>⋯</Text>
+              <Pressable style={styles.headerBtn} onPress={onSignOut}>
+                <Text style={styles.headerBtnText}>Sign out</Text>
               </Pressable>
             </View>
           </View>
@@ -1755,7 +1772,7 @@ const styles = StyleSheet.create({
     paddingVertical: 24,
   },
   bodyMain: { flex: 1, gap: 24 },
-  bodySidebar: { width: 340, gap: 24 },
+  bodySidebar: { width: 280, gap: 24 },
 
   // Stat cards
   statCardsRow: {

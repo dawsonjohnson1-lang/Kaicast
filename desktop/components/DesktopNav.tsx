@@ -1,9 +1,11 @@
 import React from 'react';
 import { View, Text, Pressable, TextInput, Image, StyleSheet } from 'react-native';
-import { colors, fonts, radius, NAV_HEIGHT, UTIL_BAR_HEIGHT } from '../tokens';
+import { colors, fonts, radius, NAV_HEIGHT, UTIL_BAR_HEIGHT, DESKTOP_MAX_WIDTH } from '../tokens';
 import type { NavigateFn, RouteKey } from '../router';
 import { logos } from '../assets/figma/logos';
 import { flags } from '../assets/figma/flags';
+import { useBreakpoint, pick } from '../hooks/useBreakpoint';
+import { initialsFromUser, useAuth } from '../hooks/useAuth';
 
 /**
  * Shared top nav, appears on all six desktop screens.
@@ -46,21 +48,30 @@ const NAV_ITEMS: ReadonlyArray<{ key: NavKey; label: string }> = [
 export function DesktopNav({
   active,
   onNavigate,
-  userInitials = 'DJ',
+  userInitials,
   showUtilBar = true,
 }: DesktopNavProps) {
+  const bp = useBreakpoint();
+  const auth = useAuth();
+  const sidePad = pick(bp, 28, 16);
+  const searchWidth = pick(bp, 240, 180);
+  const signedIn = auth.user != null;
+  const resolvedInitials = userInitials ?? initialsFromUser(auth.user, 'KC');
   return (
     <View style={styles.root}>
       {showUtilBar ? (
-        <View style={styles.utilBar}>
-          <Image source={{ uri: flags.HI }} style={styles.flag} resizeMode="cover" />
-          <Text style={styles.utilText}>HAWAII · 78°F · WED APR 15 · 2:14 PM HST</Text>
-          <View style={styles.utilSpacer} />
-          <Text style={styles.utilText}>NOAA · NDBC · KAICAST MODEL</Text>
+        <View style={[styles.utilBarOuter, { paddingHorizontal: sidePad }]}>
+          <View style={styles.utilBar}>
+            <Image source={{ uri: flags.HI }} style={styles.flag} resizeMode="cover" />
+            <Text style={styles.utilText}>HAWAII · 78°F · WED APR 15 · 2:14 PM HST</Text>
+            <View style={styles.utilSpacer} />
+            <Text style={styles.utilText}>ABYSS FORECASTING MODEL</Text>
+          </View>
         </View>
       ) : null}
 
-      <View style={styles.nav}>
+      <View style={[styles.navOuter, { paddingHorizontal: sidePad }]}>
+      <View style={[styles.nav, { gap: pick(bp, 28, 16) }]}>
         <Pressable style={styles.logoWrap} onPress={() => onNavigate?.('dashboard')}>
           {/* The exported Figma logo is the full wave-mark + wordmark, so the
               separate KAICAST text used by the prototype is no longer needed. */}
@@ -86,7 +97,7 @@ export function DesktopNav({
         </View>
 
         <View style={styles.rightCluster}>
-          <View style={styles.searchWrap}>
+          <View style={[styles.searchWrap, { width: searchWidth }]}>
             <Text style={styles.searchIcon}>⌕</Text>
             <TextInput
               placeholder="Search spots…"
@@ -96,34 +107,58 @@ export function DesktopNav({
               style={[styles.searchInput, { outlineStyle: 'none' } as object]}
             />
           </View>
-          <Pressable style={styles.iconBtn}>
-            <Text style={styles.bellIcon}>◔</Text>
-          </Pressable>
-          <Pressable style={styles.avatar} onPress={() => onNavigate?.('profile')}>
-            <Text style={styles.avatarText}>{userInitials}</Text>
-          </Pressable>
+          {signedIn ? (
+            <>
+              <Pressable style={styles.iconBtn}>
+                <Text style={styles.bellIcon}>◔</Text>
+              </Pressable>
+              <Pressable style={styles.avatar} onPress={() => onNavigate?.('profile')}>
+                <Text style={styles.avatarText}>{resolvedInitials}</Text>
+              </Pressable>
+            </>
+          ) : (
+            <>
+              <Pressable style={styles.navAuthLinkBtn} onPress={() => onNavigate?.('signin')}>
+                <Text style={styles.navAuthLinkText}>Sign in</Text>
+              </Pressable>
+              <Pressable style={styles.navAuthPrimaryBtn} onPress={() => onNavigate?.('signup')}>
+                <Text style={styles.navAuthPrimaryText}>Sign up</Text>
+              </Pressable>
+            </>
+          )}
         </View>
+      </View>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  // alignSelf:stretch overrides the page's alignItems:center so the
+  // nav fills the full viewport width regardless of the column cap
+  // applied to the content below.
   root: {
+    width: '100%',
+    alignSelf: 'stretch',
     backgroundColor: colors.bg,
     borderBottomWidth: 1,
     borderBottomColor: colors.hairline,
   },
 
   // ── Util bar ─────────────────────────────────────────────────────────
+  // Outer takes the full-width hairline; inner caps at DESKTOP_MAX_WIDTH
+  // so contents align with the page below (which is centered at that
+  // width as well).
+  utilBarOuter: {
+    borderBottomWidth: 1,
+    borderBottomColor: colors.hairline,
+  },
   utilBar: {
     height: UTIL_BAR_HEIGHT,
-    paddingHorizontal: 28,
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.hairline,
   },
   flag: {
     width: 22,
@@ -141,9 +176,12 @@ const styles = StyleSheet.create({
   utilSpacer: { flex: 1 },
 
   // ── Main nav ─────────────────────────────────────────────────────────
+  // Same outer/inner split as the util bar so the nav contents align
+  // with the page column below at every viewport width.
+  navOuter: {},
   nav: {
     height: NAV_HEIGHT,
-    paddingHorizontal: 28,
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 28,
@@ -248,5 +286,31 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.text1,
     letterSpacing: 0.5,
+  },
+  navAuthLinkBtn: {
+    paddingHorizontal: 14,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  navAuthLinkText: {
+    fontFamily: fonts.body,
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.text2,
+  },
+  navAuthPrimaryBtn: {
+    paddingHorizontal: 18,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.accent,
+    borderRadius: radius.sm,
+  },
+  navAuthPrimaryText: {
+    fontFamily: fonts.body,
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.bg,
   },
 });
