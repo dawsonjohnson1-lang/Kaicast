@@ -176,6 +176,25 @@ export function KaiCastMap({
       onMapClick?.(e.lngLat.lng, e.lngLat.lat);
     });
 
+    // Suppress tile-fetch errors from third-party raster overlays
+    // (NDFD, OWM, PacIOOS) — when a tile bbox falls outside coverage
+    // those servers return an error PNG or text body that Mapbox
+    // surfaces as a noisy "Error: ..." event. We log a single warning
+    // so dev still sees them, but stop them from bubbling to the page.
+    map.on('error', (e) => {
+      const msg = (e as { error?: Error }).error?.message ?? '';
+      if (
+        msg.toLowerCase().includes('invalid tms') ||
+        msg.toLowerCase().includes('tile') ||
+        msg.includes('AbortError')
+      ) {
+        // expected — out-of-coverage / canceled tile fetch
+        return;
+      }
+      // eslint-disable-next-line no-console
+      console.warn('[kaicast-map]', msg || e);
+    });
+
     mapRef.current = map;
     // Bump mapVersion so dependents (useMapLayers) re-evaluate now
     // that mapRef.current is non-null. Without this the ref mutation
