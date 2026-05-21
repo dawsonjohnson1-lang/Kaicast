@@ -63,6 +63,10 @@ const SCREENS: Record<RouteKey, React.ComponentType<any>> = {
 const ALL_ROUTES = Object.keys(SCREENS) as RouteKey[];
 
 const LS_KEY = 'kaicast.desktop.route';
+// Set the first time a user successfully signs in so we can distinguish
+// brand-new accounts (land on the map after sign-in for the orientation
+// tour) from returning users (land on the dashboard every time).
+const LS_RETURNING_KEY = 'kaicast.desktop.returningUser';
 
 type Frame = { route: RouteKey; params?: RouteParams };
 
@@ -84,7 +88,9 @@ function AppInner() {
         return [{ route: saved as RouteKey }];
       }
     }
-    return [{ route: 'landing' }];
+    // First visit (or cleared storage): open the map of all spots so
+    // visitors can poke around immediately — no auth wall up front.
+    return [{ route: 'spots-map' }];
   });
   const [cursor, setCursor] = React.useState(0);
 
@@ -112,13 +118,30 @@ function AppInner() {
     }
   }, [current.route]);
 
-  // After sign-in, if the signin frame had a returnTo, navigate there.
+  // After sign-in, route based on history:
+  //   - signin had a returnTo → honor it (user was bounced from a
+  //     private route)
+  //   - first-ever login on this browser → land on the spots map so
+  //     they can explore before getting the dashboard firehose
+  //   - returning user → straight to dashboard
+  // We set a localStorage flag on the first successful sign-in so the
+  // "first vs returning" distinction survives refreshes.
   React.useEffect(() => {
     if (auth.loading) return;
     if (!auth.user) return;
     if (current.route !== 'signin' && current.route !== 'signup') return;
     const returnTo = current.params?.returnTo;
-    navigate(returnTo ?? 'dashboard');
+    if (returnTo) {
+      navigate(returnTo);
+      return;
+    }
+    const isReturning = typeof window !== 'undefined'
+      ? !!window.localStorage?.getItem(LS_RETURNING_KEY)
+      : false;
+    if (typeof window !== 'undefined') {
+      window.localStorage?.setItem(LS_RETURNING_KEY, '1');
+    }
+    navigate(isReturning ? 'dashboard' : 'spots-map');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [auth.loading, auth.user]);
 

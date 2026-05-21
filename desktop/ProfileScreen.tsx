@@ -34,56 +34,50 @@ import type { NavigateFn } from './router';
 
 // ─── Mock data ────────────────────────────────────────────────────────────
 
+// Personal stats / lists / achievements are empty for every account at
+// launch. There's no users/{uid} Firestore collection yet, so we can't
+// hydrate per-user data — and showing Dawson's mock numbers to a brand
+// new user is worse than showing zero. When the user-profile collection
+// lands, these become `useUserProfile(uid)` lookups instead.
 const USER = {
-  initials: 'DJ',
-  name: 'Dawson Johnson',
-  handle: '@dawsonj',
-  location: "Mililani, O'ahu",
-  bio: 'Freediver, spearo, and ocean-data nerd. Building KaiCast.',
+  initials: '',
+  name: '',
+  handle: '',
+  location: '',
+  bio: '',
   stats: [
-    { label: 'Dives',     value: '147' },
-    { label: 'Spots',     value: '23' },
-    { label: 'Species',   value: '34' },
-    { label: 'Followers', value: '218' },
-    { label: 'Following', value: '94' },
+    { label: 'Dives',     value: '0' },
+    { label: 'Spots',     value: '0' },
+    { label: 'Species',   value: '0' },
+    { label: 'Followers', value: '0' },
+    { label: 'Following', value: '0' },
   ],
 };
 
 const TABS = ['Dashboard', 'Dive Reports', 'Friends', 'Settings'] as const;
 
 const STAT_CARDS = [
-  { icon: '🤿', value: '147', unit: '',   label: 'Dives logged' },
-  { icon: '📏', value: '110', unit: 'ft', label: 'Personal depth record' },
-  { icon: '⏱',  value: '38',  unit: 'h',  label: 'Total bottom time' },
+  { icon: '🤿', value: '0', unit: '',   label: 'Dives logged' },
+  { icon: '📏', value: '—', unit: 'ft', label: 'Personal depth record' },
+  { icon: '⏱',  value: '0', unit: 'h',  label: 'Total bottom time' },
 ];
 
-const DIVE_LIST = [
-  { spot: 'Electric Beach', meta: "O'ahu · Leeward · Apr 14, 2024 · 9:12am",      type: '🤿 Scuba',         depth: 68,  duration: 52, vis: 60, stars: 5 },
-  { spot: "Shark's Cove",   meta: "O'ahu · North Shore · Apr 12, 2024 · 7:30am",  type: '🧜 Freediving',    depth: 42,  duration: 38, vis: 48, stars: 5 },
-  { spot: 'Molokini Crater',meta: 'Maui · South · Apr 6, 2024 · 8:00am',          type: '🤿 Scuba',         depth: 110, duration: 44, vis: 80, stars: 5 },
-  { spot: 'Electric Beach', meta: "O'ahu · Leeward · Apr 4, 2024 · 6:45am",       type: '🎣 Spearfishing',  depth: 35,  duration: 62, vis: 50, stars: 5 },
-];
+const DIVE_LIST: Array<{
+  spot: string; meta: string; type: string;
+  depth: number; duration: number; vis: number; stars: number;
+}> = [];
 
-const FAVORITES = [
-  { name: 'Electric Beach',  region: "O'AHU · LEEWARD",     rating: 'excellent' as ConditionTier, vis: 56, water: 79, current: 1 },
-  { name: "Shark's Cove",    region: "O'AHU · NORTH SHORE", rating: 'great'     as ConditionTier, vis: 48, water: 77, current: 2 },
-  { name: 'Molokini Crater', region: 'MAUI · SOUTH',        rating: 'excellent' as ConditionTier, vis: 80, water: 77, current: 1 },
-];
+const FAVORITES: Array<{
+  name: string; region: string; rating: ConditionTier;
+  vis: number; water: number; current: number;
+}> = [];
 
-const SPECIES: Array<{ emoji: string; name: string; rare?: boolean }> = [
-  { emoji: '🐢', name: 'Green Turtle' },
-  { emoji: '🦈', name: 'Reef Shark' },
-  { emoji: '🐠', name: 'Reef Fish' },
-  { emoji: '🦭', name: 'Monk Seal', rare: true },
-  { emoji: '🐬', name: 'Dolphin' },
-  { emoji: '🌊', name: 'Eagle Ray' },
-  { emoji: '🐙', name: 'Octopus' },
-  { emoji: '🐋', name: 'Humpback', rare: true },
-  { emoji: '🦑', name: 'Squid' },
-  { emoji: '🐍', name: 'Moray Eel' },
-];
+const SPECIES: Array<{ emoji: string; name: string; rare?: boolean }> = [];
 
-const DIVE_REPORTS: DiveReportCardProps[] = [
+const DIVE_REPORTS: DiveReportCardProps[] = [];
+
+/* Mock reports retained as reference but excluded from the empty-state build.
+const _MOCK_REPORTS: DiveReportCardProps[] = [
   {
     date: 'Apr 14, 2024', time: '9:12 AM',
     spot: 'Electric Beach', region: "O'AHU · LEEWARD COAST",
@@ -173,33 +167,23 @@ const DIVE_REPORTS: DiveReportCardProps[] = [
     photoCount: 9, stars: 5, recommend: 'Definitely',
   },
 ];
+*/
 
 const DIVE_TYPE_FILTERS = ['All', 'Scuba', 'Freediving', 'Spearfishing', 'Snorkel'] as const;
 
-const ACHIEVEMENTS: Array<{ emoji: string; title: string; desc: string; tier?: 'gold' | 'silver' }> = [
-  { emoji: '🏆', title: 'Century Club',    desc: '100 dives logged',  tier: 'gold' },
-  { emoji: '👁',  title: 'Glass-off',       desc: '60ft+ visibility',  tier: 'gold' },
-  { emoji: '🗺️', title: 'Archipelago',     desc: '4 islands dived',    tier: 'silver' },
-  { emoji: '🧜', title: 'Breath-holder',    desc: '50 freedives',       tier: 'silver' },
-  { emoji: '🎣', title: 'Spearfisherman',   desc: '25 spear dives' },
-];
+const ACHIEVEMENTS: Array<{ emoji: string; title: string; desc: string; tier?: 'gold' | 'silver' }> = [];
 
-// 12×12 heatmap grid
-const HEATMAP = Array.from({ length: 52 }, () =>
-  Array.from({ length: 7 }, () => Math.floor(Math.random() * 5) as 0 | 1 | 2 | 3 | 4),
+// All-zeros heatmap until real dive data populates it.
+const HEATMAP: Array<Array<0 | 1 | 2 | 3 | 4>> = Array.from({ length: 52 }, () =>
+  Array.from({ length: 7 }, () => 0 as const),
 );
 
-const FORECASTER_BADGE = {
-  label: 'FORECASTER',
-  sub: 'Top 5% accuracy',
-};
+// Earned-on-demand: the Forecaster badge appears once the user's reports
+// have demonstrably good accuracy. Hidden until then.
+const FORECASTER_BADGE: { label: string; sub: string } | null = null;
 
-const PERSONAL_RECORD = {
-  label: 'PERSONAL RECORD',
-  depthFt: 110,
-  spot: 'Molokini Crater',
-  date: 'APR 6, 2024',
-};
+// Personal-record card only renders once the user has logged a dive.
+const PERSONAL_RECORD: { label: string; depthFt: number; spot: string; date: string } | null = null;
 
 // ─── Screen ───────────────────────────────────────────────────────────────
 
@@ -208,20 +192,42 @@ export interface ProfileScreenProps {
   onNavigate?: NavigateFn;
 }
 
+type EditableProfile = {
+  name: string;
+  handle: string;
+  location: string;
+  bio: string;
+};
+
 export function ProfileScreen({ activeNav = 'dashboard', onNavigate }: ProfileScreenProps) {
   const [tab, setTab] = React.useState<(typeof TABS)[number]>('Dashboard');
+  const auth = useAuth();
+
+  // Editable profile fields, lifted here so the header and the Settings
+  // tab's Account section read/write the same source of truth. Seed from
+  // the Firebase auth user once at mount; later edits live in local
+  // state until we have a users/{uid} doc to persist to.
+  const [profile, setProfile] = React.useState<EditableProfile>(() => ({
+    name: auth.user?.displayName?.trim() || USER.name,
+    handle: auth.user?.email ? `@${auth.user.email.split('@')[0]}` : USER.handle,
+    location: USER.location,
+    bio: USER.bio,
+  }));
 
   return (
     <ScrollView style={styles.page} contentContainerStyle={styles.pageContent}>
       <DesktopNav active={activeNav} onNavigate={onNavigate} />
 
       <View style={styles.maxWidth}>
-        <ProfileHeader />
+        <ProfileHeader
+          profile={profile}
+          onEditProfile={() => setTab('Settings')}
+        />
         <TabBar value={tab} onTab={setTab} />
         {tab === 'Dashboard'    ? <DashboardTabBody    onNavigate={onNavigate} /> : null}
         {tab === 'Dive Reports' ? <DiveReportsTabBody  onNavigate={onNavigate} /> : null}
         {tab === 'Friends'      ? <FriendsTabBody onNavigate={onNavigate} /> : null}
-        {tab === 'Settings'     ? <SettingsTabBody /> : null}
+        {tab === 'Settings'     ? <SettingsTabBody profile={profile} setProfile={setProfile} /> : null}
       </View>
     </ScrollView>
   );
@@ -239,14 +245,20 @@ function ComingSoon({ name }: { name: string }) {
 
 // ─── Header ───────────────────────────────────────────────────────────────
 
-function ProfileHeader() {
+function ProfileHeader({
+  profile,
+  onEditProfile,
+}: {
+  profile: EditableProfile;
+  onEditProfile?: () => void;
+}) {
   const auth = useAuth();
-  // Display name + initials come from the signed-in Firebase user when
-  // available. Other fields (handle, location, bio, stats) stay mock
-  // until we have a user-profile collection in Firestore.
-  const displayName = auth.user?.displayName?.trim() || USER.name;
+  // Display values now flow from the lifted `profile` state — edits in
+  // Settings update here live. Initials still derive from auth so they
+  // track when the user signs out/in.
+  const displayName = profile.name || USER.name;
   const displayInitials = initialsFromUser(auth.user, USER.initials);
-  const handle = auth.user?.email ? `@${auth.user.email.split('@')[0]}` : USER.handle;
+  const handle = profile.handle || USER.handle;
 
   const onSignOut = async () => {
     try { await auth.signOut(); } catch {}
@@ -254,7 +266,24 @@ function ProfileHeader() {
 
   return (
     <View style={styles.header}>
-      <Image source={{ uri: profileHeaderBg }} style={styles.headerBg} resizeMode="cover" />
+      {/* Jellyfish photo, blurred via CSS filter for the frosted-glass
+          finish. Scaled up slightly so the blur radius doesn't reveal
+          transparent edges inside the clipped header. RN Web passes
+          `filter` through; backdrop-filter doesn't make it. */}
+      <Image
+        source={{ uri: profileHeaderBg }}
+        style={[
+          styles.headerBg,
+          {
+            filter: 'blur(14px) saturate(135%) brightness(0.82)',
+            transform: [{ scale: 1.08 }],
+          } as object,
+        ]}
+        resizeMode="cover"
+      />
+      {/* Glass sheen: subtle white wash on top of the blurred photo. */}
+      <View style={styles.headerSheen} />
+      {/* Dark vignette for text contrast against the sheen. */}
       <View style={styles.headerOverlay} />
 
       <View style={styles.headerContent}>
@@ -273,10 +302,10 @@ function ProfileHeader() {
             <Text style={styles.headerName}>{displayName}</Text>
             <View style={styles.headerHandleRow}>
               <Text style={styles.headerHandle}>{handle}</Text>
-              <View style={styles.headerHandleDot} />
-              <Text style={styles.headerHandle}>{USER.location}</Text>
+              {profile.location ? <View style={styles.headerHandleDot} /> : null}
+              <Text style={styles.headerHandle}>{profile.location}</Text>
             </View>
-            <Text style={styles.headerBio}>{USER.bio}</Text>
+            <Text style={styles.headerBio}>{profile.bio}</Text>
 
             <View style={styles.headerStatsRow}>
               {USER.stats.map((s) => (
@@ -291,7 +320,7 @@ function ProfileHeader() {
               {/* On your own profile, the "follow / message" pair becomes
                   "edit / sign out". Real follow/message live on other
                   divers' profiles once that flow exists. */}
-              <Pressable style={[styles.headerBtn, styles.headerBtnPrimary]}>
+              <Pressable style={[styles.headerBtn, styles.headerBtnPrimary]} onPress={onEditProfile}>
                 <Text style={styles.headerBtnPrimaryText}>Edit profile</Text>
               </Pressable>
               <Pressable style={styles.headerBtn} onPress={onSignOut}>
@@ -301,23 +330,29 @@ function ProfileHeader() {
           </View>
         </View>
 
-        <View style={styles.headerRight}>
-          <View style={styles.forecasterBadge}>
-            <Text style={styles.forecasterEmoji}>🔮</Text>
-            <Text style={styles.forecasterLabel}>{FORECASTER_BADGE.label}</Text>
-            <Text style={styles.forecasterSub}>{FORECASTER_BADGE.sub}</Text>
-          </View>
+        {FORECASTER_BADGE != null || PERSONAL_RECORD != null ? (
+          <View style={styles.headerRight}>
+            {FORECASTER_BADGE != null ? (
+              <View style={styles.forecasterBadge}>
+                <Text style={styles.forecasterEmoji}>🔮</Text>
+                <Text style={styles.forecasterLabel}>{FORECASTER_BADGE.label}</Text>
+                <Text style={styles.forecasterSub}>{FORECASTER_BADGE.sub}</Text>
+              </View>
+            ) : null}
 
-          <View style={styles.prCard}>
-            <Text style={styles.prLabel}>{PERSONAL_RECORD.label}</Text>
-            <View style={styles.prValueRow}>
-              <Text style={styles.prValue}>{PERSONAL_RECORD.depthFt}</Text>
-              <Text style={styles.prUnit}>ft</Text>
-            </View>
-            <Text style={styles.prSpot}>{PERSONAL_RECORD.spot}</Text>
-            <Text style={styles.prDate}>{PERSONAL_RECORD.date}</Text>
+            {PERSONAL_RECORD != null ? (
+              <View style={styles.prCard}>
+                <Text style={styles.prLabel}>{PERSONAL_RECORD.label}</Text>
+                <View style={styles.prValueRow}>
+                  <Text style={styles.prValue}>{PERSONAL_RECORD.depthFt}</Text>
+                  <Text style={styles.prUnit}>ft</Text>
+                </View>
+                <Text style={styles.prSpot}>{PERSONAL_RECORD.spot}</Text>
+                <Text style={styles.prDate}>{PERSONAL_RECORD.date}</Text>
+              </View>
+            ) : null}
           </View>
-        </View>
+        ) : null}
       </View>
     </View>
   );
@@ -559,18 +594,7 @@ type Friend = {
   homeSpot?: string;
 };
 
-const FRIENDS_LIST: Friend[] = [
-  { initials: 'KM', name: 'Kai M.',     handle: '@kaim',     location: "O'AHU · LEEWARD",   diveCount: 312, mutualSpots: 8, lastDiveSpot: 'Electric Beach', lastDiveWhen: 'NOW', isOnline: true,  homeSpot: 'Electric Beach' },
-  { initials: 'LS', name: 'Leilani S.', handle: '@leis',     location: 'MAUI · WEST',       diveCount: 198, mutualSpots: 5, lastDiveSpot: 'Molokini',       lastDiveWhen: '14M', isOnline: true,  homeSpot: 'Molokini Crater' },
-  { initials: 'MH', name: 'Marcus H.',  handle: '@marcush',  location: "O'AHU · NORTH",     diveCount: 247, mutualSpots: 7, lastDiveSpot: "Shark's Cove",   lastDiveWhen: '32M', isOnline: true,  homeSpot: "Shark's Cove" },
-  { initials: 'AT', name: 'Alana T.',   handle: '@alanat',   location: 'BIG ISLAND · KONA', diveCount: 421, mutualSpots: 4, lastDiveSpot: 'Kealakekua',     lastDiveWhen: '1H' },
-  { initials: 'RP', name: 'Ryan P.',    handle: '@ryanp',    location: "O'AHU · LEEWARD",   diveCount: 156, mutualSpots: 6, lastDiveSpot: 'Electric Beach', lastDiveWhen: '3H' },
-  { initials: 'NO', name: 'Nina O.',    handle: '@ninao',    location: "O'AHU · EAST",      diveCount: 89,  mutualSpots: 3, lastDiveSpot: 'Hanauma Bay',     lastDiveWhen: '6H' },
-  { initials: 'TB', name: 'Tina B.',    handle: '@tinab',    location: 'MAUI · SOUTH',      diveCount: 134, mutualSpots: 4, lastDiveSpot: 'Molokini',       lastDiveWhen: '1D' },
-  { initials: 'DC', name: 'Devin C.',   handle: '@devinc',   location: "O'AHU · LEEWARD",   diveCount: 67,  mutualSpots: 5, lastDiveSpot: 'Electric Beach', lastDiveWhen: '2D' },
-  { initials: 'JK', name: 'Jordan K.',  handle: '@jordank',  location: "KAUA'I · SOUTH",    diveCount: 102, mutualSpots: 2, lastDiveSpot: 'Tunnels Beach',   lastDiveWhen: '4D' },
-  { initials: 'SW', name: 'Sam W.',     handle: '@samw',     location: 'MAUI · NORTH',      diveCount: 78,  mutualSpots: 2, lastDiveSpot: 'Honolua Bay',     lastDiveWhen: '5D' },
-];
+const FRIENDS_LIST: Friend[] = [];
 
 type PendingReq = {
   direction: 'incoming' | 'outgoing';
@@ -581,11 +605,7 @@ type PendingReq = {
   reason: string;
 };
 
-const PENDING_REQUESTS: PendingReq[] = [
-  { direction: 'incoming', initials: 'MO', name: 'Makoa O.',   handle: '@makoa',  mutualFriends: 4, reason: 'Logged 6 dives at Electric Beach this month' },
-  { direction: 'incoming', initials: 'PV', name: 'Pua V.',     handle: '@puav',   mutualFriends: 2, reason: 'Mutual friend with Kai M.' },
-  { direction: 'outgoing', initials: 'CW', name: 'Cass W.',    handle: '@cassw',  mutualFriends: 1, reason: 'Sent 3 days ago' },
-];
+const PENDING_REQUESTS: PendingReq[] = [];
 
 type Suggested = {
   initials: string;
@@ -596,14 +616,7 @@ type Suggested = {
   mutualFriends: number;
 };
 
-const SUGGESTED: Suggested[] = [
-  { initials: 'HK', name: 'Hana K.',   location: "O'AHU · LEEWARD",   reason: 'Dives at 5 of your spots',          mutualSpots: 5, mutualFriends: 3 },
-  { initials: 'NM', name: 'Noa M.',    location: "O'AHU · LEEWARD",   reason: 'Logs at Electric Beach weekly',     mutualSpots: 4, mutualFriends: 2 },
-  { initials: 'LT', name: 'Liana T.',  location: 'MAUI · SOUTH',      reason: 'Mutual friend with Leilani S.',     mutualSpots: 2, mutualFriends: 4 },
-  { initials: 'BK', name: 'Brody K.',  location: "O'AHU · NORTH",     reason: 'Top contributor at Shark\'s Cove',  mutualSpots: 3, mutualFriends: 1 },
-  { initials: 'IM', name: 'Iolana M.', location: 'BIG ISLAND · KONA', reason: 'Forecaster · 92% accuracy',         mutualSpots: 2, mutualFriends: 2 },
-  { initials: 'TR', name: 'Tomo R.',   location: "KAUA'I · NORTH",    reason: 'Snorkel guide at Tunnels',          mutualSpots: 1, mutualFriends: 1 },
-];
+const SUGGESTED: Suggested[] = [];
 
 const FRIEND_VIEWS = ['All friends', 'Pending', 'Discover'] as const;
 
@@ -924,19 +937,50 @@ const CONNECTED_ACCOUNTS = [
   { id: 'shearwater', name: 'Shearwater Cloud', status: 'available'  as const, note: 'Import detailed dive computer logs' },
 ];
 
-function SettingsTabBody() {
+function SettingsTabBody({
+  profile,
+  setProfile,
+}: {
+  profile: EditableProfile;
+  setProfile: React.Dispatch<React.SetStateAction<EditableProfile>>;
+}) {
   const [s, setS] = React.useState<SettingsState>(DEFAULT_SETTINGS);
   const set = <K extends keyof SettingsState>(k: K, v: SettingsState[K]) => setS((p) => ({ ...p, [k]: v }));
+  const auth = useAuth();
+  const setField = <K extends keyof EditableProfile>(k: K, v: EditableProfile[K]) =>
+    setProfile((p) => ({ ...p, [k]: v }));
 
   return (
     <View style={styles.body}>
       <View style={styles.bodyMain}>
         <SettingsSection title="Account" subtitle="Your identity on KaiCast">
-          <SettingsRow label="Display name" value="Dawson Johnson" />
-          <SettingsRow label="Handle" value="@dawsonj" />
-          <SettingsRow label="Email" value="dawson@kaicast.com" />
-          <SettingsRow label="Password" value="Last changed 6 months ago" actionLabel="Change" />
-          <SettingsRow label="Location" value="Mililani, O'ahu" />
+          <EditableSettingsRow
+            label="Display name"
+            value={profile.name}
+            placeholder="Your name"
+            onSave={(v) => setField('name', v)}
+          />
+          <EditableSettingsRow
+            label="Handle"
+            value={profile.handle}
+            placeholder="@yourhandle"
+            onSave={(v) => setField('handle', v.startsWith('@') ? v : `@${v}`)}
+          />
+          <EditableSettingsRow
+            label="Location"
+            value={profile.location}
+            placeholder="City, Island"
+            onSave={(v) => setField('location', v)}
+          />
+          <EditableSettingsRow
+            label="Bio"
+            value={profile.bio}
+            placeholder="Tell other divers about yourself"
+            multiline
+            onSave={(v) => setField('bio', v)}
+          />
+          <SettingsRow label="Email" value={auth.user?.email ?? '—'} />
+          <SettingsRow label="Password" value="Last changed —" actionLabel="Change" />
           <SettingsRow label="Time zone" value="Pacific/Honolulu (UTC−10)" isLast />
         </SettingsSection>
 
@@ -1204,19 +1248,82 @@ function SettingsRow({
   label,
   value,
   actionLabel,
+  onAction,
   isLast,
 }: {
   label: string;
   value?: string;
   actionLabel?: string;
+  onAction?: () => void;
   isLast?: boolean;
 }) {
   return (
     <View style={[styles.settingsRow, !isLast && styles.settingsRowDivider]}>
       <Text style={styles.settingsRowLabel}>{label}</Text>
       {value ? <Text style={styles.settingsRowValue}>{value}</Text> : null}
-      <Pressable style={styles.settingsRowAction}>
-        <Text style={styles.settingsRowActionText}>{actionLabel ?? 'Edit'}</Text>
+      {onAction || actionLabel ? (
+        <Pressable style={styles.settingsRowAction} onPress={onAction}>
+          <Text style={styles.settingsRowActionText}>{actionLabel ?? 'Edit'}</Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
+function EditableSettingsRow({
+  label,
+  value,
+  placeholder,
+  multiline,
+  onSave,
+  isLast,
+}: {
+  label: string;
+  value: string;
+  placeholder?: string;
+  multiline?: boolean;
+  onSave: (next: string) => void;
+  isLast?: boolean;
+}) {
+  const [editing, setEditing] = React.useState(false);
+  const [draft, setDraft] = React.useState(value);
+
+  // Keep the draft in sync if the underlying value changes from
+  // elsewhere (e.g. another field on the same profile updates).
+  React.useEffect(() => { if (!editing) setDraft(value); }, [value, editing]);
+
+  const startEdit = () => { setDraft(value); setEditing(true); };
+  const cancel = () => { setDraft(value); setEditing(false); };
+  const save = () => { onSave(draft.trim()); setEditing(false); };
+
+  if (!editing) {
+    return (
+      <View style={[styles.settingsRow, !isLast && styles.settingsRowDivider]}>
+        <Text style={styles.settingsRowLabel}>{label}</Text>
+        <Text style={styles.settingsRowValue}>{value || placeholder || '—'}</Text>
+        <Pressable style={styles.settingsRowAction} onPress={startEdit}>
+          <Text style={styles.settingsRowActionText}>Edit</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  return (
+    <View style={[styles.settingsRow, !isLast && styles.settingsRowDivider]}>
+      <Text style={styles.settingsRowLabel}>{label}</Text>
+      <TextInput
+        value={draft}
+        onChangeText={setDraft}
+        placeholder={placeholder}
+        placeholderTextColor={colors.text3}
+        multiline={multiline}
+        style={[styles.settingsRowInput, multiline && styles.settingsRowInputMultiline] as object[]}
+      />
+      <Pressable style={styles.settingsRowAction} onPress={cancel}>
+        <Text style={[styles.settingsRowActionText, { color: colors.text3 }]}>Cancel</Text>
+      </Pressable>
+      <Pressable style={styles.settingsRowAction} onPress={save}>
+        <Text style={styles.settingsRowActionText}>Save</Text>
       </Pressable>
     </View>
   );
@@ -1523,9 +1630,20 @@ const styles = StyleSheet.create({
     height: '100%',
     backgroundColor: '#0a3a4d',
   },
+  headerSheen: {
+    ...StyleSheet.absoluteFillObject,
+    // Translucent white wash that, layered over the blurred jellyfish
+    // image, reads as the front face of frosted glass.
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.14)',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.06)',
+  },
   headerOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(12,16,21,0.55)',
+    // Soft dark vignette over the glass for text contrast.
+    backgroundColor: 'rgba(12,16,21,0.32)',
   },
   headerContent: {
     flex: 1,
@@ -2894,6 +3012,22 @@ const styles = StyleSheet.create({
     color: colors.text2,
   },
   settingsRowSpacer: { flex: 1 },
+  settingsRowInput: {
+    flex: 1,
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: colors.text1,
+    backgroundColor: colors.surface0,
+    borderWidth: 1,
+    borderColor: colors.hairlineStrong,
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  settingsRowInputMultiline: {
+    minHeight: 64,
+    textAlignVertical: 'top',
+  },
   settingsRowAction: {
     paddingHorizontal: 10,
     paddingVertical: 4,

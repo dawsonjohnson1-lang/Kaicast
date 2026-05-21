@@ -41,8 +41,10 @@ export type NavigateFn = (route: RouteKey, params?: RouteParams) => void;
 
 // Routes that require a signed-in user. Anonymous visitors hitting one
 // of these get redirected to /signin with a returnTo back to where they
-// were trying to go.
+// were trying to go. Dashboard is gated too — the personalized stats /
+// favorites view only makes sense with an account.
 export const PRIVATE_ROUTES: ReadonlySet<RouteKey> = new Set([
+  'dashboard',
   'profile',
   'my-dives',
   'log-dive',

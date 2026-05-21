@@ -8,6 +8,7 @@ import {
 } from './tokens';
 import { DesktopNav } from './components/DesktopNav';
 import { KaiCastMap, HAWAII_CENTER, HAWAII_ZOOM, type MapMarker } from './components/maps/KaiCastMap';
+import { useBreakpoint, pick } from './hooks/useBreakpoint';
 import type { NavigateFn } from './router';
 
 // Subset of known Hawaii dive spots — used by the Step 01 map picker.
@@ -76,34 +77,44 @@ interface FormState {
   shareToCommunity: boolean;
 }
 
+// Blank-slate form for a brand-new dive entry. Today's date is filled
+// at first render (todayString below); everything else is empty so the
+// user is never staring at someone else's mock values when they sit
+// down to log.
+function todayString(): string {
+  const d = new Date();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${mm} / ${dd} / ${d.getFullYear()}`;
+}
+
 const INITIAL_FORM: FormState = {
   diveType: 'Scuba',
-  spot: 'Electric Beach',
-  date: '04 / 15 / 2024',
-  entryTime: '02 : 30 PM',
-  exitTime: '03 : 28 PM',
+  spot: '',
+  date: todayString(),
+  entryTime: '',
+  exitTime: '',
   buddy: '',
   diveSiteType: 'Shore dive',
   depthMax: '',
   bottomTime: '',
   depthAvg: '',
-  visibility: 56,
-  waterTemp: 79,
-  airTemp: 82,
+  visibility: 0,
+  waterTemp: 0,
+  airTemp: 0,
   currentStrength: 'None',
   surfaceConditions: 'Calm',
   surgeSwell: 'None',
-  startPressure: 3000,
-  endPressure: 500,
+  startPressure: 0,
+  endPressure: 0,
   gasMix: 'Air (21% O₂)',
   wetsuitThickness: '3mm full',
-  weightUsed: 8,
+  weightUsed: 0,
   thermoclinePresent: false,
-  marineLifeSelected: ['Green Turtle', 'Reef Fish'],
+  marineLifeSelected: [],
   sightingNotes: '',
-  notes:
-    "Crystal clear today — trades dropped out around noon and the outflow did its thing. Entry at the stairs was easy, viz opened up immediately. Saw a hawksbill at the cleaning station around 35ft, didn't spook. Current was nothing, tide window was perfect…",
-  ratingStars: 4,
+  notes: '',
+  ratingStars: 0,
   recommend: 'Definitely',
   reefHealth: 'Healthy',
   shareToCommunity: true,
@@ -176,6 +187,10 @@ export interface LogDiveScreenProps {
 }
 
 export function LogDiveScreen({ activeNav = 'log', onNavigate }: LogDiveScreenProps) {
+  const bp = useBreakpoint();
+  const sidePad = pick(bp, 28, 16);
+  const colGap = pick(bp, 28, 16);
+  const leftColW = pick(bp, 323, 260);
   const [published, setPublished] = React.useState(false);
   const [form, setForm] = React.useState<FormState>(INITIAL_FORM);
   const [draftSavedAt, setDraftSavedAt] = React.useState<number | null>(null);
@@ -204,14 +219,16 @@ export function LogDiveScreen({ activeNav = 'log', onNavigate }: LogDiveScreenPr
             onNavigate={onNavigate}
           />
         ) : (
-          <View style={styles.body}>
-            <LeftPreview
-              form={form}
-              draftSavedAt={draftSavedAt}
-              onPublish={() => setPublished(true)}
-              onSaveDraft={() => setDraftSavedAt(Date.now())}
-              onShareToggle={() => update('shareToCommunity', !form.shareToCommunity)}
-            />
+          <View style={[styles.body, { paddingHorizontal: sidePad, gap: colGap }]}>
+            <View style={{ width: leftColW }}>
+              <LeftPreview
+                form={form}
+                draftSavedAt={draftSavedAt}
+                onPublish={() => setPublished(true)}
+                onSaveDraft={() => setDraftSavedAt(Date.now())}
+                onShareToggle={() => update('shareToCommunity', !form.shareToCommunity)}
+              />
+            </View>
             <RightForm form={form} update={update} />
           </View>
         )}
@@ -1426,7 +1443,7 @@ const styles = StyleSheet.create({
 
   // ── Left preview ──
   leftCol: {
-    width: 323,
+    // Width set by responsive wrapper in LogDiveScreen.
     gap: 16,
   },
   previewSectionLabel: {
