@@ -25,7 +25,7 @@ export function FeaturedSpotCard({ spot, onPress }: Props) {
   const ratingLabel = RATING_LABELS[rating];
   return (
     <Pressable onPress={onPress} style={styles.outer}>
-      <SpotCover seed={spot.id} imageSource={photo} rounded={radius.xl} style={styles.cover}>
+      <SpotCover seed={spot.id} lat={spot.lat} lon={spot.lon} imageSource={photo} rounded={radius.xl} style={styles.cover}>
         <View style={styles.body}>
           <View style={styles.topRow}>
             <View style={styles.bestPill}>

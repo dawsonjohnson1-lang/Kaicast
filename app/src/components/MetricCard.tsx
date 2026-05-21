@@ -9,12 +9,17 @@ type Props = {
   sub?: string;
   style?: ViewStyle;
   children?: React.ReactNode;
+  /** Top-right icon, e.g. a small SVG glyph for the metric type. */
+  icon?: React.ReactNode;
 };
 
-export function MetricCard({ label, value, unit, sub, style, children }: Props) {
+export function MetricCard({ label, value, unit, sub, style, children, icon }: Props) {
   return (
     <View style={[styles.card, style]}>
-      <Text style={typography.caption}>{label}</Text>
+      <View style={styles.headerRow}>
+        <Text style={typography.caption}>{label}</Text>
+        {icon ? <View style={styles.iconWrap}>{icon}</View> : null}
+      </View>
       <View style={styles.row}>
         <Text style={typography.metric}>{value}</Text>
         {unit ? <Text style={styles.unit}>{unit}</Text> : null}
@@ -34,6 +39,8 @@ const styles = StyleSheet.create({
     minHeight: 120,
     justifyContent: 'space-between',
   },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  iconWrap: { marginLeft: spacing.sm },
   row: { flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: spacing.sm },
   unit: {
     ...typography.h3,

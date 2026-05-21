@@ -1122,6 +1122,18 @@ function generateSnorkelRating({
   rainLast24hMM = 0,
   crowdOverride = null,
 
+  // Shelter signals from the abyss visibility model. Used to discount
+  // the raw wind/swell penalties when the spot is geographically
+  // protected (Hanauma's headland, Honaunau cove, etc).
+  //   chopMultiplier   0.0..1.0  — how much surface chop reaches the
+  //                                spot (lower = less chop = more
+  //                                sheltered). Defaults to 1 (fully
+  //                                exposed) when unknown.
+  //   exposureFactor   0.0..1.0  — how much open-ocean swell reaches
+  //                                the spot. Same convention.
+  chopMultiplier = 1,
+  exposureFactor = 1,
+
   // Future/optional: per-spot behaviour + meta
   spotContext = null, // { runoffSensitivity, maxCleanSwellFt, hardNoGoSwellFt, coast }
   jellyfishWarning = false, // from evaluateJellyfishAndNightDive
@@ -1149,31 +1161,56 @@ function generateSnorkelRating({
   let score = 100;
   const details = {};
 
-  // Visibility
+  // Visibility — continuous penalty so an 11 m and 14 m reading
+  // aren't both flat at −10. 20 m+ is full credit; 5 m is −30; <2 m
+  // floors at −40.
   if (visibilityMeters == null) {
-    score -= 15; details.vis = -15;
-  } else if (visibilityMeters < 5) { score -= 40; details.vis = -40; }
-  else if (visibilityMeters < 10) { score -= 25; details.vis = -25; }
-  else if (visibilityMeters < 15) { score -= 10; details.vis = -10; }
-  else details.vis = 0;
-
-  // Wind
-  if (windKnots > 25) { score -= 50; details.wind = -50; }
-  else if (windKnots > 20) { score -= 40; details.wind = -40; }
-  else if (windKnots > 15) { score -= 25; details.wind = -25; }
-  else if (windKnots > 10) { score -= 10; details.wind = -10; }
-  else details.wind = 0;
-
-  // Generic swell penalties
-  if (swellFeet == null) {
-    // Missing swell → pessimistic penalty rather than assuming calm.
-    score -= 15;
-    details.swellMissing = -15;
+    score -= 12; details.vis = -12;
   } else {
-    if (swellFeet > 7) { score -= 35; details.swell = -35; }
-    else if (swellFeet > 5) { score -= 25; details.swell = -25; }
-    else if (swellFeet > 3.5) { score -= 15; details.swell = -15; }
-    else details.swell = 0;
+    const visPenalty = visibilityMeters >= 20 ? 0
+      : visibilityMeters >= 5 ? Math.round((20 - visibilityMeters) * 2)
+      : 30 + Math.min(10, Math.round((5 - visibilityMeters) * 4));
+    if (visPenalty > 0) {
+      score -= visPenalty;
+      details.vis = -visPenalty;
+    } else {
+      details.vis = 0;
+    }
+  }
+
+  // Wind — continuous (wind − 8) × 1.8, capped at 32. Then scale by
+  // how much chop actually reaches the spot: a fully sheltered cove
+  // (chopMultiplier ≤ 0.6) keeps ~50% of the penalty; an exposed
+  // headland (chopMultiplier ≥ 0.9) keeps ~95%. This is the missing
+  // ingredient that was crushing sheltered Hawaiian spots at normal
+  // trade-wind speeds.
+  const rawWindPenalty = Math.max(0, Math.min(32, (windKnots - 8) * 1.8));
+  const shelterScale = 0.5 + 0.5 * Math.max(0, Math.min(1, (chopMultiplier - 0.4) / 0.6));
+  const windPenalty = Math.round(rawWindPenalty * shelterScale);
+  if (windPenalty > 0) {
+    score -= windPenalty;
+    details.wind = -windPenalty;
+  } else {
+    details.wind = 0;
+  }
+
+  // Generic swell penalties — likewise continuous, and scaled by the
+  // headland-protected exposure factor. Caller is expected to already
+  // be passing effectiveSwellFt (post-exposure), but we still scale
+  // here as a safety net for any path that forgets.
+  if (swellFeet == null) {
+    score -= 12;
+    details.swellMissing = -12;
+  } else {
+    const rawSwellPenalty = swellFeet <= 2 ? 0
+      : Math.min(35, Math.round((swellFeet - 2) * 6));
+    const swellPenalty = Math.round(rawSwellPenalty * Math.max(0.35, Math.min(1, exposureFactor)));
+    if (swellPenalty > 0) {
+      score -= swellPenalty;
+      details.swell = -swellPenalty;
+    } else {
+      details.swell = 0;
+    }
   }
 
   // Spot-specific swell tolerance (optional)
@@ -1444,6 +1481,9 @@ function generateSnorkelRating({
 
   return {
     rating,
+    // Uppercase label the client surfaces directly as ratingLabel
+    // (RATING_LABELS map on the app side keys off this).
+    label: String(rating).toUpperCase(),
     reason,
     cautionNote,
     score,

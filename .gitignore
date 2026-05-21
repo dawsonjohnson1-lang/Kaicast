@@ -137,3 +137,63 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# ── Secrets — NEVER commit ──────────────────────────────────────────
+# Firebase service account JSONs (full admin access — treat like passwords)
+*firebase-adminsdk*.json
+*service-account*.json
+# Apple Sign in with Apple / APNs private keys
+*.p8
+# Expo / build local state
+.expo/
+.expo-shared/
+# Claude Code / personal IDE state
+.claude/
+.local-strays/
+# macOS noise
+.DS_Store
+**/.DS_Store
+
+# ── Scratch / mirrored copies of the project tree ────────────────────
+# Repo-root scratch entry & re-exports — only app/App.tsx is real.
+/App.tsx
+/KaiCast.tsx
+app/KaiCast.tsx
+# Mirrored / duplicated subtrees from local backups
+/Kaicast/
+app/app/
+# Adobe XD design exports — keep in source-of-truth, not in repo
+xd designs - 04/
+app/assets/xd designs - 04/
+
+# Figma raw S3 originals — high-res bitmaps re-downloaded by
+# scripts/figma-export-assets.mjs. The rendered PNGs and _manifest.json
+# alongside them stay committed; only the _raw/ subfolders are excluded.
+app/assets/figma-export/**/_raw/
+
+# Adobe XD / Figma design source — keep in source-of-truth, not repo.
+# These were dropped into app/assets/ but aren't referenced by code
+# (the imports use the lowercase-dashed counterparts in app/src/assets/).
+app/assets/Apple-Icon.svg
+app/assets/Blurry-jellyfish.png
+app/assets/Clip path group*.svg
+app/assets/Dashboard.png
+app/assets/Dirrect-sunlight.svg
+app/assets/Diver Background*.jpg
+app/assets/Diver-background.jpg
+app/assets/Google-icon.svg
+app/assets/Group *.svg
+app/assets/Layer_1.svg
+app/assets/Runoff*.png
+app/assets/Runoff*.svg
+app/assets/Swell*.svg
+app/assets/Tide*.svg
+app/assets/Wave-height.svg
+app/assets/facebook-icon.svg
+app/assets/swell circle.*
+app/assets/tide circle.*
+app/assets/tide.svg
+app/assets/wind.svg
+
+# Repo-root tsconfig — accidental; real one lives at app/tsconfig.json
+/tsconfig.json

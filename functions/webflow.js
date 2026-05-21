@@ -466,4 +466,4 @@ async function pushAllReportsToWebflow({ reports }) {
   logger.info("Webflow push finished", { reports: reports.length });
 }
 
-module.exports = { pushAllReportsToWebflow };
+module.exports = { pushAllReportsToWebflow, listAllItems };

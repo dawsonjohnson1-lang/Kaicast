@@ -1,0 +1,110 @@
+rules_version = '2';
+
+// Kaicast Firestore security rules.
+//   - users/{uid}      — readable by anyone, writable only by the
+//                        authenticated owner
+//   - diveLogs/{logId} — readable by anyone (privacy filtering is
+//                        enforced client-side via the privacy field
+//                        for now), creatable by the authed owner,
+//                        updatable / deletable only by the owner
+//   - spots/{spotId}   — readable by anyone, writable only by
+//                        server-side admin (seed script)
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{uid} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == uid;
+
+      // Per-user favorites subcollection: users/{uid}/favorites/{spotId}
+      // Public read (for follower-style "their favorite spots" UI later)
+      // but only the owner can write.
+      match /favorites/{spotId} {
+        allow read: if true;
+        allow write: if request.auth != null && request.auth.uid == uid;
+      }
+
+      // Following: users/{uid}/following/{otherUid}
+      // Public read so anyone can see who I follow (social graph is
+      // intentionally open). Only the owner of this side of the edge
+      // can write — i.e. I can only manage my own following list.
+      match /following/{otherUid} {
+        allow read: if true;
+        allow write: if request.auth != null && request.auth.uid == uid;
+      }
+
+      // Followers: users/{uid}/followers/{otherUid}
+      // Public read. The follower (otherUid) is the one who writes
+      // their own entry into my followers when they follow me — the
+      // doc id must equal request.auth.uid so nobody can fabricate
+      // followers for someone else.
+      match /followers/{otherUid} {
+        allow read: if true;
+        allow write: if request.auth != null && request.auth.uid == otherUid;
+      }
+
+      // Push device tokens: users/{uid}/devices/{tokenId}
+      // Owner-only read AND write — push tokens are sensitive enough
+      // that we don't want them publicly readable.
+      match /devices/{tokenId} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
+    }
+
+    // diveLogs/{logId} is the canonical dive_observation. Writes are
+    // server-only (via the submitDiveLog callable, which uses Admin
+    // SDK and bypasses these rules). Reads are restricted so a buggy
+    // or malicious client can't scrape the full corpus:
+    //   - the authenticated author of the log, OR
+    //   - any log a guide has reviewed and explicitly verified
+    //     (verified_by_guide != null). Public community feed (when
+    //     it ships) gets a separate `public: true` flag + rule.
+    match /diveLogs/{logId} {
+      allow read: if request.auth != null
+                  && (request.auth.uid == resource.data.uid
+                      || resource.data.verified_by_guide != null);
+      allow write: if false;
+    }
+
+    // Hourly per-spot snapshot doc. Public read so the client app
+    // can render without an auth round-trip. Writes are server-only.
+    match /kaicast_reports/{reportId} {
+      allow read:  if true;
+      allow write: if false;
+    }
+
+    // Rolling community-observed conditions overlay per spot.
+    // Updated transactionally by submitDiveLog. Public read.
+    match /community_overlays/{spotId} {
+      allow read:  if true;
+      allow write: if false;
+    }
+
+    // Per-spot calibration bias offsets (server-managed by future
+    // nightly job). Public read so the client can show "model
+    // calibration: ±2 ft at this spot" later.
+    match /abyss_calibration/{spotId} {
+      allow read:  if true;
+      allow write: if false;
+    }
+
+    // Per-spot daily rollup stats. Server-managed, public read.
+    match /spot_stats/{spotId}/{document=**} {
+      allow read:  if true;
+      allow write: if false;
+    }
+
+    // abyss_diver_reports is deprecated and drained
+    // (scripts/drain-abyss-diver-reports.mjs). diveLogs now carries
+    // deltas + predicted_at_time inline. Rule kept as a tripwire so
+    // anything inadvertently re-creating the collection is denied.
+    match /abyss_diver_reports/{document=**} {
+      allow read:  if false;
+      allow write: if false;
+    }
+
+    match /spots/{spotId} {
+      allow read: if true;
+      allow write: if false;
+    }
+  }
+}

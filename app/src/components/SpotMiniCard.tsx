@@ -21,6 +21,8 @@ export function SpotMiniCard({ spot, onPress, width }: Props) {
     <Pressable onPress={onPress} style={[styles.card, width ? { width } : null]}>
       <SpotCover
         seed={spot.id}
+        lat={spot.lat}
+        lon={spot.lon}
         imageSource={photo}
         rounded={radius.md}
         style={styles.cover}

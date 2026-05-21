@@ -16,6 +16,9 @@ export type Spot = {
   imageUrl?: string;
   imageSource?: ImageSourcePropType;
   coverColor?: string;
+  description?: string;
+  entryExit?: string;
+  marineLife?: readonly string[];
 };
 
 export type ConditionAlert = {

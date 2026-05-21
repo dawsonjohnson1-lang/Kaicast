@@ -1,70 +1,175 @@
-import React, { useState } from 'react';
-import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { View, Text, Pressable, StyleSheet, Image } from 'react-native';
+import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
+import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
-import Svg, { Circle, Path } from 'react-native-svg';
 import { useNavigation } from '@react-navigation/native';
+import * as Location from 'expo-location';
 
 import { Screen } from '@/components/Screen';
 import { AppBar } from '@/components/AppBar';
 import { Icon } from '@/components/Icon';
+import { SpotMap } from '@/components/Map';
+import { satelliteUrl } from '@/api/satellite';
 import { colors, radius, spacing, typography, RATING_COLORS, RATING_LABELS } from '@/theme';
-import { exploreSpots } from '@/api/mockData';
 import { useAuth } from '@/hooks/useAuth';
+import { useSpots } from '@/hooks/useSpots';
 import type { RootNav } from '@/navigation/types';
+import type { Spot } from '@/types';
 
 type Filter = 'Dive Spots' | 'Favorite Spots';
 const FILTERS: Filter[] = ['Dive Spots', 'Favorite Spots'];
+const SNAP_POINTS = ['10%', '55%'];
+
+// Haversine great-circle distance between two lat/lon points in miles.
+function distanceMiles(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 3958.8;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+type ExploreSpot = Spot & { distMi?: number };
 
 export function ExploreScreen() {
   const nav = useNavigation<RootNav>();
   const { user } = useAuth();
+  const { spots: allSpots } = useSpots();
   const [filter, setFilter] = useState<Filter>('Dive Spots');
+  const [origin, setOrigin] = useState<{ lat: number; lon: number } | null>(null);
+  // When the user taps a cluster badge, focus the map on just those
+  // spot ids — re-fits the viewport to that subset so they spread
+  // apart visually. Null means "show every spot".
+  const [focusedIds, setFocusedIds] = useState<string[] | null>(null);
+  const sheetRef = useRef<BottomSheet>(null);
+  // Sheet's top-edge Y position (px from screen top). Tracks the sheet
+  // through drag gestures and snap animations so the FAB above it can
+  // ride along instead of staying pinned to a static % of viewport.
+  const sheetTopY = useSharedValue(0);
+  const fabAnimStyle = useAnimatedStyle(() => ({
+    // FAB sits 16 px above the sheet's top edge; translateY targets
+    // the FAB's top so the bottom lands sheetTopY - 16.
+    transform: [{ translateY: sheetTopY.value - 60 }],
+  }));
   const initials = (user?.name ?? 'D').split(' ').map((s) => s[0]).join('').slice(0, 2);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') return;
+        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        if (!cancelled) setOrigin({ lat: pos.coords.latitude, lon: pos.coords.longitude });
+      } catch {
+        // Permission denied or location unavailable — list stays unsorted, no distance shown.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const sortedSpots: ExploreSpot[] = useMemo(() => {
+    if (!origin) return allSpots;
+    return [...allSpots]
+      .map((s) => ({ ...s, distMi: distanceMiles(origin.lat, origin.lon, s.lat, s.lon) }))
+      .sort((a, b) => (a.distMi ?? 0) - (b.distMi ?? 0));
+  }, [origin, allSpots]);
+
+  // Spots actually drawn on the map — full set or the focused subset.
+  const mapSpots = useMemo(() => {
+    if (!focusedIds) return allSpots;
+    const ids = new Set(focusedIds);
+    return allSpots.filter((s) => ids.has(s.id));
+  }, [allSpots, focusedIds]);
+
+  // FAB actions: focus on closest 5 spots to the user, reset, expand list.
+  const onLocateMe = () => {
+    if (!origin) return;
+    const NEAR_COUNT = 5;
+    const ids = [...allSpots]
+      .map((s) => ({ id: s.id, d: distanceMiles(origin.lat, origin.lon, s.lat, s.lon) }))
+      .sort((a, b) => a.d - b.d)
+      .slice(0, NEAR_COUNT)
+      .map((x) => x.id);
+    if (ids.length) setFocusedIds(ids);
+  };
+  const onShowAll = () => setFocusedIds(null);
 
   return (
     <Screen scroll={false} padding={0}>
-      <View style={styles.mapWrap}>
+      <View style={StyleSheet.absoluteFill}>
         <LinearGradient
           colors={['#04111e', '#062138', '#04111e']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={StyleSheet.absoluteFill}
         />
-        <View style={styles.appBarPad}>
+        <SpotMap
+          spots={mapSpots}
+          onSpotPress={(spot) => nav.navigate('SpotDetail', { spotId: spot.id })}
+          onClusterPress={(clusterSpots) => setFocusedIds(clusterSpots.map((s) => s.id))}
+        />
+        <View style={styles.appBarPad} pointerEvents="box-none">
           <AppBar userName={(user?.name ?? 'Diver').toUpperCase()} initials={initials} />
         </View>
-        <FauxMap />
-
-        <View style={styles.fabs}>
-          <Pressable style={styles.fab}><Icon name="search" size={18} color={colors.textPrimary} /></Pressable>
-          <Pressable style={styles.fab}><Icon name="send" size={18} color={colors.textPrimary} /></Pressable>
-          <Pressable style={styles.fab}><Icon name="globe" size={18} color={colors.textPrimary} /></Pressable>
-        </View>
+        <Animated.View style={[styles.locateFabWrap, fabAnimStyle]} pointerEvents="box-none">
+          <Pressable
+            style={styles.fab}
+            onPress={onLocateMe}
+            disabled={!origin}
+            accessibilityLabel="Show spots nearest to me"
+          >
+            <Icon name="compass-arrow" size={18} color={origin ? colors.accent : colors.textMuted} />
+          </Pressable>
+        </Animated.View>
+        {focusedIds && (
+          <Pressable style={styles.allSpotsPill} onPress={() => setFocusedIds(null)}>
+            <Icon name="chevron-left" size={14} color="#fff" />
+            <Text style={styles.allSpotsText}>All spots</Text>
+          </Pressable>
+        )}
       </View>
 
-      <View style={styles.sheet}>
-        <View style={styles.handle} />
-        <View style={styles.filterRow}>
-          {FILTERS.map((f) => (
-            <Pressable key={f} onPress={() => setFilter(f)} style={[styles.filterPill, filter === f && styles.filterPillActive]}>
-              <Text style={[styles.filterText, filter === f && styles.filterTextActive]}>{f}</Text>
-            </Pressable>
-          ))}
-        </View>
-
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: spacing.xxl }}>
+      <BottomSheet
+        ref={sheetRef}
+        snapPoints={SNAP_POINTS}
+        index={1}
+        animatedPosition={sheetTopY}
+        backgroundStyle={{ backgroundColor: colors.bgElevated }}
+        handleIndicatorStyle={{ backgroundColor: colors.border, width: 48, height: 4 }}
+      >
+        <BottomSheetScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingBottom: spacing.xxl }}
+        >
+          <View style={styles.filterRow}>
+            {FILTERS.map((f) => (
+              <Pressable key={f} onPress={() => setFilter(f)} style={[styles.filterPill, filter === f && styles.filterPillActive]}>
+                <Text style={[styles.filterText, filter === f && styles.filterTextActive]}>{f}</Text>
+              </Pressable>
+            ))}
+          </View>
           <Text style={styles.helper}>Move map to find dive spots, buoys, and conditions near you.</Text>
-          {exploreSpots.map((s) => {
+          {sortedSpots.map((s) => {
             const rating = s.rating ?? 'good';
             const ratingColor = RATING_COLORS[rating];
             const ratingLabel = RATING_LABELS[rating];
+            const distLabel = s.distMi != null ? `${s.distMi.toFixed(1)} mi` : null;
+            const tileUri = satelliteUrl(s.lat, s.lon, 96, 96, 16);
             return (
               <Pressable key={s.id} onPress={() => nav.navigate('SpotDetail', { spotId: s.id })} style={styles.row}>
-                <View style={[styles.pin, { backgroundColor: s.coverColor ?? colors.cardAlt }]}>
-                  <Icon name="pin" size={20} color={colors.accent} />
-                </View>
+                <Image
+                  source={tileUri ? { uri: tileUri } : undefined}
+                  style={styles.thumb}
+                  resizeMode="cover"
+                />
                 <View style={{ flex: 1 }}>
                   <Text style={typography.h3}>{s.name}</Text>
+                  {distLabel && <Text style={styles.dist}>{distLabel}</Text>}
                   <Text style={styles.region}>{s.region} · {s.visibilityFt} ft vis</Text>
                 </View>
                 <View style={[styles.ratingPill, { borderColor: ratingColor }]}>
@@ -74,72 +179,56 @@ export function ExploreScreen() {
               </Pressable>
             );
           })}
-        </ScrollView>
-      </View>
+        </BottomSheetScrollView>
+      </BottomSheet>
     </Screen>
   );
 }
 
-function FauxMap() {
-  return (
-    <View style={mapStyles.wrap}>
-      <Svg width="100%" height="100%" viewBox="0 0 400 380">
-        {Array.from({ length: 8 }).map((_, i) => (
-          <Path
-            key={i}
-            d={`M 0 ${30 + i * 45} L 400 ${30 + i * 45}`}
-            stroke="#0e1a2c"
-            strokeDasharray="2,4"
-            strokeWidth={1}
-          />
-        ))}
-        <Path d="M 80 230 q 10 -25 35 -20 q 25 5 30 20 q 10 25 -10 25 q -25 5 -55 -25 z" fill="#04101c" stroke="#1a2333" strokeWidth={1.5} />
-        <Path d="M 175 245 q 15 -20 50 -10 q 35 5 30 25 q -10 20 -50 15 q -40 -5 -30 -30 z" fill="#04101c" stroke="#1a2333" strokeWidth={1.5} />
-        <Path d="M 235 265 q 25 -10 65 -5 q 40 5 50 25 q 5 25 -45 30 q -50 0 -75 -25 q -10 -15 5 -25 z" fill="#04101c" stroke="#1a2333" strokeWidth={1.5} />
-        <Circle cx="195" cy="245" r="14" fill={colors.accent} fillOpacity={0.18} />
-        <Circle cx="195" cy="245" r="8" fill={colors.accent} />
-        <Circle cx="195" cy="245" r="4" fill="#fff" />
-      </Svg>
-      <Text style={mapStyles.label1}>Tropic of Cancer</Text>
-      <Text style={mapStyles.label2}>HAWAIIAN TROUGH</Text>
-      <Text style={mapStyles.island1}>Ni'ihau</Text>
-      <Text style={mapStyles.island2}>O'ahu</Text>
-      <Text style={mapStyles.island3}>Moloka'i</Text>
-      <Text style={mapStyles.island4}>Lana'i</Text>
-      <Text style={mapStyles.island5}>Maui</Text>
-      <Text style={mapStyles.maps}>Maps · Legal</Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
-  mapWrap: { height: '60%', overflow: 'hidden' },
   appBarPad: { paddingHorizontal: spacing.xl, paddingTop: spacing.lg },
-  fabs: { position: 'absolute', right: spacing.xl, bottom: spacing.xl, gap: spacing.sm },
+  fabs: { position: 'absolute', right: spacing.xl, bottom: '60%', gap: spacing.sm },
+  locateFabWrap: {
+    position: 'absolute',
+    top: 0,
+    right: spacing.xl,
+  },
+  allSpotsPill: {
+    position: 'absolute',
+    top: 110,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: 'rgba(20, 24, 36, 0.92)',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  allSpotsText: { ...typography.bodySm, color: '#fff', fontWeight: '700' },
   fab: {
     width: 44, height: 44, borderRadius: 999,
     backgroundColor: colors.cardAlt,
     alignItems: 'center', justifyContent: 'center',
     borderWidth: 1, borderColor: colors.border,
   },
-  sheet: {
-    flex: 1,
-    backgroundColor: colors.bgElevated,
-    borderTopLeftRadius: radius.xl,
-    borderTopRightRadius: radius.xl,
-    padding: spacing.xl,
-    marginTop: -spacing.xl,
-  },
-  handle: { alignSelf: 'center', width: 48, height: 4, borderRadius: 999, backgroundColor: colors.border, marginBottom: spacing.lg },
-  filterRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.lg },
+  filterRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.lg, paddingTop: spacing.sm },
   filterPill: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 999, backgroundColor: 'transparent' },
   filterPillActive: { backgroundColor: colors.accentSoft },
   filterText: { ...typography.bodySm, color: colors.textSecondary, fontWeight: '600' },
   filterTextActive: { color: colors.accent },
-  helper: { ...typography.bodySm, color: colors.textMuted, textAlign: 'center', marginBottom: spacing.lg, paddingHorizontal: spacing.xl },
+  helper: { ...typography.bodySm, color: colors.textMuted, textAlign: 'center', marginBottom: spacing.lg },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border },
-  pin: { width: 40, height: 40, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
+  thumb: {
+    width: 48,
+    height: 48,
+    borderRadius: radius.md,
+    backgroundColor: colors.cardAlt,
+  },
   region: { ...typography.bodySm, color: colors.textSecondary, marginTop: 2 },
+  dist: { ...typography.bodySm, color: colors.accent, fontWeight: '600', marginTop: 2 },
   ratingPill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -151,16 +240,4 @@ const styles = StyleSheet.create({
   },
   ratingPillDot: { width: 6, height: 6, borderRadius: 999 },
   ratingPillText: { fontSize: 10, fontWeight: '700', letterSpacing: 0.6 },
-});
-
-const mapStyles = StyleSheet.create({
-  wrap: { flex: 1 },
-  label1: { position: 'absolute', top: 90, left: 60, color: colors.textDim, fontSize: 11, letterSpacing: 1 },
-  label2: { position: 'absolute', top: 150, left: 110, color: colors.textDim, fontSize: 10, letterSpacing: 2 },
-  island1: { position: 'absolute', top: 230, left: 30, color: colors.textSecondary, fontSize: 10 },
-  island2: { position: 'absolute', top: 268, left: 175, color: colors.textSecondary, fontSize: 10, fontWeight: '700' },
-  island3: { position: 'absolute', top: 248, left: 270, color: colors.textSecondary, fontSize: 10 },
-  island4: { position: 'absolute', top: 290, left: 270, color: colors.textSecondary, fontSize: 10 },
-  island5: { position: 'absolute', top: 280, left: 330, color: colors.textSecondary, fontSize: 10 },
-  maps: { position: 'absolute', bottom: 40, left: spacing.lg, color: colors.textDim, fontSize: 10 },
 });

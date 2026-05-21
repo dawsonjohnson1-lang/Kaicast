@@ -5,10 +5,11 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 
 import { colors } from '@/theme';
 import { TabBar } from './TabBar';
+import { LoadingView } from '@/components/LoadingView';
 import { useAuth } from '@/hooks/useAuth';
+import { useUserProfile } from '@/hooks/useUserProfile';
+import { usePushRegistration } from '@/hooks/usePushRegistration';
 
-import { LoadingScreen } from '@/screens/auth/LoadingScreen';
-import { WelcomeScreen } from '@/screens/auth/WelcomeScreen';
 import { LoginScreen } from '@/screens/auth/LoginScreen';
 import { CreateAccountScreen } from '@/screens/auth/CreateAccountScreen';
 import { CreateAccountStep1Screen } from '@/screens/auth/CreateAccountStep1Screen';
@@ -24,6 +25,8 @@ import { LogDiveScreen } from '@/screens/log/LogDiveScreen';
 import { FollowersScreen } from '@/screens/profile/FollowersScreen';
 import { FollowingScreen } from '@/screens/profile/FollowingScreen';
 import { ProfileSettingsScreen } from '@/screens/profile/ProfileSettingsScreen';
+import { DeleteAccountScreen } from '@/screens/profile/DeleteAccountScreen';
+import { DiscoverUsersScreen } from '@/screens/profile/DiscoverUsersScreen';
 
 import type { AuthStackParamList, RootStackParamList, TabParamList } from './types';
 
@@ -48,13 +51,25 @@ const Tabs = createBottomTabNavigator<TabParamList>();
 function AuthNav() {
   return (
     <AuthStack.Navigator
-      initialRouteName="Loading"
+      initialRouteName="CreateAccount"
       screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}
     >
-      <AuthStack.Screen name="Loading" component={LoadingScreen} />
-      <AuthStack.Screen name="Welcome" component={WelcomeScreen} />
-      <AuthStack.Screen name="Login" component={LoginScreen} />
       <AuthStack.Screen name="CreateAccount" component={CreateAccountScreen} />
+      <AuthStack.Screen name="Login" component={LoginScreen} />
+    </AuthStack.Navigator>
+  );
+}
+
+// Multi-step onboarding stack — shown to authenticated users whose
+// `users/{uid}` profile doc has `onboardingComplete !== true`. Once
+// CreateAccountAlmostThereScreen flips that flag the navigator
+// re-renders and routes into the main app.
+function OnboardingNav() {
+  return (
+    <AuthStack.Navigator
+      initialRouteName="CreateAccountStep1"
+      screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}
+    >
       <AuthStack.Screen name="CreateAccountStep1" component={CreateAccountStep1Screen} />
       <AuthStack.Screen name="CreateAccountAlmostThere" component={CreateAccountAlmostThereScreen} />
     </AuthStack.Navigator>
@@ -65,10 +80,8 @@ function MainTabs() {
   return (
     <Tabs.Navigator
       tabBar={(props) => <TabBar {...props} />}
-      screenOptions={{
-        headerShown: false,
-        sceneContainerStyle: { backgroundColor: colors.bg },
-      }}
+      sceneContainerStyle={{ backgroundColor: colors.bg }}
+      screenOptions={{ headerShown: false }}
     >
       <Tabs.Screen name="Dashboard" component={HomeScreen} />
       <Tabs.Screen name="Saved" component={SavedSpotsScreen} />
@@ -79,14 +92,39 @@ function MainTabs() {
 }
 
 export function AppNavigator() {
-  const { isAuthed } = useAuth();
+  const { user, isAuthed, loading: authLoading } = useAuth();
+  const { profile, loading: profileLoading } = useUserProfile(user?.id);
+  // Refreshes the push token doc whenever a user is authed AND has
+  // already granted notification permission. Doesn't prompt — that's
+  // user-initiated via the Settings toggle.
+  usePushRegistration(user?.id);
+
+  // Three phases:
+  //   1. unauthed → AuthNav (CreateAccount / Login)
+  //   2. authed but profile doc missing onboardingComplete → OnboardingNav
+  //      (Step 1 → AlmostThere). Live snapshot listener in
+  //      useUserProfile flips this the moment AlmostThere writes
+  //      onboardingComplete:true.
+  //   3. authed + onboarded → MainTabs + the rest of the root stack.
+  // Branded loading view (diver background + animated logo) while we
+  // resolve auth and profile state. Also prevents the CreateAccount
+  // flash a returning user would otherwise see before MainTabs mounts.
+  if (authLoading || (isAuthed && profileLoading)) {
+    return <LoadingView />;
+  }
+
+  const phase: 'auth' | 'onboarding' | 'main' = !isAuthed
+    ? 'auth'
+    : profile?.onboardingComplete === true
+      ? 'main'
+      : 'onboarding';
 
   return (
     <NavigationContainer theme={navTheme}>
       <RootStack.Navigator
         screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}
       >
-        {isAuthed ? (
+        {phase === 'main' && (
           <>
             <RootStack.Screen name="Main" component={MainTabs} />
             <RootStack.Screen name="SpotDetail" component={SpotDetailScreen} />
@@ -95,8 +133,14 @@ export function AppNavigator() {
             <RootStack.Screen name="Followers" component={FollowersScreen} />
             <RootStack.Screen name="Following" component={FollowingScreen} />
             <RootStack.Screen name="ProfileSettings" component={ProfileSettingsScreen} />
+            <RootStack.Screen name="DeleteAccount" component={DeleteAccountScreen} />
+            <RootStack.Screen name="DiscoverUsers" component={DiscoverUsersScreen} />
           </>
-        ) : (
+        )}
+        {phase === 'onboarding' && (
+          <RootStack.Screen name="Auth" component={OnboardingNav} />
+        )}
+        {phase === 'auth' && (
           <RootStack.Screen name="Auth" component={AuthNav} />
         )}
       </RootStack.Navigator>

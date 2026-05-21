@@ -12,6 +12,14 @@ import { Card } from '@/components/Card';
 import { Icon } from '@/components/Icon';
 import { colors, spacing, typography } from '@/theme';
 import { useAuth } from '@/hooks/useAuth';
+import { friendlyAuthError } from '@/utils/authErrors';
+import {
+  signInWithApple,
+  signInWithGoogle,
+  isAppleSignInAvailable,
+  isGoogleSignInConfigured,
+  SocialAuthError,
+} from '@/api/socialAuth';
 import type { AuthStackParamList } from '@/navigation/types';
 
 const googleIcon = require('@/assets/social-google.png');
@@ -19,45 +27,75 @@ const facebookIcon = require('@/assets/social-facebook.png');
 
 export function LoginScreen() {
   const nav = useNavigation<NativeStackNavigationProp<AuthStackParamList>>();
-  const { signIn } = useAuth();
+  const { signInWithEmail } = useAuth();
   const [email, setEmail] = useState('');
   const [pw, setPw] = useState('');
+  const [showPw, setShowPw] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [errors, setErrors] = useState<{ email?: string; pw?: string; submit?: string }>({});
+  const [appleAvailable, setAppleAvailable] = useState(false);
+
+  React.useEffect(() => {
+    isAppleSignInAvailable().then(setAppleAvailable);
+  }, []);
+
+  const onSocial = (provider: 'apple' | 'google') => async () => {
+    setErrors({});
+    try {
+      if (provider === 'apple') await signInWithApple();
+      else                       await signInWithGoogle();
+    } catch (err) {
+      const e = err as SocialAuthError;
+      if (e.code === 'cancelled') return;
+      setErrors({ submit: e.message });
+    }
+  };
+  const googleConfigured = isGoogleSignInConfigured();
+
+  const validate = () => {
+    const e: typeof errors = {};
+    if (!email.trim()) e.email = 'Email is required';
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) e.email = 'Enter a valid email address';
+    if (!pw) e.pw = 'Password is required';
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
 
   const onSignIn = async () => {
-    if (!email.trim() || !pw) {
-      Alert.alert('Missing details', 'Enter your email and password to sign in.');
-      return;
-    }
+    if (!validate()) return;
     setSubmitting(true);
+    setErrors((prev) => ({ ...prev, submit: undefined }));
     try {
-      await signIn({
-        id: 'demo',
-        name: email.split('@')[0] || 'Diver',
-        handle: email.split('@')[0] || 'diver',
-        email: email.trim(),
-        homeSpot: "Three Tables, O'ahu",
-      });
+      await signInWithEmail(email, pw);
+    } catch (err: any) {
+      setErrors((prev) => ({ ...prev, submit: friendlyAuthError(err) }));
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <Screen contentStyle={{ paddingTop: 0 }}>
+    <Screen contentStyle={{ paddingTop: 0 }} bg={colors.bg}>
       <Header onBack={() => nav.goBack()} transparent />
       <View style={styles.logo}>
         <Logo size={40} showWordmark />
       </View>
 
-      <Text style={[typography.h1, styles.heading]}>Welcome{'\n'}Back</Text>
+      <Text style={[typography.h1, styles.heading]}>Welcome Back</Text>
       <Text style={styles.sub}>Sign in to your Kaicast account.</Text>
 
       <View style={styles.socialRow}>
-        <SocialButton label="Facebook" iconSource={facebookIcon} />
-        <SocialButton label="Google" iconSource={googleIcon} />
+        <SocialButton label="Facebook" iconSource={facebookIcon} disabled />
+        <SocialButton
+          label="Google"
+          iconSource={googleIcon}
+          onPress={onSocial('google')}
+          disabled={!googleConfigured}
+        />
       </View>
-      <SocialButton label="Apple" iconKind="apple" full />
+      {appleAvailable && (
+        <SocialButton label="Apple" iconKind="apple" full onPress={onSocial('apple')} />
+      )}
 
       <View style={{ height: spacing.xxl }} />
 
@@ -68,15 +106,22 @@ export function LoginScreen() {
         autoCorrect={false}
         keyboardType="email-address"
         value={email}
-        onChangeText={setEmail}
+        onChangeText={(v) => { setEmail(v); if (errors.email) setErrors({ ...errors, email: undefined }); }}
+        error={errors.email}
       />
       <View style={{ height: spacing.lg }} />
       <Input
         label="Password"
-        placeholder="you@example.com"
-        secureTextEntry
+        placeholder="Your password"
+        secureTextEntry={!showPw}
         value={pw}
-        onChangeText={setPw}
+        onChangeText={(v) => { setPw(v); if (errors.pw) setErrors({ ...errors, pw: undefined }); }}
+        error={errors.pw}
+        rightSlot={
+          <Pressable onPress={() => setShowPw((s) => !s)} hitSlop={10}>
+            <Icon name="eye" size={18} color={showPw ? colors.accent : colors.textSecondary} />
+          </Pressable>
+        }
       />
 
       <Pressable style={styles.forgot} onPress={() => Alert.alert('Reset password', 'Password reset is coming soon.')}>
@@ -85,7 +130,11 @@ export function LoginScreen() {
 
       <View style={{ height: spacing.xl }} />
 
-      <Button label="Sign In" fullWidth loading={submitting} onPress={onSignIn} />
+      {errors.submit ? (
+        <Text style={styles.submitError}>{errors.submit}</Text>
+      ) : null}
+
+      <Button label="Log In" fullWidth loading={submitting} onPress={onSignIn} />
 
       <Pressable style={styles.footer} onPress={() => nav.navigate('CreateAccount')}>
         <Text style={styles.footerText}>
@@ -102,23 +151,41 @@ function SocialButton({
   iconSource,
   iconKind,
   full,
+  onPress,
+  disabled,
 }: {
   label: string;
   iconSource?: any;
   iconKind?: 'apple';
   full?: boolean;
+  onPress?: () => void;
+  disabled?: boolean;
 }) {
+  const inner = (
+    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, gap: 10, opacity: disabled ? 0.5 : 1 }}>
+      {iconKind === 'apple' ? (
+        <Icon name="apple" size={18} color="#fff" />
+      ) : (
+        <Image source={iconSource} style={{ width: 18, height: 18 }} resizeMode="contain" />
+      )}
+      <Text style={{ ...typography.body, fontWeight: '600' }}>{label}</Text>
+    </View>
+  );
+  if (!onPress) {
+    return (
+      <Card padding={0} style={[styles.social, full ? { flex: 0, alignSelf: 'stretch' } : { flex: 1 }] as any}>
+        {inner}
+      </Card>
+    );
+  }
   return (
-    <Card padding={0} style={[styles.social, full ? { flex: 0, alignSelf: 'stretch' } : { flex: 1 }] as any}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, gap: 10 }}>
-        {iconKind === 'apple' ? (
-          <Icon name="star-filled" size={18} color="#fff" />
-        ) : (
-          <Image source={iconSource} style={{ width: 18, height: 18 }} resizeMode="contain" />
-        )}
-        <Text style={{ ...typography.body, fontWeight: '600' }}>{label}</Text>
-      </View>
-    </Card>
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      style={[styles.social, { backgroundColor: colors.cardAlt }, full ? { flex: 0, alignSelf: 'stretch' } : { flex: 1 }] as any}
+    >
+      {inner}
+    </Pressable>
   );
 }
 
@@ -129,6 +196,7 @@ const styles = StyleSheet.create({
   socialRow: { flexDirection: 'row', gap: spacing.md, marginBottom: spacing.md },
   social: { backgroundColor: colors.cardAlt, borderWidth: 1, borderColor: colors.border, borderRadius: 999 },
   forgot: { alignSelf: 'flex-end', marginTop: spacing.md },
+  submitError: { ...typography.bodySm, color: colors.hazard, textAlign: 'center', marginBottom: spacing.md },
   forgotText: { color: colors.accent, fontSize: 13, fontWeight: '600' },
   footer: { alignItems: 'center', marginTop: spacing.xl },
   footerText: { color: colors.textSecondary, fontSize: 13 },

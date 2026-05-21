@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, Pressable, Image, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 
 import { Screen } from '@/components/Screen';
 import { Header } from '@/components/Header';
@@ -10,46 +10,91 @@ import { Card } from '@/components/Card';
 import { MetricCard } from '@/components/MetricCard';
 import { RatingBar } from '@/components/RatingBar';
 import { TideChart } from '@/components/TideChart';
-import { CompassDial } from '@/components/CompassDial';
 import { Button } from '@/components/Button';
 import { DiveReportCard } from '@/components/DiveReportCard';
 import { Icon } from '@/components/Icon';
+import { MoonInfoCard } from './overview/MoonInfoCard';
+import { DirectionalReadingCard } from '@/components/DirectionalReadingCard';
 import { colors, radius, spacing, typography, RATING_COLORS } from '@/theme';
-import { electricBeachReport, diveReports } from '@/api/mockData';
-import type { RootNav } from '@/navigation/types';
-import type { ConditionRating } from '@/types';
+import { diveReports, exploreSpots, featuredSpot } from '@/api/mockData';
+import { useSpotReport } from '@/hooks/useSpotReport';
+import type { BackendReport } from '@/api/kaicast';
+import type { RootNav, RootStackParamList } from '@/navigation/types';
+import type { Spot, SpotReport, ConditionRating } from '@/types';
+import { ForecastTab as ForecastTabRebuild } from './forecast/ForecastTab';
+import { HazardsTab as HazardsTabRebuild } from './hazards/HazardsTab';
+import { GuideTab as GuideTabRebuild } from './guide/GuideTab';
+import { satelliteUrl } from '@/api/satellite';
+import { useSpotDiveLogs, diveLogToReport } from '@/hooks/useDiveLogs';
+import { useAuth } from '@/hooks/useAuth';
+import { useFavorites } from '@/hooks/useFavorites';
+import { addFavorite, removeFavorite } from '@/api/favorites';
 
-type SpotTab = 'Overview' | 'Conditions' | 'Hazards' | 'Forecast' | 'Guide';
+function findSpot(id: string): Spot {
+  return exploreSpots.find((s) => s.id === id) ?? featuredSpot;
+}
 
-const TABS: SpotTab[] = ['Overview', 'Conditions', 'Hazards', 'Forecast', 'Guide'];
+type SpotTab = 'Overview' | 'Hazards' | 'Forecast' | 'Guide';
+
+const TABS: SpotTab[] = ['Overview', 'Hazards', 'Forecast', 'Guide'];
 
 export function SpotDetailScreen() {
   const nav = useNavigation<RootNav>();
+  const route = useRoute<RouteProp<RootStackParamList, 'SpotDetail'>>();
   const [tab, setTab] = useState<SpotTab>('Overview');
 
-  const r = electricBeachReport;
+  const spot = findSpot(route.params.spotId);
+  const { user } = useAuth();
+  const { isFavorite } = useFavorites(user?.id);
+  const favorited = isFavorite(spot.id);
+  const onToggleFavorite = () => {
+    if (!user) return;
+    if (favorited) removeFavorite(user.id, spot.id);
+    else addFavorite(user.id, spot.id);
+  };
+  const reportState = useSpotReport(spot);
+  const r = reportState.data;
+  const { logs: spotLogs } = useSpotDiveLogs(spot.id);
+  // Live community feed for this spot. When nobody's logged a dive
+  // here yet, fall back to the mock list so the UI doesn't go blank.
+  const friendsReports = spotLogs.length
+    ? spotLogs.map((l) => diveLogToReport(l, 'Diver', spot.name))
+    : diveReports;
+  const heroSatelliteUri = satelliteUrl(spot.lat, spot.lon, 800, 600, 16);
 
   return (
     <Screen scroll={false} padding={0} edges={['top', 'left', 'right']}>
       <View style={styles.hero}>
+        {heroSatelliteUri ? (
+          <Image source={{ uri: heroSatelliteUri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+        ) : (
+          <LinearGradient
+            colors={[spot.coverColor ?? '#06334a', '#04111e']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={StyleSheet.absoluteFill}
+          />
+        )}
         <LinearGradient
-          colors={['#06334a', '#04111e']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
+          colors={['rgba(0,0,0,0.15)', 'rgba(0,0,0,0.65)']}
           style={StyleSheet.absoluteFill}
         />
         <Header
           transparent
           onBack={() => nav.goBack()}
           rightSlot={
-            <Pressable hitSlop={12} style={styles.iconBtn}>
-              <Icon name="heart" size={20} color={colors.textPrimary} />
+            <Pressable hitSlop={12} style={styles.iconBtn} onPress={onToggleFavorite}>
+              <Icon
+                name={favorited ? 'heart-filled' : 'heart'}
+                size={20}
+                color={favorited ? colors.accent : colors.textPrimary}
+              />
             </Pressable>
           }
         />
         <View style={styles.heroBody}>
-          <Tag variant="freedive" label="OAHU" />
-          <Text style={[typography.display, { marginTop: spacing.md }]}>{r.spot.name}</Text>
+          <Tag variant="freedive" label={spot.region.split('·')[0].trim().toUpperCase()} />
+          <Text style={[typography.display, { marginTop: spacing.md }]}>{spot.name}</Text>
           <Text style={styles.heroSub}>Today · Wed, Apr 16 · 2-15 PM</Text>
         </View>
       </View>
@@ -66,227 +111,191 @@ export function SpotDetailScreen() {
           })}
         </ScrollView>
 
-        {tab === 'Overview' && <OverviewTab />}
-        {tab === 'Conditions' && <ConditionsTab />}
-        {tab === 'Hazards' && <HazardsTab />}
-        {tab === 'Forecast' && <ForecastTab />}
-        {tab === 'Guide' && <GuideTab />}
+        {tab === 'Overview' && <OverviewTab report={r} source={reportState.source} spot={spot} backend={reportState.backend} />}
+        {tab === 'Hazards' && <HazardsTabRebuild spot={spot} report={reportState.backend} />}
+        {tab === 'Forecast' && <ForecastTabRebuild spot={spot} spotCoords={{ lat: spot.lat, lon: spot.lon }} />}
+        {tab === 'Guide' && <GuideTabRebuild spot={spot} />}
 
-        <View style={{ height: spacing.xxl }} />
-        <Text style={typography.h3}>Friends' Reports</Text>
-        <View style={{ height: spacing.md }} />
-        {diveReports.map((rep) => (
-          <View key={rep.id} style={{ marginBottom: spacing.md }}>
-            <DiveReportCard report={rep} onPress={() => nav.navigate('DiveReportDetail', { reportId: rep.id })} />
-          </View>
-        ))}
+        {tab !== 'Guide' && (
+          <>
+            <View style={{ height: spacing.xxl }} />
+            <Text style={typography.h3}>Friends' Reports</Text>
+            <View style={{ height: spacing.md }} />
+            {friendsReports.map((rep) => (
+              <View key={rep.id} style={{ marginBottom: spacing.md }}>
+                <DiveReportCard report={rep} onPress={() => nav.navigate('DiveReportDetail', { reportId: rep.id })} />
+              </View>
+            ))}
 
-        <View style={{ height: spacing.xxl }} />
-        <Button label="Log Your Dive" variant="outline" fullWidth onPress={() => nav.navigate('LogDive')} />
-        <View style={{ height: spacing.xxxl }} />
+            <View style={{ height: spacing.xxl }} />
+            <Button label="Log Your Dive" variant="outline" fullWidth onPress={() => nav.navigate('LogDive')} />
+          </>
+        )}
+        <View style={{ height: tab === 'Guide' ? 100 : spacing.xxxl }} />
       </ScrollView>
+
+      {tab === 'Guide' && (
+        <View style={styles.stickyCta}>
+          <Button label="Log Your Dive" fullWidth onPress={() => nav.navigate('LogDive')} />
+        </View>
+      )}
     </Screen>
   );
 }
 
-function OverviewTab() {
-  const r = electricBeachReport;
+function OverviewTab({
+  report: r,
+  source,
+  spot,
+  backend,
+}: {
+  report: SpotReport;
+  source: 'live' | 'mock';
+  spot: Spot;
+  backend: BackendReport | null;
+}) {
   return (
     <View style={{ gap: spacing.md }}>
-      <RatingHeader />
-      <ForecastStrip />
+      <RatingHeader report={r} source={source} />
 
       <Row>
         <MetricCard label="WATER CLARITY" value={String(r.visibilityFt)} unit="FT" sub="VISIBILITY" />
-        <MetricCard label="WAVE HEIGHT" value={String(r.swellHeightFt)} unit="FT" sub="SWELL HEIGHT" />
+        <MetricCard
+          label="WAVE HEIGHT"
+          value={String(r.swellHeightFt)}
+          unit="FT"
+          sub="SWELL HEIGHT"
+        />
       </Row>
 
-      <TideChart series={r.tide.series} trend={r.tide.trend} nowFt={r.tide.nowFt} nextLabel={r.tide.nextLabel} nextFt={r.tide.nextFt} />
 
-      <Row>
-        <MetricCard label="WATER TEMP" value={String(r.waterTempF)} unit="°F" sub="3MM WETSUIT" />
-        <MetricCard label="CURRENT" value={String(r.currentMph)} unit="MPH" sub="NON-EXISTENT">
-          <View style={styles.dialOverlay}>
-            <CompassDial size={70} bearing={45} />
+      {!!backend?.now?.visibility?.rationale?.length && (
+        <Card>
+          <Text style={typography.caption}>WHY {backend.now.visibility.estimatedVisibilityFeet ?? r.visibilityFt} FT?</Text>
+          <View style={{ marginTop: spacing.sm, gap: 6 }}>
+            {backend.now.visibility.rationale.map((line, idx) => {
+              const sign = line.match(/-(\d+)%/) ? '-' : line.match(/\+(\d+)%/) ? '+' : null;
+              const color =
+                sign === '+' ? colors.excellent :
+                sign === '-' ? '#FFB347' :
+                colors.textSecondary;
+              return (
+                <Text key={idx} style={{ ...typography.bodySm, color }}>
+                  {line}
+                </Text>
+              );
+            })}
           </View>
-        </MetricCard>
-      </Row>
+        </Card>
+      )}
 
       <Card>
-        <Text style={typography.caption}>UV RATING</Text>
-        <View style={{ height: spacing.md }} />
-        <RatingBar value={r.uvIndex} max={11} />
-      </Card>
-
-      <Row>
-        <MetricCard label="AIR TEMP" value={String(r.airTempF)} unit="°F" sub="AIR TEMP" />
-        <MetricCard label="WIND" value={String(r.windMph)} unit="MPH" sub={`${r.gustMph} MPH GUST`}>
-          <View style={styles.dialOverlay}>
-            <CompassDial size={70} bearing={120} />
-          </View>
-        </MetricCard>
-      </Row>
-    </View>
-  );
-}
-
-function ConditionsTab() {
-  const r = electricBeachReport;
-  return (
-    <View style={{ gap: spacing.md }}>
-      <RatingHeader />
-      <ForecastStrip />
-
-      <Row>
-        <MetricCard label="WATER CLARITY" value={String(r.visibilityFt)} unit="FT" sub="VISIBILITY" />
-        <MetricCard label="WAVE HEIGHT" value={String(r.swellHeightFt)} unit="FT" sub="SWELL HEIGHT" />
-      </Row>
-
-      <Card>
-        <Text style={typography.caption}>UV RATING</Text>
+        <View style={uvCardStyles.header}>
+          <Text style={typography.caption}>UV RATING</Text>
+          <Text style={[uvCardStyles.severity, { color: uvSeverityColor(r.uvIndex) }]}>
+            {uvSeverityLabel(r.uvIndex)}
+          </Text>
+        </View>
         <View style={{ height: spacing.md }} />
         <RatingBar value={r.uvIndex} max={11} />
       </Card>
 
       <Row>
         <MetricCard label="WATER TEMP" value={String(r.waterTempF)} unit="°F" sub="3MM WETSUIT" />
-        <MetricCard label="CURRENT" value={String(r.currentMph)} unit="MPH" sub="NON-EXISTENT" />
-      </Row>
-
-      <TideChart series={r.tide.series} trend={r.tide.trend} nowFt={r.tide.nowFt} nextLabel={r.tide.nextLabel} nextFt={r.tide.nextFt} />
-
-      <Row>
         <MetricCard label="AIR TEMP" value={String(r.airTempF)} unit="°F" sub="AIR TEMP" />
-        <MetricCard label="WIND" value={String(r.windMph)} unit="MPH" sub={`${r.gustMph} MPH GUST`} />
       </Row>
 
-      <Card>
-        <Text style={typography.caption}>MOON INFO</Text>
-        <View style={moonStyles.row}>
-          <View style={{ flex: 1 }}>
-            <Text style={[typography.h2, { marginTop: spacing.sm }]}>{r.moon.phase}</Text>
-            <View style={moonStyles.metricsRow}>
-              <View>
-                <Text style={typography.h2}>{r.moon.illumination}</Text>
-                <Text style={moonStyles.cap}>ILLUMINATION RATING</Text>
-              </View>
-              <View>
-                <Text style={typography.h2}>{r.moon.daysSinceFullMoon}</Text>
-                <Text style={moonStyles.cap}>DAYS SINCE FULL MOON</Text>
-              </View>
-            </View>
-            <Text style={moonStyles.note}>Night diving not recommended based on current conditions</Text>
-          </View>
-          <View style={moonStyles.moon}>
-            <Icon name="moon" size={56} color={colors.textPrimary} />
-          </View>
-        </View>
-      </Card>
+      <DirectionalReadingCard
+        label="CURRENT"
+        value={r.currentMph}
+        unit="MPH"
+        descriptor={currentDescriptor(r.currentMph)}
+        directionDegrees={CURRENT_DIRECTION_DEG}
+        spotCoords={{ lat: spot.lat, lon: spot.lon }}
+      />
+
+      <TideChart
+        series={r.tide.series}
+        trend={r.tide.trend}
+        nowFt={r.tide.nowFt}
+        nextLabel={r.tide.nextLabel}
+        nextFt={r.tide.nextFt}
+      />
+
+      <DirectionalReadingCard
+        label="WIND"
+        value={r.windMph}
+        unit="MPH"
+        descriptor={windDescriptor(r.windMph)}
+        directionDegrees={WIND_DIRECTION_DEG}
+        spotCoords={{ lat: spot.lat, lon: spot.lon }}
+        footnote={`${r.gustMph} MPH GUST`}
+      />
+
+      <MoonInfoCard
+        phase={r.moon.phase}
+        illumination={r.moon.illumination}
+        daysSinceFullMoon={r.moon.daysSinceFullMoon}
+      />
     </View>
   );
 }
 
-function HazardsTab() {
-  return (
-    <View style={{ gap: spacing.md }}>
-      <RatingHeader />
-      <Card>
-        <Text style={typography.caption}>HAZARD CHECK</Text>
-        <View style={{ height: spacing.md }} />
-        {[
-          { label: 'Sharks', status: 'low' },
-          { label: 'Jellyfish', status: 'low' },
-          { label: 'Strong Current', status: 'mod' },
-          { label: 'Sewage / Runoff', status: 'low' },
-          { label: 'Rip Current', status: 'low' },
-          { label: 'Rocky Entry', status: 'mod' },
-        ].map((h) => (
-          <View key={h.label} style={hazardStyles.row}>
-            <Text style={typography.body}>{h.label}</Text>
-            <Tag
-              variant={h.status === 'low' ? 'excellent' : h.status === 'mod' ? 'warn' : 'hazard'}
-              label={h.status === 'low' ? 'LOW' : h.status === 'mod' ? 'MODERATE' : 'HIGH'}
-              dot
-            />
-          </View>
-        ))}
-      </Card>
-    </View>
-  );
+function windDescriptor(mph: number): string {
+  if (mph < 3) return 'CALM';
+  if (mph < 8) return 'LIGHT';
+  if (mph < 13) return 'LIGHT TRADES';
+  if (mph < 19) return 'TRADES';
+  if (mph < 25) return 'STRONG';
+  return 'GALE';
 }
 
-function ForecastTab() {
-  const r = electricBeachReport;
-  return (
-    <View style={{ gap: spacing.md }}>
-      <Card>
-        <Text style={typography.caption}>4-DAY FORECAST</Text>
-        <View style={{ height: spacing.md }} />
-        {r.forecast.map((d) => (
-          <View key={d.label} style={forecastStyles.row}>
-            <Text style={[typography.h3, { width: 60 }]}>{d.label}</Text>
-            <Text style={[typography.body, { width: 40 }]}>{d.date}</Text>
-            <View style={{ flex: 1 }}>
-              <View style={forecastStyles.bar}>
-                <View
-                  style={[
-                    forecastStyles.barFill,
-                    {
-                      width: ratingFillWidth(d.rating),
-                      backgroundColor: RATING_COLORS[d.rating],
-                    },
-                  ]}
-                />
-              </View>
-            </View>
-            <View style={[forecastStyles.tagDot, { backgroundColor: RATING_COLORS[d.rating] }]} />
-          </View>
-        ))}
-      </Card>
-
-      <TideChart series={r.tide.series} trend={r.tide.trend} nowFt={r.tide.nowFt} nextLabel={r.tide.nextLabel} nextFt={r.tide.nextFt} />
-    </View>
-  );
+function currentDescriptor(mph: number): string {
+  if (mph < 0.5) return 'NON-EXISTENT';
+  if (mph < 1) return 'LIGHT';
+  if (mph < 2) return 'MODERATE';
+  return 'STRONG';
 }
 
-function GuideTab() {
-  return (
-    <View style={{ gap: spacing.md }}>
-      <Card>
-        <Text style={typography.caption}>SPOT GUIDE</Text>
-        <Text style={[typography.h3, { marginTop: spacing.sm }]}>Electric Beach</Text>
-        <Text style={[typography.body, { color: colors.textSecondary, marginTop: spacing.sm, lineHeight: 22 }]}>
-          A warm-water outflow channel from the Kahe power plant attracts pelagic species year-round. Best in the morning before tradewinds pick up.
-        </Text>
-      </Card>
-
-      <Card>
-        <Text style={typography.caption}>ENTRY & EXIT</Text>
-        <Text style={[typography.body, { marginTop: spacing.sm }]}>Sandy beach with rocky shoreline. Enter on either side of the outfall. Watch for surge near the rocks.</Text>
-      </Card>
-
-      <Card>
-        <Text style={typography.caption}>MARINE LIFE</Text>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.sm }}>
-          {['Spinner Dolphins', 'Green Sea Turtles', 'Reef Sharks', 'Manta Rays', 'Eagle Rays'].map((m) => (
-            <Tag key={m} variant="freedive" label={m} />
-          ))}
-        </View>
-      </Card>
-    </View>
-  );
+function uvSeverityLabel(uv: number): string {
+  if (uv <= 2) return 'LOW';
+  if (uv <= 5) return 'MODERATE';
+  if (uv <= 7) return 'HIGH';
+  if (uv <= 10) return 'VERY HIGH';
+  return 'EXTREME';
 }
 
-function RatingHeader() {
-  const r = electricBeachReport;
+function uvSeverityColor(uv: number): string {
+  if (uv <= 2) return colors.accent;
+  if (uv <= 5) return colors.excellent;
+  if (uv <= 7) return colors.warn;
+  return colors.hazard;
+}
+
+// TODO: thread real wind/current direction through the report shape.
+// Figma hardcodes the dial bearings; the directional cards read from
+// these constants so the icon, dial, and arrow stay in sync.
+const WIND_DIRECTION_DEG = 120;
+const CURRENT_DIRECTION_DEG = 45;
+
+const uvCardStyles = StyleSheet.create({
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  severity: { ...typography.caption, fontWeight: '700' },
+});
+
+function RatingHeader({ report: r, source }: { report: SpotReport; source: 'live' | 'mock' }) {
+  const peak = peakWindowLabel(r);
   return (
     <Card>
       <View style={ratingStyles.headerRow}>
         <View style={ratingStyles.dotWrap}>
           <View style={[ratingStyles.dot, { backgroundColor: RATING_COLORS[r.rating] }]} />
-          <Text style={[typography.h1, { fontSize: 32 }]}>{r.ratingLabel}</Text>
+          <View>
+            <Text style={[typography.h1, { fontSize: 32 }]}>{r.ratingLabel}</Text>
+            {peak ? <Text style={ratingStyles.peakLine}>{peak}</Text> : null}
+          </View>
         </View>
-        <Tag variant="live" dot />
+        {source === 'live' ? <Tag variant="live" dot /> : <Tag variant="warn" label="DEMO" dot />}
       </View>
       <Text style={[typography.bodySm, { color: colors.textSecondary, marginTop: spacing.sm }]}>{r.hazardSummary}</Text>
       <View style={{ height: spacing.md }} />
@@ -301,25 +310,25 @@ function RatingHeader() {
   );
 }
 
-function ForecastStrip() {
-  const r = electricBeachReport;
-  return (
-    <View style={forecastStyles.strip}>
-      <Text style={typography.caption}>4-DAY FORECAST</Text>
-      <View style={forecastStyles.daysRow}>
-        {r.forecast.map((d, i) => {
-          const active = i === 0;
-          return (
-            <View key={d.label} style={[forecastStyles.day, active && forecastStyles.dayActive]}>
-              <Text style={[forecastStyles.dayLabel, active && { color: colors.textPrimary }]}>{d.label}</Text>
-              <Text style={[forecastStyles.dayDate, active && { color: colors.textPrimary }]}>{d.date}</Text>
-              <View style={[forecastStyles.dot, { backgroundColor: RATING_COLORS[d.rating] }]} />
-            </View>
-          );
-        })}
-      </View>
-    </View>
-  );
+// TODO(forecast): once hourly conditions land on SpotReport (mirroring
+// ForecastDay.ratingSegments), compute this from the highest-scored
+// hour. For now we mirror the hardcoded 4-segment bar above — the
+// middle two "excellent" bars cover 6 AM – 6 PM, so peak window =
+// the centered 9 AM – 3 PM subwindow. Returns "Peak now" when the
+// current hour falls inside that window.
+function peakWindowLabel(_r: SpotReport): string {
+  const peakStart = 9;
+  const peakEnd = 15;
+  const nowHour = new Date().getHours();
+  if (nowHour >= peakStart && nowHour < peakEnd) return 'Peak now';
+  return `Peak window ${formatHour12(peakStart)} – ${formatHour12(peakEnd)}`;
+}
+
+function formatHour12(h: number): string {
+  if (h === 0) return '12 AM';
+  if (h === 12) return '12 PM';
+  if (h < 12) return `${h} AM`;
+  return `${h - 12} PM`;
 }
 
 function Row({ children }: { children: React.ReactNode }) {
@@ -337,7 +346,7 @@ function ratingFillWidth(rating: ConditionRating): `${number}%` {
 }
 
 const styles = StyleSheet.create({
-  hero: { paddingBottom: spacing.xl, paddingHorizontal: 0, minHeight: 230 },
+  hero: { height: 230, paddingHorizontal: 0, paddingBottom: spacing.xl },
   heroBody: { paddingHorizontal: spacing.xl, marginTop: spacing.lg },
   heroSub: { ...typography.bodySm, color: colors.textSecondary, marginTop: spacing.xs },
   body: { paddingHorizontal: spacing.xl, paddingTop: spacing.lg, backgroundColor: colors.bg },
@@ -357,6 +366,18 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   dialOverlay: { position: 'absolute', right: 8, bottom: 8 },
+  stickyCta: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xl,
+    backgroundColor: colors.bg,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+  },
 });
 
 const ratingStyles = StyleSheet.create({
@@ -365,37 +386,6 @@ const ratingStyles = StyleSheet.create({
   dot: { width: 10, height: 10, borderRadius: 999 },
   bar: { flexDirection: 'row', gap: 4, marginTop: spacing.md, height: 8 },
   seg: { flex: 1, borderRadius: 999 },
+  peakLine: { ...typography.bodySm, color: colors.textSecondary, marginTop: 2, fontWeight: '500' },
 });
 
-const moonStyles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.lg, marginTop: spacing.sm },
-  metricsRow: { flexDirection: 'row', gap: spacing.xxl, marginTop: spacing.md },
-  cap: { ...typography.caption, color: colors.textMuted, marginTop: 2 },
-  note: { ...typography.bodySm, color: colors.textMuted, marginTop: spacing.md, lineHeight: 18 },
-  moon: {
-    width: 80,
-    height: 80,
-    borderRadius: 999,
-    backgroundColor: colors.cardAlt,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
-
-const hazardStyles = StyleSheet.create({
-  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border },
-});
-
-const forecastStyles = StyleSheet.create({
-  strip: { backgroundColor: colors.card, borderRadius: radius.lg, padding: spacing.lg },
-  daysRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: spacing.md, gap: spacing.sm },
-  day: { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: radius.md, backgroundColor: colors.cardAlt },
-  dayActive: { backgroundColor: colors.accentSoft, borderWidth: 1, borderColor: colors.accent },
-  dayLabel: { ...typography.caption, color: colors.textMuted },
-  dayDate: { ...typography.h3, marginTop: 4 },
-  dot: { width: 6, height: 6, borderRadius: 999, marginTop: 4 },
-  row: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border, gap: spacing.md },
-  bar: { height: 6, backgroundColor: colors.cardAlt, borderRadius: 999, overflow: 'hidden' },
-  barFill: { height: '100%', borderRadius: 999 },
-  tagDot: { width: 8, height: 8, borderRadius: 999 },
-});

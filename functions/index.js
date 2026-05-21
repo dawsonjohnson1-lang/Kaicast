@@ -1,16 +1,26 @@
 /* eslint-env node */
 /* global fetch */
+'use strict';
 
-const { onRequest } = require('firebase-functions/v2/https');
 const { onSchedule } = require('firebase-functions/v2/scheduler');
+const { onRequest, onCall, HttpsError }  = require('firebase-functions/v2/https');
 const { defineSecret } = require('firebase-functions/params');
 const logger = require('firebase-functions/logger');
-const admin = require('firebase-admin');
+const admin  = require('firebase-admin');
+
+const analysis        = require('./analysis');
+const { fetchBuoyHourly } = require('./buoy_Version2');
+const { fetchMarineForecast } = require('./marineForecast');
+const { pushAllReportsToWebflow } = require('./webflow');
+const { estimateVisibilityAbyss } = require('./abyss/abyss');
+const { fetchOceanColor } = require('./abyss/kd490');
+const { computeDaySolarEvents } = require('./abyss/solar');
+const { getHorizonProfile } = require('./abyss/horizon');
+const { getSubsurfaceProfile } = require('./abyss/subsurface');
 
 admin.initializeApp();
 const db = admin.firestore();
 
-const { fetchBuoyHourly } = require('./buoy_Version2');
 const {
   fetchMoonPhase,
   evaluateJellyfishAndNightDive,
@@ -25,16 +35,26 @@ const {
   chooseNoaaTideStationForSpot,
   fetchTideSeries,
 } = require('./tides');
-const { pushAllReportsToWebflow } = require('./webflow');
 
 // ─── Secrets ─────────────────────────────────────────────────────────────────
 
-const OPENWEATHER_API_KEY = defineSecret('OPENWEATHER_API_KEY');
-const WEBFLOW_API_TOKEN   = defineSecret('WEBFLOW_API_TOKEN');
-const WEBFLOW_SPOTS_CID   = defineSecret('WEBFLOW_SPOTS_CID');
-const WEBFLOW_WINDOWS_CID = defineSecret('WEBFLOW_WINDOWS_CID');
+const OPENWEATHER_API_KEY        = defineSecret('OPENWEATHER_API_KEY');
+const WEBFLOW_API_TOKEN          = defineSecret('WEBFLOW_API_TOKEN');
+const WEBFLOW_SPOTS_CID          = defineSecret('WEBFLOW_SPOTS_CID');
+const WEBFLOW_WINDOWS_CID        = defineSecret('WEBFLOW_WINDOWS_CID');
+// CMEMS_USERNAME / CMEMS_PASSWORD / NASA_EARTHDATA_USERNAME /
+// NASA_EARTHDATA_PASSWORD used to live here. The KD490/CHL fetcher
+// now pulls from NOAA CoastWatch ERDDAP (public, no auth) so those
+// secrets are no longer needed. Values still exist in Secret Manager;
+// rotate + delete via `firebase functions:secrets:destroy` once
+// you've confirmed the satellite path is firing cleanly.
 
-const ALL_SECRETS = [OPENWEATHER_API_KEY, WEBFLOW_API_TOKEN, WEBFLOW_SPOTS_CID, WEBFLOW_WINDOWS_CID];
+const ALL_SECRETS = [
+  OPENWEATHER_API_KEY,
+  WEBFLOW_API_TOKEN,
+  WEBFLOW_SPOTS_CID,
+  WEBFLOW_WINDOWS_CID,
+];
 
 // ─── Spots ────────────────────────────────────────────────────────────────────
 //
@@ -43,87 +63,528 @@ const ALL_SECRETS = [OPENWEATHER_API_KEY, WEBFLOW_API_TOKEN, WEBFLOW_SPOTS_CID, 
 // Shark’s Cove / Three Tables behave "north shore rocky coves": brown water can happen after big rain,
 // even if surf looks manageable.
 
+// Auto-generated from Webflow CMS by scripts/generate-spots.js
+// 26 spots — re-run when Webflow gains new entries.
 const SPOTS = [
   {
-    id: 'sharks-cove',
-    name: "Shark's Cove",
-    lat: 21.6417,
-    lon: -158.0617,
-    tz: 'Pacific/Honolulu',
-    coast: 'north',
-    buoyStation: '51201',
-    tideStation: '1612340', // NOAA Honolulu Harbor (reference station for all Oahu spots)
-
-    // CHANGED: was 'low' — too optimistic for storm runoff days
-    runoffSensitivity: 'medium',
-    nearStreamMouth: false,
-    nearDrainage: true,
-
-    maxCleanSwellFt: 3,
-    hardNoGoSwellFt: 6,
-  },
-  {
-    id: 'three-tables',
-    name: 'Three Tables',
-    lat: 21.6367,
-    lon: -158.0633,
-    tz: 'Pacific/Honolulu',
-    coast: 'north',
-    buoyStation: '51201',
-    tideStation: '1612340',
-
-    // CHANGED: was 'low'
-    runoffSensitivity: 'medium',
-    nearStreamMouth: false,
-    nearDrainage: true,
-
-    maxCleanSwellFt: 3,
-    hardNoGoSwellFt: 6,
-  },
-  {
-    id: 'mokuleia',
-    name: 'Mokuleia',
-    lat: 21.5783,
-    lon: -158.1553,
-    tz: 'Pacific/Honolulu',
-    coast: 'north',
-    buoyStation: '51201',
-    tideStation: '1612340',
-    runoffSensitivity: 'medium',
-    nearStreamMouth: false,
-    nearDrainage: false,
-    maxCleanSwellFt: 2,
-    hardNoGoSwellFt: 5,
-  },
-  {
-    id: 'makua',
-    name: 'Makua Beach',
-    lat: 21.527379,
-    lon: -158.229536,
+    id: 'airport-beach',
+    name: "Airport Beach",
+    lat: 20.9042,
+    lon: -156.6833,
     tz: 'Pacific/Honolulu',
     coast: 'west',
-    buoyStation: '51202',
-    tideStation: '1612340',
-    runoffSensitivity: 'high',
-    nearStreamMouth: true,
-    nearDrainage: false,
-    maxCleanSwellFt: 3,
-    hardNoGoSwellFt: 6,
+    island: "Maui",
+    buoyStation: '51205',
+    runoffSensitivity: 'medium',
+    nearStreamMouth: false,
+    nearDrainage: true,
+    maxCleanSwellFt: 4,
+    hardNoGoSwellFt: 7,
+    siteType: 'reef',
+    maxDepthM: 15,
+    typicalDiveDepthM: 8,
+    sedimentType: 'reef',
+    sedimentSensitivity: 'low',
   },
   {
-    id: 'hanauma-bay',
-    name: 'Hanauma Bay',
-    lat: 21.2694,
-    lon: -157.6939,
+    id: 'ala-wharf',
+    name: "Ala Wharf",
+    lat: 20.8989,
+    lon: -156.6855,
+    tz: 'Pacific/Honolulu',
+    coast: 'west',
+    island: "Maui",
+    buoyStation: '51205',
+    runoffSensitivity: 'low',
+    nearStreamMouth: false,
+    nearDrainage: true,
+    maxCleanSwellFt: 4,
+    hardNoGoSwellFt: 7,
+    siteType: 'shore',
+    maxDepthM: 8,
+    typicalDiveDepthM: 5,
+    sedimentType: 'sand',
+    sedimentSensitivity: 'high',
+  },
+  {
+    id: 'black-rock-kaanapali',
+    name: "Black Rock (Kaanapali)",
+    lat: 20.926149,
+    lon: -156.69621,
+    tz: 'Pacific/Honolulu',
+    coast: 'west',
+    island: "Maui",
+    buoyStation: '51205',
+    runoffSensitivity: 'medium',
+    nearStreamMouth: false,
+    nearDrainage: true,
+    maxCleanSwellFt: 4,
+    hardNoGoSwellFt: 7,
+    siteType: 'reef',
+    maxDepthM: 12,
+    typicalDiveDepthM: 6,
+    sedimentType: 'reef',
+    sedimentSensitivity: 'low',
+  },
+  {
+    id: 'brenneckes-ledge',
+    name: "Brennecke's Ledge",
+    lat: 21.873,
+    lon: -159.458,
     tz: 'Pacific/Honolulu',
     coast: 'south',
-    buoyStation: '51202',
-    tideStation: '1612340',
+    island: "Kauai",
+    buoyStation: '51201',
     runoffSensitivity: 'low',
     nearStreamMouth: false,
     nearDrainage: false,
     maxCleanSwellFt: 4,
     hardNoGoSwellFt: 7,
+    siteType: 'wall',
+    maxDepthM: 20,
+    typicalDiveDepthM: 12,
+    sedimentType: 'reef',
+    sedimentSensitivity: 'low',
+  },
+  {
+    id: 'china-walls',
+    name: "China Walls",
+    lat: 21.261473,
+    lon: -157.711477,
+    tz: 'Pacific/Honolulu',
+    coast: 'east',
+    island: "Oahu",
+    buoyStation: '51202',
+    runoffSensitivity: 'low',
+    nearStreamMouth: false,
+    nearDrainage: false,
+    maxCleanSwellFt: 4,
+    hardNoGoSwellFt: 7,
+    siteType: 'wall',
+    maxDepthM: 25,
+    typicalDiveDepthM: 15,
+    sedimentType: 'reef',
+    sedimentSensitivity: 'low',
+  },
+  {
+    id: 'electric-beach',
+    name: "Electric Beach",
+    lat: 21.354627,
+    lon: -158.13633,
+    tz: 'Pacific/Honolulu',
+    coast: 'west',
+    island: "Oahu",
+    buoyStation: '51201',
+    runoffSensitivity: 'medium',
+    nearStreamMouth: false,
+    nearDrainage: true,
+    maxCleanSwellFt: 4,
+    hardNoGoSwellFt: 7,
+    siteType: 'reef',
+    maxDepthM: 10,
+    typicalDiveDepthM: 6,
+    sedimentType: 'sand',
+    sedimentSensitivity: 'medium',
+  },
+  {
+    id: 'hanauma-bay',
+    name: "Hanauma Bay",
+    lat: 21.268517,
+    lon: -157.693045,
+    tz: 'Pacific/Honolulu',
+    coast: 'east',
+    island: "Oahu",
+    buoyStation: '51202',
+    runoffSensitivity: 'low',
+    nearStreamMouth: false,
+    nearDrainage: false,
+    maxCleanSwellFt: 4,
+    hardNoGoSwellFt: 7,
+    siteType: 'reef',
+    maxDepthM: 10,
+    typicalDiveDepthM: 5,
+    sedimentType: 'reef',
+    sedimentSensitivity: 'low',
+  },
+  {
+    id: 'honolua-bay',
+    name: "Honolua Bay",
+    lat: 21.01461,
+    lon: -156.639667,
+    tz: 'Pacific/Honolulu',
+    coast: 'west',
+    island: "Maui",
+    buoyStation: '51205',
+    runoffSensitivity: 'medium',
+    nearStreamMouth: false,
+    nearDrainage: true,
+    maxCleanSwellFt: 4,
+    hardNoGoSwellFt: 7,
+    siteType: 'reef',
+    maxDepthM: 18,
+    typicalDiveDepthM: 10,
+    sedimentType: 'reef',
+    sedimentSensitivity: 'low',
+  },
+  {
+    id: 'kaiwi-point',
+    name: "Kaiwi Point",
+    lat: 19.78,
+    lon: -156.02,
+    tz: 'Pacific/Honolulu',
+    coast: 'west',
+    island: "Big Island",
+    buoyStation: '51205',
+    runoffSensitivity: 'low',
+    nearStreamMouth: false,
+    nearDrainage: true,
+    maxCleanSwellFt: 4,
+    hardNoGoSwellFt: 7,
+    siteType: 'reef',
+    maxDepthM: 20,
+    typicalDiveDepthM: 12,
+    sedimentType: 'reef',
+    sedimentSensitivity: 'low',
+  },
+  {
+    id: 'kealakekua-bay',
+    name: "Kealakekua Bay",
+    lat: 19.4789,
+    lon: -156.0004,
+    tz: 'Pacific/Honolulu',
+    coast: 'west',
+    island: "Big Island",
+    buoyStation: '51205',
+    runoffSensitivity: 'medium',
+    nearStreamMouth: false,
+    nearDrainage: true,
+    maxCleanSwellFt: 4,
+    hardNoGoSwellFt: 7,
+    siteType: 'reef',
+    maxDepthM: 30,
+    typicalDiveDepthM: 15,
+    sedimentType: 'reef',
+    sedimentSensitivity: 'low',
+  },
+  {
+    id: 'koloa-landing',
+    name: "Koloa Landing",
+    lat: 21.87788,
+    lon: -159.461,
+    tz: 'Pacific/Honolulu',
+    coast: 'south',
+    island: "Kauai",
+    buoyStation: '51201',
+    runoffSensitivity: 'low',
+    nearStreamMouth: false,
+    nearDrainage: false,
+    maxCleanSwellFt: 4,
+    hardNoGoSwellFt: 7,
+    siteType: 'reef',
+    maxDepthM: 12,
+    typicalDiveDepthM: 6,
+    sedimentType: 'reef',
+    sedimentSensitivity: 'low',
+  },
+  {
+    id: 'makena-landing',
+    name: "Makena Landing",
+    lat: 20.653606,
+    lon: -156.441495,
+    tz: 'Pacific/Honolulu',
+    coast: 'south',
+    island: "Maui",
+    buoyStation: '51205',
+    runoffSensitivity: 'low',
+    nearStreamMouth: false,
+    nearDrainage: false,
+    maxCleanSwellFt: 4,
+    hardNoGoSwellFt: 7,
+    siteType: 'reef',
+    maxDepthM: 20,
+    typicalDiveDepthM: 12,
+    sedimentType: 'reef',
+    sedimentSensitivity: 'medium',
+  },
+  {
+    id: 'makua',
+    name: "Makua Beach",
+    lat: 21.531326,
+    lon: -158.234336,
+    tz: 'Pacific/Honolulu',
+    coast: 'west',
+    island: "Oahu",
+    buoyStation: '51201',
+    runoffSensitivity: 'medium',
+    nearStreamMouth: false,
+    nearDrainage: true,
+    maxCleanSwellFt: 4,
+    hardNoGoSwellFt: 7,
+    siteType: 'reef',
+    maxDepthM: 20,
+    typicalDiveDepthM: 12,
+    sedimentType: 'sand',
+    sedimentSensitivity: 'high',
+  },
+  {
+    id: 'makua-beach',
+    name: "Makua Beach",
+    lat: 21.527379,
+    lon: -158.229536,
+    tz: 'Pacific/Honolulu',
+    coast: 'west',
+    island: "Oahu",
+    buoyStation: '51201',
+    runoffSensitivity: 'medium',
+    nearStreamMouth: false,
+    nearDrainage: true,
+    maxCleanSwellFt: 4,
+    hardNoGoSwellFt: 7,
+    siteType: 'reef',
+    maxDepthM: 18,
+    typicalDiveDepthM: 10,
+    sedimentType: 'sand',
+    sedimentSensitivity: 'high',
+  },
+  {
+    id: 'manta-heaven',
+    name: "Manta Heaven",
+    lat: 19.9636,
+    lon: -155.8928,
+    tz: 'Pacific/Honolulu',
+    coast: 'west',
+    island: "Big Island",
+    buoyStation: '51205',
+    runoffSensitivity: 'low',
+    nearStreamMouth: false,
+    nearDrainage: true,
+    maxCleanSwellFt: 4,
+    hardNoGoSwellFt: 7,
+    siteType: 'reef',
+    maxDepthM: 12,
+    typicalDiveDepthM: 8,
+    sedimentType: 'reef',
+    sedimentSensitivity: 'low',
+  },
+  {
+    id: 'mokuleia',
+    name: "Mokuleia",
+    lat: 21.580952,
+    lon: -158.253094,
+    tz: 'Pacific/Honolulu',
+    coast: 'west',
+    island: "Oahu",
+    buoyStation: '51201',
+    runoffSensitivity: 'medium',
+    nearStreamMouth: false,
+    nearDrainage: true,
+    maxCleanSwellFt: 4,
+    hardNoGoSwellFt: 7,
+    siteType: 'shore',
+    maxDepthM: 10,
+    typicalDiveDepthM: 5,
+    sedimentType: 'sand',
+    sedimentSensitivity: 'high',
+  },
+  {
+    id: 'molokini-crater',
+    name: "Molokini Crater",
+    lat: 20.6323,
+    lon: -156.496,
+    tz: 'Pacific/Honolulu',
+    coast: 'west',
+    island: "Maui",
+    buoyStation: '51205',
+    runoffSensitivity: 'low',
+    nearStreamMouth: false,
+    nearDrainage: true,
+    maxCleanSwellFt: 4,
+    hardNoGoSwellFt: 7,
+    siteType: 'crater',
+    maxDepthM: 50,
+    typicalDiveDepthM: 18,
+    sedimentType: 'reef',
+    sedimentSensitivity: 'low',
+  },
+  {
+    id: 'niihau',
+    name: "Ni'ihau",
+    lat: 22.025141,
+    lon: -160.095816,
+    tz: 'Pacific/Honolulu',
+    coast: 'west',
+    island: "Kauai",
+    buoyStation: '51201',
+    runoffSensitivity: 'medium',
+    nearStreamMouth: false,
+    nearDrainage: true,
+    maxCleanSwellFt: 4,
+    hardNoGoSwellFt: 7,
+    siteType: 'reef',
+    maxDepthM: 30,
+    typicalDiveDepthM: 15,
+    sedimentType: 'reef',
+    sedimentSensitivity: 'low',
+  },
+  {
+    id: 'sharks-cove',
+    name: "Shark's Cove",
+    lat: 21.654521,
+    lon: -158.065133,
+    tz: 'Pacific/Honolulu',
+    coast: 'north',
+    island: "Oahu",
+    buoyStation: '51201',
+    runoffSensitivity: 'medium',
+    nearStreamMouth: false,
+    nearDrainage: true,
+    maxCleanSwellFt: 3,
+    hardNoGoSwellFt: 6,
+    siteType: 'reef',
+    maxDepthM: 15,
+    typicalDiveDepthM: 8,
+    sedimentType: 'coral_rubble',
+    sedimentSensitivity: 'medium',
+  },
+  {
+    id: 'sheraton-caverns',
+    name: "Sheraton Caverns",
+    lat: 21.8735,
+    lon: -159.4663,
+    tz: 'Pacific/Honolulu',
+    coast: 'south',
+    island: "Kauai",
+    buoyStation: '51201',
+    runoffSensitivity: 'low',
+    nearStreamMouth: false,
+    nearDrainage: false,
+    maxCleanSwellFt: 4,
+    hardNoGoSwellFt: 7,
+    siteType: 'cave',
+    maxDepthM: 25,
+    typicalDiveDepthM: 15,
+    sedimentType: 'reef',
+    sedimentSensitivity: 'low',
+  },
+  {
+    id: 'three-tables',
+    name: "Three Tables",
+    lat: 21.6367,
+    lon: -158.0633,
+    tz: 'Pacific/Honolulu',
+    coast: 'north',
+    island: "Oahu",
+    buoyStation: '51201',
+    runoffSensitivity: 'medium',
+    nearStreamMouth: false,
+    nearDrainage: true,
+    maxCleanSwellFt: 3,
+    hardNoGoSwellFt: 6,
+    siteType: 'reef',
+    maxDepthM: 12,
+    typicalDiveDepthM: 6,
+    sedimentType: 'coral_rubble',
+    sedimentSensitivity: 'medium',
+  },
+  {
+    id: 'tunnels-reef',
+    name: "Tunnels Reef",
+    lat: 22.223269,
+    lon: -159.5705,
+    tz: 'Pacific/Honolulu',
+    coast: 'north',
+    island: "Kauai",
+    buoyStation: '51201',
+    runoffSensitivity: 'low',
+    nearStreamMouth: false,
+    nearDrainage: true,
+    maxCleanSwellFt: 3,
+    hardNoGoSwellFt: 6,
+    siteType: 'reef',
+    maxDepthM: 25,
+    typicalDiveDepthM: 15,
+    sedimentType: 'reef',
+    sedimentSensitivity: 'low',
+  },
+  {
+    id: 'turtle-canyon',
+    name: "Turtle Canyon",
+    lat: 21.274238,
+    lon: -157.839264,
+    tz: 'Pacific/Honolulu',
+    coast: 'south',
+    island: "Oahu",
+    buoyStation: '51202',
+    runoffSensitivity: 'low',
+    nearStreamMouth: false,
+    nearDrainage: false,
+    maxCleanSwellFt: 4,
+    hardNoGoSwellFt: 7,
+    siteType: 'reef',
+    maxDepthM: 12,
+    typicalDiveDepthM: 7,
+    sedimentType: 'sand',
+    sedimentSensitivity: 'medium',
+  },
+  {
+    id: 'turtle-reef-turtle-bay',
+    name: "Turtle Reef/Turtle Bay",
+    lat: 21.702485,
+    lon: -158.002095,
+    tz: 'Pacific/Honolulu',
+    coast: 'north',
+    island: "Oahu",
+    buoyStation: '51201',
+    runoffSensitivity: 'low',
+    nearStreamMouth: false,
+    nearDrainage: true,
+    maxCleanSwellFt: 3,
+    hardNoGoSwellFt: 6,
+    siteType: 'reef',
+    maxDepthM: 12,
+    typicalDiveDepthM: 7,
+    sedimentType: 'reef',
+    sedimentSensitivity: 'low',
+  },
+  {
+    id: 'wailea-point-ulua-beach',
+    name: "Wailea Point/Ulua Beach",
+    lat: 20.683277,
+    lon: -156.444016,
+    tz: 'Pacific/Honolulu',
+    coast: 'west',
+    island: "Maui",
+    buoyStation: '51205',
+    runoffSensitivity: 'low',
+    nearStreamMouth: false,
+    nearDrainage: true,
+    maxCleanSwellFt: 4,
+    hardNoGoSwellFt: 7,
+    siteType: 'reef',
+    maxDepthM: 20,
+    typicalDiveDepthM: 10,
+    sedimentType: 'reef',
+    sedimentSensitivity: 'low',
+  },
+  {
+    id: 'waimea-bay',
+    name: "Waimea Bay",
+    lat: 21.64139,
+    lon: -158.066588,
+    tz: 'Pacific/Honolulu',
+    coast: 'north',
+    island: "Oahu",
+    buoyStation: '51201',
+    runoffSensitivity: 'medium',
+    nearStreamMouth: false,
+    nearDrainage: true,
+    maxCleanSwellFt: 3,
+    hardNoGoSwellFt: 6,
+    siteType: 'reef',
+    maxDepthM: 18,
+    typicalDiveDepthM: 10,
+    sedimentType: 'sand',
+    sedimentSensitivity: 'medium',
   },
 ];
 
@@ -156,6 +617,25 @@ function buildHourKey(dateUtc) {
     String(d.getUTCDate()).padStart(2, '0') +
     String(d.getUTCHours()).padStart(2, '0')
   );
+}
+
+// Walk back up to `maxLagHours` hours from `nowHourIso` looking for
+// the most recent value in the map. NDBC realtime2 observations
+// typically lag 30–90 minutes behind real time, so the literal "now"
+// hour bucket is almost always empty. Without this walkback every
+// fresh report comes back with null wave height / period / SST.
+function lookupRecent(map, nowHourIso, maxLagHours = 4) {
+  if (!map || !nowHourIso) return null;
+  const direct = map.get(nowHourIso);
+  if (direct != null) return direct;
+  const baseMs = new Date(nowHourIso).getTime();
+  if (!Number.isFinite(baseMs)) return null;
+  for (let h = 1; h <= maxLagHours; h++) {
+    const iso = new Date(baseMs - h * 3600000).toISOString().slice(0, 13) + ':00';
+    const found = map.get(iso);
+    if (found != null) return found;
+  }
+  return null;
 }
 
 function findClosestHour(hourlyItems, targetMs, maxGapMs = 2 * 3600000) {
@@ -277,7 +757,7 @@ function buildWindows(hourlyItems, nowMs, count = 8) {
 
 // ─── Report builder ───────────────────────────────────────────────────────────
 
-async function buildSpotReport({ spot, owHourly, buoyData, nowMs }) {
+async function buildSpotReport({ spot, owHourly, buoyData, marineForecast, nowMs }) {
   const nowDate    = new Date(nowMs);
   const generatedAt = nowDate.toISOString();
   const hourKey    = buildHourKey(nowDate);
@@ -295,9 +775,13 @@ async function buildSpotReport({ spot, owHourly, buoyData, nowMs }) {
     cloudCoverPercent: closestHour?.cloudCoverPercent ?? null,
     rainLast1hMM:      closestHour?.rainLast1hMM      ?? 0,
 
-    waveHeightM:       buoyData?.waveHMap?.get(nowHourIso) ?? null,
-    wavePeriodS:       buoyData?.wavePMap?.get(nowHourIso) ?? null,
-    waterTempC:        buoyData?.sstMap?.get(nowHourIso)   ?? null,
+    waveHeightM:           lookupRecent(buoyData?.waveHMap, nowHourIso),
+    wavePeriodS:           lookupRecent(buoyData?.wavePMap, nowHourIso),
+    waveDirectionDegFrom:
+      lookupRecent(buoyData?.waveDirMap, nowHourIso) ??
+      marineForecast?.waveDirMap?.get(nowHourIso) ??
+      null,
+    waterTempC:            lookupRecent(buoyData?.sstMap, nowHourIso),
   };
 
   // Tide cycle — select NOAA station for this spot and build the cycle.
@@ -358,17 +842,42 @@ async function buildSpotReport({ spot, owHourly, buoyData, nowMs }) {
   const nowLocalHour = nowDate.getUTCHours(); // TODO: convert to spot tz when needed
   const nowSwellFt   = nowMetrics.waveHeightM != null ? nowMetrics.waveHeightM * 3.28084 : null;
 
-  const nowVisibility = estimateVisibility({
-    windKnots:         nowMetrics.windSpeedKts,
-    swellFeet:         nowSwellFt,
-    swellPeriodSec:    nowMetrics.wavePeriodS,
-    currentKnots:      estimateCurrentFromWind(nowMetrics.windSpeedKts),
-    tidePhase:         nowTideCycle?.currentTideState ?? 'unknown',
-    rainLast24hMM:     rainRollups.rain24hMM,
+  // Fetch satellite ocean-color ONCE for the whole spot. The "now"
+  // visibility call and every window's visibility call use the same
+  // lat/lon, so they all need the same KD490 value — sharing one
+  // result avoids 10–20 concurrent ERDDAP fetches per spot (cache
+  // can't help when they all race the cache read in parallel before
+  // any one of them writes). `null` is a valid value: it means the
+  // upstream fetch returned nothing and downstream should fall back
+  // to the heuristic. We swallow throws here for the same reason.
+  let spotOceanColor = null;
+  try {
+    spotOceanColor = await fetchOceanColor({ lat: spot.lat, lon: spot.lon, nowMs, db });
+  } catch (err) {
+    logger.warn('buildSpotReport: fetchOceanColor threw', { spotId: spot.id, error: err.message });
+  }
+
+  // Abyss: data-grounded layered visibility model. Falls back to the
+  // legacy heuristic internally when satellite ocean-color isn't
+  // configured, but ALWAYS layers on the solar + topographic-shadow
+  // calc since those don't need any external feeds.
+  const nowVisibility = await estimateVisibilityAbyss({
+    spot,
+    lat: spot.lat,
+    lon: spot.lon,
+    nowMs,
+    windKnots:            nowMetrics.windSpeedKts,
+    windDirectionDegFrom: nowMetrics.windDeg,
+    waveHeightM:          nowMetrics.waveHeightM,
+    wavePeriodS:          nowMetrics.wavePeriodS,
+    waveDirectionDegFrom: nowMetrics.waveDirectionDegFrom,
+    tidePhase:            nowTideCycle?.currentTideState ?? 'unknown',
+    rainRollups,
+    runoff:            nowRunoff,
     cloudCoverPercent: nowMetrics.cloudCoverPercent,
     hourLocal:         nowLocalHour,
-    runoff:            nowRunoff,
-    tide:              nowTideCycle,
+    db,
+    oceanColor:        spotOceanColor,
   });
 
   const moonData     = await fetchMoonPhase(nowDate, spot.lat, spot.lon, spot.tz);
@@ -380,10 +889,18 @@ async function buildSpotReport({ spot, owHourly, buoyData, nowMs }) {
     cloudCoverPercent:nowMetrics.cloudCoverPercent,
   });
 
+  // Effective wave height (after terrain shielding) for the rating —
+  // a 6 ft NW swell hits Honolua hard but the same 6 ft from S barely
+  // reaches it. Falls back to raw when shielding info is missing.
+  const nowEffectiveSwellFt =
+    nowVisibility?.exposure?.effectiveWaveHeightM != null
+      ? nowVisibility.exposure.effectiveWaveHeightM * 3.28084
+      : nowSwellFt;
+
   const nowRating = generateSnorkelRating({
     visibilityMeters: nowVisibility.estimatedVisibilityMeters,
     windKnots:        nowMetrics.windSpeedKts,
-    swellFeet:        nowSwellFt,
+    swellFeet:        nowEffectiveSwellFt,
     swellPeriodSec:   nowMetrics.wavePeriodS,
     currentKnots:     estimateCurrentFromWind(nowMetrics.windSpeedKts),
     waterTempC:       nowMetrics.waterTempC,
@@ -392,6 +909,8 @@ async function buildSpotReport({ spot, owHourly, buoyData, nowMs }) {
     jellyfishWarning: jellyfishData.jellyfishWarning,
     runoff:           nowRunoff,
     tide:             nowTideCycle,
+    chopMultiplier: nowVisibility?.wind?.chopMultiplier ?? 1,
+    exposureFactor: nowVisibility?.exposure?.factor ?? 1,
     confidenceScore,
     spotContext: {
       runoffSensitivity: spot.runoffSensitivity,
@@ -401,16 +920,26 @@ async function buildSpotReport({ spot, owHourly, buoyData, nowMs }) {
     },
   });
 
-  // Merge buoy into hourly for window calculations
+  // Merge buoy + marine forecast into hourly for window calculations.
+  // Buoy data covers PAST hours (NDBC realtime obs); marine forecast
+  // covers FUTURE hours (Open-Meteo Marine). Past hours fall through
+  // to forecast as a fallback. Water temp comes from buoy only —
+  // Open-Meteo Marine doesn't expose SST.
   const hourlyWithBuoy = owHourly.hourly.map((h) => ({
     ...h,
-    waveHeightM: buoyData?.waveHMap?.get(h.isoHour) ?? null,
-    wavePeriodS: buoyData?.wavePMap?.get(h.isoHour) ?? null,
-    waterTempC:  buoyData?.sstMap?.get(h.isoHour)   ?? null,
+    waveHeightM:
+      buoyData?.waveHMap?.get(h.isoHour) ??
+      marineForecast?.waveHMap?.get(h.isoHour) ??
+      null,
+    wavePeriodS:
+      buoyData?.wavePMap?.get(h.isoHour) ??
+      marineForecast?.wavePMap?.get(h.isoHour) ??
+      null,
+    waterTempC:  buoyData?.sstMap?.get(h.isoHour) ?? null,
   }));
 
   const rawWindows = buildWindows(hourlyWithBuoy, nowMs, 8);
-  const windows = rawWindows.map((w) => {
+  const windows = await Promise.all(rawWindows.map(async (w) => {
     const winStartMs = new Date(w.startIso).getTime();
     const winMidMs   = winStartMs + 1.5 * 3600000;
 
@@ -444,23 +973,40 @@ async function buildSpotReport({ spot, owHourly, buoyData, nowMs }) {
     const winSwellFt   = w.avg.waveHeightM != null ? w.avg.waveHeightM * 3.28084 : null;
     const winLocalHour = new Date(w.startIso).getUTCHours();
 
-    const winVisibility = estimateVisibility({
-      windKnots:         w.avg.windSpeedKts,
-      swellFeet:         winSwellFt,
-      swellPeriodSec:    w.avg.wavePeriodS,
-      currentKnots:      estimateCurrentFromWind(w.avg.windSpeedKts),
-      tidePhase:         winTideCycle?.currentTideState ?? 'unknown',
-      rainLast24hMM:     winRainRollups.rain24hMM,
+    // Per-window abyss: re-runs solar+shadow at the window's midpoint
+    // so a 6 PM window correctly shows depressed visibility from
+    // mountain shadow / low light, while a 9 AM window shows full sun.
+    const winMidMsForVis = new Date(w.startIso).getTime() + 1.5 * 3600000;
+    const winVisibility = await estimateVisibilityAbyss({
+      spot,
+      lat: spot.lat,
+      lon: spot.lon,
+      nowMs: winMidMsForVis,
+      windKnots:            w.avg.windSpeedKts,
+      windDirectionDegFrom: w.avg.windDeg,
+      waveHeightM:          w.avg.waveHeightM,
+      wavePeriodS:          w.avg.wavePeriodS,
+      // marineForecast maps key entries as "YYYY-MM-DDTHH:00"; the
+      // window's startIso is the full ISO with .000Z, so slice down.
+      waveDirectionDegFrom: marineForecast?.waveDirMap?.get(w.startIso.slice(0, 13) + ':00') ?? null,
+      tidePhase:            winTideCycle?.currentTideState ?? 'unknown',
+      rainRollups:       winRainRollups,
+      runoff:            winRunoff,
       cloudCoverPercent: w.avg.cloudCoverPercent,
       hourLocal:         winLocalHour,
-      runoff:            winRunoff,
-      tide:              winTideCycle,
+      db,
+      oceanColor:        spotOceanColor,
     });
+
+    const winEffectiveSwellFt =
+      winVisibility?.exposure?.effectiveWaveHeightM != null
+        ? winVisibility.exposure.effectiveWaveHeightM * 3.28084
+        : winSwellFt;
 
     const winRating = generateSnorkelRating({
       visibilityMeters: winVisibility.estimatedVisibilityMeters,
       windKnots:        w.avg.windSpeedKts,
-      swellFeet:        winSwellFt,
+      swellFeet:        winEffectiveSwellFt,
       swellPeriodSec:   w.avg.wavePeriodS,
       currentKnots:     estimateCurrentFromWind(w.avg.windSpeedKts),
       waterTempC:       w.avg.waterTempC,
@@ -469,6 +1015,12 @@ async function buildSpotReport({ spot, owHourly, buoyData, nowMs }) {
       jellyfishWarning: jellyfishData.jellyfishWarning,
       runoff:           winRunoff,
       tide:             winTideCycle,
+
+      // Shelter signals from the abyss model — let the rating know how
+      // much chop / swell actually reaches this spot before applying
+      // raw wind / swell penalties.
+      chopMultiplier: winVisibility?.wind?.chopMultiplier ?? 1,
+      exposureFactor: winVisibility?.exposure?.factor ?? 1,
 
       // Use report-level confidence (keeps conservative if buoy missing)
       confidenceScore,
@@ -489,6 +1041,14 @@ async function buildSpotReport({ spot, owHourly, buoyData, nowMs }) {
       visibility:  winVisibility,
       rating:      winRating,
     };
+  }));
+
+  // Daily forecast — aggregate Open-Meteo Marine hourly into 7 daily
+  // buckets so the Forecast tab's day strip can show real wave / period
+  // ranges. Date keys are local to the spot's tz when given, else UTC.
+  const days = buildDailyForecast({
+    marineForecast, owHourly, spot, nowMs,
+    tideSeries: rawTideSeries,
   });
 
   const qcFlags = [];
@@ -497,10 +1057,20 @@ async function buildSpotReport({ spot, owHourly, buoyData, nowMs }) {
   if (nowMetrics.waveHeightM == null) qcFlags.push('missing-wave-height');
   if (closestHour == null) qcFlags.push('no-openweather-match');
   if (!nowTideCycle) qcFlags.push('no-tide-cycle');
+  if (!marineForecast || !marineForecast.waveHMap?.size) qcFlags.push('no-marine-forecast');
 
   const sources = ['openweather'];
   if (spot.buoyStation && buoyData?.waveHMap?.size) sources.push(`ndbc:${spot.buoyStation}`);
   if (tideStationId && rawTideSeries.length) sources.push(`noaa-tides:${tideStationId}`);
+  if (marineForecast?.waveHMap?.size) sources.push('open-meteo-marine');
+
+  // Subsurface temperature/thermocline. Geographic provider selection
+  // (PacIOOS for Hawaii, CMEMS global fallback, heuristic last resort);
+  // returns null when no provider can serve this spot.
+  const subsurface = await getSubsurfaceProfile(spot, {
+    surfaceTempC: nowMetrics.waterTempC,
+  });
+  if (subsurface?.source) sources.push(`subsurface:${subsurface.source}`);
 
   return {
     spot:       spot.id,
@@ -526,9 +1096,152 @@ async function buildSpotReport({ spot, owHourly, buoyData, nowMs }) {
       },
       visibility: nowVisibility,
       rating:     nowRating,
+      subsurface: subsurface ? {
+        thermoclineDepthM: subsurface.thermoclineDepthM,
+        surfaceTempC:      subsurface.surfaceTempC,
+        profile:           subsurface.profile,
+        source:            subsurface.source,
+        confidence:        subsurface.confidence,
+      } : null,
     },
     windows,
+    days,
   };
+}
+
+// Aggregate Open-Meteo Marine hourly data into daily summaries for the
+// next 7 days. Each day gets min/max/avg wave height + dominant period
+// + dominant direction. Returns [] when no forecast data is available
+// so the client can fall back gracefully.
+function buildDailyForecast({ marineForecast, owHourly, spot, nowMs, tideSeries = [] }) {
+  if (!marineForecast || !marineForecast.waveHMap?.size) return [];
+
+  // Group hourly samples by spot-local calendar date so "today" matches
+  // the diver's day. Open-Meteo returns UTC ISO hours; we convert to
+  // the spot's tz (defaults to Pacific/Honolulu when unset).
+  const tz = spot.tz || 'Pacific/Honolulu';
+  const fmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone: tz,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  });
+  // Local-hour formatter so per-day tide events carry the right hour
+  // for the diver's calendar (Maui spots in Hawaii tz, etc).
+  const hourFmt = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz, hour12: false, hour: '2-digit',
+  });
+  const minuteFmt = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz, hour12: false, minute: '2-digit',
+  });
+
+  const buckets = new Map(); // YYYY-MM-DD -> { hs: [], ps: [], dirs: [], temps: [], rains: [], winds: [] }
+  function bucket(dateKey) {
+    let b = buckets.get(dateKey);
+    if (!b) {
+      b = { hs: [], ps: [], dirs: [], temps: [], rains: [], winds: [] };
+      buckets.set(dateKey, b);
+    }
+    return b;
+  }
+
+  for (const [iso, h] of marineForecast.waveHMap.entries()) {
+    const t = new Date(iso + 'Z');
+    if (!Number.isFinite(t.getTime())) continue;
+    const dateKey = fmt.format(t);
+    const b = bucket(dateKey);
+    b.hs.push(h);
+    const p = marineForecast.wavePMap?.get(iso);
+    if (Number.isFinite(p)) b.ps.push(p);
+    const d = marineForecast.waveDirMap?.get(iso);
+    if (Number.isFinite(d)) b.dirs.push(d);
+  }
+
+  // Layer in OpenWeather hourly air temp / wind / rain so each day has
+  // a full picture even on the days NDBC SST won't reach.
+  for (const h of owHourly?.hourly || []) {
+    const t = new Date(h.tsMs);
+    if (!Number.isFinite(t.getTime())) continue;
+    const dateKey = fmt.format(t);
+    const b = buckets.get(dateKey);
+    if (!b) continue;
+    if (Number.isFinite(h.airTempC))     b.temps.push(h.airTempC);
+    if (Number.isFinite(h.rainLast1hMM)) b.rains.push(h.rainLast1hMM);
+    if (Number.isFinite(h.windSpeedKts)) b.winds.push(h.windSpeedKts);
+  }
+
+  const avg = (arr) => (arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null);
+  const sum = (arr) => (arr.length ? arr.reduce((a, b) => a + b, 0) : null);
+
+  // Circular mean for direction (degrees)
+  function dirAvg(degs) {
+    if (!degs.length) return null;
+    const rads = degs.map((d) => (d * Math.PI) / 180);
+    const sx = rads.reduce((a, r) => a + Math.cos(r), 0);
+    const sy = rads.reduce((a, r) => a + Math.sin(r), 0);
+    const m = (Math.atan2(sy, sx) * 180) / Math.PI;
+    return Math.round((m + 360) % 360);
+  }
+
+  const round1 = (n) => (n == null ? null : Math.round(n * 10) / 10);
+  const round0 = (n) => (n == null ? null : Math.round(n));
+
+  // Bucket tide events (hilo predictions are NOAA H/L points) into
+  // each day's local calendar. Each event keeps its UTC tsMs, level
+  // in feet, type (high/low), local hour24 for the chart, and a
+  // human-readable timeLabel like "8:42am".
+  const tideBuckets = new Map();
+  for (const ev of (Array.isArray(tideSeries) ? tideSeries : [])) {
+    if (!ev || !Number.isFinite(ev.tsMs) || !Number.isFinite(ev.levelFt)) continue;
+    const dateKey = fmt.format(new Date(ev.tsMs));
+    if (!buckets.has(dateKey)) continue;
+    let arr = tideBuckets.get(dateKey);
+    if (!arr) { arr = []; tideBuckets.set(dateKey, arr); }
+    const hour24 = Number(hourFmt.format(new Date(ev.tsMs)));
+    const minute = Number(minuteFmt.format(new Date(ev.tsMs)));
+    const ampm = hour24 >= 12 ? 'pm' : 'am';
+    const h12  = ((hour24 + 11) % 12) + 1;
+    arr.push({
+      type: ev.type === 'H' ? 'high' : 'low',
+      tsMs: ev.tsMs,
+      heightFt: Math.round(ev.levelFt * 100) / 100,
+      hour24,
+      timeLabel: `${h12}:${String(minute).padStart(2, '0')}${ampm}`,
+    });
+  }
+
+  const sortedKeys = [...buckets.keys()].sort();
+  // Solar events use the spot's horizon profile to compute the local
+  // first-light / last-light per calendar day. Cheap (<30ms per day),
+  // and the result is the *effective* sunrise/sunset accounting for
+  // mountain shadow — useful for dive planning.
+  const spotHorizon = getHorizonProfile(spot.id);
+
+  return sortedKeys.slice(0, 7).map((dateKey) => {
+    const b = buckets.get(dateKey);
+    const tideEvents = (tideBuckets.get(dateKey) || []).sort((a, b) => a.tsMs - b.tsMs);
+    // Use noon of the local date as the reference time for solar event
+    // computation — the solver walks the full day from local 00:00.
+    const refMs = new Date(dateKey + 'T12:00:00Z').getTime();
+    const solar = computeDaySolarEvents(spot.lat, spot.lon, refMs, tz, spotHorizon);
+    return {
+      date:           dateKey,
+      waveMinM:       round1(Math.min(...b.hs)),
+      waveMaxM:       round1(Math.max(...b.hs)),
+      waveAvgM:       round1(avg(b.hs)),
+      wavePeriodS:    round1(avg(b.ps)),
+      waveDirDeg:     dirAvg(b.dirs),
+      airTempCAvg:    round1(avg(b.temps)),
+      rainTotalMM:    round1(sum(b.rains)),
+      windAvgKts:     round1(avg(b.winds)),
+      windMaxKts:     round0(b.winds.length ? Math.max(...b.winds) : null),
+      tideEvents,
+      solar: {
+        firstLightMs: solar.firstLightMs,
+        lastLightMs:  solar.lastLightMs,
+        solarNoonMs:  solar.solarNoonMs,
+        peakAltDeg:   solar.peakAltDeg,
+      },
+    };
+  });
 }
 
 // ─── Core pipeline ────────────────────────────────────────────────────────────
@@ -554,12 +1267,13 @@ async function runPipeline({ apiKey, publish = false }) {
   for (const spot of SPOTS) {
     try {
       const owHourly = await fetchOpenWeatherHourly({ lat: spot.lat, lon: spot.lon, apiKey });
-      const hourKeys = owHourly.hourly.map((h) => h.isoHour);
       const buoyData = spot.buoyStation
-        ? await fetchBuoyHourly({ station: spot.buoyStation, hourKeys }).catch(() => null)
+        ? await fetchBuoyHourly({ station: spot.buoyStation }).catch(() => null)
         : null;
+      const marineForecast = await fetchMarineForecast({ lat: spot.lat, lon: spot.lon, days: 7 })
+        .catch(() => null);
 
-      const report = await buildSpotReport({ spot, owHourly, buoyData, nowMs });
+      const report = await buildSpotReport({ spot, owHourly, buoyData, marineForecast, nowMs });
       reports.push(report);
 
       const docId = `${spot.id}_${report.hourKey}`;
@@ -586,6 +1300,108 @@ async function runPipeline({ apiKey, publish = false }) {
 }
 
 // ─── Firebase Functions ───────────────────────────────────────────────────────
+
+// Read the most recent hourly cached report for a spot (looking up to
+// 4 hours back). Returns null when nothing recent is cached. The
+// scheduler writes `kaicast_reports/{spotId}_{YYYYMMDDHH}` every hour.
+async function readCachedReport(spotId, nowMs, spot = null) {
+  const t = new Date(nowMs);
+  for (let h = 0; h < 4; h++) {
+    const at = new Date(t.getTime() - h * 3600000);
+    const hourKey = buildHourKey(at);
+    const snap = await db.collection('kaicast_reports').doc(`${spotId}_${hourKey}`).get();
+    if (!snap.exists) continue;
+    const data = snap.data();
+    // Skip stale cache entries left over from the old "exact-hour"
+    // buoy lookup bug. If the spot has a buoy configured but the
+    // cached report has null wave height, recompute. Once the fixed
+    // pipeline runs the cache becomes trustworthy again.
+    if (spot?.buoyStation && data?.now?.metrics?.waveHeightM == null) continue;
+    // Skip cache entries from before the multi-day forecast field was
+    // added — the days[] array is a meaningful upgrade and worth a
+    // one-time recompute. Self-clears within an hour as caches refill.
+    if (!Array.isArray(data?.days)) continue;
+    // Skip pre-abyss caches — `now.visibility.sun` is the marker that
+    // the report was generated by the layered sun/shadow model.
+    if (!data?.now?.visibility?.sun) continue;
+    // Skip caches lacking per-day solar events (added after sun/shadow shipped).
+    if (!data?.days?.[0]?.solar) continue;
+    // Skip caches lacking the rationale field (latest abyss revision).
+    if (!Array.isArray(data?.now?.visibility?.rationale)) continue;
+    // Same for the per-day tide events (added after days[] shipped).
+    // Skip if any day in the forecast is missing tideEvents.
+    if (!data.days.every((d) => Array.isArray(d?.tideEvents))) continue;
+    // Skip if the cached report's tide source doesn't match the spot's
+    // currently-configured tide station (e.g. Maui spots switched from
+    // Honolulu to Kahului — old cache should not be served).
+    if (spot?.tideStation && Array.isArray(data?.sources)) {
+      const expected = `noaa-tides:${spot.tideStation}`;
+      if (!data.sources.includes(expected)) continue;
+    }
+    return data;
+  }
+  return null;
+}
+
+// Per-spot HTTP endpoint consumed by the app's useSpotReport hook.
+// Always tries the hourly cache first (sub-second response), falls
+// back to a fresh compute when the cache is empty or stale (5–15 s).
+exports.getReport = onRequest(
+  { secrets: ALL_SECRETS, timeoutSeconds: 60, memory: '512MiB' },
+  async (req, res) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    if (req.method === 'OPTIONS') {
+      res.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
+      res.status(204).send('');
+      return;
+    }
+
+    const spotId = String(req.query.spotId || '').trim();
+    if (!spotId) {
+      res.status(400).json({ error: 'spotId query param is required' });
+      return;
+    }
+    const spot = SPOTS.find((s) => s.id === spotId);
+    if (!spot) {
+      res.status(404).json({ error: `Unknown spot: ${spotId}` });
+      return;
+    }
+
+    try {
+      const nowMs = Date.now();
+      const cached = await readCachedReport(spotId, nowMs, spot);
+      if (cached) {
+        res.json(cached);
+        return;
+      }
+
+      const apiKey = OPENWEATHER_API_KEY.value();
+      if (!apiKey) {
+        res.status(500).json({ error: 'OPENWEATHER_API_KEY is not configured' });
+        return;
+      }
+      const owHourly = await fetchOpenWeatherHourly({ lat: spot.lat, lon: spot.lon, apiKey });
+      const buoyData = spot.buoyStation
+        ? await fetchBuoyHourly({ station: spot.buoyStation }).catch(() => null)
+        : null;
+      const marineForecast = await fetchMarineForecast({ lat: spot.lat, lon: spot.lon, days: 7 })
+        .catch(() => null);
+      const report = await buildSpotReport({ spot, owHourly, buoyData, marineForecast, nowMs });
+
+      // Cache the freshly-computed report so the next request is fast.
+      const docId = `${spot.id}_${report.hourKey}`;
+      await db.collection('kaicast_reports').doc(docId).set({
+        ...report,
+        savedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      res.json(report);
+    } catch (err) {
+      logger.error('getReport failed', { spotId, error: err.message });
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
 
 exports.fetchKaiCastNow = onRequest(
   { secrets: ALL_SECRETS, timeoutSeconds: 300, memory: '512MiB' },
@@ -623,3 +1439,139 @@ exports.scheduler = onSchedule(
     await runPipeline({ apiKey, publish: true });
   }
 );
+
+// ─── Account deletion (App Store gate) ───────────────────────────────────────
+//
+// Apple requires every app that supports account creation to also
+// support self-serve account deletion from inside the app. This
+// callable handles the cascading cleanup that's hard to do
+// client-side (the user can't delete docs in OTHER users' followers
+// / following subcollections under our security rules).
+//
+// Flow:
+//   1. Client re-authenticates the user (Firebase requires recent
+//      login for sensitive operations).
+//   2. Client invokes deleteUserAccount.
+//   3. Server fans out: removes the user's subcollections, dive
+//      logs, profile photo, mirrored social-graph entries, the
+//      user doc itself, and finally the auth user.
+//   4. Client signs out for clean local state.
+async function deleteSubcollection(parentPath, subName, batchSize = 200) {
+  const ref = db.collection(`${parentPath}/${subName}`);
+  while (true) {
+    const snap = await ref.limit(batchSize).get();
+    if (snap.empty) return;
+    const batch = db.batch();
+    snap.docs.forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+    if (snap.size < batchSize) return;
+  }
+}
+
+exports.deleteUserAccount = onCall(
+  { timeoutSeconds: 120, memory: '256MiB' },
+  async (req) => {
+    const uid = req.auth?.uid;
+    if (!uid) {
+      throw new HttpsError('unauthenticated', 'Sign in required.');
+    }
+
+    logger.info('deleteUserAccount: start', { uid });
+
+    // 1. Mirrored social-graph cleanup. Read the user's followers /
+    //    following lists FIRST so we know which other users have
+    //    edges pointing at this account, then delete those reverse
+    //    edges with admin privileges before nuking the local copies.
+    try {
+      const followingSnap = await db.collection(`users/${uid}/following`).get();
+      for (const d of followingSnap.docs) {
+        const otherUid = d.id;
+        await db.doc(`users/${otherUid}/followers/${uid}`).delete().catch(() => {});
+      }
+      const followersSnap = await db.collection(`users/${uid}/followers`).get();
+      for (const d of followersSnap.docs) {
+        const otherUid = d.id;
+        await db.doc(`users/${otherUid}/following/${uid}`).delete().catch(() => {});
+      }
+    } catch (err) {
+      logger.warn('deleteUserAccount: social-graph reverse cleanup partial', {
+        uid, error: err.message,
+      });
+    }
+
+    // 2. The user's own subcollections.
+    await Promise.all([
+      deleteSubcollection(`users/${uid}`, 'favorites'),
+      deleteSubcollection(`users/${uid}`, 'following'),
+      deleteSubcollection(`users/${uid}`, 'followers'),
+      deleteSubcollection(`users/${uid}`, 'devices'),
+    ]);
+
+    // 3. Dive logs (top-level collection keyed by uid).
+    try {
+      const logsSnap = await db.collection('diveLogs').where('uid', '==', uid).get();
+      const batch = db.batch();
+      logsSnap.docs.forEach((d) => batch.delete(d.ref));
+      if (!logsSnap.empty) await batch.commit();
+    } catch (err) {
+      logger.warn('deleteUserAccount: diveLogs cleanup failed', {
+        uid, error: err.message,
+      });
+    }
+
+    // 4. Profile photo in Storage (if present). Pattern matches the
+    //    paths written by the client photo-upload flow.
+    try {
+      const bucket = admin.storage().bucket();
+      const [files] = await bucket.getFiles({ prefix: `users/${uid}/` });
+      await Promise.all(files.map((f) => f.delete().catch(() => undefined)));
+    } catch (err) {
+      logger.warn('deleteUserAccount: storage cleanup partial', {
+        uid, error: err.message,
+      });
+    }
+
+    // 5. The users/{uid} doc itself.
+    await db.doc(`users/${uid}`).delete().catch(() => undefined);
+
+    // 6. Auth user. Once this runs the client's session is invalid.
+    try {
+      await admin.auth().deleteUser(uid);
+    } catch (err) {
+      logger.error('deleteUserAccount: auth deletion failed', {
+        uid, error: err.message,
+      });
+      throw new HttpsError('internal', 'Account data was deleted but auth user could not be removed. Contact support.');
+    }
+
+    logger.info('deleteUserAccount: complete', { uid });
+    return { ok: true };
+  },
+);
+
+
+// ─── Snapshot-on-submit dive log pipeline ────────────────────────────────────
+//
+// submitDiveLog: server-side callable that resolves the prediction
+// snapshot at dive_at, computes signed deltas, writes the diveLogs doc
+// transactionally with the per-spot community overlay. Replaces the
+// old onDocumentCreated trigger — server-trusted snapshot resolution
+// is essential so a buggy or malicious client can't corrupt the
+// calibration dataset.
+//
+// archiveHourly: scheduled at :05 every hour, copies the just-finished
+// hour's kaicast_reports snapshot into gs://kaicast-historical/. Lets
+// submitDiveLog resolve snapshots for dives older than Firestore TTL.
+//
+// See functions/types/schema.js for the canonical doc shapes.
+
+exports.submitDiveLog  = require('./submitDiveLog').submitDiveLog;
+exports.archiveHourly  = require('./archiveHourly').archiveHourly;
+
+// Legacy onDiveLogCreated trigger removed — its responsibilities
+// (ingesting reported_vis vs predicted_vis into abyss_diver_reports)
+// are now part of the submitDiveLog callable, with the same data
+// stored inline on each diveLogs doc as `predicted_at_time` + `deltas`.
+// The nightly calibration job (separate scope) consumes those fields
+// directly off diveLogs instead of the old abyss_diver_reports mirror.
+

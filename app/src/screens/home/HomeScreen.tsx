@@ -11,13 +11,36 @@ import { AlertRow } from '@/components/AlertRow';
 import { DiveReportCard } from '@/components/DiveReportCard';
 import { Button } from '@/components/Button';
 import { spacing } from '@/theme';
-import { conditionAlerts, diveReports, favoriteSpots, featuredSpot } from '@/api/mockData';
+import { diveReports, featuredSpot } from '@/api/mockData';
 import { useAuth } from '@/hooks/useAuth';
+import { useSpots } from '@/hooks/useSpots';
+import { useSpotReport } from '@/hooks/useSpotReport';
+import { useAlerts } from '@/hooks/useAlerts';
+import { useFavorites } from '@/hooks/useFavorites';
 import type { DashboardNav } from '@/navigation/types';
 
 export function HomeScreen() {
   const nav = useNavigation<DashboardNav>();
   const { user } = useAuth();
+  const { spots } = useSpots();
+  const { favorites } = useFavorites(user?.id);
+  // Show user's favorites first; fall back to top 4 spots when they
+  // haven't favorited anything yet so the carousel never goes empty.
+  const userFavorites = spots.filter((s) => favorites.has(s.id));
+  const favoriteSpots = userFavorites.length ? userFavorites : spots.slice(0, 4);
+  // Featured spot prefers the user's first favorite when they have
+  // one — otherwise rotates through the canonical list by week of
+  // year so the home hero isn't the same spot every day forever.
+  // Falls back to the static mock only while spots[] is still loading.
+  const rotatingIdx = (() => {
+    if (!spots.length) return 0;
+    const week = Math.floor(Date.now() / (7 * 86400000));
+    return week % spots.length;
+  })();
+  const headlineSpot =
+    userFavorites[0] ?? spots[rotatingIdx] ?? featuredSpot;
+  const { backend: alertReport } = useSpotReport(headlineSpot);
+  const conditionAlerts = useAlerts(headlineSpot.name, alertReport);
 
   const displayName = user?.name ?? 'Dawson';
   const initials = displayName.split(' ').map((s) => s[0]).join('').slice(0, 2);
@@ -29,13 +52,12 @@ export function HomeScreen() {
         userLocation="OAHU, HAWAII"
         initials={initials}
         photoUri={user?.photoUrl}
-        photoSource={require('../../../assets/dawson.png')}
         onAvatarPress={() => nav.navigate('Profile')}
       />
 
       <FeaturedSpotCard
-        spot={featuredSpot}
-        onPress={() => nav.navigate('SpotDetail', { spotId: featuredSpot.id })}
+        spot={headlineSpot}
+        onPress={() => nav.navigate('SpotDetail', { spotId: headlineSpot.id })}
       />
 
       <View style={{ height: spacing.xxl }} />

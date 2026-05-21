@@ -6,8 +6,11 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { AppNavigator } from '@/navigation';
 import { AuthProvider } from '@/hooks/useAuth';
+import { initSentry, wrap } from '@/util/sentry';
 
-export default function App() {
+initSentry();
+
+function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
@@ -19,3 +22,5 @@ export default function App() {
     </GestureHandlerRootView>
   );
 }
+
+export default wrap(App);

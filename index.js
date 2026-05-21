@@ -12,16 +12,9 @@ const analysis        = require('./analysis');
 const { fetchBuoyHourly } = require('./buoy_Version2');
 const { pushAllReportsToWebflow } = require('./webflow');
 
-const { onRequest } = require('firebase-functions/v2/https');
-const { onSchedule } = require('firebase-functions/v2/scheduler');
-const { defineSecret } = require('firebase-functions/params');
-const logger = require('firebase-functions/logger');
-const admin = require('firebase-admin');
-
 admin.initializeApp();
 const db = admin.firestore();
 
-const { fetchBuoyHourly } = require('./buoy_Version2');
 const {
   fetchMoonPhase,
   evaluateJellyfishAndNightDive,
@@ -36,7 +29,6 @@ const {
   chooseNoaaTideStationForSpot,
   fetchTideSeries,
 } = require('./tides');
-const { pushAllReportsToWebflow } = require('./webflow');
 
 // ─── Secrets ─────────────────────────────────────────────────────────────────
 
