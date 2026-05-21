@@ -10,8 +10,8 @@ import { Icon } from '@/components/Icon';
 import { DiveReportCard } from '@/components/DiveReportCard';
 import { satelliteUrl } from '@/api/satellite';
 import { colors, radius, spacing, typography } from '@/theme';
-import { diveReports } from '@/api/mockData';
 import { useProfilePhoto } from '@/hooks/useProfilePhoto';
+import { useSpotDiveLogs, diveLogToReport } from '@/hooks/useDiveLogs';
 import type { RootStackParamList } from '@/navigation/types';
 import type { Spot } from '@/types';
 
@@ -75,6 +75,10 @@ export function GuideTab({ spot }: Props) {
   const description = spot.description ?? FALLBACK_DESCRIPTION;
   const photo = useProfilePhoto();
 
+  // Real community reports for this spot (public + friends-visible).
+  const { logs: spotLogs } = useSpotDiveLogs(spot.id, 10);
+  const communityReports = spotLogs.map((l) => diveLogToReport(l, 'Diver', spot.name));
+
   const openInMaps = async () => {
     const url = googleMapsDeepLink(spot.lat, spot.lon);
     try {
@@ -120,11 +124,17 @@ export function GuideTab({ spot }: Props) {
       <View>
         <Text style={typography.h3}>Community Reports</Text>
         <View style={{ height: spacing.md }} />
-        <View style={{ gap: spacing.md }}>
-          {diveReports.map((r) => (
-            <CommunityReportRow key={r.id} reportId={r.id} report={r} />
-          ))}
-        </View>
+        {communityReports.length > 0 ? (
+          <View style={{ gap: spacing.md }}>
+            {communityReports.map((r) => (
+              <CommunityReportRow key={r.id} reportId={r.id} report={r} />
+            ))}
+          </View>
+        ) : (
+          <Text style={{ ...typography.bodySm, color: colors.textSecondary }}>
+            No community reports for this spot yet. Be the first to log a dive here.
+          </Text>
+        )}
       </View>
     </View>
   );

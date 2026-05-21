@@ -27,6 +27,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useFollowing } from '@/hooks/useFollowing';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { useSpots } from '@/hooks/useSpots';
+import { deleteDiveLog as deleteDiveLogApi } from '@/api/diveLogs';
 import type { RootNav, RootStackParamList } from '@/navigation/types';
 
 type DiveReportRoute = RouteProp<RootStackParamList, 'DiveReportDetail'>;
@@ -197,6 +198,7 @@ export function DiveReportDetailScreen() {
   };
 
   const confirmDelete = () => {
+    if (!log) return;
     Alert.alert(
       'Delete this report?',
       'This cannot be undone.',
@@ -206,8 +208,12 @@ export function DiveReportDetailScreen() {
           text: 'Delete',
           style: 'destructive',
           onPress: async () => {
-            // TODO: wire to deleteDiveLog callable once it lands.
-            Alert.alert('Not available yet', 'Deleting reports will arrive in the next update.');
+            try {
+              await deleteDiveLogApi(log.id);
+              nav.goBack();
+            } catch (err) {
+              Alert.alert("Couldn't delete report", (err as Error).message || 'Try again later.');
+            }
           },
         },
       ],

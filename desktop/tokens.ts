@@ -60,8 +60,11 @@ export const spacing = {
   xxxl: 48,
 } as const;
 
-// Desktop layout width — all screens center inside this max.
-export const DESKTOP_MAX_WIDTH = 1440;
+// Desktop layout width — all screens center inside this max. Set to
+// 1920 so a 1080p / 1440p browser fills the viewport instead of
+// rendering with empty gutters; ultrawide users still get controlled
+// line lengths past this cap.
+export const DESKTOP_MAX_WIDTH = 1920;
 
 // Top nav (DesktopNav.tsx) height + util bar above it.
 export const NAV_HEIGHT = 64;

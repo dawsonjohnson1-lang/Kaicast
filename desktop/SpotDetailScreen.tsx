@@ -129,18 +129,19 @@ type HourRow = {
   wave: string;
   vis: string;
   wind: string;
+  current: string;
   tide: string;
   swell: string;
 };
 
 const HOURLY: HourRow[] = [
-  { time: '2 PM', rating: 'excellent', stars: 5, wave: '3.1 FT @ 9s', vis: '58 FT', wind: '7 KT NE', tide: '+1.4 FT', swell: '295° WNW' },
-  { time: '3 PM', rating: 'excellent', stars: 5, wave: '3.2 FT @ 9s', vis: '60 FT', wind: '8 KT NE', tide: '+0.9 FT', swell: '295° WNW' },
-  { time: '4 PM', rating: 'excellent', stars: 5, wave: '3.4 FT @ 9s', vis: '58 FT', wind: '9 KT NE', tide: '+0.5 FT', swell: '295° WNW' },
-  { time: '5 PM', rating: 'great',     stars: 4, wave: '3.4 FT @ 9s', vis: '55 FT', wind: '11 KT NE', tide: '+0.3 FT', swell: '295° WNW' },
-  { time: '6 PM', rating: 'great',     stars: 4, wave: '3.3 FT @ 9s', vis: '52 FT', wind: '11 KT NE', tide: '+0.5 FT', swell: '300° WNW' },
-  { time: '7 PM', rating: 'good',      stars: 3, wave: '3.1 FT @ 8s', vis: '48 FT', wind: '10 KT NE', tide: '+0.9 FT', swell: '300° WNW' },
-  { time: '8 PM', rating: 'good',      stars: 3, wave: '3.0 FT @ 8s', vis: '45 FT', wind: '8 KT NE',  tide: '+1.4 FT', swell: '300° WNW' },
+  { time: '2 PM', rating: 'excellent', stars: 5, wave: '3.1 FT @ 9s', vis: '58 FT', wind: '7 KT NE',  current: '0.4 MPH SE', tide: '+1.4 FT', swell: '295° WNW' },
+  { time: '3 PM', rating: 'excellent', stars: 5, wave: '3.2 FT @ 9s', vis: '60 FT', wind: '8 KT NE',  current: '0.5 MPH SE', tide: '+0.9 FT', swell: '295° WNW' },
+  { time: '4 PM', rating: 'excellent', stars: 5, wave: '3.4 FT @ 9s', vis: '58 FT', wind: '9 KT NE',  current: '0.6 MPH SE', tide: '+0.5 FT', swell: '295° WNW' },
+  { time: '5 PM', rating: 'great',     stars: 4, wave: '3.4 FT @ 9s', vis: '55 FT', wind: '11 KT NE', current: '0.7 MPH SE', tide: '+0.3 FT', swell: '295° WNW' },
+  { time: '6 PM', rating: 'great',     stars: 4, wave: '3.3 FT @ 9s', vis: '52 FT', wind: '11 KT NE', current: '0.7 MPH E',  tide: '+0.5 FT', swell: '300° WNW' },
+  { time: '7 PM', rating: 'good',      stars: 3, wave: '3.1 FT @ 8s', vis: '48 FT', wind: '10 KT NE', current: '0.6 MPH E',  tide: '+0.9 FT', swell: '300° WNW' },
+  { time: '8 PM', rating: 'good',      stars: 3, wave: '3.0 FT @ 8s', vis: '45 FT', wind: '8 KT NE',  current: '0.5 MPH E',  tide: '+1.4 FT', swell: '300° WNW' },
 ];
 
 const NEARBY = [
@@ -2522,11 +2523,12 @@ function HourlyCard() {
         <View style={styles.hourlyHeader}>
           <HourlyCell text="Time" header width={80} />
           <HourlyCell text="Rating" header width={110} />
-          <HourlyCell text="Stars" header width={162} />
+          <HourlyCell text="Stars" header width={140} />
           <HourlyCell text="Wave" header width={110} />
-          <HourlyCell text="Vis" header width={90} />
-          <HourlyCell text="Wind" header width={110} />
-          <HourlyCell text="Tide" header width={90} />
+          <HourlyCell text="Vis" header width={80} />
+          <HourlyCell text="Wind" header width={100} />
+          <HourlyCell text="Current" header width={110} />
+          <HourlyCell text="Tide" header width={80} />
           <HourlyCell text="Swell" header flex />
         </View>
 
@@ -2536,13 +2538,14 @@ function HourlyCard() {
             <View style={[styles.hourlyCell, { width: 110 }]}>
               <ConditionPill tier={row.rating} size="sm" />
             </View>
-            <View style={[styles.hourlyCell, { width: 162 }]}>
+            <View style={[styles.hourlyCell, { width: 140 }]}>
               <Stars n={row.stars} size={11} />
             </View>
             <HourlyCell text={row.wave} width={110} />
-            <HourlyCell text={row.vis} width={90} />
-            <HourlyCell text={row.wind} width={110} />
-            <HourlyCell text={row.tide} width={90} />
+            <HourlyCell text={row.vis} width={80} />
+            <HourlyCell text={row.wind} width={100} />
+            <HourlyCell text={row.current} width={110} />
+            <HourlyCell text={row.tide} width={80} />
             <HourlyCell text={row.swell} flex />
           </View>
         ))}
@@ -2627,30 +2630,140 @@ function SwellsCard() {
 
 // ─── Tide / moon ──────────────────────────────────────────────────────────
 
-const TIDE_EVENTS = [
-  { kind: '▲', label: 'High', value: '2.3', time: '02:38 AM' },
-  { kind: '▼', label: 'Low',  value: '0.2', time: '08:24 AM' },
-  { kind: '▲', label: 'High', value: '2.7', time: '04:55 PM' },
-  { kind: '▼', label: 'Low',  value: '0.4', time: '10:48 PM' },
+type TideEvent = { kind: '▲' | '▼'; label: 'High' | 'Low'; value: string; time: string; tsMs: number; heightFt: number };
+
+const PLACEHOLDER_TIDE_EVENTS: TideEvent[] = [
+  { kind: '▲', label: 'High', value: '2.3', time: '02:38 AM', tsMs: 0, heightFt: 2.3 },
+  { kind: '▼', label: 'Low',  value: '0.2', time: '08:24 AM', tsMs: 1, heightFt: 0.2 },
+  { kind: '▲', label: 'High', value: '2.7', time: '04:55 PM', tsMs: 2, heightFt: 2.7 },
+  { kind: '▼', label: 'Low',  value: '0.4', time: '10:48 PM', tsMs: 3, heightFt: 0.4 },
 ];
 
+function formatTideTime(iso: string): string {
+  const d = new Date(iso);
+  if (!Number.isFinite(d.getTime())) return '—';
+  return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+
+function tideEventsFromReport(tide: Record<string, unknown> | undefined | null): TideEvent[] {
+  if (!tide) return PLACEHOLDER_TIDE_EVENTS;
+  const raw: Array<{ iso?: unknown; height?: unknown; kind: '▲' | '▼'; label: 'High' | 'Low' }> = [
+    { iso: tide.lowTide1Time,    height: tide.lowTide1Height,    kind: '▼', label: 'Low' },
+    { iso: tide.risingTideTime,  height: tide.risingTideHeight,  kind: '▲', label: 'High' },
+    { iso: tide.highTideTime,    height: tide.highTideHeight,    kind: '▲', label: 'High' },
+    { iso: tide.fallingTideTime, height: tide.fallingTideHeight, kind: '▼', label: 'Low' },
+    { iso: tide.lowTide2Time,    height: tide.lowTide2Height,    kind: '▼', label: 'Low' },
+  ];
+  const out: TideEvent[] = [];
+  for (const r of raw) {
+    const iso = typeof r.iso === 'string' ? r.iso : null;
+    const ft = typeof r.height === 'number' ? r.height : null;
+    if (!iso || ft == null) continue;
+    const ts = Date.parse(iso);
+    if (!Number.isFinite(ts)) continue;
+    out.push({ kind: r.kind, label: r.label, value: ft.toFixed(1), time: formatTideTime(iso), tsMs: ts, heightFt: ft });
+  }
+  // The cycle has both turning points (rising/falling) and the actual
+  // peaks. For the chip row we only need 4 — drop intermediates.
+  const turnsOnly = out.filter((e, i) => i === 0 || i === out.length - 1 || (i > 0 && out[i - 1].label !== e.label));
+  return turnsOnly.length >= 2 ? turnsOnly : PLACEHOLDER_TIDE_EVENTS;
+}
+
+function TideCurve({ events, currentTs, currentHeight }: { events: TideEvent[]; currentTs: number | null; currentHeight: number | null }) {
+  // Width is filled by the parent card; height fixed for a stable card row.
+  const HEIGHT = 96;
+  const PAD_X = 18;
+  const PAD_Y = 14;
+  // Span the chart from first to last event timestamp.
+  const real = events.filter((e) => Number.isFinite(e.tsMs) && e.tsMs > 10);
+  if (real.length < 2) return null;
+  const t0 = real[0].tsMs;
+  const t1 = real[real.length - 1].tsMs;
+  const heights = real.map((e) => e.heightFt);
+  const hMin = Math.min(...heights) - 0.3;
+  const hMax = Math.max(...heights) + 0.3;
+  const xFor = (ts: number, width: number) =>
+    PAD_X + ((ts - t0) / (t1 - t0)) * (width - PAD_X * 2);
+  const yFor = (ft: number) =>
+    HEIGHT - PAD_Y - ((ft - hMin) / (hMax - hMin)) * (HEIGHT - PAD_Y * 2);
+
+  // RN-Web renders Views as <div>s; raw SVG via React.createElement lets
+  // us draw a real curve without pulling in react-native-svg.
+  // 1200px viewBox width matches the typical card width; SVG scales by
+  // preserveAspectRatio.
+  const W = 1200;
+  // Smooth cubic between consecutive event points.
+  let path = '';
+  for (let i = 0; i < real.length; i++) {
+    const x = xFor(real[i].tsMs, W);
+    const y = yFor(real[i].heightFt);
+    if (i === 0) { path += `M ${x.toFixed(1)} ${y.toFixed(1)}`; continue; }
+    const px = xFor(real[i - 1].tsMs, W);
+    const py = yFor(real[i - 1].heightFt);
+    const cx = (px + x) / 2;
+    path += ` C ${cx.toFixed(1)} ${py.toFixed(1)}, ${cx.toFixed(1)} ${y.toFixed(1)}, ${x.toFixed(1)} ${y.toFixed(1)}`;
+  }
+  const fillPath = `${path} L ${xFor(real[real.length - 1].tsMs, W).toFixed(1)} ${HEIGHT - PAD_Y} L ${xFor(real[0].tsMs, W).toFixed(1)} ${HEIGHT - PAD_Y} Z`;
+
+  const nowX = currentTs != null && currentTs >= t0 && currentTs <= t1 ? xFor(currentTs, W) : null;
+  const nowY = currentHeight != null && nowX != null ? yFor(currentHeight) : null;
+
+  return React.createElement(
+    'svg' as unknown as 'div',
+    {
+      viewBox: `0 0 ${W} ${HEIGHT}`,
+      width: '100%',
+      height: HEIGHT,
+      preserveAspectRatio: 'none',
+      style: { display: 'block' },
+    },
+    React.createElement('defs', { key: 'defs' },
+      React.createElement('linearGradient', { id: 'tideFill', x1: '0', y1: '0', x2: '0', y2: '1' },
+        React.createElement('stop', { offset: '0', stopColor: '#0C9BFA', stopOpacity: 0.32 }),
+        React.createElement('stop', { offset: '1', stopColor: '#0C9BFA', stopOpacity: 0 }),
+      ),
+    ),
+    React.createElement('path', { key: 'fill', d: fillPath, fill: 'url(#tideFill)' }),
+    React.createElement('path', { key: 'stroke', d: path, stroke: '#0C9BFA', strokeWidth: 2, fill: 'none' }),
+    ...real.map((e, i) => React.createElement('circle', {
+      key: `pt-${i}`, cx: xFor(e.tsMs, W), cy: yFor(e.heightFt), r: 3.5, fill: '#0C9BFA',
+    })),
+    nowX != null && nowY != null
+      ? React.createElement('g', { key: 'now' },
+          React.createElement('line', { x1: nowX, y1: PAD_Y - 2, x2: nowX, y2: HEIGHT - PAD_Y + 2, stroke: 'rgba(255,255,255,0.55)', strokeWidth: 1, strokeDasharray: '3,4' }),
+          React.createElement('circle', { cx: nowX, cy: nowY, r: 5, fill: '#FFFFFF', stroke: '#0C9BFA', strokeWidth: 1.5 }),
+        )
+      : null,
+  );
+}
+
 function TideCard() {
+  const { data: report } = useReportCtx();
+  const tide = report?.tide ?? report?.now?.tide ?? null;
+  const events = React.useMemo(() => tideEventsFromReport(tide), [tide]);
+  const currentTs = report?.generatedAt ? Date.parse(report.generatedAt) : null;
+  const currentHeightRaw = tide ? (tide as { currentTideHeight?: number }).currentTideHeight : null;
+  const currentHeight = typeof currentHeightRaw === 'number' ? currentHeightRaw : null;
+  // Moon glimpse: use the analysis.moon block if backend gave us one.
+  const moon = report?.now?.analysis?.moon as { phase?: string; daysSinceFullMoon?: number } | undefined;
+  const moonLabel = moon?.phase ? moon.phase.toUpperCase() : 'TIDE · LIVE';
+
   return (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
         <Text style={styles.cardHeaderTitle}>Tide · sunrise · moon</Text>
-        <Text style={styles.cardHeaderMono}>NEW MOON IN 3 DAYS</Text>
+        <Text style={styles.cardHeaderMono}>{moonLabel}</Text>
       </View>
 
       <View style={styles.tideChartPlaceholder}>
-        <Text style={styles.tideChartLabel}>TIDE CURVE</Text>
+        <TideCurve events={events} currentTs={currentTs} currentHeight={currentHeight} />
       </View>
 
       <View style={styles.tideEventsRow}>
-        {TIDE_EVENTS.map((e, i) => (
+        {events.slice(0, 4).map((e, i) => (
           <View
             key={i}
-            style={[styles.tideEvent, i < TIDE_EVENTS.length - 1 && styles.tideEventDivider]}
+            style={[styles.tideEvent, i < Math.min(events.length, 4) - 1 && styles.tideEventDivider]}
           >
             <View style={styles.tideEventLabelRow}>
               <Text style={styles.tideEventKind}>{e.kind}</Text>

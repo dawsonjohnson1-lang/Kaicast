@@ -1,10 +1,13 @@
 /**
  * KaiCastMap — shared Mapbox GL JS wrapper for the desktop web app.
  *
- * Rendering: Mapbox needs a real DOM <div> for its canvas. React Native's
- * <View> doesn't expose a stable DOM ref, so we use react-native-web's
- * unstable_createElement to mount a div directly. This component is web-
- * only — importing it in a native build will throw.
+ * Rendering: Mapbox needs a real DOM <div> for its canvas. We render
+ * one via React.createElement('div', …) so the ref attaches cleanly
+ * (unstable_createElement from rn-web had inconsistent ref forwarding
+ * after the Vite bundle). The div is absolutely positioned to fill its
+ * parent — the parent in every callsite is a sized View, so this
+ * guarantees the div has real dimensions even when the flex layout's
+ * width:'100%'/height:'100%' resolution is squishy.
  *
  * Style: starts from `mapbox://styles/mapbox/dark-v11` and overrides
  * land/water/road/label colors at runtime via setPaintProperty so the
@@ -18,14 +21,12 @@
  */
 
 import React, { useEffect, useRef } from 'react';
-// react-native-web exposes unstable_createElement as a top-level export,
-// not via the public RN type surface — hence the require dance.
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const { unstable_createElement } = require('react-native-web');
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 
-import { colors, radius, TIER_COLORS, type ConditionTier } from '../../tokens';
+import { colors, TIER_COLORS, type ConditionTier } from '../../tokens';
+import { MapLayerControl, INITIAL_LAYER_STATE, type LayerState } from './MapLayerControl';
+import { useMapLayers } from './useMapLayers';
 
 // Vite injects this at build time. If absent, the map renders an empty
 // surface + logs a warning — see desktop/.env.example for setup.
@@ -60,6 +61,10 @@ export interface KaiCastMapProps {
   showZoomControls?: boolean;
   /** Disable pan/zoom/rotate. Use for glance-only surfaces (Dashboard). */
   interactive?: boolean;
+  /** Mount the floating top-right layer toggle panel. */
+  showLayerControl?: boolean;
+  /** Expand the layer panel on mount. Pair with `showLayerControl`. */
+  layerControlOpenByDefault?: boolean;
   style?: React.CSSProperties;
 }
 
@@ -99,11 +104,20 @@ export function KaiCastMap({
   onMapClick,
   showZoomControls = true,
   interactive = true,
+  showLayerControl = false,
+  layerControlOpenByDefault = false,
   style,
 }: KaiCastMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const markersRef = useRef<Record<string, mapboxgl.Marker>>({});
+  // Layer toggle state lives here so KaiCastMap can drive the layer
+  // controller via useMapLayers (which adds/removes Mapbox sources).
+  const [layerState, setLayerState] = React.useState<LayerState>(INITIAL_LAYER_STATE);
+  // Bumped when the map instance finishes initializing — forces a
+  // re-render so useMapLayers sees the non-null mapRef.current.
+  const [, setMapVersion] = React.useState(0);
+  useMapLayers(mapRef.current, layerState);
 
   // Init once. Subsequent prop changes are handled by the targeted
   // effects below — re-running this effect would tear down the map.
@@ -130,6 +144,14 @@ export function KaiCastMap({
       map.addControl(new mapboxgl.NavigationControl({ showCompass: false, visualizePitch: false }), 'top-right');
     }
 
+    // Compact attribution: Mapbox + OSM by default; data layers
+    // (RainViewer, OWM, etc.) append their attribution via the source
+    // config and Mapbox merges them in.
+    map.addControl(
+      new mapboxgl.AttributionControl({ compact: true }),
+      'bottom-left',
+    );
+
     map.on('style.load', () => {
       for (const { layer, prop, value } of STYLE_OVERRIDES) {
         try {
@@ -155,6 +177,10 @@ export function KaiCastMap({
     });
 
     mapRef.current = map;
+    // Bump mapVersion so dependents (useMapLayers) re-evaluate now
+    // that mapRef.current is non-null. Without this the ref mutation
+    // alone won't trigger a re-render.
+    setMapVersion((v) => v + 1);
     return () => {
       map.remove();
       mapRef.current = null;
@@ -204,17 +230,36 @@ export function KaiCastMap({
     map.easeTo({ center, zoom, duration: 600 });
   }, [center, zoom]);
 
-  return unstable_createElement('div', {
-    ref: containerRef,
-    style: {
-      width: '100%',
-      height: '100%',
-      borderRadius: radius.md,
-      overflow: 'hidden',
-      backgroundColor: colors.surface0,
-      ...style,
+  // Wrapper div hosts the absolutely-positioned map canvas + any
+  // overlays (layer control, etc.). The wrapper itself fills the
+  // parent View via inset:0; both wrapper and inner canvas are
+  // absolutely positioned, which makes the wrapper the containing
+  // block for any further absolute overlays we add later.
+  return React.createElement(
+    'div',
+    {
+      style: {
+        position: 'absolute',
+        inset: 0,
+        overflow: 'hidden',
+        backgroundColor: colors.surface0,
+        ...style,
+      },
     },
-  });
+    React.createElement('div', {
+      key: 'canvas',
+      ref: containerRef,
+      style: { position: 'absolute', inset: 0 },
+    }),
+    showLayerControl
+      ? React.createElement(MapLayerControl, {
+          key: 'layers',
+          state: layerState,
+          onChange: setLayerState,
+          defaultOpen: layerControlOpenByDefault,
+        })
+      : null,
+  );
 }
 
 function applyMarkerStyle(

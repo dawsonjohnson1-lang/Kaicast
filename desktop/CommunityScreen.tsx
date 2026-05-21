@@ -11,6 +11,7 @@ import {
 import { DesktopNav } from './components/DesktopNav';
 import { ConditionPill } from './components/ConditionPill';
 import { DiveReportCard, type DiveReportCardProps } from './components/DiveReportCard';
+import { useBreakpoint, pick } from './hooks/useBreakpoint';
 import type { NavigateFn } from './router';
 
 /**
@@ -245,6 +246,9 @@ export interface CommunityScreenProps {
 }
 
 export function CommunityScreen({ activeNav = 'dashboard', onNavigate }: CommunityScreenProps) {
+  const bp = useBreakpoint();
+  const leftW = pick(bp, LEFT_W, 180);
+  const rightW = pick(bp, RIGHT_W, 260);
   const [filter, setFilter] = React.useState<(typeof FEED_FILTERS)[number]>('Following');
   const [island, setIsland] = React.useState<(typeof ISLAND_TOPICS)[number]>('All islands');
 
@@ -265,10 +269,12 @@ export function CommunityScreen({ activeNav = 'dashboard', onNavigate }: Communi
 
       <View style={styles.maxWidth}>
         <View style={styles.body}>
-          <LeftSidebar
-            filter={filter} onFilter={setFilter}
-            island={island} onIsland={setIsland}
-          />
+          <View style={{ width: leftW }}>
+            <LeftSidebar
+              filter={filter} onFilter={setFilter}
+              island={island} onIsland={setIsland}
+            />
+          </View>
 
           <View style={styles.feedColumn}>
             <FeedHeader filter={filter} island={island} count={filtered.length} />
@@ -285,7 +291,9 @@ export function CommunityScreen({ activeNav = 'dashboard', onNavigate }: Communi
             </View>
           </View>
 
-          <RightSidebar onNavigate={onNavigate} />
+          <View style={{ width: rightW }}>
+            <RightSidebar onNavigate={onNavigate} />
+          </View>
         </View>
       </View>
     </ScrollView>
@@ -685,7 +693,7 @@ const styles = StyleSheet.create({
 
   // ── Left sidebar ──
   leftSidebar: {
-    width: LEFT_W,
+    // Width set by responsive wrapper in CommunityScreen.
     paddingVertical: 24,
     paddingRight: 8,
     borderRightWidth: 1,
@@ -1055,7 +1063,7 @@ const styles = StyleSheet.create({
 
   // ── Right sidebar ──
   rightSidebar: {
-    width: RIGHT_W,
+    // Width set by responsive wrapper in CommunityScreen.
     padding: 16,
     gap: 16,
     borderLeftWidth: 1,

@@ -11,7 +11,6 @@ import { AlertRow } from '@/components/AlertRow';
 import { DiveReportCard } from '@/components/DiveReportCard';
 import { Button } from '@/components/Button';
 import { colors, spacing, typography } from '@/theme';
-import { featuredSpot } from '@/api/mockData';
 import { useAuth } from '@/hooks/useAuth';
 import { useSpots } from '@/hooks/useSpots';
 import { useSpotReport } from '@/hooks/useSpotReport';
@@ -33,16 +32,14 @@ export function HomeScreen() {
   // Featured spot prefers the user's first favorite when they have
   // one — otherwise rotates through the canonical list by week of
   // year so the home hero isn't the same spot every day forever.
-  // Falls back to the static mock only while spots[] is still loading.
   const rotatingIdx = (() => {
     if (!spots.length) return 0;
     const week = Math.floor(Date.now() / (7 * 86400000));
     return week % spots.length;
   })();
-  const headlineSpot =
-    userFavorites[0] ?? spots[rotatingIdx] ?? featuredSpot;
-  const { backend: alertReport } = useSpotReport(headlineSpot);
-  const conditionAlerts = useAlerts(headlineSpot.name, alertReport);
+  const headlineSpot = userFavorites[0] ?? spots[rotatingIdx] ?? null;
+  const { backend: alertReport } = useSpotReport(headlineSpot ?? undefined);
+  const conditionAlerts = useAlerts(headlineSpot?.name ?? '', alertReport);
 
   // Friends' feed: only show dive logs whose authors the viewer follows.
   const { following } = useFollowing(user?.id);
@@ -80,10 +77,12 @@ export function HomeScreen() {
         onAvatarPress={() => nav.navigate('Profile')}
       />
 
-      <FeaturedSpotCard
-        spot={headlineSpot}
-        onPress={() => nav.navigate('SpotDetail', { spotId: headlineSpot.id })}
-      />
+      {headlineSpot && (
+        <FeaturedSpotCard
+          spot={headlineSpot}
+          onPress={() => nav.navigate('SpotDetail', { spotId: headlineSpot.id })}
+        />
+      )}
 
       <View style={{ height: spacing.xxl }} />
       <SectionTitle title="Favorite Spots" action="See all" onActionPress={() => nav.navigate('Saved')} />

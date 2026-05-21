@@ -168,6 +168,30 @@ export async function submitDiveLog(input: DiveLogInput): Promise<string> {
 }
 
 /**
+ * Delete a dive log the caller authored. Routes through the
+ * deleteDiveLog v2 callable so Firestore rules (which deny client
+ * writes to diveLogs entirely) can stay locked down. Falls back to
+ * stripping the entry out of the local AsyncStorage queue in demo mode.
+ */
+export async function deleteDiveLog(logId: string): Promise<void> {
+  if (firebaseConfigured && app) {
+    const fn = httpsCallable<{ log_id: string }, { ok: boolean }>(
+      getFunctions(app, 'us-central1'),
+      'deleteDiveLog',
+    );
+    await fn({ log_id: logId });
+    return;
+  }
+  const raw = await AsyncStorage.getItem(STUB_QUEUE_KEY);
+  if (!raw) return;
+  const queue: DiveLogRecord[] = JSON.parse(raw);
+  await AsyncStorage.setItem(
+    STUB_QUEUE_KEY,
+    JSON.stringify(queue.filter((r) => r.id !== logId)),
+  );
+}
+
+/**
  * Maps the legacy camelCase DiveLogInput shape (consumed by the
  * LogDive screens for years) onto the snake_case payload the
  * `submitDiveLog` callable expects. Keeps the rest of the app

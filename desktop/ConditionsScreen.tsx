@@ -618,7 +618,7 @@ function capitalize(s: string): string {
 
 // ─── Styles ───────────────────────────────────────────────────────────────
 
-const SIDEBAR_WIDTH = 240;
+const SIDEBAR_WIDTH = 200;
 
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: colors.bg },

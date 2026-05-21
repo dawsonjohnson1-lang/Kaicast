@@ -12,6 +12,9 @@ import {
 import { DesktopNav } from './components/DesktopNav';
 import { ConditionPill } from './components/ConditionPill';
 import { KaiCastMap, HAWAII_CENTER, HAWAII_ZOOM, type MapMarker } from './components/maps/KaiCastMap';
+import { useBreakpoint, pick } from './hooks/useBreakpoint';
+import { SPOTS as CANONICAL_SPOTS } from './data/spots';
+import { useSpotRatings } from './data/getReport';
 import type mapboxgl from 'mapbox-gl';
 import type { NavigateFn } from './router';
 
@@ -31,6 +34,7 @@ import type { NavigateFn } from './router';
 // ─── Mock data ────────────────────────────────────────────────────────────
 
 type SidebarSpot = {
+  id: string;
   name: string;
   region: string;
   lat: number;
@@ -39,54 +43,40 @@ type SidebarSpot = {
   runoff?: boolean;
 };
 
-// Coordinates are approximate; pulled from public reef-site listings.
-// They drive Mapbox marker placement, so accuracy matters for visual
-// honesty but not for navigation.
-const ISLANDS: Array<{ name: string; count: number; spots: SidebarSpot[] }> = [
-  {
-    name: "O'ahu",
-    count: 14,
-    spots: [
-      { name: 'Electric Beach', region: 'Leeward · 4.2 mi',             lat: 21.3550, lng: -158.1220, rating: 'excellent' },
-      { name: "Shark's Cove",   region: 'North Shore · 8.4 mi',         lat: 21.6417, lng: -158.0617, rating: 'great' },
-      { name: 'Three Tables',   region: 'North Shore · 8.6 mi',         lat: 21.6367, lng: -158.0633, rating: 'great' },
-      { name: 'Pupukea Beach',  region: 'North Shore · 9.2 mi',         lat: 21.6500, lng: -158.0500, rating: 'good' },
-      { name: 'Magic Island',   region: 'Honolulu · 8.1 mi',            lat: 21.2840, lng: -157.8458, rating: 'good' },
-      { name: 'Hanauma Bay',    region: 'East Side · 22 mi · ⚠ Runoff', lat: 21.2694, lng: -157.6939, rating: 'good',  runoff: true },
-      { name: 'Turtle Canyon',  region: 'Leeward · 11 mi · ⚠ Runoff',   lat: 21.4000, lng: -158.1500, rating: 'no-go', runoff: true },
-      { name: 'Koko Crater',    region: 'East Side · 24 mi',            lat: 21.2820, lng: -157.6700, rating: 'fair' },
-      { name: 'Waimea Bay',     region: 'North Shore · 26 mi',          lat: 21.6420, lng: -158.0670, rating: 'fair' },
-    ],
-  },
-  {
-    name: 'Maui',
-    count: 11,
-    spots: [
-      { name: 'Molokini Crater', region: 'South · Charter only', lat: 20.6330, lng: -156.4950, rating: 'excellent' },
-      { name: 'Honolua Bay',     region: 'Northwest · Shore',    lat: 21.0123, lng: -156.6398, rating: 'great' },
-      { name: 'Ulua Beach',      region: 'South Maui · Shore',   lat: 20.6843, lng: -156.4427, rating: 'good' },
-      { name: 'Black Rock',      region: 'West · Shore',         lat: 20.9333, lng: -156.6920, rating: 'great' },
-    ],
-  },
-  {
-    name: 'Big Island',
-    count: 15,
-    spots: [
-      { name: 'Kealakekua Bay',   region: 'West · State Reserve', lat: 19.4791, lng: -155.9197, rating: 'excellent' },
-      { name: 'Kahaluu Beach',    region: 'West · Shore',         lat: 19.5757, lng: -155.9683, rating: 'great' },
-      { name: 'Two Step',         region: 'West · Shore',         lat: 19.4187, lng: -155.9099, rating: 'great' },
-      { name: 'Richardson Beach', region: 'East · Shore',         lat: 19.7367, lng: -155.0167, rating: 'good' },
-    ],
-  },
-  {
-    name: "Kaua'i",
-    count: 7,
-    spots: [
-      { name: 'Tunnels Beach', region: 'North Shore · Shore', lat: 22.2233, lng: -159.5705, rating: 'good' },
-      { name: 'Poipu Beach',   region: 'South Shore · Shore', lat: 21.8736, lng: -159.4537, rating: 'good' },
-    ],
-  },
-];
+// Build the sidebar islands list straight from the canonical SPOTS
+// list so map markers + satellite hero on Spot Detail can never
+// disagree (they used to render in different places because each
+// surface had its own hardcoded coord list). Ratings are filled in
+// at runtime by useSpotRatings (per-spot live getReport calls).
+function buildIslandsFromCanonical(): Array<{ name: string; count: number; spots: SidebarSpot[] }> {
+  const groups = new Map<string, SidebarSpot[]>();
+  for (const s of CANONICAL_SPOTS) {
+    const arr = groups.get(s.region) ?? [];
+    arr.push({
+      id: s.id,
+      name: s.name,
+      region: `${s.region} · Shore`,
+      lat: s.lat,
+      lng: s.lon,
+    });
+    groups.set(s.region, arr);
+  }
+  // Stable display order: Oahu, Maui, Kauai, Big Island, then any others.
+  const ORDER = ['Oahu', 'Maui', 'Kauai', 'Big Island'];
+  const LABEL: Record<string, string> = { Oahu: "O'ahu", Maui: 'Maui', Kauai: "Kaua'i", 'Big Island': 'Big Island' };
+  const list: Array<{ name: string; count: number; spots: SidebarSpot[] }> = [];
+  for (const region of ORDER) {
+    const spots = groups.get(region);
+    if (!spots) continue;
+    list.push({ name: LABEL[region] ?? region, count: spots.length, spots });
+    groups.delete(region);
+  }
+  for (const [region, spots] of groups) {
+    list.push({ name: region, count: spots.length, spots });
+  }
+  return list;
+}
+const ISLANDS = buildIslandsFromCanonical();
 
 const SELECTED_SPOT = {
   name: 'Electric Beach',
@@ -120,15 +110,6 @@ const FRIENDS = [
   { initials: 'MH', name: 'Marcus H.',  activity: "at Shark's Cove · Spearfishing",   when: '32M' },
 ];
 
-// Initial layer state — `active` toggles via the layer panel on the map.
-const INITIAL_MAP_LAYERS = [
-  { label: 'Conditions',    color: colors.accent,            active: true  },
-  { label: 'Wind',          color: colors.accent,            active: false },
-  { label: 'Swell',         color: colors.good,              active: false },
-  { label: 'Cloud cover',   color: 'rgba(255,255,255,0.4)',  active: false },
-  { label: 'Rain / Runoff', color: colors.nogo,              active: false },
-];
-
 // Favorites set powering the sidebar "Favorites" tab — matches the spots
 // listed under "My spots" elsewhere in the app for consistency.
 const FAVORITE_SPOTS = new Set(['Electric Beach', "Shark's Cove", 'Molokini Crater', 'Three Tables']);
@@ -159,22 +140,30 @@ export interface SpotsMapScreenProps {
 }
 
 export function SpotsMapScreen({ activeNav = 'spots', onNavigate }: SpotsMapScreenProps) {
+  const bp = useBreakpoint();
+  const sidebarW = pick(bp, 300, 260);
+  const panelW = pick(bp, 320, 280);
   const [tab, setTab] = React.useState<'All' | 'Favorites' | 'Nearby'>('All');
   const [search, setSearch] = React.useState('');
-  const [layers, setLayers] = React.useState(INITIAL_MAP_LAYERS);
   // Selection is keyed by spot name (the data has no stable id field).
   const [selectedName, setSelectedName] = React.useState<string>('Electric Beach');
   const [hoveredName, setHoveredName] = React.useState<string | undefined>(undefined);
 
-  const toggleLayer = React.useCallback((label: string) => {
-    setLayers((prev) => prev.map((l) => (l.label === label ? { ...l, active: !l.active } : l)));
-  }, []);
-
   // Flat list of every spot — used by the map (always shows all pins,
   // sidebar filtering only affects the list panel).
-  const allSpots = React.useMemo(
+  const baseSpots = React.useMemo(
     () => ISLANDS.flatMap((i) => i.spots),
     [],
+  );
+
+  // Live conditions tier per spot — one getReport call per id, cached.
+  const allSpotIds = React.useMemo(() => baseSpots.map((s) => s.id), [baseSpots]);
+  const liveRatings = useSpotRatings(allSpotIds);
+
+  // Apply live ratings on top of the base sidebar spots.
+  const allSpots = React.useMemo(
+    () => baseSpots.map((s) => ({ ...s, rating: liveRatings.get(s.id) ?? s.rating })),
+    [baseSpots, liveRatings],
   );
 
   const selectedSpot = React.useMemo(
@@ -182,21 +171,17 @@ export function SpotsMapScreen({ activeNav = 'spots', onNavigate }: SpotsMapScre
     [allSpots, selectedName],
   );
 
-  // "Conditions" layer toggles pin visibility — when off, the map shows
-  // an empty geography. Other layer toggles (Wind / Swell / Cloud /
-  // Rain) hold visual state but their data layers are TODO (backend
-  // overlays not yet shipped).
-  const conditionsOn = layers.find((l) => l.label === 'Conditions')?.active ?? true;
-  const mapMarkers: MapMarker[] = React.useMemo(() => {
-    if (!conditionsOn) return [];
-    return allSpots.map((s) => ({
-      id: s.name,
-      lng: s.lng,
-      lat: s.lat,
-      tier: s.rating,
-      label: s.name,
-    }));
-  }, [allSpots, conditionsOn]);
+  const mapMarkers: MapMarker[] = React.useMemo(
+    () =>
+      allSpots.map((s) => ({
+        id: s.name,
+        lng: s.lng,
+        lat: s.lat,
+        tier: s.rating,
+        label: s.name,
+      })),
+    [allSpots],
+  );
 
   return (
     <ScrollView style={styles.page} contentContainerStyle={styles.pageContent}>
@@ -206,25 +191,28 @@ export function SpotsMapScreen({ activeNav = 'spots', onNavigate }: SpotsMapScre
         <AlertBanner />
 
         <View style={styles.body}>
-          <Sidebar
-            tab={tab}
-            onTab={setTab}
-            search={search}
-            onSearch={setSearch}
-            selectedName={selectedName}
-            onSelect={setSelectedName}
-            onHover={setHoveredName}
-            onNavigate={onNavigate}
-          />
+          <View style={{ width: sidebarW }}>
+            <Sidebar
+              tab={tab}
+              onTab={setTab}
+              search={search}
+              onSearch={setSearch}
+              selectedName={selectedName}
+              onSelect={setSelectedName}
+              onHover={setHoveredName}
+              onNavigate={onNavigate}
+              ratings={liveRatings}
+            />
+          </View>
           <MapColumn
             markers={mapMarkers}
             selectedName={selectedName}
             hoveredName={hoveredName}
             onSelect={setSelectedName}
-            layers={layers}
-            onToggleLayer={toggleLayer}
           />
-          <SelectedSpotPanel spot={selectedSpot} onNavigate={onNavigate} />
+          <View style={{ width: panelW }}>
+            <SelectedSpotPanel spot={selectedSpot} onNavigate={onNavigate} />
+          </View>
         </View>
       </View>
     </ScrollView>
@@ -262,6 +250,7 @@ function Sidebar({
   onSelect,
   onHover,
   onNavigate,
+  ratings,
 }: {
   tab: 'All' | 'Favorites' | 'Nearby';
   onTab: (t: 'All' | 'Favorites' | 'Nearby') => void;
@@ -271,6 +260,7 @@ function Sidebar({
   onSelect: (name: string) => void;
   onHover: (name: string | undefined) => void;
   onNavigate?: NavigateFn;
+  ratings: Map<string, ConditionTier>;
 }) {
   const q = search.trim().toLowerCase();
 
@@ -291,10 +281,15 @@ function Sidebar({
     );
   };
 
+  // Merge live ratings into each spot before filtering so the pills
+  // in each sidebar row reflect the real `getReport` tier rather than
+  // the static placeholder the data layer ships with.
   const filteredIslands = ISLANDS
     .map((island) => ({
       ...island,
-      spots: island.spots.filter((s) => matchTab(s) && matchSearch(s)),
+      spots: island.spots
+        .map((s) => ({ ...s, rating: ratings.get(s.id) ?? s.rating }))
+        .filter((s) => matchTab(s) && matchSearch(s)),
     }))
     .filter((island) => island.spots.length > 0);
 
@@ -430,15 +425,11 @@ function MapColumn({
   selectedName,
   hoveredName,
   onSelect,
-  layers,
-  onToggleLayer,
 }: {
   markers: MapMarker[];
   selectedName: string;
   hoveredName?: string;
   onSelect: (name: string) => void;
-  layers: ReadonlyArray<{ label: string; color: string; active: boolean }>;
-  onToggleLayer: (label: string) => void;
 }) {
   // When the user clicks a sidebar spot, re-center the map on it. We
   // intentionally keep zoom modest so the surrounding archipelago stays
@@ -459,24 +450,11 @@ function MapColumn({
         hoveredId={hoveredName}
         onMarkerClick={onSelect}
         showZoomControls
+        showLayerControl
+        layerControlOpenByDefault
       />
 
-      {/* Top-left layer panel — absolute overlay above the map canvas. */}
-      <View style={styles.mapLayerPanel}>
-        <Text style={styles.mapLayerTitle}>MAP LAYER</Text>
-        {layers.map((l) => (
-          <Pressable
-            key={l.label}
-            onPress={() => onToggleLayer(l.label)}
-            style={[styles.mapLayerRow, l.active && styles.mapLayerRowActive]}
-          >
-            <View style={[styles.mapLayerSwatch, { backgroundColor: l.color }]} />
-            <Text style={[styles.mapLayerLabel, l.active && styles.mapLayerLabelActive]}>{l.label}</Text>
-          </Pressable>
-        ))}
-      </View>
-
-      {/* Bottom status bar — also absolute, anchored to bottom edge. */}
+      {/* Bottom status bar — absolute overlay above the map canvas. */}
       <View style={styles.mapStatusBar}>
         {STATUS_BAR_TIERS.map((s, i) => (
           <React.Fragment key={s.tier}>
@@ -626,9 +604,6 @@ function BestWindow() {
 
 // ─── Styles ───────────────────────────────────────────────────────────────
 
-const SIDEBAR_WIDTH = 300;
-const PANEL_WIDTH = 320;
-
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: colors.bg },
   pageContent: { alignItems: 'center' },
@@ -681,7 +656,7 @@ const styles = StyleSheet.create({
 
   // ── Sidebar (left) ──
   sidebar: {
-    width: SIDEBAR_WIDTH,
+    // Width set by responsive wrapper in SpotsMapScreen.
     borderRightWidth: 1,
     borderRightColor: colors.hairline,
   },
@@ -835,51 +810,6 @@ const styles = StyleSheet.create({
     position: 'relative',
     overflow: 'hidden',
   },
-  // Layer panel
-  mapLayerPanel: {
-    position: 'absolute',
-    top: 16,
-    left: 16,
-    width: 160,
-    padding: 12,
-    backgroundColor: 'rgba(12,16,21,0.65)',
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: colors.hairlineStrong,
-    gap: 8,
-  },
-  mapLayerTitle: {
-    fontFamily: fonts.mono,
-    fontSize: 9,
-    letterSpacing: 1,
-    color: colors.text3,
-  },
-  mapLayerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 4,
-    paddingHorizontal: 6,
-    borderRadius: 4,
-  },
-  mapLayerRowActive: {
-    backgroundColor: colors.accentDim,
-  },
-  mapLayerSwatch: {
-    width: 8,
-    height: 8,
-    borderRadius: 2,
-  },
-  mapLayerLabel: {
-    fontFamily: fonts.body,
-    fontSize: 11,
-    color: colors.text3,
-  },
-  mapLayerLabelActive: {
-    color: colors.text1,
-    fontWeight: '500',
-  },
-
   // Status bar
   mapStatusBar: {
     position: 'absolute',
@@ -926,7 +856,7 @@ const styles = StyleSheet.create({
 
   // ── Right panel ──
   panel: {
-    width: PANEL_WIDTH,
+    // Width set by responsive wrapper in SpotsMapScreen.
     borderLeftWidth: 1,
     borderLeftColor: colors.hairline,
   },
