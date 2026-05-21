@@ -14,6 +14,7 @@ import { SpotCard } from './components/SpotCard';
 import { MetricTile } from './components/MetricTile';
 import { HeatmapCell } from './components/HeatmapCell';
 import { DiveRow } from './components/DiveRow';
+import { KaiCastMap, type MapMarker } from './components/maps/KaiCastMap';
 import type { NavigateFn } from './router';
 
 /**
@@ -46,10 +47,10 @@ const SIDEBAR_NAV = [
 ];
 
 const FAVORITES = [
-  { name: 'Electric Beach', rating: 'excellent' as ConditionTier },
-  { name: "Shark's Cove",   rating: 'great'     as ConditionTier },
-  { name: 'Tunnels Beach',  rating: 'good'      as ConditionTier },
-  { name: 'Molokini',       rating: 'excellent' as ConditionTier },
+  { name: 'Electric Beach', rating: 'excellent' as ConditionTier, lat: 21.3550, lng: -158.1220, spotId: 'electric-beach' },
+  { name: "Shark's Cove",   rating: 'great'     as ConditionTier, lat: 21.6417, lng: -158.0617, spotId: 'sharks-cove' },
+  { name: 'Tunnels Beach',  rating: 'good'      as ConditionTier, lat: 22.2233, lng: -159.5705, spotId: 'tunnels-beach' },
+  { name: 'Molokini',       rating: 'excellent' as ConditionTier, lat: 20.6330, lng: -156.4950, spotId: 'molokini' },
 ];
 
 const STATS = [
@@ -242,10 +243,39 @@ function Main({ onNavigate }: { onNavigate?: NavigateFn }) {
     <ScrollView style={styles.main} contentContainerStyle={styles.mainContent}>
       <WelcomeBanner onNavigate={onNavigate} />
       <StatsRow />
+      <ArchipelagoOverview onNavigate={onNavigate} />
       <FavoriteSpotsRow onNavigate={onNavigate} />
       <HeatmapSection />
       <RecentDivesSection />
     </ScrollView>
+  );
+}
+
+function ArchipelagoOverview({ onNavigate }: { onNavigate?: NavigateFn }) {
+  // Glance-only archipelago map of favorite spots, colored by current
+  // condition tier. Read-only — no zoom/pan controls, just an at-a-
+  // glance "where am I dialed in" visual. Pin click jumps to detail.
+  const markers: MapMarker[] = React.useMemo(
+    () => FAVORITES.map((f) => ({ id: f.spotId, lng: f.lng, lat: f.lat, tier: f.rating, label: f.name })),
+    [],
+  );
+  return (
+    <View style={styles.archipelagoSection}>
+      <View style={styles.archipelagoHeader}>
+        <Text style={styles.archipelagoTitle}>YOUR ARCHIPELAGO</Text>
+        <Pressable onPress={() => onNavigate?.('spots-map')}>
+          <Text style={styles.archipelagoLink}>View all spots →</Text>
+        </Pressable>
+      </View>
+      <View style={styles.archipelagoMapWrap}>
+        <KaiCastMap
+          markers={markers}
+          interactive={false}
+          showZoomControls={false}
+          onMarkerClick={(spotId) => onNavigate?.('spot-detail', { spotId })}
+        />
+      </View>
+    </View>
   );
 }
 
@@ -777,6 +807,36 @@ const styles = StyleSheet.create({
     fontSize: 10,
     letterSpacing: 1.1,
     color: colors.text3,
+  },
+
+  // Archipelago overview map
+  archipelagoSection: {
+    gap: 10,
+  },
+  archipelagoHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  archipelagoTitle: {
+    fontFamily: fonts.mono,
+    fontSize: 11,
+    letterSpacing: 1.2,
+    color: colors.text3,
+  },
+  archipelagoLink: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.accent,
+  },
+  archipelagoMapWrap: {
+    height: 280,
+    borderRadius: radius.md,
+    overflow: 'hidden',
+    backgroundColor: colors.surface0,
+    borderWidth: 1,
+    borderColor: colors.hairline,
   },
 
   // Section block (heading + body)

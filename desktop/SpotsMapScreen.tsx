@@ -11,6 +11,8 @@ import {
 } from './tokens';
 import { DesktopNav } from './components/DesktopNav';
 import { ConditionPill } from './components/ConditionPill';
+import { KaiCastMap, HAWAII_CENTER, HAWAII_ZOOM, type MapMarker } from './components/maps/KaiCastMap';
+import type mapboxgl from 'mapbox-gl';
 import type { NavigateFn } from './router';
 
 /**
@@ -21,8 +23,9 @@ import type { NavigateFn } from './router';
  *   - Runoff alert banner (full width)
  *   - 3-col grid: 300px spot list | fluid map | 320px selected-spot panel
  *
- * The center map is a styled placeholder — real tile rendering (Mapbox /
- * satellite layer) is wired separately per the data-fetching boundary.
+ * The center map is a real Mapbox GL JS surface via KaiCastMap. Sidebar
+ * rows and pin markers are bidirectionally synced — click in either
+ * surface to select; hovering a sidebar row pulses the matching pin.
  */
 
 // ─── Mock data ────────────────────────────────────────────────────────────
@@ -30,53 +33,57 @@ import type { NavigateFn } from './router';
 type SidebarSpot = {
   name: string;
   region: string;
+  lat: number;
+  lng: number;
   rating?: ConditionTier;
   runoff?: boolean;
-  selected?: boolean;
 };
 
+// Coordinates are approximate; pulled from public reef-site listings.
+// They drive Mapbox marker placement, so accuracy matters for visual
+// honesty but not for navigation.
 const ISLANDS: Array<{ name: string; count: number; spots: SidebarSpot[] }> = [
   {
     name: "O'ahu",
     count: 14,
     spots: [
-      { name: 'Electric Beach', region: 'Leeward · 4.2 mi',                  rating: 'excellent', selected: true },
-      { name: "Shark's Cove",   region: 'North Shore · 8.4 mi',              rating: 'great' },
-      { name: 'Three Tables',   region: 'North Shore · 8.6 mi',              rating: 'great' },
-      { name: 'Pupukea Beach',  region: 'North Shore · 9.2 mi',              rating: 'good' },
-      { name: 'Magic Island',   region: 'Honolulu · 8.1 mi',                 rating: 'good' },
-      { name: 'Hanauma Bay',    region: 'East Side · 22 mi · ⚠ Runoff',      rating: 'good',  runoff: true },
-      { name: 'Turtle Canyon',  region: 'Leeward · 11 mi · ⚠ Runoff',        rating: 'no-go', runoff: true },
-      { name: 'Koko Crater',    region: 'East Side · 24 mi',                 rating: 'fair' },
-      { name: 'Waimea Bay',     region: 'North Shore · 26 mi',               rating: 'fair' },
+      { name: 'Electric Beach', region: 'Leeward · 4.2 mi',             lat: 21.3550, lng: -158.1220, rating: 'excellent' },
+      { name: "Shark's Cove",   region: 'North Shore · 8.4 mi',         lat: 21.6417, lng: -158.0617, rating: 'great' },
+      { name: 'Three Tables',   region: 'North Shore · 8.6 mi',         lat: 21.6367, lng: -158.0633, rating: 'great' },
+      { name: 'Pupukea Beach',  region: 'North Shore · 9.2 mi',         lat: 21.6500, lng: -158.0500, rating: 'good' },
+      { name: 'Magic Island',   region: 'Honolulu · 8.1 mi',            lat: 21.2840, lng: -157.8458, rating: 'good' },
+      { name: 'Hanauma Bay',    region: 'East Side · 22 mi · ⚠ Runoff', lat: 21.2694, lng: -157.6939, rating: 'good',  runoff: true },
+      { name: 'Turtle Canyon',  region: 'Leeward · 11 mi · ⚠ Runoff',   lat: 21.4000, lng: -158.1500, rating: 'no-go', runoff: true },
+      { name: 'Koko Crater',    region: 'East Side · 24 mi',            lat: 21.2820, lng: -157.6700, rating: 'fair' },
+      { name: 'Waimea Bay',     region: 'North Shore · 26 mi',          lat: 21.6420, lng: -158.0670, rating: 'fair' },
     ],
   },
   {
     name: 'Maui',
     count: 11,
     spots: [
-      { name: 'Molokini Crater', region: 'South · Charter only',  rating: 'excellent' },
-      { name: 'Honolua Bay',     region: 'Northwest · Shore',     rating: 'great' },
-      { name: 'Ulua Beach',      region: 'South Maui · Shore',    rating: 'good' },
-      { name: 'Black Rock',      region: 'West · Shore',          rating: 'great' },
+      { name: 'Molokini Crater', region: 'South · Charter only', lat: 20.6330, lng: -156.4950, rating: 'excellent' },
+      { name: 'Honolua Bay',     region: 'Northwest · Shore',    lat: 21.0123, lng: -156.6398, rating: 'great' },
+      { name: 'Ulua Beach',      region: 'South Maui · Shore',   lat: 20.6843, lng: -156.4427, rating: 'good' },
+      { name: 'Black Rock',      region: 'West · Shore',         lat: 20.9333, lng: -156.6920, rating: 'great' },
     ],
   },
   {
     name: 'Big Island',
     count: 15,
     spots: [
-      { name: 'Kealakekua Bay',   region: 'West · State Reserve', rating: 'excellent' },
-      { name: 'Kahaluu Beach',    region: 'West · Shore',         rating: 'great' },
-      { name: 'Two Step',         region: 'West · Shore',         rating: 'great' },
-      { name: 'Richardson Beach', region: 'East · Shore',         rating: 'good' },
+      { name: 'Kealakekua Bay',   region: 'West · State Reserve', lat: 19.4791, lng: -155.9197, rating: 'excellent' },
+      { name: 'Kahaluu Beach',    region: 'West · Shore',         lat: 19.5757, lng: -155.9683, rating: 'great' },
+      { name: 'Two Step',         region: 'West · Shore',         lat: 19.4187, lng: -155.9099, rating: 'great' },
+      { name: 'Richardson Beach', region: 'East · Shore',         lat: 19.7367, lng: -155.0167, rating: 'good' },
     ],
   },
   {
     name: "Kaua'i",
     count: 7,
     spots: [
-      { name: 'Tunnels Beach', region: 'North Shore · Shore', rating: 'good' },
-      { name: 'Poipu Beach',   region: 'South Shore · Shore', rating: 'good' },
+      { name: 'Tunnels Beach', region: 'North Shore · Shore', lat: 22.2233, lng: -159.5705, rating: 'good' },
+      { name: 'Poipu Beach',   region: 'South Shore · Shore', lat: 21.8736, lng: -159.4537, rating: 'good' },
     ],
   },
 ];
@@ -113,13 +120,28 @@ const FRIENDS = [
   { initials: 'MH', name: 'Marcus H.',  activity: "at Shark's Cove · Spearfishing",   when: '32M' },
 ];
 
-const MAP_LAYERS = [
-  { label: 'Conditions',   color: colors.accent, active: true  },
-  { label: 'Wind',         color: colors.accent, active: false },
-  { label: 'Swell',        color: colors.good,   active: false },
-  { label: 'Cloud cover',  color: 'rgba(255,255,255,0.4)', active: false },
-  { label: 'Rain / Runoff', color: colors.nogo,  active: false },
+// Initial layer state — `active` toggles via the layer panel on the map.
+const INITIAL_MAP_LAYERS = [
+  { label: 'Conditions',    color: colors.accent,            active: true  },
+  { label: 'Wind',          color: colors.accent,            active: false },
+  { label: 'Swell',         color: colors.good,              active: false },
+  { label: 'Cloud cover',   color: 'rgba(255,255,255,0.4)',  active: false },
+  { label: 'Rain / Runoff', color: colors.nogo,              active: false },
 ];
+
+// Favorites set powering the sidebar "Favorites" tab — matches the spots
+// listed under "My spots" elsewhere in the app for consistency.
+const FAVORITE_SPOTS = new Set(['Electric Beach', "Shark's Cove", 'Molokini Crater', 'Three Tables']);
+
+// "Nearby" cutoff for the Nearby tab. Distance is parsed out of the
+// region string ("Leeward · 4.2 mi · ⚠ Runoff") since the data is flat
+// strings, not structured fields.
+const NEARBY_MAX_MI = 15;
+
+function parseMiles(region: string): number | null {
+  const m = region.match(/(\d+(?:\.\d+)?)\s*mi/i);
+  return m ? Number(m[1]) : null;
+}
 
 const STATUS_BAR_TIERS: Array<{ tier: ConditionTier; count: number; label: string }> = [
   { tier: 'excellent', count: 5,  label: 'Excellent' },
@@ -138,6 +160,43 @@ export interface SpotsMapScreenProps {
 
 export function SpotsMapScreen({ activeNav = 'spots', onNavigate }: SpotsMapScreenProps) {
   const [tab, setTab] = React.useState<'All' | 'Favorites' | 'Nearby'>('All');
+  const [search, setSearch] = React.useState('');
+  const [layers, setLayers] = React.useState(INITIAL_MAP_LAYERS);
+  // Selection is keyed by spot name (the data has no stable id field).
+  const [selectedName, setSelectedName] = React.useState<string>('Electric Beach');
+  const [hoveredName, setHoveredName] = React.useState<string | undefined>(undefined);
+
+  const toggleLayer = React.useCallback((label: string) => {
+    setLayers((prev) => prev.map((l) => (l.label === label ? { ...l, active: !l.active } : l)));
+  }, []);
+
+  // Flat list of every spot — used by the map (always shows all pins,
+  // sidebar filtering only affects the list panel).
+  const allSpots = React.useMemo(
+    () => ISLANDS.flatMap((i) => i.spots),
+    [],
+  );
+
+  const selectedSpot = React.useMemo(
+    () => allSpots.find((s) => s.name === selectedName),
+    [allSpots, selectedName],
+  );
+
+  // "Conditions" layer toggles pin visibility — when off, the map shows
+  // an empty geography. Other layer toggles (Wind / Swell / Cloud /
+  // Rain) hold visual state but their data layers are TODO (backend
+  // overlays not yet shipped).
+  const conditionsOn = layers.find((l) => l.label === 'Conditions')?.active ?? true;
+  const mapMarkers: MapMarker[] = React.useMemo(() => {
+    if (!conditionsOn) return [];
+    return allSpots.map((s) => ({
+      id: s.name,
+      lng: s.lng,
+      lat: s.lat,
+      tier: s.rating,
+      label: s.name,
+    }));
+  }, [allSpots, conditionsOn]);
 
   return (
     <ScrollView style={styles.page} contentContainerStyle={styles.pageContent}>
@@ -147,9 +206,25 @@ export function SpotsMapScreen({ activeNav = 'spots', onNavigate }: SpotsMapScre
         <AlertBanner />
 
         <View style={styles.body}>
-          <Sidebar tab={tab} onTab={setTab} onNavigate={onNavigate} />
-          <MapColumn onNavigate={onNavigate} />
-          <SelectedSpotPanel onNavigate={onNavigate} />
+          <Sidebar
+            tab={tab}
+            onTab={setTab}
+            search={search}
+            onSearch={setSearch}
+            selectedName={selectedName}
+            onSelect={setSelectedName}
+            onHover={setHoveredName}
+            onNavigate={onNavigate}
+          />
+          <MapColumn
+            markers={mapMarkers}
+            selectedName={selectedName}
+            hoveredName={hoveredName}
+            onSelect={setSelectedName}
+            layers={layers}
+            onToggleLayer={toggleLayer}
+          />
+          <SelectedSpotPanel spot={selectedSpot} onNavigate={onNavigate} />
         </View>
       </View>
     </ScrollView>
@@ -181,12 +256,50 @@ function AlertBanner() {
 function Sidebar({
   tab,
   onTab,
+  search,
+  onSearch,
+  selectedName,
+  onSelect,
+  onHover,
   onNavigate,
 }: {
   tab: 'All' | 'Favorites' | 'Nearby';
   onTab: (t: 'All' | 'Favorites' | 'Nearby') => void;
+  search: string;
+  onSearch: (s: string) => void;
+  selectedName: string;
+  onSelect: (name: string) => void;
+  onHover: (name: string | undefined) => void;
   onNavigate?: NavigateFn;
 }) {
+  const q = search.trim().toLowerCase();
+
+  const matchTab = (spot: SidebarSpot): boolean => {
+    if (tab === 'Favorites') return FAVORITE_SPOTS.has(spot.name);
+    if (tab === 'Nearby') {
+      const mi = parseMiles(spot.region);
+      return mi !== null && mi <= NEARBY_MAX_MI;
+    }
+    return true;
+  };
+
+  const matchSearch = (spot: SidebarSpot): boolean => {
+    if (q === '') return true;
+    return (
+      spot.name.toLowerCase().includes(q) ||
+      spot.region.toLowerCase().includes(q)
+    );
+  };
+
+  const filteredIslands = ISLANDS
+    .map((island) => ({
+      ...island,
+      spots: island.spots.filter((s) => matchTab(s) && matchSearch(s)),
+    }))
+    .filter((island) => island.spots.length > 0);
+
+  const totalShown = filteredIslands.reduce((n, i) => n + i.spots.length, 0);
+
   return (
     <View style={styles.sidebar}>
       <View style={styles.sidebarSearch}>
@@ -195,7 +308,14 @@ function Sidebar({
           placeholder="Filter spots…"
           placeholderTextColor={colors.text4}
           style={[styles.sidebarSearchInput, { outlineStyle: 'none' } as object]}
+          value={search}
+          onChangeText={onSearch}
         />
+        {search ? (
+          <Pressable onPress={() => onSearch('')} hitSlop={6}>
+            <Text style={styles.sidebarSearchClear}>×</Text>
+          </Pressable>
+        ) : null}
       </View>
 
       <View style={styles.sidebarTabs}>
@@ -211,29 +331,67 @@ function Sidebar({
       </View>
 
       <ScrollView style={styles.sidebarList} contentContainerStyle={{ paddingBottom: 24 }}>
-        {ISLANDS.map((island) => (
-          <View key={island.name}>
-            <View style={styles.islandHeader}>
-              <Text style={styles.islandHeaderName}>{island.name}</Text>
-              <Text style={styles.islandHeaderCount}>{island.count} spots</Text>
-            </View>
-            {island.spots.map((s) => (
-              <SidebarSpotRow key={s.name} spot={s} onNavigate={onNavigate} />
-            ))}
+        {totalShown === 0 ? (
+          <View style={styles.sidebarEmpty}>
+            <Text style={styles.sidebarEmptyTitle}>No spots match</Text>
+            <Text style={styles.sidebarEmptySub}>
+              {q ? `Nothing matches "${search.trim()}"` : 'Try a different tab.'}
+            </Text>
           </View>
-        ))}
+        ) : (
+          filteredIslands.map((island) => (
+            <View key={island.name}>
+              <View style={styles.islandHeader}>
+                <Text style={styles.islandHeaderName}>{island.name}</Text>
+                <Text style={styles.islandHeaderCount}>
+                  {island.spots.length} of {island.count} spots
+                </Text>
+              </View>
+              {island.spots.map((s) => (
+                <SidebarSpotRow
+                  key={s.name}
+                  spot={s}
+                  selected={s.name === selectedName}
+                  onSelect={() => onSelect(s.name)}
+                  onHoverIn={() => onHover(s.name)}
+                  onHoverOut={() => onHover(undefined)}
+                  onOpen={() => onNavigate?.('spot-detail', { spotId: slugify(s.name) })}
+                />
+              ))}
+            </View>
+          ))
+        )}
       </ScrollView>
     </View>
   );
 }
 
-function SidebarSpotRow({ spot, onNavigate }: { spot: SidebarSpot; onNavigate?: NavigateFn }) {
+function SidebarSpotRow({
+  spot,
+  selected,
+  onSelect,
+  onHoverIn,
+  onHoverOut,
+  onOpen,
+}: {
+  spot: SidebarSpot;
+  selected: boolean;
+  onSelect: () => void;
+  onHoverIn: () => void;
+  onHoverOut: () => void;
+  onOpen: () => void;
+}) {
+  // Single press selects (syncs map pin); double press / second tap on
+  // already-selected row opens the spot detail page.
+  const onPress = selected ? onOpen : onSelect;
   return (
     <Pressable
-      onPress={() => onNavigate?.('spot-detail', { spotId: slugify(spot.name) })}
-      style={[styles.spotRow, spot.selected && styles.spotRowSelected]}
+      onPress={onPress}
+      onHoverIn={onHoverIn}
+      onHoverOut={onHoverOut}
+      style={[styles.spotRow, selected && styles.spotRowSelected]}
     >
-      {spot.selected ? <View style={styles.spotRowSelectedBar} /> : null}
+      {selected ? <View style={styles.spotRowSelectedBar} /> : null}
       <View
         style={[
           styles.spotRowDot,
@@ -267,83 +425,58 @@ function shortTier(t: ConditionTier): string {
 
 // ─── Center: map ──────────────────────────────────────────────────────────
 
-function MapColumn({ onNavigate }: { onNavigate?: NavigateFn }) {
+function MapColumn({
+  markers,
+  selectedName,
+  hoveredName,
+  onSelect,
+  layers,
+  onToggleLayer,
+}: {
+  markers: MapMarker[];
+  selectedName: string;
+  hoveredName?: string;
+  onSelect: (name: string) => void;
+  layers: ReadonlyArray<{ label: string; color: string; active: boolean }>;
+  onToggleLayer: (label: string) => void;
+}) {
+  // When the user clicks a sidebar spot, re-center the map on it. We
+  // intentionally keep zoom modest so the surrounding archipelago stays
+  // visible — diving decisions are spatial, not pinpoint.
+  const selectedMarker = markers.find((m) => m.id === selectedName);
+  const center: [number, number] = selectedMarker
+    ? [selectedMarker.lng, selectedMarker.lat]
+    : HAWAII_CENTER;
+  const zoom = selectedMarker ? 9.5 : HAWAII_ZOOM;
+
   return (
     <View style={styles.mapColumn}>
-      {/* Faint grid background */}
-      <View style={styles.mapGrid} pointerEvents="none">
-        {Array.from({ length: 18 }).map((_, i) => (
-          <View key={`v-${i}`} style={[styles.mapGridLineV, { left: `${(i / 18) * 100}%` }]} />
-        ))}
-        {Array.from({ length: 12 }).map((_, i) => (
-          <View key={`h-${i}`} style={[styles.mapGridLineH, { top: `${(i / 12) * 100}%` }]} />
-        ))}
-      </View>
+      <KaiCastMap
+        markers={markers}
+        center={center}
+        zoom={zoom}
+        selectedId={selectedName}
+        hoveredId={hoveredName}
+        onMarkerClick={onSelect}
+        showZoomControls
+      />
 
-      {/* Radial glow accent */}
-      <View style={styles.mapGlow} pointerEvents="none" />
-
-      {/* Latitude reference lines */}
-      <View pointerEvents="none">
-        {[
-          { top: '20%', label: '23.5°N' },
-          { top: '50%', label: '21.5°N · Hawaiian Trough' },
-          { top: '80%', label: '19.5°N' },
-        ].map((r) => (
-          <View key={r.label} style={[styles.mapLatRow, { top: r.top as `${number}%` }]}>
-            <Text style={styles.mapLatLabel}>{r.label}</Text>
-            <View style={styles.mapLatLine} />
-          </View>
-        ))}
-      </View>
-
-      {/* Top-left layer panel */}
+      {/* Top-left layer panel — absolute overlay above the map canvas. */}
       <View style={styles.mapLayerPanel}>
         <Text style={styles.mapLayerTitle}>MAP LAYER</Text>
-        {MAP_LAYERS.map((l) => (
-          <View
+        {layers.map((l) => (
+          <Pressable
             key={l.label}
+            onPress={() => onToggleLayer(l.label)}
             style={[styles.mapLayerRow, l.active && styles.mapLayerRowActive]}
           >
             <View style={[styles.mapLayerSwatch, { backgroundColor: l.color }]} />
             <Text style={[styles.mapLayerLabel, l.active && styles.mapLayerLabelActive]}>{l.label}</Text>
-          </View>
+          </Pressable>
         ))}
       </View>
 
-      {/* Top-right zoom control */}
-      <View style={styles.mapZoom}>
-        <Text style={styles.mapZoomLabel}>ZOOM</Text>
-        <Pressable style={styles.mapZoomBtn}><Text style={styles.mapZoomBtnText}>+</Text></Pressable>
-        <Pressable style={styles.mapZoomBtn}><Text style={styles.mapZoomBtnText}>−</Text></Pressable>
-      </View>
-
-      {/* Pin callout (selected spot) — clicking opens its detail page */}
-      <Pressable
-        style={styles.pinCallout}
-        onPress={() => onNavigate?.('spot-detail', { spotId: 'electric-beach' })}
-      >
-        <Text style={styles.pinCalloutTitle}>Electric Beach</Text>
-        <View style={styles.pinCalloutMetrics}>
-          {[
-            { value: '56FT', label: 'VIS' },
-            { value: '79°F', label: '' },
-            { value: '3FT',  label: 'WAVE' },
-            { value: '1MPH', label: 'CURR' },
-          ].map((m, i) => (
-            <View key={i} style={styles.pinCalloutMetric}>
-              <Text style={styles.pinCalloutValue}>{m.value}</Text>
-              {m.label ? <Text style={styles.pinCalloutLabel}>{m.label}</Text> : null}
-            </View>
-          ))}
-        </View>
-        <View style={styles.pinCalloutFooter}>
-          <View style={[styles.pinCalloutDot, { backgroundColor: colors.excellent }]} />
-          <Text style={styles.pinCalloutFooterText}>Excellent · Live · 4.2 mi</Text>
-        </View>
-      </Pressable>
-
-      {/* Bottom status bar */}
+      {/* Bottom status bar — also absolute, anchored to bottom edge. */}
       <View style={styles.mapStatusBar}>
         {STATUS_BAR_TIERS.map((s, i) => (
           <React.Fragment key={s.tier}>
@@ -363,19 +496,32 @@ function MapColumn({ onNavigate }: { onNavigate?: NavigateFn }) {
 
 // ─── Right: selected spot panel ───────────────────────────────────────────
 
-function SelectedSpotPanel({ onNavigate }: { onNavigate?: NavigateFn }) {
+function SelectedSpotPanel({
+  spot,
+  onNavigate,
+}: {
+  spot?: SidebarSpot;
+  onNavigate?: NavigateFn;
+}) {
+  // Header reflects the selected spot. Below the header, the metric
+  // grid + alerts + friends rows stay on the canonical Electric Beach
+  // mock — per-spot live metrics are a backend wiring task, not part
+  // of the map-wireup pass.
+  const name = spot?.name ?? SELECTED_SPOT.name;
+  const region = spot?.region ?? SELECTED_SPOT.region;
+  const rating = spot?.rating ?? SELECTED_SPOT.rating;
+  const spotId = spot ? slugify(spot.name) : 'electric-beach';
   return (
     <View style={styles.panel}>
       <Pressable
         style={styles.panelHeader}
-        onPress={() => onNavigate?.('spot-detail', { spotId: 'electric-beach' })}
+        onPress={() => onNavigate?.('spot-detail', { spotId })}
       >
         <View style={styles.panelHeaderTextWrap}>
-          <Text style={styles.panelTitle}>{SELECTED_SPOT.name}</Text>
-          <Text style={styles.panelSub}>{SELECTED_SPOT.region}</Text>
-          <Text style={styles.panelSub}>{SELECTED_SPOT.distance}</Text>
+          <Text style={styles.panelTitle}>{name}</Text>
+          <Text style={styles.panelSub}>{region}</Text>
         </View>
-        <ConditionPill tier={SELECTED_SPOT.rating} size="md" />
+        <ConditionPill tier={rating} size="md" />
       </Pressable>
 
       <View style={styles.metricsGrid}>
@@ -561,6 +707,30 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.text1,
   },
+  sidebarSearchClear: {
+    fontSize: 16,
+    color: colors.text3,
+    paddingHorizontal: 4,
+    lineHeight: 16,
+  },
+  sidebarEmpty: {
+    paddingVertical: 32,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    gap: 4,
+  },
+  sidebarEmptyTitle: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.text2,
+  },
+  sidebarEmptySub: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.text3,
+    textAlign: 'center',
+  },
   sidebarTabs: {
     flexDirection: 'row',
     height: 37,
@@ -665,58 +835,6 @@ const styles = StyleSheet.create({
     position: 'relative',
     overflow: 'hidden',
   },
-  mapGrid: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-  },
-  mapGridLineV: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    width: 1,
-    backgroundColor: 'rgba(255,255,255,0.025)',
-  },
-  mapGridLineH: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    height: 1,
-    backgroundColor: 'rgba(255,255,255,0.025)',
-  },
-  mapGlow: {
-    position: 'absolute',
-    top: '30%',
-    left: '40%',
-    width: 400,
-    height: 400,
-    borderRadius: 200,
-    backgroundColor: colors.accentDim,
-    opacity: 0.4,
-  },
-  mapLatRow: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  mapLatLabel: {
-    fontFamily: fonts.mono,
-    fontSize: 9,
-    color: 'rgba(255,255,255,0.30)',
-    paddingLeft: 16,
-    width: 220,
-  },
-  mapLatLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-  },
-
   // Layer panel
   mapLayerPanel: {
     position: 'absolute',
@@ -760,100 +878,6 @@ const styles = StyleSheet.create({
   mapLayerLabelActive: {
     color: colors.text1,
     fontWeight: '500',
-  },
-
-  // Zoom
-  mapZoom: {
-    position: 'absolute',
-    top: 16,
-    right: 16,
-    width: 36,
-    padding: 4,
-    gap: 4,
-    backgroundColor: 'rgba(12,16,21,0.65)',
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: colors.hairlineStrong,
-    alignItems: 'center',
-  },
-  mapZoomLabel: {
-    fontFamily: fonts.mono,
-    fontSize: 8,
-    letterSpacing: 0.8,
-    color: colors.text4,
-    marginTop: 4,
-    marginBottom: 4,
-  },
-  mapZoomBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 4,
-    backgroundColor: colors.surface1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  mapZoomBtnText: {
-    fontFamily: fonts.display,
-    fontSize: 16,
-    color: colors.text1,
-  },
-
-  // Pin callout
-  pinCallout: {
-    position: 'absolute',
-    top: '30%',
-    left: 240,
-    width: 210,
-    padding: 14,
-    gap: 10,
-    backgroundColor: 'rgba(12,16,21,0.92)',
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: colors.accent,
-  },
-  pinCalloutTitle: {
-    fontFamily: fonts.display,
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.text1,
-  },
-  pinCalloutMetrics: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  pinCalloutMetric: {
-    gap: 2,
-  },
-  pinCalloutValue: {
-    fontFamily: fonts.display,
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.text1,
-  },
-  pinCalloutLabel: {
-    fontFamily: fonts.mono,
-    fontSize: 8,
-    letterSpacing: 0.8,
-    color: colors.text3,
-  },
-  pinCalloutFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: colors.hairline,
-  },
-  pinCalloutDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  pinCalloutFooterText: {
-    fontFamily: fonts.mono,
-    fontSize: 10,
-    color: colors.text2,
-    letterSpacing: 0.6,
   },
 
   // Status bar

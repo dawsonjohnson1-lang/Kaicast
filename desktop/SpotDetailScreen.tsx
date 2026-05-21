@@ -13,7 +13,13 @@ import {
 import { DesktopNav } from './components/DesktopNav';
 import { ConditionPill } from './components/ConditionPill';
 import { DiveReportCard, type DiveReportCardProps } from './components/DiveReportCard';
+import { KaiCastMap } from './components/maps/KaiCastMap';
 import type { NavigateFn } from './router';
+
+// Electric Beach mock — used by the mini-map in the Spot Info tab.
+// When SPOT is upgraded to dynamic data, these come from there.
+const SPOT_LAT = 21.354;
+const SPOT_LNG = -158.118;
 
 /**
  * Spot Detail / Forecast — desktop screen.
@@ -132,9 +138,9 @@ export function SpotDetailScreen({ activeNav = 'forecast', onNavigate }: SpotDet
         {tab === 'Forecast'   ? <ForecastTabBody  onNavigate={onNavigate} /> : null}
         {tab === 'Spot Info'  ? <SpotInfoTabBody  /> : null}
         {tab === 'Hazards'    ? <HazardsTabBody /> : null}
-        {tab === 'Reports'    ? <ReportsTabBody /> : null}
+        {tab === 'Reports'    ? <ReportsTabBody onNavigate={onNavigate} /> : null}
         {tab === 'Buoys'      ? <BuoysTabBody /> : null}
-        {tab === 'Photos'     ? <PhotosTabBody /> : null}
+        {tab === 'Photos'     ? <PhotosTabBody onNavigate={onNavigate} /> : null}
         {tab === 'Conditions' ? <ConditionsTabBody /> : null}
       </View>
     </ScrollView>
@@ -443,6 +449,18 @@ function SpotInfoTabBody() {
           ))}
         </InfoSection>
 
+        <InfoSection title="Location">
+          <View style={styles.spotInfoMapWrap}>
+            <KaiCastMap
+              markers={[{ id: SPOT.name, lng: SPOT_LNG, lat: SPOT_LAT, tier: SPOT.rating, label: SPOT.name }]}
+              center={[SPOT_LNG, SPOT_LAT]}
+              zoom={11.5}
+              selectedId={SPOT.name}
+              showZoomControls
+            />
+          </View>
+        </InfoSection>
+
         <InfoSection title="Access & parking">
           {ACCESS_FACTS.map((f, i) => (
             <FactRow key={f.label} label={f.label} value={f.value} isLast={i === ACCESS_FACTS.length - 1} />
@@ -493,9 +511,7 @@ function SpotInfoTabBody() {
               </View>
             </View>
           ))}
-          <Pressable style={styles.tipsCta}>
-            <Text style={styles.tipsCtaText}>+ Add a tip after your next dive</Text>
-          </Pressable>
+          <AddTipCta />
         </InfoSection>
 
         <InfoSection title="Permits & rules">
@@ -1126,7 +1142,7 @@ const CONDITIONS_SUMMARY = {
   ] as ConditionTier[],
 };
 
-function ReportsTabBody() {
+function ReportsTabBody({ onNavigate }: { onNavigate?: NavigateFn }) {
   type Filter = 'All' | 'Scuba' | 'Freediving' | 'Spearfishing' | 'Snorkel';
   type Sort = 'recent' | 'top' | 'deepest';
   const [filter, setFilter] = React.useState<Filter>('All');
@@ -1154,7 +1170,10 @@ function ReportsTabBody() {
               {COMMUNITY_REPORTS.length} reports in the last 30 days · 8 unique divers
             </Text>
           </View>
-          <Pressable style={styles.reportsHeaderBtn}>
+          <Pressable
+            style={styles.reportsHeaderBtn}
+            onPress={() => onNavigate?.('log-dive')}
+          >
             <Text style={styles.reportsHeaderBtnText}>+ Post a report</Text>
           </Pressable>
         </View>
@@ -1805,7 +1824,7 @@ const TOP_PHOTOGRAPHERS = [
   { name: 'Alana T.',   initials: 'AT', count: 11 },
 ];
 
-function PhotosTabBody() {
+function PhotosTabBody({ onNavigate }: { onNavigate?: NavigateFn }) {
   const [filter, setFilter] = React.useState<(typeof PHOTO_FILTERS)[number]>('All');
 
   const filtered = React.useMemo(() => {
@@ -1825,7 +1844,10 @@ function PhotosTabBody() {
               {PHOTOS.length} photos from {TOP_PHOTOGRAPHERS.length}+ divers · last 30 days
             </Text>
           </View>
-          <Pressable style={styles.photosUploadBtn}>
+          <Pressable
+            style={styles.photosUploadBtn}
+            onPress={() => onNavigate?.('log-dive')}
+          >
             <Text style={styles.photosUploadBtnIcon}>↑</Text>
             <Text style={styles.photosUploadBtnText}>Upload</Text>
           </Pressable>
@@ -1930,7 +1952,10 @@ function PhotosTabBody() {
           <Text style={styles.uploadCtaBody}>
             Upload from your last dive — JPG, RAW, or MP4 up to 100MB. Auto-tagged with conditions from your log.
           </Text>
-          <Pressable style={styles.uploadCtaBtn}>
+          <Pressable
+            style={styles.uploadCtaBtn}
+            onPress={() => onNavigate?.('log-dive')}
+          >
             <Text style={styles.uploadCtaBtnText}>Upload photos</Text>
           </Pressable>
         </View>
@@ -2684,6 +2709,9 @@ function ReportsCard() {
 // ─── Pro CTA ──────────────────────────────────────────────────────────────
 
 function ProCTACard() {
+  // Pro upgrade flow isn't wired (no billing in the desktop preview); for now
+  // the CTA acknowledges the intent inline so testers see something happen.
+  const [tapped, setTapped] = React.useState(false);
   return (
     <View style={styles.proCard}>
       <View style={styles.proGlow} />
@@ -2691,10 +2719,25 @@ function ProCTACard() {
       <Text style={styles.proBody}>
         Unlock long-range LOLA-grade visibility models, custom alerts, and ad-free spot pages.
       </Text>
-      <Pressable style={styles.proButton}>
-        <Text style={styles.proButtonText}>Try free for 7 days →</Text>
+      <Pressable style={styles.proButton} onPress={() => setTapped(true)}>
+        <Text style={styles.proButtonText}>
+          {tapped ? 'Thanks — we\'ll email when billing is live' : 'Try free for 7 days →'}
+        </Text>
       </Pressable>
     </View>
+  );
+}
+
+function AddTipCta() {
+  // Inline "thanks" feedback — there's no tip-submission backend yet on the
+  // desktop preview. The real flow will route into LogDive's notes step.
+  const [submitted, setSubmitted] = React.useState(false);
+  return (
+    <Pressable style={styles.tipsCta} onPress={() => setSubmitted(true)}>
+      <Text style={styles.tipsCtaText}>
+        {submitted ? '✓ Noted — add the rest in your next dive log' : '+ Add a tip after your next dive'}
+      </Text>
+    </Pressable>
   );
 }
 
@@ -3603,6 +3646,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.text1,
     lineHeight: 20,
+  },
+
+  spotInfoMapWrap: {
+    height: 320,
+    borderRadius: radius.md,
+    overflow: 'hidden',
+    backgroundColor: colors.surface0,
   },
 
   marineList: {
