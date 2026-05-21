@@ -15,6 +15,7 @@ export function SpotMiniCard({ spot, onPress, width }: Props) {
   const rating = spot.rating ?? 'good';
   const ratingColor = RATING_COLORS[rating];
   const ratingLabel = RATING_LABELS[rating];
+  const photo = spot.imageSource ?? (spot.imageUrl ? { uri: spot.imageUrl } : undefined);
 
   return (
     <Pressable onPress={onPress} style={[styles.card, width ? { width } : null]}>
@@ -22,6 +23,7 @@ export function SpotMiniCard({ spot, onPress, width }: Props) {
         seed={spot.id}
         lat={spot.lat}
         lon={spot.lon}
+        imageSource={photo}
         rounded={radius.md}
         style={styles.cover}
       >

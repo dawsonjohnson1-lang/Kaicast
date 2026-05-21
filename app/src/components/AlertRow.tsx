@@ -76,6 +76,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: 'transparent',
   },
   body: { flex: 1, paddingTop: 2 },
   msg: { ...typography.bodySm, color: colors.textSecondary, marginTop: 2, lineHeight: 18 },

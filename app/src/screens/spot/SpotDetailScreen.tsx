@@ -20,7 +20,7 @@ import { diveReports, exploreSpots, featuredSpot } from '@/api/mockData';
 import { useSpotReport } from '@/hooks/useSpotReport';
 import type { BackendReport, BackendVisibility } from '@/api/kaicast';
 import type { RootNav, RootStackParamList } from '@/navigation/types';
-import type { Spot, SpotReport } from '@/types';
+import type { Spot, SpotReport, ConditionRating } from '@/types';
 import { ForecastTab as ForecastTabRebuild } from './forecast/ForecastTab';
 import { HazardsTab as HazardsTabRebuild } from './hazards/HazardsTab';
 import { GuideTab as GuideTabRebuild } from './guide/GuideTab';
@@ -470,6 +470,16 @@ function formatHour12(h: number): string {
 
 function Row({ children }: { children: React.ReactNode }) {
   return <View style={{ flexDirection: 'row', gap: spacing.md }}>{children}</View>;
+}
+
+function ratingFillWidth(rating: ConditionRating): `${number}%` {
+  switch (rating) {
+    case 'excellent': return '92%';
+    case 'great':     return '80%';
+    case 'good':      return '70%';
+    case 'fair':      return '45%';
+    case 'no-go':     return '25%';
+  }
 }
 
 const styles = StyleSheet.create({
