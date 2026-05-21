@@ -11,6 +11,7 @@ import {
 import { DesktopNav } from './components/DesktopNav';
 import { ConditionPill } from './components/ConditionPill';
 import { SpotCard } from './components/SpotCard';
+import type { NavigateFn } from './router';
 
 /**
  * Conditions Overview — desktop screen (Figma 464:4963).
@@ -123,21 +124,22 @@ const SIDEBAR_VISIBILITY_FILTERS = ['80+ ft (gin clear)', '50–80 ft (clean)', 
 
 export interface ConditionsScreenProps {
   activeNav?: 'dashboard' | 'forecast' | 'spots' | 'log';
+  onNavigate?: NavigateFn;
 }
 
-export function ConditionsScreen({ activeNav = 'forecast' }: ConditionsScreenProps) {
+export function ConditionsScreen({ activeNav = 'forecast', onNavigate }: ConditionsScreenProps) {
   const [activeFilter, setActiveFilter] = React.useState<string>('All conditions');
 
   return (
     <ScrollView style={styles.page} contentContainerStyle={styles.pageContent}>
-      <DesktopNav active={activeNav} />
+      <DesktopNav active={activeNav} onNavigate={onNavigate} />
 
       <View style={styles.maxWidth}>
         <FilterBar value={activeFilter} onChange={setActiveFilter} />
 
         <View style={styles.body}>
           <Sidebar />
-          <Main />
+          <Main onNavigate={onNavigate} />
         </View>
       </View>
     </ScrollView>
@@ -323,20 +325,20 @@ function TodaysSnapshot() {
 
 // ─── Main ─────────────────────────────────────────────────────────────────
 
-function Main() {
+function Main({ onNavigate }: { onNavigate?: NavigateFn }) {
   return (
     <View style={styles.main}>
-      <FiringNow />
-      <SpotTable title="O'ahu"    spots={OAHU_SPOTS} />
-      <SpotTable title="Maui"     spots={MAUI_SPOTS} />
-      <SpotTable title="Hawai'i"  spots={BIG_ISLAND_SPOTS} />
-      <SpotTable title="Kaua'i"   spots={KAUAI_SPOTS} />
-      <SpotTable title="Moloka'i" spots={MOLOKAI_SPOTS} />
+      <FiringNow onNavigate={onNavigate} />
+      <SpotTable title="O'ahu"    spots={OAHU_SPOTS}        onNavigate={onNavigate} />
+      <SpotTable title="Maui"     spots={MAUI_SPOTS}        onNavigate={onNavigate} />
+      <SpotTable title="Hawai'i"  spots={BIG_ISLAND_SPOTS}  onNavigate={onNavigate} />
+      <SpotTable title="Kaua'i"   spots={KAUAI_SPOTS}       onNavigate={onNavigate} />
+      <SpotTable title="Moloka'i" spots={MOLOKAI_SPOTS}     onNavigate={onNavigate} />
     </View>
   );
 }
 
-function FiringNow() {
+function FiringNow({ onNavigate }: { onNavigate?: NavigateFn }) {
   return (
     <View style={styles.firingNow}>
       <View style={styles.firingNowHeader}>
@@ -348,16 +350,26 @@ function FiringNow() {
       </View>
       <View style={styles.firingNowCards}>
         {FIRING_NOW.map((s) => (
-          <SpotCard key={s.name} {...s} />
+          <Pressable
+            key={s.name}
+            onPress={() => onNavigate?.('spot-detail', { spotId: slugify(s.name) })}
+            style={{ flex: 1 }}
+          >
+            <SpotCard {...s} />
+          </Pressable>
         ))}
       </View>
     </View>
   );
 }
 
+function slugify(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
 // ─── Spot table (per island) ──────────────────────────────────────────────
 
-function SpotTable({ title, spots }: { title: string; spots: SpotRow[] }) {
+function SpotTable({ title, spots, onNavigate }: { title: string; spots: SpotRow[]; onNavigate?: NavigateFn }) {
   const best = bestRating(spots);
   return (
     <View style={styles.tableWrap}>
@@ -383,8 +395,9 @@ function SpotTable({ title, spots }: { title: string; spots: SpotRow[] }) {
         </View>
 
         {spots.map((s, i) => (
-          <View
+          <Pressable
             key={s.name}
+            onPress={() => onNavigate?.('spot-detail', { spotId: slugify(s.name) })}
             style={[styles.tableRow, i === spots.length - 1 && styles.tableRowLast]}
           >
             <View style={styles.colSpot}>
@@ -415,7 +428,7 @@ function SpotTable({ title, spots }: { title: string; spots: SpotRow[] }) {
             <View style={styles.colSwell}>
               <Text style={styles.cellValue}>{s.swell}<Text style={styles.cellUnit}> ft</Text></Text>
             </View>
-          </View>
+          </Pressable>
         ))}
       </View>
     </View>

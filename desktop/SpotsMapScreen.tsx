@@ -11,6 +11,7 @@ import {
 } from './tokens';
 import { DesktopNav } from './components/DesktopNav';
 import { ConditionPill } from './components/ConditionPill';
+import type { NavigateFn } from './router';
 
 /**
  * Spots & Maps — desktop screen (Figma 444:1787).
@@ -132,22 +133,23 @@ const STATUS_BAR_TIERS: Array<{ tier: ConditionTier; count: number; label: strin
 
 export interface SpotsMapScreenProps {
   activeNav?: 'dashboard' | 'forecast' | 'spots' | 'log';
+  onNavigate?: NavigateFn;
 }
 
-export function SpotsMapScreen({ activeNav = 'spots' }: SpotsMapScreenProps) {
+export function SpotsMapScreen({ activeNav = 'spots', onNavigate }: SpotsMapScreenProps) {
   const [tab, setTab] = React.useState<'All' | 'Favorites' | 'Nearby'>('All');
 
   return (
     <ScrollView style={styles.page} contentContainerStyle={styles.pageContent}>
-      <DesktopNav active={activeNav} />
+      <DesktopNav active={activeNav} onNavigate={onNavigate} />
 
       <View style={styles.maxWidth}>
         <AlertBanner />
 
         <View style={styles.body}>
-          <Sidebar tab={tab} onTab={setTab} />
-          <MapColumn />
-          <SelectedSpotPanel />
+          <Sidebar tab={tab} onTab={setTab} onNavigate={onNavigate} />
+          <MapColumn onNavigate={onNavigate} />
+          <SelectedSpotPanel onNavigate={onNavigate} />
         </View>
       </View>
     </ScrollView>
@@ -179,9 +181,11 @@ function AlertBanner() {
 function Sidebar({
   tab,
   onTab,
+  onNavigate,
 }: {
   tab: 'All' | 'Favorites' | 'Nearby';
   onTab: (t: 'All' | 'Favorites' | 'Nearby') => void;
+  onNavigate?: NavigateFn;
 }) {
   return (
     <View style={styles.sidebar}>
@@ -214,7 +218,7 @@ function Sidebar({
               <Text style={styles.islandHeaderCount}>{island.count} spots</Text>
             </View>
             {island.spots.map((s) => (
-              <SidebarSpotRow key={s.name} spot={s} />
+              <SidebarSpotRow key={s.name} spot={s} onNavigate={onNavigate} />
             ))}
           </View>
         ))}
@@ -223,9 +227,12 @@ function Sidebar({
   );
 }
 
-function SidebarSpotRow({ spot }: { spot: SidebarSpot }) {
+function SidebarSpotRow({ spot, onNavigate }: { spot: SidebarSpot; onNavigate?: NavigateFn }) {
   return (
-    <View style={[styles.spotRow, spot.selected && styles.spotRowSelected]}>
+    <Pressable
+      onPress={() => onNavigate?.('spot-detail', { spotId: slugify(spot.name) })}
+      style={[styles.spotRow, spot.selected && styles.spotRowSelected]}
+    >
       {spot.selected ? <View style={styles.spotRowSelectedBar} /> : null}
       <View
         style={[
@@ -240,8 +247,12 @@ function SidebarSpotRow({ spot }: { spot: SidebarSpot }) {
       {spot.rating ? (
         <ConditionPill tier={spot.rating} size="sm" label={shortTier(spot.rating)} />
       ) : null}
-    </View>
+    </Pressable>
   );
+}
+
+function slugify(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 }
 
 function shortTier(t: ConditionTier): string {
@@ -256,7 +267,7 @@ function shortTier(t: ConditionTier): string {
 
 // ─── Center: map ──────────────────────────────────────────────────────────
 
-function MapColumn() {
+function MapColumn({ onNavigate }: { onNavigate?: NavigateFn }) {
   return (
     <View style={styles.mapColumn}>
       {/* Faint grid background */}
@@ -307,8 +318,11 @@ function MapColumn() {
         <Pressable style={styles.mapZoomBtn}><Text style={styles.mapZoomBtnText}>−</Text></Pressable>
       </View>
 
-      {/* Pin callout (selected spot) */}
-      <View style={styles.pinCallout}>
+      {/* Pin callout (selected spot) — clicking opens its detail page */}
+      <Pressable
+        style={styles.pinCallout}
+        onPress={() => onNavigate?.('spot-detail', { spotId: 'electric-beach' })}
+      >
         <Text style={styles.pinCalloutTitle}>Electric Beach</Text>
         <View style={styles.pinCalloutMetrics}>
           {[
@@ -327,7 +341,7 @@ function MapColumn() {
           <View style={[styles.pinCalloutDot, { backgroundColor: colors.excellent }]} />
           <Text style={styles.pinCalloutFooterText}>Excellent · Live · 4.2 mi</Text>
         </View>
-      </View>
+      </Pressable>
 
       {/* Bottom status bar */}
       <View style={styles.mapStatusBar}>
@@ -349,17 +363,20 @@ function MapColumn() {
 
 // ─── Right: selected spot panel ───────────────────────────────────────────
 
-function SelectedSpotPanel() {
+function SelectedSpotPanel({ onNavigate }: { onNavigate?: NavigateFn }) {
   return (
     <View style={styles.panel}>
-      <View style={styles.panelHeader}>
+      <Pressable
+        style={styles.panelHeader}
+        onPress={() => onNavigate?.('spot-detail', { spotId: 'electric-beach' })}
+      >
         <View style={styles.panelHeaderTextWrap}>
           <Text style={styles.panelTitle}>{SELECTED_SPOT.name}</Text>
           <Text style={styles.panelSub}>{SELECTED_SPOT.region}</Text>
           <Text style={styles.panelSub}>{SELECTED_SPOT.distance}</Text>
         </View>
         <ConditionPill tier={SELECTED_SPOT.rating} size="md" />
-      </View>
+      </Pressable>
 
       <View style={styles.metricsGrid}>
         {SELECTED_SPOT.metrics.map((m, i) => (
@@ -381,7 +398,10 @@ function SelectedSpotPanel() {
         ))}
       </View>
 
-      <Pressable style={styles.logDiveCta}>
+      <Pressable
+        style={styles.logDiveCta}
+        onPress={() => onNavigate?.('log-dive', { spotId: 'electric-beach' })}
+      >
         <View style={styles.logDiveCtaIcon}>
           <Text style={styles.logDiveCtaPlus}>+</Text>
         </View>

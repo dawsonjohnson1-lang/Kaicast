@@ -1,6 +1,9 @@
 import React from 'react';
-import { View, Text, Pressable, TextInput, StyleSheet } from 'react-native';
+import { View, Text, Pressable, TextInput, Image, StyleSheet } from 'react-native';
 import { colors, fonts, radius, NAV_HEIGHT, UTIL_BAR_HEIGHT } from '../tokens';
+import type { NavigateFn, RouteKey } from '../router';
+import { logos } from '../assets/figma/logos';
+import { flags } from '../assets/figma/flags';
 
 /**
  * Shared top nav, appears on all six desktop screens.
@@ -9,13 +12,25 @@ import { colors, fonts, radius, NAV_HEIGHT, UTIL_BAR_HEIGHT } from '../tokens';
  * - Main nav (64px): logo · center links · search + bell + avatar.
  * - Active link uses an accent underline (not a background fill).
  * - Bottom border is a single hairline.
+ * - Logo → dashboard, avatar → profile.
  */
 
 export type NavKey = 'dashboard' | 'forecast' | 'spots' | 'log';
 
+/** Map a nav slot to its destination route. Forecast/Spots/Log are 1:1
+ * with route keys; the nav doesn't surface a separate Conditions slot
+ * because Conditions sits under the Forecast group. */
+const NAV_TO_ROUTE: Record<NavKey, RouteKey> = {
+  dashboard: 'dashboard',
+  forecast:  'spot-detail',
+  spots:     'spots-map',
+  log:       'log-dive',
+};
+
 export interface DesktopNavProps {
   active: NavKey;
-  onNavigate?: (key: NavKey) => void;
+  /** Router-aware navigate. When provided, links + logo + avatar are clickable. */
+  onNavigate?: NavigateFn;
   userInitials?: string;
   /** Top util bar is purely decorative; pass false to suppress for screens that don't show it. */
   showUtilBar?: boolean;
@@ -38,7 +53,7 @@ export function DesktopNav({
     <View style={styles.root}>
       {showUtilBar ? (
         <View style={styles.utilBar}>
-          <View style={styles.flag} />
+          <Image source={{ uri: flags.HI }} style={styles.flag} resizeMode="cover" />
           <Text style={styles.utilText}>HAWAII · 78°F · WED APR 15 · 2:14 PM HST</Text>
           <View style={styles.utilSpacer} />
           <Text style={styles.utilText}>NOAA · NDBC · KAICAST MODEL</Text>
@@ -46,10 +61,11 @@ export function DesktopNav({
       ) : null}
 
       <View style={styles.nav}>
-        <View style={styles.logoWrap}>
-          <View style={styles.logoMark} />
-          <Text style={styles.logoText}>KAICAST</Text>
-        </View>
+        <Pressable style={styles.logoWrap} onPress={() => onNavigate?.('dashboard')}>
+          {/* The exported Figma logo is the full wave-mark + wordmark, so the
+              separate KAICAST text used by the prototype is no longer needed. */}
+          <Image source={{ uri: logos.kaicast }} style={styles.logoImage} resizeMode="contain" />
+        </Pressable>
 
         <View style={styles.linksWrap}>
           {NAV_ITEMS.map((item) => {
@@ -57,7 +73,7 @@ export function DesktopNav({
             return (
               <Pressable
                 key={item.key}
-                onPress={() => onNavigate?.(item.key)}
+                onPress={() => onNavigate?.(NAV_TO_ROUTE[item.key])}
                 style={styles.link}
               >
                 <Text style={[styles.linkText, isActive && styles.linkTextActive]}>
@@ -83,9 +99,9 @@ export function DesktopNav({
           <Pressable style={styles.iconBtn}>
             <Text style={styles.bellIcon}>◔</Text>
           </Pressable>
-          <View style={styles.avatar}>
+          <Pressable style={styles.avatar} onPress={() => onNavigate?.('profile')}>
             <Text style={styles.avatarText}>{userInitials}</Text>
-          </View>
+          </Pressable>
         </View>
       </View>
     </View>
@@ -137,18 +153,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
-  logoMark: {
-    width: 26,
+  // Dimensions match the source Figma export's aspect (~125 × 25.5).
+  logoImage: {
+    width: 130,
     height: 26,
-    borderRadius: 7,
-    backgroundColor: colors.accent,
-  },
-  logoText: {
-    fontFamily: fonts.display,
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.text1,
-    letterSpacing: 1.5,
   },
 
   linksWrap: {

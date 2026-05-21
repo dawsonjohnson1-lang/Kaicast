@@ -7,6 +7,7 @@ import {
   DESKTOP_MAX_WIDTH,
 } from './tokens';
 import { DesktopNav } from './components/DesktopNav';
+import type { NavigateFn } from './router';
 
 /**
  * Log Dive — desktop screen (Figma 459:1527).
@@ -87,26 +88,227 @@ const DIVE_TYPES = [
 
 export interface LogDiveScreenProps {
   activeNav?: 'dashboard' | 'forecast' | 'spots' | 'log';
+  onNavigate?: NavigateFn;
 }
 
-export function LogDiveScreen({ activeNav = 'log' }: LogDiveScreenProps) {
+export function LogDiveScreen({ activeNav = 'log', onNavigate }: LogDiveScreenProps) {
+  const [published, setPublished] = React.useState(false);
+
   return (
     <ScrollView style={styles.page} contentContainerStyle={styles.pageContent}>
-      <DesktopNav active={activeNav} />
+      <DesktopNav active={activeNav} onNavigate={onNavigate} />
 
       <View style={styles.maxWidth}>
-        <View style={styles.body}>
-          <LeftPreview />
-          <RightForm />
-        </View>
+        {published ? (
+          <PublishedView
+            onAnother={() => setPublished(false)}
+            onNavigate={onNavigate}
+          />
+        ) : (
+          <View style={styles.body}>
+            <LeftPreview onPublish={() => setPublished(true)} />
+            <RightForm />
+          </View>
+        )}
       </View>
     </ScrollView>
   );
 }
 
+// ─── Post-publish success view ────────────────────────────────────────────
+
+const PUBLISHED_DIVE = {
+  id: 'd148',
+  spot: 'Electric Beach',
+  region: "O'AHU · LEEWARD COAST",
+  diveType: '🤿 Scuba',
+  date: 'Wed, Apr 15',
+  time: '2:30 PM → 3:28 PM',
+  // Realistic post-publish values (not the placeholder dashes from the form)
+  depthFt: 68,
+  durationMin: 58,
+  vizFt: 56,
+  waterTempF: 79,
+  stars: 4,
+  totalDives: 148, // bumped from 147 by this entry
+};
+
+const UNLOCKED_ACHIEVEMENT = {
+  emoji: '👁',
+  title: 'Glass-off',
+  description: '60ft+ visibility logged · 1st time this month',
+  tier: 'gold' as const,
+};
+
+const NOTIFICATIONS_SENT = [
+  { initials: 'KM', name: 'Kai M.',     reason: 'follows Electric Beach' },
+  { initials: 'RP', name: 'Ryan P.',    reason: 'follows you' },
+  { initials: 'NO', name: 'Nina O.',    reason: 'follows Electric Beach' },
+  { initials: 'LS', name: 'Leilani S.', reason: 'follows you' },
+];
+
+function PublishedView({
+  onAnother,
+  onNavigate,
+}: {
+  onAnother: () => void;
+  onNavigate?: NavigateFn;
+}) {
+  return (
+    <View style={styles.publishedRoot}>
+      {/* Success hero */}
+      <View style={styles.successHero}>
+        <View style={styles.successCheckRing}>
+          <View style={styles.successCheckCircle}>
+            <Text style={styles.successCheckMark}>✓</Text>
+          </View>
+        </View>
+        <Text style={styles.successHeadline}>Dive logged</Text>
+        <Text style={styles.successSub}>
+          {PUBLISHED_DIVE.diveType} at <Text style={styles.successSubAccent}>{PUBLISHED_DIVE.spot}</Text> · {PUBLISHED_DIVE.date} · {PUBLISHED_DIVE.time}
+        </Text>
+        <Text style={styles.successTotal}>
+          That's your <Text style={styles.successTotalAccent}>{PUBLISHED_DIVE.totalDives}th dive</Text> on KaiCast
+        </Text>
+      </View>
+
+      {/* Summary card */}
+      <View style={styles.summaryCard}>
+        <View style={styles.summaryHeader}>
+          <Text style={styles.summaryHeaderTitle}>Dive summary</Text>
+          <Text style={styles.summaryHeaderId}>#{PUBLISHED_DIVE.id}</Text>
+        </View>
+        <View style={styles.summaryMetricsRow}>
+          <SummaryMetric label="Max depth"  value={String(PUBLISHED_DIVE.depthFt)}    unit="FT" />
+          <SummaryMetricDivider />
+          <SummaryMetric label="Bottom time" value={String(PUBLISHED_DIVE.durationMin)} unit="MIN" />
+          <SummaryMetricDivider />
+          <SummaryMetric label="Visibility"  value={String(PUBLISHED_DIVE.vizFt)}      unit="FT" accent />
+          <SummaryMetricDivider />
+          <SummaryMetric label="Water temp"  value={String(PUBLISHED_DIVE.waterTempF)} unit="°F" />
+          <SummaryMetricDivider />
+          <View style={styles.summaryRatingWrap}>
+            <Text style={styles.summaryMetricLabel}>RATING</Text>
+            <View style={styles.summaryStarsRow}>
+              {[0, 1, 2, 3, 4].map((i) => (
+                <Text
+                  key={i}
+                  style={[styles.summaryStar, i < PUBLISHED_DIVE.stars && styles.summaryStarFilled]}
+                >★</Text>
+              ))}
+            </View>
+          </View>
+        </View>
+      </View>
+
+      {/* Two side-by-side cards: achievement + notifications */}
+      <View style={styles.afterRow}>
+        <View style={styles.achievementCard}>
+          <View style={styles.achievementHeader}>
+            <View style={styles.achievementPulseDot} />
+            <Text style={styles.achievementHeaderText}>ACHIEVEMENT UNLOCKED</Text>
+          </View>
+          <View style={styles.achievementBody}>
+            <Text style={styles.achievementEmoji}>{UNLOCKED_ACHIEVEMENT.emoji}</Text>
+            <View style={styles.achievementTextWrap}>
+              <Text style={styles.achievementTitle}>{UNLOCKED_ACHIEVEMENT.title}</Text>
+              <Text style={styles.achievementDesc}>{UNLOCKED_ACHIEVEMENT.description}</Text>
+            </View>
+          </View>
+          <Pressable style={styles.achievementShareBtn}>
+            <Text style={styles.achievementShareText}>Share to feed</Text>
+          </Pressable>
+        </View>
+
+        <View style={styles.notifyCard}>
+          <View style={styles.notifyHeader}>
+            <Text style={styles.notifyHeaderTitle}>Notifying {NOTIFICATIONS_SENT.length + 19} divers</Text>
+            <Text style={styles.notifyHeaderSub}>23 friends follow this spot or follow you</Text>
+          </View>
+          <View style={styles.notifyAvatarRow}>
+            {NOTIFICATIONS_SENT.map((n, i) => (
+              <View
+                key={n.name}
+                style={[styles.notifyAvatar, { marginLeft: i === 0 ? 0 : -10, zIndex: NOTIFICATIONS_SENT.length - i }]}
+              >
+                <Text style={styles.notifyAvatarText}>{n.initials}</Text>
+              </View>
+            ))}
+            <View style={[styles.notifyAvatarMore, { marginLeft: -10 }]}>
+              <Text style={styles.notifyAvatarMoreText}>+19</Text>
+            </View>
+          </View>
+          <View style={styles.notifyList}>
+            {NOTIFICATIONS_SENT.slice(0, 3).map((n) => (
+              <View key={n.name} style={styles.notifyRow}>
+                <Text style={styles.notifyRowName}>{n.name}</Text>
+                <Text style={styles.notifyRowReason}>{n.reason}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      </View>
+
+      {/* Action buttons */}
+      <View style={styles.actionsRow}>
+        <Pressable
+          style={[styles.actionBtn, styles.actionBtnPrimary]}
+          onPress={() => onNavigate?.('spot-detail', { spotId: 'electric-beach' })}
+        >
+          <Text style={styles.actionBtnPrimaryIcon}>↗</Text>
+          <Text style={styles.actionBtnPrimaryText}>View on spot page</Text>
+        </Pressable>
+        <Pressable
+          style={styles.actionBtn}
+          onPress={() => onNavigate?.('my-dives')}
+        >
+          <Text style={styles.actionBtnText}>Open my dive log</Text>
+        </Pressable>
+        <Pressable
+          style={styles.actionBtn}
+          onPress={onAnother}
+        >
+          <Text style={styles.actionBtnText}>Log another dive</Text>
+        </Pressable>
+        <Pressable
+          style={styles.actionBtn}
+          onPress={() => onNavigate?.('dashboard')}
+        >
+          <Text style={styles.actionBtnText}>Return to dashboard</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+function SummaryMetric({
+  label,
+  value,
+  unit,
+  accent,
+}: {
+  label: string;
+  value: string;
+  unit: string;
+  accent?: boolean;
+}) {
+  return (
+    <View style={styles.summaryMetric}>
+      <Text style={styles.summaryMetricLabel}>{label.toUpperCase()}</Text>
+      <View style={styles.summaryMetricValueRow}>
+        <Text style={[styles.summaryMetricValue, accent && styles.summaryMetricValueAccent]}>{value}</Text>
+        <Text style={styles.summaryMetricUnit}>{unit}</Text>
+      </View>
+    </View>
+  );
+}
+function SummaryMetricDivider() {
+  return <View style={styles.summaryMetricDivider} />;
+}
+
 // ─── Left: live preview ───────────────────────────────────────────────────
 
-function LeftPreview() {
+function LeftPreview({ onPublish }: { onPublish: () => void }) {
   return (
     <View style={styles.leftCol}>
       <Text style={styles.previewSectionLabel}>DIVE PREVIEW</Text>
@@ -168,7 +370,7 @@ function LeftPreview() {
       </View>
 
       {/* Primary CTA */}
-      <Pressable style={styles.publishBtn}>
+      <Pressable style={styles.publishBtn} onPress={onPublish}>
         <Text style={styles.publishBtnIcon}>↑</Text>
         <Text style={styles.publishBtnText}>Publish dive log</Text>
       </Pressable>
@@ -556,6 +758,368 @@ const styles = StyleSheet.create({
   pageContent: { alignItems: 'center' },
   maxWidth: { width: '100%', maxWidth: DESKTOP_MAX_WIDTH },
 
+  // ── Post-publish ──
+  publishedRoot: {
+    paddingHorizontal: 28,
+    paddingVertical: 48,
+    gap: 24,
+    maxWidth: 880,
+    alignSelf: 'center',
+  },
+
+  successHero: {
+    alignItems: 'center',
+    gap: 14,
+    paddingVertical: 24,
+  },
+  successCheckRing: {
+    width: 84,
+    height: 84,
+    borderRadius: 42,
+    backgroundColor: 'rgba(9,161,251,0.10)',
+    borderWidth: 1,
+    borderColor: colors.accentDim,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  successCheckCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  successCheckMark: {
+    fontFamily: fonts.display,
+    fontSize: 30,
+    fontWeight: '700',
+    color: colors.bg,
+    lineHeight: 32,
+  },
+  successHeadline: {
+    fontFamily: fonts.display,
+    fontSize: 36,
+    fontWeight: '700',
+    color: colors.text1,
+    letterSpacing: -0.6,
+    marginTop: 6,
+  },
+  successSub: {
+    fontFamily: fonts.body,
+    fontSize: 15,
+    lineHeight: 22,
+    color: colors.text2,
+    textAlign: 'center',
+    maxWidth: 560,
+  },
+  successSubAccent: {
+    color: colors.text1,
+    fontWeight: '600',
+  },
+  successTotal: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: colors.text3,
+    marginTop: 4,
+  },
+  successTotalAccent: {
+    color: colors.accent,
+    fontWeight: '700',
+  },
+
+  // Summary card
+  summaryCard: {
+    backgroundColor: colors.surface0,
+    borderWidth: 1,
+    borderColor: colors.hairline,
+    borderRadius: radius.md,
+    overflow: 'hidden',
+  },
+  summaryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 22,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.hairline,
+  },
+  summaryHeaderTitle: {
+    flex: 1,
+    fontFamily: fonts.display,
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.text1,
+  },
+  summaryHeaderId: {
+    fontFamily: fonts.mono,
+    fontSize: 11,
+    color: colors.text3,
+    fontWeight: '600',
+  },
+  summaryMetricsRow: {
+    flexDirection: 'row',
+    paddingVertical: 22,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+  },
+  summaryMetric: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 6,
+  },
+  summaryMetricDivider: {
+    width: 1,
+    height: 36,
+    backgroundColor: colors.hairline,
+    marginHorizontal: 8,
+  },
+  summaryMetricLabel: {
+    fontFamily: fonts.mono,
+    fontSize: 10,
+    letterSpacing: 1,
+    color: colors.text3,
+  },
+  summaryMetricValueRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 4,
+  },
+  summaryMetricValue: {
+    fontFamily: fonts.display,
+    fontSize: 26,
+    fontWeight: '700',
+    color: colors.text1,
+    letterSpacing: -0.3,
+  },
+  summaryMetricValueAccent: {
+    color: colors.accent,
+  },
+  summaryMetricUnit: {
+    fontFamily: fonts.mono,
+    fontSize: 11,
+    color: colors.text3,
+  },
+  summaryRatingWrap: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 6,
+  },
+  summaryStarsRow: {
+    flexDirection: 'row',
+    gap: 2,
+  },
+  summaryStar: {
+    fontSize: 18,
+    color: colors.text4,
+  },
+  summaryStarFilled: {
+    color: colors.accent,
+  },
+
+  // After row (achievement + notifications)
+  afterRow: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+
+  achievementCard: {
+    flex: 1,
+    backgroundColor: 'rgba(212,160,23,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(212,160,23,0.35)',
+    borderRadius: radius.md,
+    overflow: 'hidden',
+  },
+  achievementHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(212,160,23,0.20)',
+  },
+  achievementPulseDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#d4a017',
+  },
+  achievementHeaderText: {
+    fontFamily: fonts.mono,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1.2,
+    color: '#d4a017',
+  },
+  achievementBody: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 18,
+    gap: 16,
+  },
+  achievementEmoji: {
+    fontSize: 36,
+  },
+  achievementTextWrap: { flex: 1, gap: 4 },
+  achievementTitle: {
+    fontFamily: fonts.display,
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.text1,
+  },
+  achievementDesc: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: colors.text2,
+  },
+  achievementShareBtn: {
+    marginHorizontal: 18,
+    marginBottom: 18,
+    height: 34,
+    borderRadius: radius.sm,
+    backgroundColor: 'rgba(212,160,23,0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(212,160,23,0.40)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  achievementShareText: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#d4a017',
+  },
+
+  // Notifications card
+  notifyCard: {
+    flex: 1,
+    backgroundColor: colors.surface0,
+    borderWidth: 1,
+    borderColor: colors.hairline,
+    borderRadius: radius.md,
+    overflow: 'hidden',
+  },
+  notifyHeader: {
+    padding: 18,
+    paddingBottom: 14,
+    gap: 4,
+  },
+  notifyHeaderTitle: {
+    fontFamily: fonts.display,
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.text1,
+  },
+  notifyHeaderSub: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.text3,
+  },
+  notifyAvatarRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 18,
+    paddingBottom: 14,
+  },
+  notifyAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.surface2,
+    borderWidth: 2,
+    borderColor: colors.surface0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  notifyAvatarText: {
+    fontFamily: fonts.mono,
+    fontSize: 10,
+    fontWeight: '700',
+    color: colors.text1,
+  },
+  notifyAvatarMore: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.accentDim,
+    borderWidth: 2,
+    borderColor: colors.surface0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  notifyAvatarMoreText: {
+    fontFamily: fonts.mono,
+    fontSize: 9,
+    fontWeight: '700',
+    color: colors.accent,
+  },
+  notifyList: {
+    borderTopWidth: 1,
+    borderTopColor: colors.hairline,
+  },
+  notifyRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+    gap: 8,
+  },
+  notifyRowName: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.text1,
+  },
+  notifyRowReason: {
+    fontFamily: fonts.mono,
+    fontSize: 11,
+    color: colors.text3,
+  },
+
+  // Action buttons grid
+  actionsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    flexWrap: 'wrap',
+  },
+  actionBtn: {
+    flex: 1,
+    minWidth: 180,
+    height: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    borderRadius: radius.sm,
+    backgroundColor: colors.surface1,
+    borderWidth: 1,
+    borderColor: colors.hairlineStrong,
+  },
+  actionBtnText: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: '500',
+    color: colors.text1,
+  },
+  actionBtnPrimary: {
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
+  },
+  actionBtnPrimaryIcon: {
+    fontSize: 14,
+    color: colors.bg,
+    fontWeight: '700',
+  },
+  actionBtnPrimaryText: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.bg,
+  },
+
+  // ── Form view ──
   body: {
     flexDirection: 'row',
     alignItems: 'flex-start',

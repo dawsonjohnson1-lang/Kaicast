@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, Pressable, TextInput, ScrollView, Image, StyleSheet } from 'react-native';
+import profileHeaderBg from './assets/figma/backgrounds/profile-header.png';
 import {
   colors,
   fonts,
@@ -11,6 +12,8 @@ import {
 import { DesktopNav } from './components/DesktopNav';
 import { ConditionPill } from './components/ConditionPill';
 import { HeatmapCell } from './components/HeatmapCell';
+import { DiveReportCard, type DiveReportCardProps } from './components/DiveReportCard';
+import type { NavigateFn } from './router';
 
 /**
  * Profile — desktop screen (Figma 472:3274).
@@ -79,6 +82,99 @@ const SPECIES: Array<{ emoji: string; name: string; rare?: boolean }> = [
   { emoji: '🐍', name: 'Moray Eel' },
 ];
 
+const DIVE_REPORTS: DiveReportCardProps[] = [
+  {
+    date: 'Apr 14, 2024', time: '9:12 AM',
+    spot: 'Electric Beach', region: "O'AHU · LEEWARD COAST",
+    diveType: '🤿 Scuba', rating: 'excellent',
+    depthFt: 68, durationMin: 52, vizFt: 60, waterTempF: 79, airTempF: 82,
+    conditions: { current: 'Mild', surface: 'Calm', surge: 'None' },
+    wildlife: ['Green Turtle', 'Reef Fish', 'Octopus'],
+    notes:
+      'Crystal clear today — trades dropped out around noon and the outflow did its thing. Entry at the stairs was easy, viz opened up immediately. Saw a hawksbill at the cleaning station around 35ft. Made it down the wall to the pipe at 65ft, finished air with safety stop on the rope. Best dive in weeks.',
+    photoCount: 7, stars: 5, recommend: 'Definitely',
+  },
+  {
+    date: 'Apr 12, 2024', time: '7:30 AM',
+    spot: "Shark's Cove", region: "O'AHU · NORTH SHORE",
+    diveType: '🧜 Freediving', rating: 'great',
+    depthFt: 42, durationMin: 38, vizFt: 48, waterTempF: 77, airTempF: 78,
+    conditions: { current: 'None', surface: 'Calm', surge: 'Mild' },
+    wildlife: ['Reef Fish', 'Eagle Ray'],
+    notes:
+      'Glassy morning. Hit 42ft on a comfortable hold, kept seeing eagle rays cruise past the deeper lava arches. Worked on equalization down to that depth — much easier than last week. Vis was beautiful in the channels.',
+    photoCount: 3, stars: 5, recommend: 'Definitely',
+  },
+  {
+    date: 'Apr 6, 2024', time: '8:00 AM',
+    spot: 'Molokini Crater', region: 'MAUI · SOUTH SHORE',
+    diveType: '🤿 Scuba', rating: 'excellent',
+    depthFt: 110, durationMin: 44, vizFt: 80, waterTempF: 77, airTempF: 81,
+    conditions: { current: 'Moderate', surface: 'Light chop', surge: 'None' },
+    wildlife: ['Humpback', 'Reef Shark', 'Reef Fish', 'Moray Eel'],
+    notes:
+      'Personal best depth — 110ft on a deep wall dive outside the crater. Heard humpback song the entire dive, two passed close enough to see. Current was the real one but manageable on the descent. Nitrox 32 gave me a comfortable 22 min bottom time before slow ascent.',
+    photoCount: 12, stars: 5, recommend: 'Definitely',
+  },
+  {
+    date: 'Apr 4, 2024', time: '6:45 AM',
+    spot: 'Electric Beach', region: "O'AHU · LEEWARD COAST",
+    diveType: '🎣 Spearfishing', rating: 'great',
+    depthFt: 35, durationMin: 62, vizFt: 50, waterTempF: 78,
+    conditions: { current: 'Mild', surface: 'Calm', surge: 'Mild' },
+    wildlife: ['Reef Fish'],
+    notes:
+      'Pre-dawn session. Got one nice ulua but mostly just enjoyed the dawn light through the water. Vis cleaned up beautifully after the wind died.',
+    photoCount: 2, stars: 4, recommend: 'Yes',
+  },
+  {
+    date: 'Mar 31, 2024', time: '11:00 AM',
+    spot: 'Hanauma Bay', region: "O'AHU · EAST SHORE",
+    diveType: '🐠 Snorkel', rating: 'good',
+    depthFt: 12, durationMin: 60, vizFt: 30, waterTempF: 79,
+    conditions: { current: 'None', surface: 'Calm', surge: 'None' },
+    wildlife: ['Green Turtle', 'Reef Fish', 'Pufferfish'],
+    notes:
+      'Took the family out for a chill snorkel session. Crowded but the reef is in good shape — saw three turtles and a friendly puffer. Kid loved it.',
+    photoCount: 5, stars: 4, recommend: 'Yes',
+  },
+  {
+    date: 'Mar 28, 2024', time: '5:30 PM',
+    spot: 'Three Tables', region: "O'AHU · NORTH SHORE",
+    diveType: '🧜 Freediving', rating: 'great',
+    depthFt: 45, durationMin: 50, vizFt: 55, waterTempF: 76,
+    conditions: { current: 'None', surface: 'Calm', surge: 'None' },
+    wildlife: ['Reef Shark', 'Reef Fish'],
+    notes:
+      'Sunset session. Two whitetips cruising the deeper sand patches, totally indifferent. Held a 1:50 PB on a hangout at 30ft.',
+    photoCount: 0, stars: 5, recommend: 'Definitely',
+  },
+  {
+    date: 'Mar 24, 2024', time: '10:15 AM',
+    spot: 'Magic Island', region: "O'AHU · SOUTH SHORE",
+    diveType: '🤿 Scuba', rating: 'good',
+    depthFt: 28, durationMin: 42, vizFt: 35, waterTempF: 80,
+    conditions: { current: 'Mild', surface: 'Calm', surge: 'None' },
+    wildlife: ['Reef Fish', 'Squid'],
+    notes:
+      'Easy shore dive to refresh skills. Some particulate but plenty of life on the rubble flats. Practiced neutral buoyancy drills.',
+    photoCount: 4, stars: 3, recommend: 'With caveats',
+  },
+  {
+    date: 'Mar 20, 2024', time: '7:00 AM',
+    spot: 'Two Step', region: 'BIG ISLAND · WEST',
+    diveType: '🤿 Scuba', rating: 'great',
+    depthFt: 55, durationMin: 48, vizFt: 70, waterTempF: 78, airTempF: 80,
+    conditions: { current: 'None', surface: 'Calm', surge: 'Mild' },
+    wildlife: ['Dolphin', 'Reef Fish', 'Eagle Ray'],
+    notes:
+      'Drove down the coast for this one — got rewarded with a spinner pod that played around the dive boat for 20 minutes after we surfaced. The reef itself is stellar; visibility was the clearest I have seen on this side of the island.',
+    photoCount: 9, stars: 5, recommend: 'Definitely',
+  },
+];
+
+const DIVE_TYPE_FILTERS = ['All', 'Scuba', 'Freediving', 'Spearfishing', 'Snorkel'] as const;
+
 const ACHIEVEMENTS: Array<{ emoji: string; title: string; desc: string; tier?: 'gold' | 'silver' }> = [
   { emoji: '🏆', title: 'Century Club',    desc: '100 dives logged',  tier: 'gold' },
   { emoji: '👁',  title: 'Glass-off',       desc: '60ft+ visibility',  tier: 'gold' },
@@ -108,21 +204,35 @@ const PERSONAL_RECORD = {
 
 export interface ProfileScreenProps {
   activeNav?: 'dashboard' | 'forecast' | 'spots' | 'log';
+  onNavigate?: NavigateFn;
 }
 
-export function ProfileScreen({ activeNav = 'dashboard' }: ProfileScreenProps) {
+export function ProfileScreen({ activeNav = 'dashboard', onNavigate }: ProfileScreenProps) {
   const [tab, setTab] = React.useState<(typeof TABS)[number]>('Dashboard');
 
   return (
     <ScrollView style={styles.page} contentContainerStyle={styles.pageContent}>
-      <DesktopNav active={activeNav} />
+      <DesktopNav active={activeNav} onNavigate={onNavigate} />
 
       <View style={styles.maxWidth}>
         <ProfileHeader />
         <TabBar value={tab} onTab={setTab} />
-        <DashboardTabBody />
+        {tab === 'Dashboard'    ? <DashboardTabBody    onNavigate={onNavigate} /> : null}
+        {tab === 'Dive Reports' ? <DiveReportsTabBody  onNavigate={onNavigate} /> : null}
+        {tab === 'Friends'      ? <FriendsTabBody onNavigate={onNavigate} /> : null}
+        {tab === 'Settings'     ? <SettingsTabBody /> : null}
       </View>
     </ScrollView>
+  );
+}
+
+function ComingSoon({ name }: { name: string }) {
+  return (
+    <View style={styles.comingSoonWrap}>
+      <Text style={styles.comingSoonIcon}>◇</Text>
+      <Text style={styles.comingSoonTitle}>{name} tab</Text>
+      <Text style={styles.comingSoonSub}>Coming soon — being built one tab per turn.</Text>
+    </View>
   );
 }
 
@@ -131,8 +241,7 @@ export function ProfileScreen({ activeNav = 'dashboard' }: ProfileScreenProps) {
 function ProfileHeader() {
   return (
     <View style={styles.header}>
-      {/* Ocean background placeholder */}
-      <View style={styles.headerBg} />
+      <Image source={{ uri: profileHeaderBg }} style={styles.headerBg} resizeMode="cover" />
       <View style={styles.headerOverlay} />
 
       <View style={styles.headerContent}>
@@ -223,7 +332,7 @@ function TabBar({
 
 // ─── Dashboard tab body ───────────────────────────────────────────────────
 
-function DashboardTabBody() {
+function DashboardTabBody({ onNavigate }: { onNavigate?: NavigateFn }) {
   return (
     <View style={styles.body}>
       <View style={styles.bodyMain}>
@@ -247,11 +356,935 @@ function DashboardTabBody() {
       </View>
 
       <View style={styles.bodySidebar}>
-        <FavoriteSpotsSidebar />
+        <FavoriteSpotsSidebar onNavigate={onNavigate} />
         <SpeciesBlock />
         <AchievementsBlock />
       </View>
     </View>
+  );
+}
+
+function DiveReportsTabBody({ onNavigate }: { onNavigate?: NavigateFn }) {
+  const [filter, setFilter] = React.useState<(typeof DIVE_TYPE_FILTERS)[number]>('All');
+  const [sort, setSort] = React.useState<'recent' | 'deepest' | 'longest'>('recent');
+
+  const filtered = React.useMemo(() => {
+    let list = filter === 'All'
+      ? DIVE_REPORTS
+      : DIVE_REPORTS.filter((d) => d.diveType.toLowerCase().includes(filter.toLowerCase()));
+    if (sort === 'deepest') list = [...list].sort((a, b) => b.depthFt - a.depthFt);
+    else if (sort === 'longest') list = [...list].sort((a, b) => b.durationMin - a.durationMin);
+    // 'recent' = mock order is already chronological-desc
+    return list;
+  }, [filter, sort]);
+
+  return (
+    <View style={styles.body}>
+      <View style={styles.bodyMain}>
+        <View style={styles.diveReportsFilterRow}>
+          <View style={styles.diveReportsFilterChips}>
+            {DIVE_TYPE_FILTERS.map((f) => {
+              const active = f === filter;
+              return (
+                <Pressable
+                  key={f}
+                  onPress={() => setFilter(f)}
+                  style={[styles.drFilterChip, active && styles.drFilterChipActive]}
+                >
+                  <Text style={[styles.drFilterChipText, active && styles.drFilterChipTextActive]}>{f}</Text>
+                  {active ? (
+                    <Text style={styles.drFilterChipCount}>{filtered.length}</Text>
+                  ) : null}
+                </Pressable>
+              );
+            })}
+          </View>
+          <View style={styles.diveReportsSortWrap}>
+            {(['recent', 'deepest', 'longest'] as const).map((s) => {
+              const active = s === sort;
+              return (
+                <Pressable key={s} onPress={() => setSort(s)} style={styles.drSortBtn}>
+                  <Text style={[styles.drSortText, active && styles.drSortTextActive]}>
+                    {s === 'recent' ? 'Most recent' : s === 'deepest' ? 'Deepest' : 'Longest'}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+
+        <View style={styles.diveReportsList}>
+          {filtered.map((r, i) => (
+            <DiveReportCard
+              key={i}
+              {...r}
+              onPress={() => onNavigate?.('spot-detail', { spotId: slugifyName(r.spot) })}
+            />
+          ))}
+          {filtered.length === 0 ? (
+            <View style={styles.drEmpty}>
+              <Text style={styles.drEmptyTitle}>No dives match "{filter}"</Text>
+              <Text style={styles.drEmptySub}>Adjust the filter above or log a new dive.</Text>
+            </View>
+          ) : null}
+        </View>
+      </View>
+
+      <View style={styles.bodySidebar}>
+        <DiveTypeBreakdown />
+        <IslandBreakdown />
+        <RecentSpotsBlock onNavigate={onNavigate} />
+      </View>
+    </View>
+  );
+}
+
+function DiveTypeBreakdown() {
+  // Compute from the mock list so the bars match what's rendered above.
+  const counts: Record<string, number> = {};
+  for (const d of DIVE_REPORTS) {
+    const key = d.diveType.replace(/^[^\w]+\s*/, ''); // strip emoji
+    counts[key] = (counts[key] ?? 0) + 1;
+  }
+  const total = DIVE_REPORTS.length;
+  const rows = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  return (
+    <View style={styles.sideBlock}>
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>By dive type</Text>
+        <Text style={styles.sectionMeta}>{total} total</Text>
+      </View>
+      <View style={styles.breakdownList}>
+        {rows.map(([type, count]) => (
+          <View key={type} style={styles.breakdownRow}>
+            <Text style={styles.breakdownLabel}>{type}</Text>
+            <View style={styles.breakdownBarTrack}>
+              <View
+                style={[styles.breakdownBarFill, { width: `${(count / total) * 100}%` }]}
+              />
+            </View>
+            <Text style={styles.breakdownCount}>{count}</Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function IslandBreakdown() {
+  const counts: Record<string, number> = {};
+  for (const d of DIVE_REPORTS) {
+    const isl = d.region.split('·')[0].trim();
+    counts[isl] = (counts[isl] ?? 0) + 1;
+  }
+  const total = DIVE_REPORTS.length;
+  const rows = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  return (
+    <View style={styles.sideBlock}>
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>By island</Text>
+      </View>
+      <View style={styles.breakdownList}>
+        {rows.map(([isl, count]) => (
+          <View key={isl} style={styles.breakdownRow}>
+            <Text style={styles.breakdownLabel}>{isl}</Text>
+            <View style={styles.breakdownBarTrack}>
+              <View style={[styles.breakdownBarFill, { width: `${(count / total) * 100}%` }]} />
+            </View>
+            <Text style={styles.breakdownCount}>{count}</Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function RecentSpotsBlock({ onNavigate }: { onNavigate?: NavigateFn }) {
+  const uniqueSpots = Array.from(new Set(DIVE_REPORTS.map((d) => d.spot))).slice(0, 6);
+  return (
+    <View style={styles.sideBlock}>
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>Spots visited</Text>
+        <Text style={styles.sectionMeta}>{uniqueSpots.length}</Text>
+      </View>
+      <View style={styles.recentSpotsList}>
+        {uniqueSpots.map((s) => (
+          <Pressable
+            key={s}
+            onPress={() => onNavigate?.('spot-detail', { spotId: slugifyName(s) })}
+            style={styles.recentSpotRow}
+          >
+            <View style={styles.recentSpotDot} />
+            <Text style={styles.recentSpotName}>{s}</Text>
+          </Pressable>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function slugifyName(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
+// ─── Friends tab body ────────────────────────────────────────────────────
+
+type Friend = {
+  initials: string;
+  name: string;
+  handle: string;
+  location: string;
+  diveCount: number;
+  mutualSpots: number;
+  lastDiveSpot: string;
+  lastDiveWhen: string;     // 'NOW' | '14M' | '2H' | '3D'
+  isOnline?: boolean;
+  homeSpot?: string;
+};
+
+const FRIENDS_LIST: Friend[] = [
+  { initials: 'KM', name: 'Kai M.',     handle: '@kaim',     location: "O'AHU · LEEWARD",   diveCount: 312, mutualSpots: 8, lastDiveSpot: 'Electric Beach', lastDiveWhen: 'NOW', isOnline: true,  homeSpot: 'Electric Beach' },
+  { initials: 'LS', name: 'Leilani S.', handle: '@leis',     location: 'MAUI · WEST',       diveCount: 198, mutualSpots: 5, lastDiveSpot: 'Molokini',       lastDiveWhen: '14M', isOnline: true,  homeSpot: 'Molokini Crater' },
+  { initials: 'MH', name: 'Marcus H.',  handle: '@marcush',  location: "O'AHU · NORTH",     diveCount: 247, mutualSpots: 7, lastDiveSpot: "Shark's Cove",   lastDiveWhen: '32M', isOnline: true,  homeSpot: "Shark's Cove" },
+  { initials: 'AT', name: 'Alana T.',   handle: '@alanat',   location: 'BIG ISLAND · KONA', diveCount: 421, mutualSpots: 4, lastDiveSpot: 'Kealakekua',     lastDiveWhen: '1H' },
+  { initials: 'RP', name: 'Ryan P.',    handle: '@ryanp',    location: "O'AHU · LEEWARD",   diveCount: 156, mutualSpots: 6, lastDiveSpot: 'Electric Beach', lastDiveWhen: '3H' },
+  { initials: 'NO', name: 'Nina O.',    handle: '@ninao',    location: "O'AHU · EAST",      diveCount: 89,  mutualSpots: 3, lastDiveSpot: 'Hanauma Bay',     lastDiveWhen: '6H' },
+  { initials: 'TB', name: 'Tina B.',    handle: '@tinab',    location: 'MAUI · SOUTH',      diveCount: 134, mutualSpots: 4, lastDiveSpot: 'Molokini',       lastDiveWhen: '1D' },
+  { initials: 'DC', name: 'Devin C.',   handle: '@devinc',   location: "O'AHU · LEEWARD",   diveCount: 67,  mutualSpots: 5, lastDiveSpot: 'Electric Beach', lastDiveWhen: '2D' },
+  { initials: 'JK', name: 'Jordan K.',  handle: '@jordank',  location: "KAUA'I · SOUTH",    diveCount: 102, mutualSpots: 2, lastDiveSpot: 'Tunnels Beach',   lastDiveWhen: '4D' },
+  { initials: 'SW', name: 'Sam W.',     handle: '@samw',     location: 'MAUI · NORTH',      diveCount: 78,  mutualSpots: 2, lastDiveSpot: 'Honolua Bay',     lastDiveWhen: '5D' },
+];
+
+type PendingReq = {
+  direction: 'incoming' | 'outgoing';
+  initials: string;
+  name: string;
+  handle: string;
+  mutualFriends: number;
+  reason: string;
+};
+
+const PENDING_REQUESTS: PendingReq[] = [
+  { direction: 'incoming', initials: 'MO', name: 'Makoa O.',   handle: '@makoa',  mutualFriends: 4, reason: 'Logged 6 dives at Electric Beach this month' },
+  { direction: 'incoming', initials: 'PV', name: 'Pua V.',     handle: '@puav',   mutualFriends: 2, reason: 'Mutual friend with Kai M.' },
+  { direction: 'outgoing', initials: 'CW', name: 'Cass W.',    handle: '@cassw',  mutualFriends: 1, reason: 'Sent 3 days ago' },
+];
+
+type Suggested = {
+  initials: string;
+  name: string;
+  location: string;
+  reason: string;
+  mutualSpots: number;
+  mutualFriends: number;
+};
+
+const SUGGESTED: Suggested[] = [
+  { initials: 'HK', name: 'Hana K.',   location: "O'AHU · LEEWARD",   reason: 'Dives at 5 of your spots',          mutualSpots: 5, mutualFriends: 3 },
+  { initials: 'NM', name: 'Noa M.',    location: "O'AHU · LEEWARD",   reason: 'Logs at Electric Beach weekly',     mutualSpots: 4, mutualFriends: 2 },
+  { initials: 'LT', name: 'Liana T.',  location: 'MAUI · SOUTH',      reason: 'Mutual friend with Leilani S.',     mutualSpots: 2, mutualFriends: 4 },
+  { initials: 'BK', name: 'Brody K.',  location: "O'AHU · NORTH",     reason: 'Top contributor at Shark\'s Cove',  mutualSpots: 3, mutualFriends: 1 },
+  { initials: 'IM', name: 'Iolana M.', location: 'BIG ISLAND · KONA', reason: 'Forecaster · 92% accuracy',         mutualSpots: 2, mutualFriends: 2 },
+  { initials: 'TR', name: 'Tomo R.',   location: "KAUA'I · NORTH",    reason: 'Snorkel guide at Tunnels',          mutualSpots: 1, mutualFriends: 1 },
+];
+
+const FRIEND_VIEWS = ['All friends', 'Pending', 'Discover'] as const;
+
+function FriendsTabBody({ onNavigate }: { onNavigate?: NavigateFn }) {
+  const [view, setView] = React.useState<(typeof FRIEND_VIEWS)[number]>('All friends');
+
+  return (
+    <View style={styles.body}>
+      <View style={styles.bodyMain}>
+        <View style={styles.friendsHeaderRow}>
+          <View style={styles.friendsSegmentedControl}>
+            {FRIEND_VIEWS.map((v) => {
+              const active = v === view;
+              const count =
+                v === 'All friends' ? FRIENDS_LIST.length :
+                v === 'Pending'     ? PENDING_REQUESTS.length :
+                SUGGESTED.length;
+              return (
+                <Pressable
+                  key={v}
+                  onPress={() => setView(v)}
+                  style={[styles.friendsSegmentBtn, active && styles.friendsSegmentBtnActive]}
+                >
+                  <Text style={[styles.friendsSegmentText, active && styles.friendsSegmentTextActive]}>{v}</Text>
+                  <Text style={[styles.friendsSegmentCount, active && styles.friendsSegmentCountActive]}>{count}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          <View style={styles.friendsSearchWrap}>
+            <Text style={styles.friendsSearchIcon}>⌕</Text>
+            <TextInput
+              placeholder="Find a diver…"
+              placeholderTextColor={colors.text4}
+              style={[styles.friendsSearchInput, { outlineStyle: 'none' } as object]}
+            />
+          </View>
+        </View>
+
+        {view === 'All friends' ? (
+          <View style={styles.friendCardsGrid}>
+            {FRIENDS_LIST.map((f) => (
+              <FriendCard key={f.handle} friend={f} onNavigate={onNavigate} />
+            ))}
+          </View>
+        ) : null}
+
+        {view === 'Pending' ? (
+          <View style={styles.pendingList}>
+            {PENDING_REQUESTS.map((p, i) => (
+              <View
+                key={p.handle}
+                style={[styles.pendingRow, i < PENDING_REQUESTS.length - 1 && styles.pendingRowDivider]}
+              >
+                <View style={styles.pendingAvatar}>
+                  <Text style={styles.pendingAvatarText}>{p.initials}</Text>
+                </View>
+                <View style={styles.pendingTextWrap}>
+                  <View style={styles.pendingNameRow}>
+                    <Text style={styles.pendingName}>{p.name}</Text>
+                    <Text style={styles.pendingHandle}>{p.handle}</Text>
+                    <View style={[
+                      styles.pendingDirChip,
+                      p.direction === 'incoming' ? styles.pendingDirChipIn : styles.pendingDirChipOut,
+                    ]}>
+                      <Text style={[
+                        styles.pendingDirText,
+                        p.direction === 'incoming' ? { color: colors.accent } : { color: colors.text3 },
+                      ]}>
+                        {p.direction === 'incoming' ? 'WANTS TO FOLLOW' : 'REQUEST SENT'}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={styles.pendingReason}>{p.reason} · {p.mutualFriends} mutual friend{p.mutualFriends === 1 ? '' : 's'}</Text>
+                </View>
+                {p.direction === 'incoming' ? (
+                  <View style={styles.pendingActions}>
+                    <Pressable style={styles.pendingAcceptBtn}>
+                      <Text style={styles.pendingAcceptText}>Accept</Text>
+                    </Pressable>
+                    <Pressable style={styles.pendingDeclineBtn}>
+                      <Text style={styles.pendingDeclineText}>Decline</Text>
+                    </Pressable>
+                  </View>
+                ) : (
+                  <Pressable style={styles.pendingCancelBtn}>
+                    <Text style={styles.pendingCancelText}>Cancel</Text>
+                  </Pressable>
+                )}
+              </View>
+            ))}
+          </View>
+        ) : null}
+
+        {view === 'Discover' ? (
+          <View>
+            <Text style={styles.discoverHint}>
+              Suggestions are based on shared spots, mutual friends, and forecaster accuracy.
+            </Text>
+            <View style={styles.suggestedGrid}>
+              {SUGGESTED.map((s) => (
+                <View key={s.name} style={styles.suggestedCard}>
+                  <View style={styles.suggestedAvatar}>
+                    <Text style={styles.suggestedAvatarText}>{s.initials}</Text>
+                  </View>
+                  <Text style={styles.suggestedName}>{s.name}</Text>
+                  <Text style={styles.suggestedLocation}>{s.location}</Text>
+                  <Text style={styles.suggestedReason}>{s.reason}</Text>
+                  <View style={styles.suggestedStatsRow}>
+                    <View style={styles.suggestedStat}>
+                      <Text style={styles.suggestedStatValue}>{s.mutualSpots}</Text>
+                      <Text style={styles.suggestedStatLabel}>SHARED SPOTS</Text>
+                    </View>
+                    <View style={styles.suggestedStat}>
+                      <Text style={styles.suggestedStatValue}>{s.mutualFriends}</Text>
+                      <Text style={styles.suggestedStatLabel}>MUTUAL</Text>
+                    </View>
+                  </View>
+                  <Pressable style={styles.suggestedFollowBtn}>
+                    <Text style={styles.suggestedFollowText}>+ Follow</Text>
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+          </View>
+        ) : null}
+      </View>
+
+      <View style={styles.bodySidebar}>
+        <FriendStatsCard />
+        <RecentlyActiveCard onNavigate={onNavigate} />
+        <ImportFriendsCard />
+      </View>
+    </View>
+  );
+}
+
+function FriendCard({ friend, onNavigate: _onNavigate }: { friend: Friend; onNavigate?: NavigateFn }) {
+  return (
+    <View style={styles.friendCard}>
+      <View style={styles.friendCardTop}>
+        <View style={styles.friendAvatarWrap}>
+          <View style={styles.friendAvatar}>
+            <Text style={styles.friendAvatarText}>{friend.initials}</Text>
+          </View>
+          {friend.isOnline ? <View style={styles.friendOnlineDot} /> : null}
+        </View>
+        <View style={styles.friendTextWrap}>
+          <Text style={styles.friendName}>{friend.name}</Text>
+          <Text style={styles.friendHandle}>{friend.handle}</Text>
+          <Text style={styles.friendLocation}>{friend.location}</Text>
+        </View>
+      </View>
+      <View style={styles.friendStatsRow}>
+        <View style={styles.friendStat}>
+          <Text style={styles.friendStatValue}>{friend.diveCount}</Text>
+          <Text style={styles.friendStatLabel}>DIVES</Text>
+        </View>
+        <View style={styles.friendStatDivider} />
+        <View style={styles.friendStat}>
+          <Text style={styles.friendStatValue}>{friend.mutualSpots}</Text>
+          <Text style={styles.friendStatLabel}>SHARED SPOTS</Text>
+        </View>
+      </View>
+      <View style={styles.friendLastDive}>
+        <Text style={styles.friendLastDiveLabel}>LAST DIVE</Text>
+        <Text style={styles.friendLastDiveSpot}>{friend.lastDiveSpot}</Text>
+        <Text style={styles.friendLastDiveWhen}>· {friend.lastDiveWhen}</Text>
+      </View>
+      <View style={styles.friendActionsRow}>
+        <Pressable style={[styles.friendActionBtn, styles.friendActionBtnPrimary]}>
+          <Text style={styles.friendActionTextPrimary}>View profile</Text>
+        </Pressable>
+        <Pressable style={styles.friendActionBtn}>
+          <Text style={styles.friendActionText}>Message</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+function FriendStatsCard() {
+  return (
+    <View style={styles.sideBlock}>
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>Network</Text>
+      </View>
+      <View style={styles.networkStatsCard}>
+        <View style={styles.networkStatRow}>
+          <View style={styles.networkStat}>
+            <Text style={styles.networkStatValue}>{FRIENDS_LIST.length}</Text>
+            <Text style={styles.networkStatLabel}>FRIENDS</Text>
+          </View>
+          <View style={styles.networkStatDivider} />
+          <View style={styles.networkStat}>
+            <Text style={styles.networkStatValue}>23</Text>
+            <Text style={styles.networkStatLabel}>SHARED SPOTS</Text>
+          </View>
+        </View>
+        <View style={styles.networkStatRow}>
+          <View style={styles.networkStat}>
+            <Text style={styles.networkStatValue}>4</Text>
+            <Text style={styles.networkStatLabel}>ONLINE NOW</Text>
+          </View>
+          <View style={styles.networkStatDivider} />
+          <View style={styles.networkStat}>
+            <Text style={styles.networkStatValue}>312</Text>
+            <Text style={styles.networkStatLabel}>MAX FRIEND DIVES</Text>
+          </View>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function RecentlyActiveCard({ onNavigate }: { onNavigate?: NavigateFn }) {
+  const active = FRIENDS_LIST.filter((f) => f.isOnline || ['14M', '32M', '1H', '3H'].includes(f.lastDiveWhen)).slice(0, 5);
+  return (
+    <View style={styles.sideBlock}>
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>In the water now</Text>
+        <Text style={styles.sectionMeta}>{active.length} active</Text>
+      </View>
+      <View style={styles.recentActiveCard}>
+        {active.map((f, i) => (
+          <Pressable
+            key={f.handle}
+            onPress={() => onNavigate?.('spot-detail', { spotId: slugifyName(f.lastDiveSpot) })}
+            style={[styles.recentActiveRow, i < active.length - 1 && styles.recentActiveRowDivider]}
+          >
+            <View style={styles.recentActiveAvatarWrap}>
+              <View style={styles.recentActiveAvatar}>
+                <Text style={styles.recentActiveAvatarText}>{f.initials}</Text>
+              </View>
+              {f.isOnline ? <View style={styles.recentActiveOnlineDot} /> : null}
+            </View>
+            <View style={styles.recentActiveTextWrap}>
+              <Text style={styles.recentActiveName}>{f.name}</Text>
+              <Text style={styles.recentActiveActivity}>at {f.lastDiveSpot}</Text>
+            </View>
+            <Text style={styles.recentActiveWhen}>{f.lastDiveWhen}</Text>
+          </Pressable>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function ImportFriendsCard() {
+  return (
+    <View style={styles.sideBlock}>
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>Find more</Text>
+      </View>
+      <View style={styles.importCard}>
+        <Text style={styles.importCardBody}>
+          Connect Strava or Garmin to find dive buddies in your existing network.
+        </Text>
+        <View style={styles.importBtnRow}>
+          <Pressable style={styles.importBtn}>
+            <Text style={styles.importBtnText}>Strava</Text>
+          </Pressable>
+          <Pressable style={styles.importBtn}>
+            <Text style={styles.importBtnText}>Garmin</Text>
+          </Pressable>
+          <Pressable style={styles.importBtn}>
+            <Text style={styles.importBtnText}>Contacts</Text>
+          </Pressable>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+// ─── Settings tab body ───────────────────────────────────────────────────
+
+type SettingsState = {
+  // Display & units
+  units: 'imperial' | 'metric';
+  temp: '°F' | '°C';
+  depth: 'ft' | 'm';
+  timeFormat: '12h' | '24h';
+  theme: 'dark' | 'system';
+  // Notifications
+  pushAlerts: boolean;
+  emailDigest: boolean;
+  bestWindowAlerts: boolean;
+  runoffAlerts: boolean;
+  friendActivity: boolean;
+  // Privacy
+  profileVisibility: 'public' | 'followers' | 'private';
+  defaultDivePrivacy: 'public' | 'followers' | 'private';
+  shareLocation: boolean;
+  shareTrips: boolean;
+};
+
+const DEFAULT_SETTINGS: SettingsState = {
+  units: 'imperial',
+  temp: '°F',
+  depth: 'ft',
+  timeFormat: '12h',
+  theme: 'dark',
+  pushAlerts: true,
+  emailDigest: true,
+  bestWindowAlerts: true,
+  runoffAlerts: true,
+  friendActivity: false,
+  profileVisibility: 'public',
+  defaultDivePrivacy: 'followers',
+  shareLocation: true,
+  shareTrips: true,
+};
+
+const CONNECTED_ACCOUNTS = [
+  { id: 'strava',  name: 'Strava',          status: 'connected'  as const, note: 'Last sync 12m ago · 147 activities' },
+  { id: 'garmin',  name: 'Garmin Connect',  status: 'connected'  as const, note: 'Last sync 1h ago · 89 activities' },
+  { id: 'apple',   name: 'Apple Health',    status: 'available'  as const, note: 'Pull dive depths from Apple Watch' },
+  { id: 'shearwater', name: 'Shearwater Cloud', status: 'available'  as const, note: 'Import detailed dive computer logs' },
+];
+
+function SettingsTabBody() {
+  const [s, setS] = React.useState<SettingsState>(DEFAULT_SETTINGS);
+  const set = <K extends keyof SettingsState>(k: K, v: SettingsState[K]) => setS((p) => ({ ...p, [k]: v }));
+
+  return (
+    <View style={styles.body}>
+      <View style={styles.bodyMain}>
+        <SettingsSection title="Account" subtitle="Your identity on KaiCast">
+          <SettingsRow label="Display name" value="Dawson Johnson" />
+          <SettingsRow label="Handle" value="@dawsonj" />
+          <SettingsRow label="Email" value="dawson@kaicast.com" />
+          <SettingsRow label="Password" value="Last changed 6 months ago" actionLabel="Change" />
+          <SettingsRow label="Location" value="Mililani, O'ahu" />
+          <SettingsRow label="Time zone" value="Pacific/Honolulu (UTC−10)" isLast />
+        </SettingsSection>
+
+        <SettingsSection title="Display & units" subtitle="How KaiCast shows numbers and time">
+          <SegmentedRow
+            label="Unit system"
+            value={s.units}
+            options={[{ key: 'imperial', label: 'Imperial' }, { key: 'metric', label: 'Metric' }]}
+            onChange={(v) => set('units', v as SettingsState['units'])}
+          />
+          <SegmentedRow
+            label="Temperature"
+            value={s.temp}
+            options={[{ key: '°F', label: '°F' }, { key: '°C', label: '°C' }]}
+            onChange={(v) => set('temp', v as SettingsState['temp'])}
+          />
+          <SegmentedRow
+            label="Depth"
+            value={s.depth}
+            options={[{ key: 'ft', label: 'ft' }, { key: 'm', label: 'm' }]}
+            onChange={(v) => set('depth', v as SettingsState['depth'])}
+          />
+          <SegmentedRow
+            label="Time format"
+            value={s.timeFormat}
+            options={[{ key: '12h', label: '12-hour' }, { key: '24h', label: '24-hour' }]}
+            onChange={(v) => set('timeFormat', v as SettingsState['timeFormat'])}
+          />
+          <SegmentedRow
+            label="Theme"
+            value={s.theme}
+            options={[{ key: 'dark', label: 'Dark' }, { key: 'system', label: 'Match system' }]}
+            onChange={(v) => set('theme', v as SettingsState['theme'])}
+            isLast
+          />
+        </SettingsSection>
+
+        <SettingsSection title="Notifications" subtitle="When KaiCast should reach out">
+          <ToggleRow
+            label="Push notifications"
+            sub="Browser and mobile push for time-sensitive alerts"
+            value={s.pushAlerts}
+            onToggle={(v) => set('pushAlerts', v)}
+          />
+          <ToggleRow
+            label="Email digest"
+            sub="Weekly summary of activity at your favorite spots"
+            value={s.emailDigest}
+            onToggle={(v) => set('emailDigest', v)}
+          />
+          <ToggleRow
+            label="Best-window alerts"
+            sub="Push me when conditions hit Excellent at a favorite"
+            value={s.bestWindowAlerts}
+            onToggle={(v) => set('bestWindowAlerts', v)}
+          />
+          <ToggleRow
+            label="Runoff & hazard warnings"
+            sub="Always-on safety alerts for spots you've logged"
+            value={s.runoffAlerts}
+            onToggle={(v) => set('runoffAlerts', v)}
+          />
+          <ToggleRow
+            label="Friend activity"
+            sub="Notify when friends post new reports"
+            value={s.friendActivity}
+            onToggle={(v) => set('friendActivity', v)}
+            isLast
+          />
+        </SettingsSection>
+
+        <SettingsSection title="Privacy & sharing" subtitle="What gets shown and to whom">
+          <SegmentedRow
+            label="Profile visibility"
+            value={s.profileVisibility}
+            options={[
+              { key: 'public',    label: 'Public' },
+              { key: 'followers', label: 'Followers' },
+              { key: 'private',   label: 'Private' },
+            ]}
+            onChange={(v) => set('profileVisibility', v as SettingsState['profileVisibility'])}
+          />
+          <SegmentedRow
+            label="Default dive privacy"
+            value={s.defaultDivePrivacy}
+            options={[
+              { key: 'public',    label: 'Public' },
+              { key: 'followers', label: 'Followers' },
+              { key: 'private',   label: 'Private' },
+            ]}
+            onChange={(v) => set('defaultDivePrivacy', v as SettingsState['defaultDivePrivacy'])}
+          />
+          <ToggleRow
+            label="Share precise dive location"
+            sub="When off, spots are coarsened to the nearest 1km grid"
+            value={s.shareLocation}
+            onToggle={(v) => set('shareLocation', v)}
+          />
+          <ToggleRow
+            label="Show me on 'In the water now'"
+            sub="Friends see when you're actively diving at one of their spots"
+            value={s.shareTrips}
+            onToggle={(v) => set('shareTrips', v)}
+            isLast
+          />
+        </SettingsSection>
+
+        <SettingsSection title="Connected accounts" subtitle="Pull dive data from other platforms">
+          {CONNECTED_ACCOUNTS.map((a, i) => (
+            <View
+              key={a.id}
+              style={[styles.connectedRow, i < CONNECTED_ACCOUNTS.length - 1 && styles.connectedRowDivider]}
+            >
+              <View style={styles.connectedIcon}>
+                <Text style={styles.connectedIconText}>{a.name[0]}</Text>
+              </View>
+              <View style={styles.connectedTextWrap}>
+                <Text style={styles.connectedName}>{a.name}</Text>
+                <Text style={styles.connectedNote}>{a.note}</Text>
+              </View>
+              {a.status === 'connected' ? (
+                <View style={styles.connectedStatusRow}>
+                  <View style={[styles.connectedStatusDot, { backgroundColor: colors.great }]} />
+                  <Text style={[styles.connectedStatusText, { color: colors.great }]}>CONNECTED</Text>
+                  <Pressable style={styles.connectedDisconnectBtn}>
+                    <Text style={styles.connectedDisconnectText}>Disconnect</Text>
+                  </Pressable>
+                </View>
+              ) : (
+                <Pressable style={styles.connectedConnectBtn}>
+                  <Text style={styles.connectedConnectText}>Connect</Text>
+                </Pressable>
+              )}
+            </View>
+          ))}
+        </SettingsSection>
+
+        <SettingsSection title="Subscription" subtitle="Your KaiCast Pro plan">
+          <View style={styles.subscriptionHero}>
+            <View style={styles.subscriptionBadge}>
+              <Text style={styles.subscriptionBadgeIcon}>⬡</Text>
+              <Text style={styles.subscriptionBadgeText}>PRO MEMBER</Text>
+            </View>
+            <Text style={styles.subscriptionPlan}>$8 / month · Annual</Text>
+            <Text style={styles.subscriptionRenew}>Renews Nov 14, 2024 · Next charge $96</Text>
+          </View>
+          <View style={styles.subscriptionActionsRow}>
+            <Pressable style={styles.subscriptionActionBtn}>
+              <Text style={styles.subscriptionActionText}>Manage billing</Text>
+            </Pressable>
+            <Pressable style={styles.subscriptionActionBtn}>
+              <Text style={styles.subscriptionActionText}>View invoices</Text>
+            </Pressable>
+            <Pressable style={[styles.subscriptionActionBtn, styles.subscriptionActionBtnDanger]}>
+              <Text style={[styles.subscriptionActionText, { color: colors.fair }]}>Cancel plan</Text>
+            </Pressable>
+          </View>
+        </SettingsSection>
+
+        <SettingsSection title="Data & export" subtitle="Download or remove your data">
+          <SettingsRow
+            label="Download dive log"
+            value="ZIP archive · all 147 dives + photos"
+            actionLabel="Request"
+          />
+          <SettingsRow
+            label="Export to UDDF"
+            value="Dive Computer XML format"
+            actionLabel="Export"
+          />
+          <SettingsRow
+            label="Archive my profile"
+            value="Hide from search & feeds — recoverable for 30 days"
+            actionLabel="Archive"
+          />
+          <View style={[styles.connectedRow, styles.dangerRow]}>
+            <View style={styles.connectedTextWrap}>
+              <Text style={styles.dangerLabel}>Delete account</Text>
+              <Text style={styles.dangerNote}>
+                Permanently remove your profile, dive log, photos, and community contributions. Cannot be undone.
+              </Text>
+            </View>
+            <Pressable style={styles.dangerBtn}>
+              <Text style={styles.dangerBtnText}>Delete</Text>
+            </Pressable>
+          </View>
+        </SettingsSection>
+
+        <SettingsSection title="About">
+          <SettingsRow label="Version"        value="0.0.1 · Desktop preview build" />
+          <SettingsRow label="Forecast model" value="KaiCast Abyss v1.2 · 7 layers" />
+          <SettingsRow label="Last sync"      value="2:47 PM · 4 min ago" />
+          <SettingsRow label="Terms of Service" actionLabel="Read" value="" />
+          <SettingsRow label="Privacy Policy"   actionLabel="Read" value="" isLast />
+        </SettingsSection>
+      </View>
+
+      <View style={styles.bodySidebar}>
+        <View style={styles.sideBlock}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Account status</Text>
+          </View>
+          <View style={styles.accountStatusCard}>
+            <View style={styles.accountStatusAvatar}>
+              <Text style={styles.accountStatusAvatarText}>{USER.initials}</Text>
+            </View>
+            <Text style={styles.accountStatusName}>{USER.name}</Text>
+            <Text style={styles.accountStatusHandle}>{USER.handle}</Text>
+            <View style={styles.accountStatusTierWrap}>
+              <Text style={styles.accountStatusTier}>⬡ Pro member · since Nov 2023</Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.sideBlock}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Quick actions</Text>
+          </View>
+          <View style={styles.quickActionsCard}>
+            <QuickAction icon="↗" label="View public profile" />
+            <QuickAction icon="↻" label="Re-sync all sources" />
+            <QuickAction icon="✉" label="Contact support" />
+            <QuickAction icon="↤" label="Sign out" tone="muted" />
+          </View>
+        </View>
+
+        <View style={styles.sideBlock}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Help</Text>
+          </View>
+          <View style={styles.helpCard}>
+            <HelpLink label="What's the visibility model?" />
+            <HelpLink label="How are conditions rated?" />
+            <HelpLink label="Privacy & data handling" />
+            <HelpLink label="Pro tier features" />
+            <HelpLink label="Report a bug" />
+          </View>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function SettingsSection({
+  title,
+  subtitle,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <View style={styles.settingsSection}>
+      <View style={styles.settingsSectionHeader}>
+        <Text style={styles.settingsSectionTitle}>{title}</Text>
+        {subtitle ? <Text style={styles.settingsSectionSubtitle}>{subtitle}</Text> : null}
+      </View>
+      <View style={styles.settingsSectionBody}>{children}</View>
+    </View>
+  );
+}
+
+function SettingsRow({
+  label,
+  value,
+  actionLabel,
+  isLast,
+}: {
+  label: string;
+  value?: string;
+  actionLabel?: string;
+  isLast?: boolean;
+}) {
+  return (
+    <View style={[styles.settingsRow, !isLast && styles.settingsRowDivider]}>
+      <Text style={styles.settingsRowLabel}>{label}</Text>
+      {value ? <Text style={styles.settingsRowValue}>{value}</Text> : null}
+      <Pressable style={styles.settingsRowAction}>
+        <Text style={styles.settingsRowActionText}>{actionLabel ?? 'Edit'}</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+function SegmentedRow({
+  label,
+  value,
+  options,
+  onChange,
+  isLast,
+}: {
+  label: string;
+  value: string;
+  options: Array<{ key: string; label: string }>;
+  onChange: (v: string) => void;
+  isLast?: boolean;
+}) {
+  return (
+    <View style={[styles.settingsRow, !isLast && styles.settingsRowDivider]}>
+      <Text style={styles.settingsRowLabel}>{label}</Text>
+      <View style={styles.settingsRowSpacer} />
+      <View style={styles.segCtl}>
+        {options.map((o) => {
+          const active = o.key === value;
+          return (
+            <Pressable
+              key={o.key}
+              onPress={() => onChange(o.key)}
+              style={[styles.segBtn, active && styles.segBtnActive]}
+            >
+              <Text style={[styles.segText, active && styles.segTextActive]}>{o.label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+function ToggleRow({
+  label,
+  sub,
+  value,
+  onToggle,
+  isLast,
+}: {
+  label: string;
+  sub?: string;
+  value: boolean;
+  onToggle: (v: boolean) => void;
+  isLast?: boolean;
+}) {
+  return (
+    <View style={[styles.settingsRow, !isLast && styles.settingsRowDivider]}>
+      <View style={styles.settingsRowTextWrap}>
+        <Text style={styles.settingsRowLabel}>{label}</Text>
+        {sub ? <Text style={styles.settingsRowSub}>{sub}</Text> : null}
+      </View>
+      <Pressable
+        onPress={() => onToggle(!value)}
+        style={[styles.toggleTrack, value ? styles.toggleTrackOn : styles.toggleTrackOff]}
+      >
+        <View style={[styles.toggleThumb, value ? styles.toggleThumbOn : styles.toggleThumbOff]} />
+      </Pressable>
+    </View>
+  );
+}
+
+function QuickAction({ icon, label, tone }: { icon: string; label: string; tone?: 'muted' }) {
+  return (
+    <Pressable style={styles.quickActionRow}>
+      <Text style={styles.quickActionIcon}>{icon}</Text>
+      <Text style={[styles.quickActionLabel, tone === 'muted' && { color: colors.text3 }]}>{label}</Text>
+      <Text style={styles.quickActionCaret}>›</Text>
+    </Pressable>
+  );
+}
+
+function HelpLink({ label }: { label: string }) {
+  return (
+    <Pressable style={styles.helpLinkRow}>
+      <Text style={styles.helpLinkLabel}>{label}</Text>
+      <Text style={styles.helpLinkArrow}>→</Text>
+    </Pressable>
   );
 }
 
@@ -352,7 +1385,7 @@ function Stars({ n }: { n: number }) {
 
 // ─── Sidebar ──────────────────────────────────────────────────────────────
 
-function FavoriteSpotsSidebar() {
+function FavoriteSpotsSidebar({ onNavigate }: { onNavigate?: NavigateFn }) {
   return (
     <View style={styles.sideBlock}>
       <View style={styles.sectionHeader}>
@@ -361,7 +1394,11 @@ function FavoriteSpotsSidebar() {
       </View>
       <View style={styles.favList}>
         {FAVORITES.map((f) => (
-          <View key={f.name} style={styles.favCard}>
+          <Pressable
+            key={f.name}
+            onPress={() => onNavigate?.('spot-detail', { spotId: slugify(f.name) })}
+            style={styles.favCard}
+          >
             <View style={[styles.favCardBar, { backgroundColor: TIER_COLORS[f.rating] }]} />
             <View style={styles.favCardRow}>
               <View style={styles.favCardTextWrap}>
@@ -375,11 +1412,15 @@ function FavoriteSpotsSidebar() {
               <FavMetric value={f.water}   unit="°F"  label="Water" />
               <FavMetric value={f.current} unit="mph" label="Current" />
             </View>
-          </View>
+          </Pressable>
         ))}
       </View>
     </View>
   );
+}
+
+function slugify(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 }
 
 function FavMetric({ value, unit, label }: { value: number; unit: string; label: string }) {
@@ -459,7 +1500,10 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   headerBg: {
+    // backgroundColor kept as a fallback tint while the Figma photo loads.
     ...StyleSheet.absoluteFillObject,
+    width: '100%',
+    height: '100%',
     backgroundColor: '#0a3a4d',
   },
   headerOverlay: {
@@ -1039,6 +2083,1174 @@ const styles = StyleSheet.create({
   speciesLegendText: {
     fontFamily: fonts.mono,
     fontSize: 10,
+    color: colors.text3,
+  },
+
+  // ── Dive Reports tab ──
+  diveReportsFilterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 24,
+    paddingVertical: 12,
+    marginBottom: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.hairline,
+  },
+  diveReportsFilterChips: {
+    flexDirection: 'row',
+    gap: 6,
+    flex: 1,
+  },
+  drFilterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 14,
+    height: 32,
+    borderRadius: radius.sm,
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  drFilterChipActive: {
+    backgroundColor: colors.surface1,
+    borderColor: colors.hairlineStrong,
+  },
+  drFilterChipText: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: '500',
+    color: colors.text2,
+  },
+  drFilterChipTextActive: {
+    color: colors.text1,
+    fontWeight: '600',
+  },
+  drFilterChipCount: {
+    fontFamily: fonts.mono,
+    fontSize: 11,
+    color: colors.text3,
+  },
+  diveReportsSortWrap: {
+    flexDirection: 'row',
+    gap: 14,
+  },
+  drSortBtn: {},
+  drSortText: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.text3,
+  },
+  drSortTextActive: {
+    color: colors.text1,
+    fontWeight: '600',
+  },
+  diveReportsList: {
+    gap: 14,
+    marginTop: 14,
+  },
+  drEmpty: {
+    padding: 32,
+    backgroundColor: colors.surface0,
+    borderWidth: 1,
+    borderColor: colors.hairline,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    gap: 6,
+  },
+  drEmptyTitle: {
+    fontFamily: fonts.display,
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.text1,
+  },
+  drEmptySub: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: colors.text3,
+  },
+
+  // Sidebar breakdowns (used by Dive Reports sidebar)
+  breakdownList: {
+    gap: 10,
+    padding: 14,
+    backgroundColor: colors.surface0,
+    borderWidth: 1,
+    borderColor: colors.hairline,
+    borderRadius: radius.md,
+  },
+  breakdownRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  breakdownLabel: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.text2,
+    width: 100,
+  },
+  breakdownBarTrack: {
+    flex: 1,
+    height: 6,
+    backgroundColor: colors.surface2,
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  breakdownBarFill: {
+    height: 6,
+    backgroundColor: colors.accent,
+    borderRadius: 3,
+  },
+  breakdownCount: {
+    fontFamily: fonts.mono,
+    fontSize: 12,
+    color: colors.text2,
+    fontWeight: '600',
+    width: 24,
+    textAlign: 'right',
+  },
+
+  recentSpotsList: {
+    padding: 8,
+    backgroundColor: colors.surface0,
+    borderWidth: 1,
+    borderColor: colors.hairline,
+    borderRadius: radius.md,
+  },
+  recentSpotRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 9,
+    borderRadius: radius.sm,
+  },
+  recentSpotDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.accent,
+  },
+  recentSpotName: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: colors.text1,
+  },
+
+  // ── Friends tab ──
+  friendsHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    marginBottom: 16,
+  },
+  friendsSegmentedControl: {
+    flexDirection: 'row',
+    padding: 3,
+    backgroundColor: colors.surface1,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.hairlineStrong,
+    gap: 2,
+  },
+  friendsSegmentBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 14,
+    height: 32,
+    borderRadius: radius.sm - 2,
+  },
+  friendsSegmentBtnActive: {
+    backgroundColor: colors.surface2,
+  },
+  friendsSegmentText: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: '500',
+    color: colors.text3,
+  },
+  friendsSegmentTextActive: {
+    color: colors.text1,
+    fontWeight: '600',
+  },
+  friendsSegmentCount: {
+    fontFamily: fonts.mono,
+    fontSize: 11,
+    color: colors.text4,
+  },
+  friendsSegmentCountActive: {
+    color: colors.accent,
+    fontWeight: '700',
+  },
+  friendsSearchWrap: {
+    flex: 1,
+    height: 36,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: colors.surface1,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.hairlineStrong,
+  },
+  friendsSearchIcon: {
+    fontSize: 13,
+    color: colors.text4,
+  },
+  friendsSearchInput: {
+    flex: 1,
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: colors.text1,
+  },
+
+  // Friend cards grid
+  friendCardsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 14,
+  },
+  friendCard: {
+    width: 'calc(50% - 7px)' as unknown as number,
+    padding: 18,
+    backgroundColor: colors.surface0,
+    borderWidth: 1,
+    borderColor: colors.hairline,
+    borderRadius: radius.md,
+    gap: 14,
+  },
+  friendCardTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+  friendAvatarWrap: {
+    position: 'relative',
+  },
+  friendAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.surface2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.hairlineStrong,
+  },
+  friendAvatarText: {
+    fontFamily: fonts.mono,
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.text1,
+  },
+  friendOnlineDot: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: colors.great,
+    borderWidth: 2,
+    borderColor: colors.surface0,
+  },
+  friendTextWrap: { flex: 1, gap: 2 },
+  friendName: {
+    fontFamily: fonts.display,
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.text1,
+    letterSpacing: -0.2,
+  },
+  friendHandle: {
+    fontFamily: fonts.mono,
+    fontSize: 11,
+    color: colors.text3,
+  },
+  friendLocation: {
+    fontFamily: fonts.mono,
+    fontSize: 10,
+    letterSpacing: 0.6,
+    color: colors.text3,
+    marginTop: 2,
+  },
+  friendStatsRow: {
+    flexDirection: 'row',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    backgroundColor: colors.surface1,
+    borderRadius: radius.sm,
+  },
+  friendStat: { flex: 1, gap: 2 },
+  friendStatDivider: {
+    width: 1,
+    backgroundColor: colors.hairline,
+    marginHorizontal: 12,
+  },
+  friendStatValue: {
+    fontFamily: fonts.display,
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.text1,
+  },
+  friendStatLabel: {
+    fontFamily: fonts.mono,
+    fontSize: 9,
+    letterSpacing: 0.8,
+    color: colors.text3,
+  },
+  friendLastDive: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  friendLastDiveLabel: {
+    fontFamily: fonts.mono,
+    fontSize: 10,
+    letterSpacing: 0.8,
+    color: colors.text3,
+  },
+  friendLastDiveSpot: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: colors.text1,
+    fontWeight: '500',
+  },
+  friendLastDiveWhen: {
+    fontFamily: fonts.mono,
+    fontSize: 10,
+    color: colors.text3,
+  },
+  friendActionsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  friendActionBtn: {
+    flex: 1,
+    height: 34,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.hairlineStrong,
+    backgroundColor: 'transparent',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  friendActionBtnPrimary: {
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
+  },
+  friendActionText: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    fontWeight: '500',
+    color: colors.text1,
+  },
+  friendActionTextPrimary: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.bg,
+  },
+
+  // Pending list
+  pendingList: {
+    backgroundColor: colors.surface0,
+    borderWidth: 1,
+    borderColor: colors.hairline,
+    borderRadius: radius.md,
+    overflow: 'hidden',
+  },
+  pendingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+    gap: 14,
+  },
+  pendingRowDivider: {
+    borderBottomWidth: 1,
+    borderBottomColor: colors.hairline,
+  },
+  pendingAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.surface2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pendingAvatarText: {
+    fontFamily: fonts.mono,
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.text1,
+  },
+  pendingTextWrap: { flex: 1, gap: 4 },
+  pendingNameRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  pendingName: {
+    fontFamily: fonts.body,
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text1,
+  },
+  pendingHandle: {
+    fontFamily: fonts.mono,
+    fontSize: 11,
+    color: colors.text3,
+  },
+  pendingDirChip: {
+    paddingHorizontal: 7,
+    height: 18,
+    borderRadius: 3,
+    justifyContent: 'center',
+    borderWidth: 1,
+  },
+  pendingDirChipIn: {
+    backgroundColor: colors.accentDim,
+    borderColor: 'rgba(9,161,251,0.30)',
+  },
+  pendingDirChipOut: {
+    backgroundColor: colors.surface2,
+    borderColor: colors.hairlineStrong,
+  },
+  pendingDirText: {
+    fontFamily: fonts.mono,
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+  },
+  pendingReason: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.text3,
+  },
+  pendingActions: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  pendingAcceptBtn: {
+    paddingHorizontal: 14,
+    height: 32,
+    borderRadius: radius.sm,
+    backgroundColor: colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pendingAcceptText: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.bg,
+  },
+  pendingDeclineBtn: {
+    paddingHorizontal: 14,
+    height: 32,
+    borderRadius: radius.sm,
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: colors.hairlineStrong,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pendingDeclineText: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.text2,
+  },
+  pendingCancelBtn: {
+    paddingHorizontal: 14,
+    height: 32,
+    borderRadius: radius.sm,
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: colors.hairlineStrong,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pendingCancelText: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.text3,
+  },
+
+  // Discover suggestions
+  discoverHint: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: colors.text3,
+    marginBottom: 14,
+  },
+  suggestedGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  suggestedCard: {
+    width: 'calc(33.333% - 8px)' as unknown as number,
+    padding: 16,
+    backgroundColor: colors.surface0,
+    borderWidth: 1,
+    borderColor: colors.hairline,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    gap: 6,
+  },
+  suggestedAvatar: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.surface2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: colors.accent,
+    marginBottom: 4,
+  },
+  suggestedAvatarText: {
+    fontFamily: fonts.mono,
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.text1,
+  },
+  suggestedName: {
+    fontFamily: fonts.display,
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.text1,
+  },
+  suggestedLocation: {
+    fontFamily: fonts.mono,
+    fontSize: 10,
+    letterSpacing: 0.6,
+    color: colors.text3,
+  },
+  suggestedReason: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.text2,
+    textAlign: 'center',
+    marginTop: 4,
+    minHeight: 32,
+  },
+  suggestedStatsRow: {
+    flexDirection: 'row',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: colors.surface1,
+    borderRadius: radius.sm,
+    alignSelf: 'stretch',
+    marginTop: 4,
+  },
+  suggestedStat: { flex: 1, alignItems: 'center', gap: 2 },
+  suggestedStatValue: {
+    fontFamily: fonts.display,
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.text1,
+  },
+  suggestedStatLabel: {
+    fontFamily: fonts.mono,
+    fontSize: 8,
+    letterSpacing: 0.8,
+    color: colors.text3,
+  },
+  suggestedFollowBtn: {
+    alignSelf: 'stretch',
+    height: 34,
+    borderRadius: radius.sm,
+    backgroundColor: colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 4,
+  },
+  suggestedFollowText: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.bg,
+  },
+
+  // ── Friends sidebar ──
+  networkStatsCard: {
+    padding: 14,
+    backgroundColor: colors.surface0,
+    borderWidth: 1,
+    borderColor: colors.hairline,
+    borderRadius: radius.md,
+    gap: 10,
+  },
+  networkStatRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  networkStat: { flex: 1, gap: 2 },
+  networkStatDivider: {
+    width: 1,
+    backgroundColor: colors.hairline,
+    marginHorizontal: 8,
+    alignSelf: 'stretch',
+  },
+  networkStatValue: {
+    fontFamily: fonts.display,
+    fontSize: 22,
+    fontWeight: '700',
+    color: colors.text1,
+  },
+  networkStatLabel: {
+    fontFamily: fonts.mono,
+    fontSize: 9,
+    letterSpacing: 0.8,
+    color: colors.text3,
+  },
+
+  recentActiveCard: {
+    padding: 6,
+    backgroundColor: colors.surface0,
+    borderWidth: 1,
+    borderColor: colors.hairline,
+    borderRadius: radius.md,
+  },
+  recentActiveRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    gap: 10,
+    borderRadius: radius.sm,
+  },
+  recentActiveRowDivider: {
+    borderBottomWidth: 1,
+    borderBottomColor: colors.hairline,
+  },
+  recentActiveAvatarWrap: {
+    position: 'relative',
+  },
+  recentActiveAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.surface2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  recentActiveAvatarText: {
+    fontFamily: fonts.mono,
+    fontSize: 10,
+    fontWeight: '700',
+    color: colors.text1,
+  },
+  recentActiveOnlineDot: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 9,
+    height: 9,
+    borderRadius: 4.5,
+    backgroundColor: colors.great,
+    borderWidth: 2,
+    borderColor: colors.surface0,
+  },
+  recentActiveTextWrap: { flex: 1, gap: 2 },
+  recentActiveName: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.text1,
+  },
+  recentActiveActivity: {
+    fontFamily: fonts.mono,
+    fontSize: 10,
+    color: colors.text3,
+  },
+  recentActiveWhen: {
+    fontFamily: fonts.mono,
+    fontSize: 10,
+    color: colors.text3,
+  },
+
+  importCard: {
+    padding: 16,
+    backgroundColor: colors.surface0,
+    borderWidth: 1,
+    borderColor: colors.hairline,
+    borderRadius: radius.md,
+    gap: 12,
+  },
+  importCardBody: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.text2,
+  },
+  importBtnRow: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  importBtn: {
+    flex: 1,
+    height: 32,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.hairlineStrong,
+    backgroundColor: 'transparent',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  importBtnText: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.text2,
+  },
+
+  // ── Settings tab ──
+  settingsSection: {
+    marginBottom: 16,
+    backgroundColor: colors.surface0,
+    borderWidth: 1,
+    borderColor: colors.hairline,
+    borderRadius: radius.md,
+    overflow: 'hidden',
+  },
+  settingsSectionHeader: {
+    paddingHorizontal: 22,
+    paddingTop: 18,
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.hairline,
+    gap: 4,
+  },
+  settingsSectionTitle: {
+    fontFamily: fonts.display,
+    fontSize: 17,
+    fontWeight: '700',
+    color: colors.text1,
+    letterSpacing: -0.2,
+  },
+  settingsSectionSubtitle: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: colors.text3,
+  },
+  settingsSectionBody: {},
+
+  settingsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 22,
+    paddingVertical: 14,
+    gap: 16,
+  },
+  settingsRowDivider: {
+    borderBottomWidth: 1,
+    borderBottomColor: colors.hairline,
+  },
+  settingsRowLabel: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: colors.text1,
+    fontWeight: '500',
+    minWidth: 180,
+  },
+  settingsRowTextWrap: {
+    flex: 1,
+    gap: 2,
+  },
+  settingsRowSub: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.text3,
+    maxWidth: 480,
+  },
+  settingsRowValue: {
+    flex: 1,
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: colors.text2,
+  },
+  settingsRowSpacer: { flex: 1 },
+  settingsRowAction: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  settingsRowActionText: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.accent,
+    fontWeight: '500',
+  },
+
+  // Toggle (used inside ToggleRow)
+  toggleTrack: {
+    width: 38,
+    height: 22,
+    borderRadius: 11,
+    padding: 2,
+  },
+  toggleTrackOn: { backgroundColor: colors.accent },
+  toggleTrackOff: { backgroundColor: colors.surface2 },
+  toggleThumb: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#fff',
+  },
+  toggleThumbOn: { alignSelf: 'flex-end' },
+  toggleThumbOff: { alignSelf: 'flex-start' },
+
+  // Segmented control (used inside SegmentedRow)
+  segCtl: {
+    flexDirection: 'row',
+    padding: 2,
+    backgroundColor: colors.surface1,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.hairlineStrong,
+    gap: 2,
+  },
+  segBtn: {
+    paddingHorizontal: 12,
+    height: 26,
+    borderRadius: radius.sm - 2,
+    justifyContent: 'center',
+  },
+  segBtnActive: {
+    backgroundColor: colors.surface2,
+  },
+  segText: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.text3,
+  },
+  segTextActive: {
+    color: colors.text1,
+    fontWeight: '600',
+  },
+
+  // Connected accounts rows
+  connectedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 22,
+    paddingVertical: 14,
+    gap: 14,
+  },
+  connectedRowDivider: {
+    borderBottomWidth: 1,
+    borderBottomColor: colors.hairline,
+  },
+  connectedIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 6,
+    backgroundColor: colors.surface2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  connectedIconText: {
+    fontFamily: fonts.display,
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.text1,
+  },
+  connectedTextWrap: { flex: 1, gap: 2 },
+  connectedName: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.text1,
+  },
+  connectedNote: {
+    fontFamily: fonts.mono,
+    fontSize: 10,
+    letterSpacing: 0.4,
+    color: colors.text3,
+  },
+  connectedStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  connectedStatusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  connectedStatusText: {
+    fontFamily: fonts.mono,
+    fontSize: 10,
+    letterSpacing: 1,
+    fontWeight: '700',
+  },
+  connectedDisconnectBtn: {
+    paddingHorizontal: 10,
+    height: 26,
+    borderRadius: 4,
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: colors.hairlineStrong,
+    justifyContent: 'center',
+  },
+  connectedDisconnectText: {
+    fontFamily: fonts.body,
+    fontSize: 11,
+    color: colors.text3,
+  },
+  connectedConnectBtn: {
+    paddingHorizontal: 14,
+    height: 30,
+    borderRadius: radius.sm,
+    backgroundColor: colors.accent,
+    justifyContent: 'center',
+  },
+  connectedConnectText: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.bg,
+  },
+
+  // Subscription
+  subscriptionHero: {
+    padding: 22,
+    gap: 6,
+  },
+  subscriptionBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
+    paddingHorizontal: 10,
+    height: 22,
+    borderRadius: 4,
+    backgroundColor: colors.accentDim,
+    marginBottom: 6,
+  },
+  subscriptionBadgeIcon: {
+    fontSize: 13,
+    color: colors.accent,
+  },
+  subscriptionBadgeText: {
+    fontFamily: fonts.mono,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1.2,
+    color: colors.accent,
+  },
+  subscriptionPlan: {
+    fontFamily: fonts.display,
+    fontSize: 22,
+    fontWeight: '700',
+    color: colors.text1,
+    letterSpacing: -0.3,
+  },
+  subscriptionRenew: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: colors.text3,
+  },
+  subscriptionActionsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: colors.hairline,
+  },
+  subscriptionActionBtn: {
+    flex: 1,
+    height: 36,
+    borderRadius: radius.sm,
+    backgroundColor: colors.surface1,
+    borderWidth: 1,
+    borderColor: colors.hairlineStrong,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  subscriptionActionBtnDanger: {
+    borderColor: 'rgba(255,157,37,0.40)',
+    backgroundColor: 'rgba(255,157,37,0.06)',
+  },
+  subscriptionActionText: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    fontWeight: '500',
+    color: colors.text1,
+  },
+
+  // Danger zone
+  dangerRow: {
+    backgroundColor: 'rgba(247,55,38,0.04)',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(247,55,38,0.20)',
+  },
+  dangerLabel: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.nogo,
+  },
+  dangerNote: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.text3,
+    maxWidth: 480,
+  },
+  dangerBtn: {
+    paddingHorizontal: 14,
+    height: 32,
+    borderRadius: radius.sm,
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: 'rgba(247,55,38,0.40)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dangerBtnText: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.nogo,
+  },
+
+  // ── Settings sidebar ──
+  accountStatusCard: {
+    padding: 18,
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.surface0,
+    borderWidth: 1,
+    borderColor: colors.hairline,
+    borderRadius: radius.md,
+  },
+  accountStatusAvatar: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.surface2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: colors.accent,
+    marginBottom: 8,
+  },
+  accountStatusAvatarText: {
+    fontFamily: fonts.mono,
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.text1,
+  },
+  accountStatusName: {
+    fontFamily: fonts.display,
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.text1,
+  },
+  accountStatusHandle: {
+    fontFamily: fonts.mono,
+    fontSize: 11,
+    color: colors.text3,
+  },
+  accountStatusTierWrap: {
+    marginTop: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    backgroundColor: colors.accentDim,
+    borderRadius: 4,
+  },
+  accountStatusTier: {
+    fontFamily: fonts.mono,
+    fontSize: 10,
+    fontWeight: '600',
+    color: colors.accent,
+    letterSpacing: 0.6,
+  },
+
+  quickActionsCard: {
+    padding: 6,
+    backgroundColor: colors.surface0,
+    borderWidth: 1,
+    borderColor: colors.hairline,
+    borderRadius: radius.md,
+  },
+  quickActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 10,
+    borderRadius: radius.sm,
+  },
+  quickActionIcon: {
+    fontSize: 14,
+    color: colors.text2,
+    width: 16,
+    textAlign: 'center',
+  },
+  quickActionLabel: {
+    flex: 1,
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: colors.text1,
+  },
+  quickActionCaret: {
+    fontSize: 14,
+    color: colors.text4,
+  },
+
+  helpCard: {
+    padding: 6,
+    backgroundColor: colors.surface0,
+    borderWidth: 1,
+    borderColor: colors.hairline,
+    borderRadius: radius.md,
+  },
+  helpLinkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: radius.sm,
+  },
+  helpLinkLabel: {
+    flex: 1,
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.text2,
+  },
+  helpLinkArrow: {
+    fontSize: 12,
+    color: colors.accent,
+  },
+
+  // Coming-soon placeholder for Friends / Settings tabs
+  comingSoonWrap: {
+    padding: 80,
+    alignItems: 'center',
+    gap: 10,
+  },
+  comingSoonIcon: {
+    fontSize: 40,
+    color: colors.text4,
+  },
+  comingSoonTitle: {
+    fontFamily: fonts.display,
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.text1,
+  },
+  comingSoonSub: {
+    fontFamily: fonts.body,
+    fontSize: 14,
     color: colors.text3,
   },
 

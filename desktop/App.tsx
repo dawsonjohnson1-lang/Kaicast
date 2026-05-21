@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { colors, fonts } from './tokens';
+import type { NavigateFn, RouteKey, RouteParams } from './router';
 
 import { SpotDetailScreen } from './SpotDetailScreen';
 import { ConditionsScreen } from './ConditionsScreen';
@@ -8,52 +9,119 @@ import { SpotsMapScreen } from './SpotsMapScreen';
 import { DashboardScreen } from './DashboardScreen';
 import { ProfileScreen } from './ProfileScreen';
 import { LogDiveScreen } from './LogDiveScreen';
+import { MyDivesScreen } from './MyDivesScreen';
+import { CommunityScreen } from './CommunityScreen';
 
 /**
- * Dev harness shell. Picks a screen and renders it underneath a small
- * floating chip. Not shipped to prod — purely for previewing the 6
- * screens during design review.
+ * Desktop preview shell — now a real router.
+ *
+ * Maintains a small history stack so the floating picker can offer
+ * back/forward + persists the current route to localStorage so reloads
+ * land on the same screen.
+ *
+ * Each screen receives `onNavigate(routeKey, params?)` and uses it for
+ * its CTAs, nav links, card clicks, etc.
  */
 
-const SCREENS = [
-  { key: 'spot-detail', label: 'Spot Detail',       component: SpotDetailScreen },
-  { key: 'conditions',  label: 'Conditions',        component: ConditionsScreen },
-  { key: 'spots-map',   label: 'Spots & Maps',      component: SpotsMapScreen },
-  { key: 'dashboard',   label: 'Dashboard',         component: DashboardScreen },
-  { key: 'profile',     label: 'Profile',           component: ProfileScreen },
-  { key: 'log-dive',    label: 'Log Dive',          component: LogDiveScreen },
-] as const;
+const SCREENS: Record<RouteKey, { label: string; component: React.ComponentType<any> }> = {
+  'dashboard':    { label: 'Dashboard',    component: DashboardScreen },
+  'spot-detail':  { label: 'Spot Detail',  component: SpotDetailScreen },
+  'conditions':   { label: 'Conditions',   component: ConditionsScreen },
+  'spots-map':    { label: 'Spots & Maps', component: SpotsMapScreen },
+  'log-dive':     { label: 'Log Dive',     component: LogDiveScreen },
+  'profile':      { label: 'Profile',      component: ProfileScreen },
+  'my-dives':     { label: 'My Dives',     component: MyDivesScreen },
+  'community':    { label: 'Community',    component: CommunityScreen },
+};
 
-type ScreenKey = (typeof SCREENS)[number]['key'];
+const ROUTE_ORDER: RouteKey[] = [
+  'dashboard',
+  'spot-detail',
+  'conditions',
+  'spots-map',
+  'log-dive',
+  'profile',
+  'my-dives',
+  'community',
+];
 
-const LS_KEY = 'kaicast.desktop.previewScreen';
+const LS_KEY = 'kaicast.desktop.route';
+
+type Frame = { route: RouteKey; params?: RouteParams };
 
 export function App() {
-  const [active, setActive] = React.useState<ScreenKey>(() => {
+  const [history, setHistory] = React.useState<Frame[]>(() => {
     if (typeof window !== 'undefined') {
-      const saved = window.localStorage?.getItem(LS_KEY) as ScreenKey | null;
-      if (saved && SCREENS.some((s) => s.key === saved)) return saved;
+      const saved = window.localStorage?.getItem(LS_KEY);
+      if (saved && ROUTE_ORDER.includes(saved as RouteKey)) {
+        return [{ route: saved as RouteKey }];
+      }
     }
-    return 'spot-detail';
+    return [{ route: 'dashboard' }];
   });
+  const [cursor, setCursor] = React.useState(0);
+
+  const current = history[cursor];
+
+  const navigate: NavigateFn = React.useCallback((route, params) => {
+    setHistory((prev) => {
+      const truncated = prev.slice(0, cursor + 1); // drop forward history on new nav
+      return [...truncated, { route, params }];
+    });
+    setCursor((c) => c + 1);
+  }, [cursor]);
 
   React.useEffect(() => {
     if (typeof window !== 'undefined') {
-      window.localStorage?.setItem(LS_KEY, active);
+      window.localStorage?.setItem(LS_KEY, current.route);
+      // Scroll to top on navigation so deep pages don't land mid-scroll.
+      window.scrollTo(0, 0);
     }
-  }, [active]);
+  }, [current.route]);
 
-  const ScreenComponent = SCREENS.find((s) => s.key === active)?.component ?? SpotDetailScreen;
+  const goBack    = () => setCursor((c) => Math.max(0, c - 1));
+  const goForward = () => setCursor((c) => Math.min(history.length - 1, c + 1));
+  const canBack    = cursor > 0;
+  const canForward = cursor < history.length - 1;
+
+  const ScreenComponent = SCREENS[current.route].component;
 
   return (
     <View style={styles.root}>
-      <ScreenComponent />
-      <PreviewPicker active={active} onPick={setActive} />
+      {/* `key` forces re-mount when navigating between same-route entries
+          with different params; for now most screens ignore params, so
+          re-mounting is harmless. */}
+      <ScreenComponent
+        key={`${current.route}-${cursor}`}
+        onNavigate={navigate}
+      />
+      <PreviewPicker
+        active={current.route}
+        onPick={(r) => navigate(r)}
+        onBack={goBack}
+        onForward={goForward}
+        canBack={canBack}
+        canForward={canForward}
+      />
     </View>
   );
 }
 
-function PreviewPicker({ active, onPick }: { active: ScreenKey; onPick: (k: ScreenKey) => void }) {
+function PreviewPicker({
+  active,
+  onPick,
+  onBack,
+  onForward,
+  canBack,
+  canForward,
+}: {
+  active: RouteKey;
+  onPick: (r: RouteKey) => void;
+  onBack: () => void;
+  onForward: () => void;
+  canBack: boolean;
+  canForward: boolean;
+}) {
   const [collapsed, setCollapsed] = React.useState(false);
 
   if (collapsed) {
@@ -71,21 +139,37 @@ function PreviewPicker({ active, onPick }: { active: ScreenKey; onPick: (k: Scre
     <View style={[styles.picker, { boxShadow: '0 6px 32px rgba(0,0,0,0.4)' } as object]}>
       <View style={styles.pickerHeader}>
         <Text style={styles.pickerTitle}>PREVIEW</Text>
+        <View style={styles.pickerHistoryBtns}>
+          <Pressable
+            onPress={onBack}
+            disabled={!canBack}
+            style={[styles.histBtn, !canBack && styles.histBtnDisabled]}
+          >
+            <Text style={[styles.histBtnText, !canBack && styles.histBtnTextDisabled]}>←</Text>
+          </Pressable>
+          <Pressable
+            onPress={onForward}
+            disabled={!canForward}
+            style={[styles.histBtn, !canForward && styles.histBtnDisabled]}
+          >
+            <Text style={[styles.histBtnText, !canForward && styles.histBtnTextDisabled]}>→</Text>
+          </Pressable>
+        </View>
         <Pressable onPress={() => setCollapsed(true)} hitSlop={8}>
           <Text style={styles.pickerCollapse}>×</Text>
         </Pressable>
       </View>
       <View style={styles.pickerList}>
-        {SCREENS.map((s) => {
-          const isActive = s.key === active;
+        {ROUTE_ORDER.map((r) => {
+          const isActive = r === active;
           return (
             <Pressable
-              key={s.key}
-              onPress={() => onPick(s.key)}
+              key={r}
+              onPress={() => onPick(r)}
               style={[styles.pickerBtn, isActive && styles.pickerBtnActive]}
             >
               <Text style={[styles.pickerBtnText, isActive && styles.pickerBtnTextActive]}>
-                {s.label}
+                {SCREENS[r].label}
               </Text>
             </Pressable>
           );
@@ -105,7 +189,7 @@ const styles = StyleSheet.create({
     position: 'fixed' as unknown as 'absolute',
     bottom: 16,
     right: 16,
-    width: 180,
+    width: 200,
     padding: 10,
     borderRadius: 12,
     backgroundColor: 'rgba(12,16,21,0.92)',
@@ -119,6 +203,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 4,
     paddingBottom: 4,
+    gap: 8,
   },
   pickerTitle: {
     flex: 1,
@@ -127,6 +212,29 @@ const styles = StyleSheet.create({
     letterSpacing: 1.2,
     color: colors.text3,
     fontWeight: '700',
+  },
+  pickerHistoryBtns: {
+    flexDirection: 'row',
+    gap: 2,
+  },
+  histBtn: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  histBtnDisabled: {
+    opacity: 0.3,
+  },
+  histBtnText: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.text2,
+  },
+  histBtnTextDisabled: {
+    color: colors.text4,
   },
   pickerCollapse: {
     fontSize: 16,

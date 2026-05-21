@@ -14,6 +14,7 @@ import { SpotCard } from './components/SpotCard';
 import { MetricTile } from './components/MetricTile';
 import { HeatmapCell } from './components/HeatmapCell';
 import { DiveRow } from './components/DiveRow';
+import type { NavigateFn } from './router';
 
 /**
  * Dashboard — desktop screen (Figma 467:4288).
@@ -122,18 +123,19 @@ const HEATMAP = (() => {
 
 export interface DashboardScreenProps {
   activeNav?: 'dashboard' | 'forecast' | 'spots' | 'log';
+  onNavigate?: NavigateFn;
 }
 
-export function DashboardScreen({ activeNav = 'dashboard' }: DashboardScreenProps) {
+export function DashboardScreen({ activeNav = 'dashboard', onNavigate }: DashboardScreenProps) {
   return (
     <ScrollView style={styles.page} contentContainerStyle={styles.pageContent}>
-      <DesktopNav active={activeNav} />
+      <DesktopNav active={activeNav} onNavigate={onNavigate} />
 
       <View style={styles.maxWidth}>
         <View style={styles.body}>
-          <Sidebar />
-          <Main />
-          <RightRail />
+          <Sidebar onNavigate={onNavigate} />
+          <Main onNavigate={onNavigate} />
+          <RightRail onNavigate={onNavigate} />
         </View>
       </View>
     </ScrollView>
@@ -142,7 +144,7 @@ export function DashboardScreen({ activeNav = 'dashboard' }: DashboardScreenProp
 
 // ─── Left sidebar ─────────────────────────────────────────────────────────
 
-function Sidebar() {
+function Sidebar({ onNavigate }: { onNavigate?: NavigateFn }) {
   return (
     <View style={styles.sidebar}>
       <View style={styles.sidebarSection}>
@@ -150,6 +152,12 @@ function Sidebar() {
         {SIDEBAR_NAV.map((item) => (
           <Pressable
             key={item.key}
+            onPress={() => {
+              if (item.key === 'dashboard') onNavigate?.('dashboard');
+              if (item.key === 'dives')     onNavigate?.('my-dives');
+              if (item.key === 'explore')   onNavigate?.('spots-map');
+              if (item.key === 'community') onNavigate?.('community');
+            }}
             style={[styles.sidebarNavRow, item.active && styles.sidebarNavRowActive]}
           >
             <Text style={[styles.sidebarNavLabel, item.active && styles.sidebarNavLabelActive]}>
@@ -165,7 +173,11 @@ function Sidebar() {
       <View style={styles.sidebarSection}>
         <Text style={styles.sidebarGroupLabel}>FAVORITES</Text>
         {FAVORITES.map((f) => (
-          <Pressable key={f.name} style={styles.sidebarFavRow}>
+          <Pressable
+            key={f.name}
+            onPress={() => onNavigate?.('spot-detail', { spotId: slugify(f.name) })}
+            style={styles.sidebarFavRow}
+          >
             <View style={[styles.sidebarFavDot, { backgroundColor: TIER_COLORS[f.rating] }]} />
             <Text style={styles.sidebarFavName}>{f.name}</Text>
           </Pressable>
@@ -192,7 +204,10 @@ function Sidebar() {
 
       <View style={styles.sidebarSpacer} />
 
-      <View style={styles.profileBlock}>
+      <Pressable
+        style={styles.profileBlock}
+        onPress={() => onNavigate?.('profile')}
+      >
         <View style={styles.profileAvatar}>
           <Text style={styles.profileAvatarText}>{USER.initials}</Text>
         </View>
@@ -211,26 +226,30 @@ function Sidebar() {
             <Text style={styles.profileStatLabel}>Species</Text>
           </View>
         </View>
-      </View>
+      </Pressable>
     </View>
   );
 }
 
+function slugify(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────
 
-function Main() {
+function Main({ onNavigate }: { onNavigate?: NavigateFn }) {
   return (
     <ScrollView style={styles.main} contentContainerStyle={styles.mainContent}>
-      <WelcomeBanner />
+      <WelcomeBanner onNavigate={onNavigate} />
       <StatsRow />
-      <FavoriteSpotsRow />
+      <FavoriteSpotsRow onNavigate={onNavigate} />
       <HeatmapSection />
       <RecentDivesSection />
     </ScrollView>
   );
 }
 
-function WelcomeBanner() {
+function WelcomeBanner({ onNavigate }: { onNavigate?: NavigateFn }) {
   return (
     <View style={styles.welcomeBanner}>
       <View style={styles.welcomeText}>
@@ -245,10 +264,16 @@ function WelcomeBanner() {
         <Text style={styles.welcomeSub}>Trades drop at 5pm · peak window incoming</Text>
 
         <View style={styles.welcomeButtonRow}>
-          <Pressable style={[styles.welcomeBtn, styles.welcomeBtnPrimary]}>
+          <Pressable
+            style={[styles.welcomeBtn, styles.welcomeBtnPrimary]}
+            onPress={() => onNavigate?.('log-dive')}
+          >
             <Text style={styles.welcomeBtnPrimaryText}>Log a dive</Text>
           </Pressable>
-          <Pressable style={styles.welcomeBtn}>
+          <Pressable
+            style={styles.welcomeBtn}
+            onPress={() => onNavigate?.('spots-map')}
+          >
             <Text style={styles.welcomeBtnText}>Explore spots</Text>
           </Pressable>
         </View>
@@ -272,7 +297,7 @@ function StatsRow() {
   );
 }
 
-function FavoriteSpotsRow() {
+function FavoriteSpotsRow({ onNavigate }: { onNavigate?: NavigateFn }) {
   return (
     <View style={styles.sectionBlock}>
       <View style={styles.sectionHeader}>
@@ -281,7 +306,13 @@ function FavoriteSpotsRow() {
       </View>
       <View style={styles.favCardsRow}>
         {FAVORITE_CARDS.map((s) => (
-          <SpotCard key={s.name} {...s} />
+          <Pressable
+            key={s.name}
+            style={{ flex: 1 }}
+            onPress={() => onNavigate?.('spot-detail', { spotId: slugify(s.name) })}
+          >
+            <SpotCard {...s} />
+          </Pressable>
         ))}
       </View>
     </View>
@@ -335,10 +366,10 @@ function RecentDivesSection() {
 
 // ─── Right rail ───────────────────────────────────────────────────────────
 
-function RightRail() {
+function RightRail({ onNavigate }: { onNavigate?: NavigateFn }) {
   return (
     <View style={styles.rightRail}>
-      <UpcomingBestWindow />
+      <UpcomingBestWindow onNavigate={onNavigate} />
       <IslandBreakdown />
       <ConditionAlerts />
       <FriendsFeed />
@@ -346,13 +377,16 @@ function RightRail() {
   );
 }
 
-function UpcomingBestWindow() {
+function UpcomingBestWindow({ onNavigate }: { onNavigate?: NavigateFn }) {
   return (
     <View style={styles.rightCard}>
       <View style={styles.rightCardHeader}>
         <Text style={styles.rightCardTitle}>Upcoming best window</Text>
       </View>
-      <View style={styles.bestWindowBody}>
+      <Pressable
+        style={styles.bestWindowBody}
+        onPress={() => onNavigate?.('spot-detail', { spotId: slugify(BEST_WINDOW.spotName) })}
+      >
         <View style={styles.bestWindowSpotRow}>
           <View style={[styles.bestWindowDot, { backgroundColor: TIER_COLORS[BEST_WINDOW.rating] }]} />
           <Text style={styles.bestWindowSpot}>{BEST_WINDOW.spotName}</Text>
@@ -360,7 +394,7 @@ function UpcomingBestWindow() {
         </View>
         <Text style={styles.bestWindowTime}>{BEST_WINDOW.window}</Text>
         <Text style={styles.bestWindowCountdown}>★ {BEST_WINDOW.hoursAway}</Text>
-      </View>
+      </Pressable>
     </View>
   );
 }
