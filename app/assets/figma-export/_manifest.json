@@ -1,0 +1,371 @@
+{
+  "fileKey": "HP9NdhBiH8r5W8JCHBvwn0",
+  "generatedAt": "2026-05-21T01:07:38.319Z",
+  "renderScale": 2,
+  "renderFormat": "png",
+  "frames": [
+    {
+      "id": "438:3440",
+      "name": "Forecast",
+      "slug": "438_3440-forecast"
+    },
+    {
+      "id": "459:1527",
+      "name": "Frame",
+      "slug": "459_1527-frame"
+    },
+    {
+      "id": "444:1787",
+      "name": "Spots & Maps",
+      "slug": "444_1787-spots-maps"
+    },
+    {
+      "id": "464:4963",
+      "name": "Frame",
+      "slug": "464_4963-frame"
+    },
+    {
+      "id": "467:4288",
+      "name": "Frame",
+      "slug": "467_4288-frame"
+    },
+    {
+      "id": "472:3274",
+      "name": "KaiCast — Profile · Dawson J. - imported by HTML to Figma with ❤️",
+      "slug": "472_3274-kaicast-profile-dawson-j-imported-by-html-to-figma-with"
+    }
+  ],
+  "items": [
+    {
+      "nodeId": "445:3197",
+      "name": "Flag_of_Hawaii 1",
+      "type": "FRAME",
+      "category": "flags",
+      "layerPath": [
+        "Forecast",
+        "UTIL BAR",
+        "Flag_of_Hawaii 1"
+      ],
+      "frame": {
+        "frameId": "438:3440",
+        "frameName": "Forecast",
+        "frameSlug": "438_3440-forecast"
+      },
+      "dims": {
+        "x": 28016,
+        "y": 146,
+        "width": 22,
+        "height": 11
+      },
+      "rendered": "438_3440-forecast/flags/flag_of_hawaii-1-445_3197.png",
+      "raw": []
+    },
+    {
+      "nodeId": "438:3554",
+      "name": "Background+Border",
+      "type": "FRAME",
+      "category": "backgrounds",
+      "layerPath": [
+        "Forecast",
+        "Section - HERO",
+        "Container",
+        "Left: title + conditions viz",
+        "Background+Border"
+      ],
+      "frame": {
+        "frameId": "438:3440",
+        "frameName": "Forecast",
+        "frameSlug": "438_3440-forecast"
+      },
+      "dims": {
+        "x": 28016,
+        "y": 371,
+        "width": 1384,
+        "height": 318
+      },
+      "rendered": "438_3440-forecast/backgrounds/backgroundborder-438_3554.png",
+      "raw": [
+        "438_3440-forecast/backgrounds/_raw/backgroundborder-438_3554-9d3bcc52.png"
+      ]
+    },
+    {
+      "nodeId": "457:4430",
+      "name": "logo",
+      "type": "GROUP",
+      "category": "logos",
+      "layerPath": [
+        "Forecast",
+        "Header - MAIN NAV",
+        "Container",
+        "Container",
+        "logo"
+      ],
+      "frame": {
+        "frameId": "438:3440",
+        "frameName": "Forecast",
+        "frameSlug": "438_3440-forecast"
+      },
+      "dims": {
+        "x": 28016,
+        "y": 179.7562713623047,
+        "width": 125.66852569580078,
+        "height": 25.487464904785156
+      },
+      "rendered": "438_3440-forecast/logos/logo-457_4430.png",
+      "raw": []
+    },
+    {
+      "nodeId": "459:2335",
+      "name": "Flag_of_Hawaii 1",
+      "type": "FRAME",
+      "category": "flags",
+      "layerPath": [
+        "Frame",
+        "UTIL BAR",
+        "Flag_of_Hawaii 1"
+      ],
+      "frame": {
+        "frameId": "459:1527",
+        "frameName": "Frame",
+        "frameSlug": "459_1527-frame"
+      },
+      "dims": {
+        "x": 31048,
+        "y": 146,
+        "width": 22,
+        "height": 11
+      },
+      "rendered": "459_1527-frame/flags/flag_of_hawaii-1-459_2335.png",
+      "raw": []
+    },
+    {
+      "nodeId": "459:2360",
+      "name": "logo",
+      "type": "GROUP",
+      "category": "logos",
+      "layerPath": [
+        "Frame",
+        "Header - MAIN NAV",
+        "Container",
+        "Container",
+        "logo"
+      ],
+      "frame": {
+        "frameId": "459:1527",
+        "frameName": "Frame",
+        "frameSlug": "459_1527-frame"
+      },
+      "dims": {
+        "x": 31048,
+        "y": 186.7562713623047,
+        "width": 125.66852569580078,
+        "height": 25.487464904785156
+      },
+      "rendered": "459_1527-frame/logos/logo-459_2360.png",
+      "raw": []
+    },
+    {
+      "nodeId": "456:3865",
+      "name": "Flag_of_Hawaii 1",
+      "type": "FRAME",
+      "category": "flags",
+      "layerPath": [
+        "Spots & Maps",
+        "Container",
+        "UTIL BAR",
+        "Flag_of_Hawaii 1"
+      ],
+      "frame": {
+        "frameId": "444:1787",
+        "frameName": "Spots & Maps",
+        "frameSlug": "444_1787-spots-maps"
+      },
+      "dims": {
+        "x": 29532,
+        "y": 146,
+        "width": 22,
+        "height": 11
+      },
+      "rendered": "444_1787-spots-maps/flags/flag_of_hawaii-1-456_3865.png",
+      "raw": []
+    },
+    {
+      "nodeId": "456:3918",
+      "name": "logo",
+      "type": "GROUP",
+      "category": "logos",
+      "layerPath": [
+        "Spots & Maps",
+        "Container",
+        "Header - MAIN NAV",
+        "Container",
+        "Container",
+        "logo"
+      ],
+      "frame": {
+        "frameId": "444:1787",
+        "frameName": "Spots & Maps",
+        "frameSlug": "444_1787-spots-maps"
+      },
+      "dims": {
+        "x": 29532,
+        "y": 186.7562713623047,
+        "width": 125.66852569580078,
+        "height": 25.487464904785156
+      },
+      "rendered": "444_1787-spots-maps/logos/logo-456_3918.png",
+      "raw": []
+    },
+    {
+      "nodeId": "464:7308",
+      "name": "Flag_of_Hawaii 1",
+      "type": "FRAME",
+      "category": "flags",
+      "layerPath": [
+        "Frame",
+        "UTIL BAR",
+        "Flag_of_Hawaii 1"
+      ],
+      "frame": {
+        "frameId": "464:4963",
+        "frameName": "Frame",
+        "frameSlug": "464_4963-frame"
+      },
+      "dims": {
+        "x": 32529,
+        "y": 146,
+        "width": 22,
+        "height": 11
+      },
+      "rendered": "464_4963-frame/flags/flag_of_hawaii-1-464_7308.png",
+      "raw": []
+    },
+    {
+      "nodeId": "464:7333",
+      "name": "logo",
+      "type": "GROUP",
+      "category": "logos",
+      "layerPath": [
+        "Frame",
+        "Header - MAIN NAV",
+        "Container",
+        "Container",
+        "logo"
+      ],
+      "frame": {
+        "frameId": "464:4963",
+        "frameName": "Frame",
+        "frameSlug": "464_4963-frame"
+      },
+      "dims": {
+        "x": 32529,
+        "y": 187.2562713623047,
+        "width": 125.66852569580078,
+        "height": 25.487464904785156
+      },
+      "rendered": "464_4963-frame/logos/logo-464_7333.png",
+      "raw": []
+    },
+    {
+      "nodeId": "467:5749",
+      "name": "Flag_of_Hawaii 1",
+      "type": "FRAME",
+      "category": "flags",
+      "layerPath": [
+        "Frame",
+        "UTIL BAR",
+        "Flag_of_Hawaii 1"
+      ],
+      "frame": {
+        "frameId": "467:4288",
+        "frameName": "Frame",
+        "frameSlug": "467_4288-frame"
+      },
+      "dims": {
+        "x": 34045,
+        "y": 146,
+        "width": 22,
+        "height": 11
+      },
+      "rendered": "467_4288-frame/flags/flag_of_hawaii-1-467_5749.png",
+      "raw": []
+    },
+    {
+      "nodeId": "467:5774",
+      "name": "logo",
+      "type": "GROUP",
+      "category": "logos",
+      "layerPath": [
+        "Frame",
+        "Header - MAIN NAV",
+        "Container",
+        "Container",
+        "logo"
+      ],
+      "frame": {
+        "frameId": "467:4288",
+        "frameName": "Frame",
+        "frameSlug": "467_4288-frame"
+      },
+      "dims": {
+        "x": 34045,
+        "y": 187.2562713623047,
+        "width": 125.66852569580078,
+        "height": 25.487464904785156
+      },
+      "rendered": "467_4288-frame/logos/logo-467_5774.png",
+      "raw": []
+    },
+    {
+      "nodeId": "472:4020",
+      "name": "profile-header",
+      "type": "FRAME",
+      "category": "backgrounds",
+      "layerPath": [
+        "KaiCast — Profile · Dawson J. - imported by HTML to Figma with ❤️",
+        "profile-header"
+      ],
+      "frame": {
+        "frameId": "472:3274",
+        "frameName": "KaiCast — Profile · Dawson J. - imported by HTML to Figma with ❤️",
+        "frameSlug": "472_3274-kaicast-profile-dawson-j-imported-by-html-to-figma-with"
+      },
+      "dims": {
+        "x": 35657,
+        "y": 198,
+        "width": 1920,
+        "height": 330.5859375
+      },
+      "rendered": "472_3274-kaicast-profile-dawson-j-imported-by-html-to-figma-with/backgrounds/profile-header-472_4020.png",
+      "raw": [
+        "472_3274-kaicast-profile-dawson-j-imported-by-html-to-figma-with/backgrounds/_raw/profile-header-472_4020-06724b2c.png"
+      ]
+    },
+    {
+      "nodeId": "472:4309",
+      "name": "logo",
+      "type": "GROUP",
+      "category": "logos",
+      "layerPath": [
+        "KaiCast — Profile · Dawson J. - imported by HTML to Figma with ❤️",
+        "Header",
+        "Container",
+        "Container",
+        "logo"
+      ],
+      "frame": {
+        "frameId": "472:3274",
+        "frameName": "KaiCast — Profile · Dawson J. - imported by HTML to Figma with ❤️",
+        "frameSlug": "472_3274-kaicast-profile-dawson-j-imported-by-html-to-figma-with"
+      },
+      "dims": {
+        "x": 35690,
+        "y": 153,
+        "width": 125.66852569580078,
+        "height": 25.487464904785156
+      },
+      "rendered": "472_3274-kaicast-profile-dawson-j-imported-by-html-to-figma-with/logos/logo-472_4309.png",
+      "raw": []
+    }
+  ]
+}

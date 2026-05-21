@@ -166,6 +166,11 @@ app/app/
 xd designs - 04/
 app/assets/xd designs - 04/
 
+# Figma raw S3 originals — high-res bitmaps re-downloaded by
+# scripts/figma-export-assets.mjs. The rendered PNGs and _manifest.json
+# alongside them stay committed; only the _raw/ subfolders are excluded.
+app/assets/figma-export/**/_raw/
+
 # Adobe XD / Figma design source — keep in source-of-truth, not repo.
 # These were dropped into app/assets/ but aren't referenced by code
 # (the imports use the lowercase-dashed counterparts in app/src/assets/).
