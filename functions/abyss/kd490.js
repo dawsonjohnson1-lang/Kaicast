@@ -35,11 +35,12 @@ const logger = require('firebase-functions/logger');
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-// Cache TTLs are split: a SUCCESS lasts a full day (the daily product
-// updates ~once/day), but a FAILURE only sticks for 30 min so we
-// recover quickly from a transient outage without hammering ERDDAP
-// during it.
-const CACHE_TTL_OK_MS    = 24 * 3600 * 1000;
+// Cache TTLs are split. SUCCESS lasts a full week (the underlying
+// daily product is gap-filled DINEOF and the ocean doesn't change
+// that fast — better to serve a 5-day-old reading than fall through
+// to the heuristic if ERDDAP is down). FAILURE only sticks 30 min so
+// we recover quickly from a transient outage without hammering.
+const CACHE_TTL_OK_MS    = 7 * 24 * 3600 * 1000;
 const CACHE_TTL_FAIL_MS  = 30 * 60 * 1000;
 const GRID_STEP          = 0.04; // ~4 km — coarser than dataset for dedupe
 const FETCH_TIMEOUT_MS   = 6000; // tight — if ERDDAP is slow we want to give up + serve heuristic

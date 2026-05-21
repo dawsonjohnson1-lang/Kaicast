@@ -346,8 +346,9 @@ function bearingToCardinal(deg: number): string {
 }
 
 function arrowFor(deg: number): string {
-  // 8-way arrow pointing FROM the bearing
-  const arrows = ['↓', '↙', '←', '↖', '↑', '↗', '→', '↘'];
+  // 8-way arrow pointing TOWARD the bearing — same convention as
+  // CompassThumbnail (0° = N, arrow head points up).
+  const arrows = ['↑', '↗', '→', '↘', '↓', '↙', '←', '↖'];
   return arrows[Math.round(deg / 45) % 8];
 }
 

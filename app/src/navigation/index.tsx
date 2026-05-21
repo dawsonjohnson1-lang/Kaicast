@@ -1,11 +1,11 @@
 import React from 'react';
-import { View } from 'react-native';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 
 import { colors } from '@/theme';
 import { TabBar } from './TabBar';
+import { LoadingView } from '@/components/LoadingView';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { usePushRegistration } from '@/hooks/usePushRegistration';
@@ -106,11 +106,11 @@ export function AppNavigator() {
   //      useUserProfile flips this the moment AlmostThere writes
   //      onboardingComplete:true.
   //   3. authed + onboarded → MainTabs + the rest of the root stack.
-  // During auth/profile bootstrap we render a blank dark fill — no
-  // branded splash, but it stops a returning user from seeing
-  // CreateAccount flash before MainTabs takes over.
+  // Branded loading view (diver background + animated logo) while we
+  // resolve auth and profile state. Also prevents the CreateAccount
+  // flash a returning user would otherwise see before MainTabs mounts.
   if (authLoading || (isAuthed && profileLoading)) {
-    return <View style={{ flex: 1, backgroundColor: colors.bg }} />;
+    return <LoadingView />;
   }
 
   const phase: 'auth' | 'onboarding' | 'main' = !isAuthed

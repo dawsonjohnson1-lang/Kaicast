@@ -95,18 +95,15 @@ export function SpotMap({ spots, onSpotPress, onClusterPress }: SpotMapProps) {
   );
 }
 
-// Strong dark gradient to give the satellite imagery a "nighttime"
-// feel — deep navy at the edges fading slightly lighter through the
-// center, on top of a flat ~50% darken so the bright tropical greens
-// and white sand don't dominate the page.
+// Light vignette to tone the bright tropical greens / sand without
+// burying the satellite imagery. Center is essentially clear so the
+// island is plainly visible; edges get a soft navy fade.
 function NightOverlay() {
   return (
     <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-      <View style={StyleSheet.absoluteFill}>
-        <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(4,12,24,0.55)' }]} />
-      </View>
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(4,12,24,0.15)' }]} />
       <LinearGradient
-        colors={['rgba(2,8,18,0.45)', 'rgba(2,8,18,0.0)', 'rgba(2,8,18,0.50)']}
+        colors={['rgba(2,8,18,0.25)', 'rgba(2,8,18,0.0)', 'rgba(2,8,18,0.25)']}
         locations={[0, 0.5, 1]}
         style={StyleSheet.absoluteFill}
       />

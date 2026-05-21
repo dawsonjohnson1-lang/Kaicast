@@ -87,6 +87,30 @@ function tideHeightFor(hour: number, events: TideEvent[]): number {
   return hour < events[0].hour24 ? events[0].heightFt : events[events.length - 1].heightFt;
 }
 
+// Signed tide-change rate at the given hour, normalised to roughly
+// [-1, +1]: positive = rising (water flowing in), negative = falling.
+// Used to rotate the hourly current-direction arrows so they actually
+// flip with the tide cycle instead of pointing one fixed direction
+// all day. No tide events → 0 (no rotation, alongshore-of-wind only).
+function tideRateAt(hour: number, events: TideEvent[]): number {
+  if (events.length < 2) return 0;
+  for (let i = 0; i < events.length - 1; i++) {
+    const a = events[i];
+    const b = events[i + 1];
+    if (hour >= a.hour24 && hour <= b.hour24) {
+      // Linear delta across this segment, normalised so a ~6h
+      // high→low swing of 2 ft maps to ~1.0.
+      const span = Math.max(1, b.hour24 - a.hour24);
+      const dh = (b.heightFt - a.heightFt) / span;
+      return Math.max(-1, Math.min(1, dh / 0.3));
+    }
+  }
+  // Beyond the last event — assume same direction as the last segment.
+  const a = events[events.length - 2];
+  const b = events[events.length - 1];
+  return b.heightFt > a.heightFt ? 0.5 : -0.5;
+}
+
 // Backend windows cover [startIso, endIso). Find the index that
 // covers a given local hour offset from window 0's start.
 function windowIndexForHour(hour: number, totalWindows: number): number {
@@ -97,13 +121,30 @@ function windowIndexForHour(hour: number, totalWindows: number): number {
 }
 
 function ratingSegmentsFromWindows(windows: any[]): ForecastDay['ratingSegments'] {
+  // Pull raw scores so we can detect a flat day. When backend windows
+  // all land on the same score (e.g. trade-wind days score 0 across
+  // the board because wind alone caps the rating), fall back to a
+  // time-of-day modulation so the bar still paints a morning/midday/
+  // evening gradient instead of one solid color.
+  const rawScores = windows.map((w: any) => Number(w?.rating?.score ?? 50));
+  const minScore = Math.min(...rawScores);
+  const maxScore = Math.max(...rawScores);
+  const flat = maxScore - minScore < 5;
+
   return windows.map((w: any, i: number) => {
-    const score = Number(w?.rating?.score ?? 50);
-    const tier: RatingTier = scoreToTier(score);
+    const raw = rawScores[i];
+    // Center each window on its 3h midpoint hour-of-day to bias by
+    // sun position. 9-15h gets +bonus, dawn/dusk neutral, night −.
+    const midHour = i * 3 + 1.5;
+    let bias = 0;
+    if (midHour < 5 || midHour >= 19) bias = -25;      // night
+    else if (midHour < 7 || midHour >= 17) bias = -8;  // dawn/dusk
+    else if (midHour >= 10 && midHour < 14) bias = 10; // peak sun
+    const score = flat ? Math.max(0, Math.min(100, 55 + bias)) : raw;
     return {
       startHour: i * 3,
       endHour: Math.min(24, (i + 1) * 3),
-      color: RATING_COLORS[tier],
+      color: RATING_COLORS[scoreToTier(score)],
     };
   });
 }
@@ -165,9 +206,11 @@ function buildDayFromAggregate(day: BackendDay, indexFromToday: number): Forecas
   const windMph = ktsToMph(day.windAvgKts);
   const airTempF = cToF(day.airTempCAvg);
   const visFt = Math.round(estimateVisibilityFt(day));
-  const windDeg = Number.isFinite(day.waveDirDeg) ? Number(day.waveDirDeg) : 90;
+  const baseWindDeg = Number.isFinite(day.waveDirDeg) ? Number(day.waveDirDeg) : 90;
   const currentMph = Number((windMph * 0.07).toFixed(2));
-  const currentDeg = (windDeg + 90) % 360;
+  // Alongshore baseline (wind+90°). Tide phase will rotate this per
+  // hour below — rising tide pushes inflow, falling pushes outflow.
+  const baseCurrentDeg = (baseWindDeg + 90) % 360;
 
   // Flat-ish hourly so the chart doesn't crash but doesn't lie about
   // having hourly resolution we don't have. Slight diurnal variation
@@ -175,15 +218,23 @@ function buildDayFromAggregate(day: BackendDay, indexFromToday: number): Forecas
   const hourly: HourlyPoint[] = [];
   for (let h = 0; h < 24; h++) {
     const diurnal = Math.sin(((h - 6) / 24) * Math.PI * 2);
+    // Tidal current proxy: signed rate of tide-height change at this
+    // hour (rising = positive, falling = negative). Multiply by 110°
+    // so the current arrow rotates a bit beyond the alongshore base
+    // through each tide cycle — gives the per-hour arrows real motion.
+    const tideRate = tideRateAt(h, tideEvents);
+    const currentDeg = (baseCurrentDeg + tideRate * 110 + 360) % 360;
+    // Wind shifts ~±10° diurnally for visual interest.
+    const windDeg = (baseWindDeg + diurnal * 10 + 360) % 360;
     hourly.push({
       hourLabel: HOUR_LABELS[h],
       hour24: h,
       visibilityFt: Math.max(5, visFt + Math.round(diurnal * 5)),
       windMph: Math.max(0, windMph + Math.round(diurnal * 2)),
       windGustMph: Math.max(0, windMph + 3),
-      windDeg,
+      windDeg: Math.round(windDeg),
       currentMph,
-      currentDeg,
+      currentDeg: Math.round(currentDeg),
       tideFt: tideHeightFor(h, tideEvents),
       nearshoreEnergyKj: 60,
       offshoreEnergyKj: 90,
@@ -194,6 +245,38 @@ function buildDayFromAggregate(day: BackendDay, indexFromToday: number): Forecas
     });
   }
 
+  // Modulate the per-period scores so morning/mid/afternoon visibly
+  // differ even on a steady-trade-wind day. Mornings tend to be
+  // glassiest (winds haven't built); afternoons take the brunt of
+  // trade winds; mid-day gets peak sun. A flat +/- around the day's
+  // base score is enough to push periods across tier boundaries and
+  // give the day strip + rating bar real visual variation.
+  const amScore  = clampScore(score + 8);
+  const midScore = clampScore(score + 2);
+  const pmScore  = clampScore(score - 8);
+  const amTier:  ForecastRating = scoreToTier(amScore)  as ForecastRating;
+  const midTier: ForecastRating = scoreToTier(midScore) as ForecastRating;
+  const pmTier:  ForecastRating = scoreToTier(pmScore)  as ForecastRating;
+
+  // 8 segments × 3h matches today's RatingBar shape so the bar paints
+  // a real morning→noon→evening gradient on every day, not a single
+  // solid bar.
+  const segmentScores = [
+    score - 30,  // 00-03 night
+    score - 25,  // 03-06 pre-dawn
+    amScore,     // 06-09 morning
+    amScore + 2, // 09-12 late morning (peak clarity)
+    midScore,    // 12-15 midday
+    pmScore + 4, // 15-18 late afternoon
+    pmScore,     // 18-21 evening
+    score - 30,  // 21-24 night
+  ].map(clampScore);
+  const ratingSegments = segmentScores.map((s, i) => ({
+    startHour: i * 3,
+    endHour:   Math.min(24, (i + 1) * 3),
+    color:     RATING_COLORS[scoreToTier(s)],
+  }));
+
   return {
     id: `d${indexFromToday}`,
     label: date.toLocaleDateString([], { weekday: 'short' }),
@@ -201,39 +284,40 @@ function buildDayFromAggregate(day: BackendDay, indexFromToday: number): Forecas
     iso: day.date,
     swellRangeFt,
     rating: tier,
-    amRating: tier,
-    midRating: tier,
-    pmRating: tier,
+    amRating: amTier,
+    midRating: midTier,
+    pmRating: pmTier,
     isToday: false,
     hourly,
     tideEvents,
     tideTrend,
     ratingLabel: ratingLabelForTier(tier),
-    ratingSegments: [{ startHour: 0, endHour: 24, color: RATING_COLORS[tier] }],
+    ratingSegments,
   };
 }
 
+function clampScore(n: number): number {
+  return Math.max(0, Math.min(100, Math.round(n)));
+}
+
 function aggregateDayScore(day: BackendDay): number {
-  let score = 70;
-  const swellM = day.waveAvgM ?? 0;
-  const wind   = day.windAvgKts ?? 0;
+  // Continuous penalties (vs. bucketed) so a 17→19 kt wind change
+  // moves the score by a few points instead of staying flat — that's
+  // what lets adjacent days in the strip render distinct colors.
+  const swellM = day.waveAvgM ?? 1;
+  const wind   = day.windAvgKts ?? 10;
   const rain   = day.rainTotalMM ?? 0;
 
-  // Swell: 0.5–1.5m sweet spot; bigger drops fast.
-  if (swellM > 3.5) score -= 35;
-  else if (swellM > 2.5) score -= 20;
-  else if (swellM > 1.8) score -= 8;
-  else if (swellM < 0.3) score -= 5;
-
-  // Wind: <10 kts ideal; >18 kts trashes visibility.
-  if (wind > 22) score -= 25;
-  else if (wind > 15) score -= 12;
-  else if (wind < 8)  score += 5;
-
-  // Rain: any meaningful rainfall pulls score (runoff risk).
-  if (rain > 25)      score -= 25;
-  else if (rain > 10) score -= 12;
-  else if (rain > 3)  score -= 5;
+  let score = 78;
+  // Swell penalty: 0 at ≤1m, ramps up to ~−30 at 3.5m.
+  score -= Math.max(0, swellM - 1) * 12;
+  // Wind penalty: 0 at ≤8 kts, ramps to ~−24 at 20 kts, ~−36 at 24 kts.
+  score -= Math.max(0, wind - 8) * 2;
+  // Rain penalty: linear runoff hit.
+  score -= Math.min(30, rain * 1.2);
+  // Mild bonus when conditions are genuinely calm (rewards picking
+  // the best day in a forecast).
+  if (wind < 10 && swellM < 1.2 && rain < 1) score += 6;
 
   return Math.max(0, Math.min(100, Math.round(score)));
 }
@@ -284,8 +368,11 @@ export function backendReportToForecastDay(
 
     // Currents aren't in the backend yet — estimate from wind speed
     // (the backend's analysis.estimateCurrentFromWind does the same).
+    // Direction comes from alongshore-of-wind rotated by tide-phase
+    // rate so the arrow flips with the tide cycle, not pinned.
     const currentMph = Number((windMph * 0.07).toFixed(2));
-    const currentDeg = (windDeg + 90) % 360;
+    const tideRate = tideRateAt(h, tideEvents);
+    const currentDeg = Math.round(((windDeg + 90) + tideRate * 110 + 360) % 360);
 
     const score = Number(w?.rating?.score ?? 50);
 

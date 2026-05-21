@@ -909,6 +909,8 @@ async function buildSpotReport({ spot, owHourly, buoyData, marineForecast, nowMs
     jellyfishWarning: jellyfishData.jellyfishWarning,
     runoff:           nowRunoff,
     tide:             nowTideCycle,
+    chopMultiplier: nowVisibility?.wind?.chopMultiplier ?? 1,
+    exposureFactor: nowVisibility?.exposure?.factor ?? 1,
     confidenceScore,
     spotContext: {
       runoffSensitivity: spot.runoffSensitivity,
@@ -984,7 +986,9 @@ async function buildSpotReport({ spot, owHourly, buoyData, marineForecast, nowMs
       windDirectionDegFrom: w.avg.windDeg,
       waveHeightM:          w.avg.waveHeightM,
       wavePeriodS:          w.avg.wavePeriodS,
-      waveDirectionDegFrom: marineForecast?.waveDirMap?.get(w.startIso) ?? null,
+      // marineForecast maps key entries as "YYYY-MM-DDTHH:00"; the
+      // window's startIso is the full ISO with .000Z, so slice down.
+      waveDirectionDegFrom: marineForecast?.waveDirMap?.get(w.startIso.slice(0, 13) + ':00') ?? null,
       tidePhase:            winTideCycle?.currentTideState ?? 'unknown',
       rainRollups:       winRainRollups,
       runoff:            winRunoff,
@@ -1011,6 +1015,12 @@ async function buildSpotReport({ spot, owHourly, buoyData, marineForecast, nowMs
       jellyfishWarning: jellyfishData.jellyfishWarning,
       runoff:           winRunoff,
       tide:             winTideCycle,
+
+      // Shelter signals from the abyss model — let the rating know how
+      // much chop / swell actually reaches this spot before applying
+      // raw wind / swell penalties.
+      chopMultiplier: winVisibility?.wind?.chopMultiplier ?? 1,
+      exposureFactor: winVisibility?.exposure?.factor ?? 1,
 
       // Use report-level confidence (keeps conservative if buoy missing)
       confidenceScore,

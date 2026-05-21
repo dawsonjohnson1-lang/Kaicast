@@ -4,7 +4,15 @@ import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { defaultHourFor } from '@/api/forecast-mock';
 import { useForecast } from '@/hooks/useForecast';
 import { colors, typography } from '@/theme';
+import { RATING_COLORS, RATING_LABELS, type RatingTier } from '@/theme/ratingColors';
 import type { Spot } from '@/types';
+
+// Reverse-map colour hex → tier so we can recover the rating at the
+// scrubbed hour from the day's ratingSegments without changing the
+// segment shape used elsewhere.
+const COLOR_TO_TIER: Record<string, RatingTier> = Object.fromEntries(
+  Object.entries(RATING_COLORS).map(([t, c]) => [c, t as RatingTier])
+) as Record<string, RatingTier>;
 
 import { DayStrip, RatingBar, ConditionBanner } from './components';
 import {
@@ -59,6 +67,15 @@ export function ForecastTab({ spot, spotCoords }: ForecastTabProps = {}) {
   const defaultHour = defaultHourFor(day);
   const isAtDefault = scrubberHour === defaultHour;
 
+  // Resolve the tier at the current scrubbed hour from the segments
+  // so the banner tracks the slider. Falls back to the day's headline
+  // tier if no segment covers the hour (shouldn't happen, but safe).
+  const activeSegment = day.ratingSegments.find(
+    (s) => scrubberHour >= s.startHour && scrubberHour < s.endHour,
+  );
+  const scrubbedTier: RatingTier =
+    (activeSegment && COLOR_TO_TIER[activeSegment.color]) ?? day.rating;
+
   return (
     <View style={styles.root}>
       <View style={styles.headerRow}>
@@ -82,7 +99,11 @@ export function ForecastTab({ spot, spotCoords }: ForecastTabProps = {}) {
       </View>
 
       <View style={{ height: 16 }} />
-      <ConditionBanner rating={day.rating} ratingLabel={day.ratingLabel} showLive={day.isToday} />
+      <ConditionBanner
+        rating={scrubbedTier}
+        ratingLabel={RATING_LABELS[scrubbedTier]}
+        showLive={day.isToday && isAtDefault}
+      />
 
       <View style={{ height: 16 }} />
       <RatingBar segments={day.ratingSegments} indicatorHour={scrubberHour} onScrub={setScrubberHour} />

@@ -181,10 +181,16 @@ async function estimateVisibilityAbyss(opts) {
     });
 
     // Apply solar light factor + wind chop on the heuristic path too.
-    const lightMultiplier = 0.10 + 0.90 * light.factor;
+    // Light: real underwater clarity isn't 40% on a cloudy day. Floor
+    // the multiplier at 0.55 so overcast/early-morning still reads as
+    // ~70-80% of clear-day vis, drop hard only into actual twilight
+    // (factor<0.15) where light.factor itself drives the result.
+    const lightMultiplier = light.factor < 0.15
+      ? 0.25 + light.factor * 2.0       // twilight/night: 0.25–0.55
+      : 0.55 + 0.45 * Math.min(1.0, light.factor);
     const visAfterLight = legacy.estimatedVisibilityMeters * lightMultiplier;
     const visM = visAfterLight * windChopMultiplier;
-    const visMRounded = Math.max(1, Math.round(visM));
+    const visMRounded = Math.max(2, Math.round(visM));
 
     const heurRationale = [];
     const lightPct = Math.round((lightMultiplier - 1) * 100);
@@ -281,10 +287,13 @@ async function estimateVisibilityAbyss(opts) {
   const layerSpm = vis;
 
   // ── Layer 7: Solar light + topographic shadow ──────────────────────────────
-  // Even pristine 30 m water reads as 5 m if you're swimming through a
-  // mountain shadow at twilight. Multiplier is between 0.10 (full
-  // shadow with overcast) and 1.00 (clear high noon, no terrain block).
-  const lightMultiplier = 0.10 + 0.90 * light.factor;
+  // Underwater clarity is dominated by water properties, not surface
+  // light, until we drop into actual twilight/shadow. Floor at 0.55
+  // so a cloudy mid-morning still reads near full vis; only deep
+  // twilight (factor<0.15) drives the multiplier down hard.
+  const lightMultiplier = light.factor < 0.15
+    ? 0.25 + light.factor * 2.0
+    : 0.55 + 0.45 * Math.min(1.0, light.factor);
   vis *= lightMultiplier;
   const layerLight = vis;
 
