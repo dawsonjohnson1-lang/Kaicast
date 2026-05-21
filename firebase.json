@@ -7,24 +7,47 @@
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
   },
-  "hosting": {
-    "public": "functions/public",
-    "ignore": [
-      "firebase.json",
-      "**/.*",
-      "**/node_modules/**"
-    ],
-    "rewrites": [
-      { "source": "/privacy", "destination": "/privacy.html" },
-      { "source": "/terms",   "destination": "/terms.html" }
-    ],
-    "headers": [
-      {
-        "source": "**/*.@(html|css|js)",
-        "headers": [
-          { "key": "Cache-Control", "value": "public, max-age=3600" }
-        ]
-      }
-    ]
-  }
+  "hosting": [
+    {
+      "target": "legal",
+      "public": "functions/public",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**"
+      ],
+      "rewrites": [
+        { "source": "/privacy", "destination": "/privacy.html" },
+        { "source": "/terms",   "destination": "/terms.html" }
+      ],
+      "headers": [
+        {
+          "source": "**/*.@(html|css|js)",
+          "headers": [
+            { "key": "Cache-Control", "value": "public, max-age=3600" }
+          ]
+        }
+      ]
+    },
+    {
+      "target": "desktop",
+      "public": "desktop/dist",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**"
+      ],
+      "rewrites": [
+        { "source": "**", "destination": "/index.html" }
+      ],
+      "headers": [
+        {
+          "source": "**/*.@(html|css|js)",
+          "headers": [
+            { "key": "Cache-Control", "value": "public, max-age=3600" }
+          ]
+        }
+      ]
+    }
+  ]
 }
