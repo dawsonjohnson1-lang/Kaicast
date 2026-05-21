@@ -23,7 +23,7 @@ import { useFollowing } from '@/hooks/useFollowing';
 import * as Notifications from 'expo-notifications';
 import { registerForPush } from '@/api/push';
 import { LEGAL_URLS } from '@/constants/legal';
-import { diveReports, favoriteSpots } from '@/api/mockData';
+import { useFavorites } from '@/hooks/useFavorites';
 import type { RootStackParamList, TabParamList } from '@/navigation/types';
 
 type Nav = CompositeNavigationProp<
@@ -53,22 +53,26 @@ export function ProfileScreen() {
   }, [spots]);
 
   const authorName = profile?.name ?? user?.name ?? 'You';
-  const userReports = userLogs.length
-    ? userLogs.map((l) =>
-        diveLogToReport(l, authorName, spotsById.get(l.spotId) ?? l.spotId),
-      )
-    : diveReports;
+  const userReports = userLogs.map((l) =>
+    diveLogToReport(l, authorName, spotsById.get(l.spotId) ?? l.spotId),
+  );
 
-  // Live profile stats from the user's logs. When they have none yet
-  // we show the mock-derived totals so the cards aren't all "0".
-  const statsLive = userLogs.length > 0;
-  const maxDepthFt = statsLive
+  // Live profile stats from the user's logs — show real zeros until
+  // they actually have dives logged, no mock-inflated totals.
+  const maxDepthFt = userLogs.length
     ? Math.max(...userLogs.map((l) => l.depthFt ?? 0))
-    : 65;
-  const uniqueSpots = statsLive
+    : 0;
+  const uniqueSpots = userLogs.length
     ? new Set(userLogs.map((l) => l.spotId)).size
-    : 6;
-  const totalLogs = statsLive ? userLogs.length : 25;
+    : 0;
+  const totalLogs = userLogs.length;
+
+  // Real favorites (heart icon on Spot Detail) → carousel content.
+  const { favorites: favoriteIds } = useFavorites(user?.id);
+  const favoriteSpots = useMemo(
+    () => spots.filter((s) => favoriteIds.has(s.id)),
+    [spots, favoriteIds],
+  );
   const [tab, setTab] = useState<Tab>('Dashboard');
 
   // Prefer the live profile doc when present; fall back to the auth
@@ -144,12 +148,18 @@ export function ProfileScreen() {
           </View>
 
           <View>
-            <SectionHeader title="Your Reports" actionLabel="See all" onAction={() => {}} />
-            <View style={{ gap: spacing.md }}>
-              {userReports.map((r) => (
-                <DiveReportCard key={r.id} report={r} onPress={() => nav.navigate('DiveReportDetail', { reportId: r.id })} />
-              ))}
-            </View>
+            <SectionHeader title="Your Reports" actionLabel="See all" onAction={() => setTab('Dive Reports')} />
+            {userReports.length > 0 ? (
+              <View style={{ gap: spacing.md }}>
+                {userReports.map((r) => (
+                  <DiveReportCard key={r.id} report={r} onPress={() => nav.navigate('DiveReportDetail', { reportId: r.id })} />
+                ))}
+              </View>
+            ) : (
+              <Text style={{ ...typography.bodySm, color: colors.textSecondary }}>
+                No dives logged yet. Tap "Log Your Dive" below to add your first.
+              </Text>
+            )}
           </View>
 
           <Button label="Log Your Dive" fullWidth onPress={() => nav.navigate('LogDive')} />
@@ -158,9 +168,15 @@ export function ProfileScreen() {
 
       {tab === 'Dive Reports' && (
         <View style={{ marginTop: spacing.xl, gap: spacing.md }}>
-          {userReports.map((r) => (
-            <DiveReportCard key={r.id} report={r} onPress={() => nav.navigate('DiveReportDetail', { reportId: r.id })} />
-          ))}
+          {userReports.length > 0 ? (
+            userReports.map((r) => (
+              <DiveReportCard key={r.id} report={r} onPress={() => nav.navigate('DiveReportDetail', { reportId: r.id })} />
+            ))
+          ) : (
+            <Text style={{ ...typography.bodySm, color: colors.textSecondary, textAlign: 'center', marginTop: spacing.xl }}>
+              You haven't logged any dives yet.
+            </Text>
+          )}
         </View>
       )}
 

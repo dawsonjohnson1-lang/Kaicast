@@ -1,5 +1,18 @@
 {
   "projects": {
     "default": "kaicast-207dc"
-  }
+  },
+  "targets": {
+    "kaicast-207dc": {
+      "hosting": {
+        "legal": [
+          "kaicast-207dc"
+        ],
+        "desktop": [
+          "kaicast-207dc-5d2f2"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }

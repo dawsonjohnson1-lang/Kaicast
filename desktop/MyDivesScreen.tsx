@@ -43,26 +43,10 @@ type DiveEntry = {
   hasPhotos: boolean;
 };
 
-const DIVES: DiveEntry[] = [
-  { id: 'd147', date: '2024-04-14', time: '09:12', spot: 'Electric Beach',  region: 'Leeward',     island: "O'ahu",      diveType: 'Scuba',        depthFt: 68,  durationMin: 52, vizFt: 60, waterTempF: 79, rating: 'excellent', buddy: 'Kai M.',     hasPhotos: true  },
-  { id: 'd146', date: '2024-04-12', time: '07:30', spot: "Shark's Cove",    region: 'North Shore', island: "O'ahu",      diveType: 'Freediving',   depthFt: 42,  durationMin: 38, vizFt: 48, waterTempF: 78, rating: 'great',     buddy: 'Leilani S.', hasPhotos: true  },
-  { id: 'd145', date: '2024-04-09', time: '11:00', spot: 'Hanauma Bay',     region: 'East Shore',  island: "O'ahu",      diveType: 'Snorkel',      depthFt: 12,  durationMin: 60, vizFt: 30, waterTempF: 79, rating: 'good',                          hasPhotos: false },
-  { id: 'd144', date: '2024-04-06', time: '08:00', spot: 'Molokini Crater', region: 'South',       island: 'Maui',       diveType: 'Scuba',        depthFt: 110, durationMin: 44, vizFt: 80, waterTempF: 77, rating: 'excellent', buddy: 'Marcus H.',  hasPhotos: true  },
-  { id: 'd143', date: '2024-04-04', time: '06:45', spot: 'Electric Beach',  region: 'Leeward',     island: "O'ahu",      diveType: 'Spearfishing', depthFt: 35,  durationMin: 62, vizFt: 50, waterTempF: 78, rating: 'great',                         hasPhotos: true  },
-  { id: 'd142', date: '2024-03-31', time: '10:15', spot: 'Three Tables',    region: 'North Shore', island: "O'ahu",      diveType: 'Freediving',   depthFt: 45,  durationMin: 50, vizFt: 55, waterTempF: 78, rating: 'great',     buddy: 'Ryan P.',    hasPhotos: false },
-  { id: 'd141', date: '2024-03-28', time: '17:30', spot: 'Magic Island',    region: 'South Shore', island: "O'ahu",      diveType: 'Scuba',        depthFt: 28,  durationMin: 42, vizFt: 35, waterTempF: 80, rating: 'good',                          hasPhotos: true  },
-  { id: 'd140', date: '2024-03-24', time: '07:00', spot: 'Two Step',        region: 'West',        island: 'Big Island', diveType: 'Scuba',        depthFt: 55,  durationMin: 48, vizFt: 70, waterTempF: 78, rating: 'great',     buddy: 'Alana T.',   hasPhotos: true  },
-  { id: 'd139', date: '2024-03-20', time: '14:00', spot: 'Tunnels Beach',   region: 'North Shore', island: "Kaua'i",     diveType: 'Snorkel',      depthFt: 18,  durationMin: 75, vizFt: 45, waterTempF: 76, rating: 'good',                          hasPhotos: true  },
-  { id: 'd138', date: '2024-03-16', time: '08:30', spot: 'Honolua Bay',     region: 'Northwest',   island: 'Maui',       diveType: 'Freediving',   depthFt: 38,  durationMin: 55, vizFt: 50, waterTempF: 77, rating: 'great',                         hasPhotos: false },
-  { id: 'd137', date: '2024-03-13', time: '06:00', spot: 'Electric Beach',  region: 'Leeward',     island: "O'ahu",      diveType: 'Freediving',   depthFt: 50,  durationMin: 75, vizFt: 65, waterTempF: 78, rating: 'excellent', buddy: 'Ryan P.',    hasPhotos: true  },
-  { id: 'd136', date: '2024-03-09', time: '12:00', spot: 'Black Rock',      region: 'West',        island: 'Maui',       diveType: 'Snorkel',      depthFt: 15,  durationMin: 80, vizFt: 40, waterTempF: 77, rating: 'good',                          hasPhotos: true  },
-  { id: 'd135', date: '2024-03-05', time: '09:00', spot: 'Kealakekua Bay',  region: 'Kona',        island: 'Big Island', diveType: 'Scuba',        depthFt: 75,  durationMin: 50, vizFt: 85, waterTempF: 78, rating: 'excellent', buddy: 'Alana T.',   hasPhotos: true  },
-  { id: 'd134', date: '2024-03-01', time: '07:15', spot: "Shark's Cove",    region: 'North Shore', island: "O'ahu",      diveType: 'Scuba',        depthFt: 48,  durationMin: 45, vizFt: 38, waterTempF: 76, rating: 'good',                          hasPhotos: false },
-  { id: 'd133', date: '2024-02-26', time: '15:00', spot: 'Sandy Beach',     region: 'East Shore',  island: "O'ahu",      diveType: 'Spearfishing', depthFt: 22,  durationMin: 50, vizFt: 20, waterTempF: 75, rating: 'fair',                          hasPhotos: false },
-  { id: 'd132', date: '2024-02-22', time: '08:45', spot: 'Electric Beach',  region: 'Leeward',     island: "O'ahu",      diveType: 'Scuba',        depthFt: 44,  durationMin: 52, vizFt: 50, waterTempF: 76, rating: 'great',     buddy: 'Kai M.',     hasPhotos: true  },
-  { id: 'd131', date: '2024-02-18', time: '10:00', spot: 'Mokuleia',        region: 'North Shore', island: "O'ahu",      diveType: 'Snorkel',      depthFt: 8,   durationMin: 45, vizFt: 22, waterTempF: 75, rating: 'fair',                          hasPhotos: false },
-  { id: 'd130', date: '2024-02-14', time: '13:00', spot: 'Magic Island',    region: 'South Shore', island: "O'ahu",      diveType: 'Freediving',   depthFt: 35,  durationMin: 60, vizFt: 42, waterTempF: 75, rating: 'good',                          hasPhotos: false },
-];
+// Empty for every account at launch — no per-user dive log persistence
+// is wired yet. Becomes a Firestore query (diveLogs where uid==current)
+// once that surface lands.
+const DIVES: DiveEntry[] = [];
 
 const DIVE_TYPE_FILTERS = ['All types', 'Scuba', 'Freediving', 'Spearfishing', 'Snorkel'] as const;
 const DEPTH_FILTERS = ['Any depth', '0–30 ft', '30–60 ft', '60–100 ft', '100+ ft'] as const;
@@ -450,14 +434,22 @@ function NumCell({ width, value, unit }: { width: number; value: number; unit: s
 
 // ─── Sidebar cards ───────────────────────────────────────────────────────
 
-const STATS = {
-  total: 147,
-  totalBottomTime: '38h 22m',
-  totalDepth: '6,820 ft',
-  deepestDive: { depth: 110, spot: 'Molokini Crater', date: 'Apr 6, 2024' },
-  longestDive: { duration: 80, spot: 'Black Rock',     date: 'Mar 9, 2024' },
-  bestVisibility: { vizFt: 85, spot: 'Kealakekua Bay', date: 'Mar 5, 2024' },
-  mostFrequent: 'Electric Beach',
+const STATS: {
+  total: number;
+  totalBottomTime: string;
+  totalDepth: string;
+  deepestDive: { depth: number; spot: string; date: string } | null;
+  longestDive: { duration: number; spot: string; date: string } | null;
+  bestVisibility: { vizFt: number; spot: string; date: string } | null;
+  mostFrequent: string;
+} = {
+  total: 0,
+  totalBottomTime: '0h',
+  totalDepth: '0 ft',
+  deepestDive: null,
+  longestDive: null,
+  bestVisibility: null,
+  mostFrequent: '—',
 };
 
 function StatsSummaryCard() {
@@ -486,9 +478,25 @@ function StatsSummaryCard() {
       </View>
 
       <View style={styles.recordsList}>
-        <RecordRow icon="📏" label="Deepest"        primary={`${STATS.deepestDive.depth} ft`}    secondary={`${STATS.deepestDive.spot} · ${STATS.deepestDive.date}`} />
-        <RecordRow icon="⏱"  label="Longest"        primary={`${STATS.longestDive.duration} min`} secondary={`${STATS.longestDive.spot} · ${STATS.longestDive.date}`} />
-        <RecordRow icon="👁"  label="Best visibility" primary={`${STATS.bestVisibility.vizFt} ft`} secondary={`${STATS.bestVisibility.spot} · ${STATS.bestVisibility.date}`} isLast />
+        <RecordRow
+          icon="📏"
+          label="Deepest"
+          primary={STATS.deepestDive ? `${STATS.deepestDive.depth} ft` : '—'}
+          secondary={STATS.deepestDive ? `${STATS.deepestDive.spot} · ${STATS.deepestDive.date}` : 'Log your first dive to set a record'}
+        />
+        <RecordRow
+          icon="⏱"
+          label="Longest"
+          primary={STATS.longestDive ? `${STATS.longestDive.duration} min` : '—'}
+          secondary={STATS.longestDive ? `${STATS.longestDive.spot} · ${STATS.longestDive.date}` : 'Log your first dive to set a record'}
+        />
+        <RecordRow
+          icon="👁"
+          label="Best visibility"
+          primary={STATS.bestVisibility ? `${STATS.bestVisibility.vizFt} ft` : '—'}
+          secondary={STATS.bestVisibility ? `${STATS.bestVisibility.spot} · ${STATS.bestVisibility.date}` : 'Log your first dive to set a record'}
+          isLast
+        />
       </View>
     </View>
   );
@@ -619,7 +627,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   bodyMain: { flex: 1, gap: 18 },
-  bodySidebar: { width: 320, gap: 16 },
+  bodySidebar: { width: 260, gap: 16 },
 
   // Header
   header: {

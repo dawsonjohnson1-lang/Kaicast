@@ -61,6 +61,56 @@ export function useUserDiveLogs(uid: string | undefined, max = 50): State {
   return state;
 }
 
+/**
+ * Live dive-log subscription scoped to a set of author UIDs (typically
+ * the people the viewer follows). Returns an empty list when no
+ * followed UIDs are passed — the home feed shows an empty state in
+ * that case rather than falling back to mock data.
+ *
+ * Firestore's `in` operator caps at 30 values, so we slice the
+ * followed list when needed; the older entries are dropped, which
+ * matches the "newest reports first" UX the home feed wants anyway.
+ */
+export function useFriendsDiveLogs(authorUids: string[], max = 30): State {
+  // Memoize the input key so the effect re-subscribes only when the
+  // actual set of UIDs changes, not on every render.
+  const key = authorUids.slice().sort().join('|');
+  const [state, setState] = useState<State>({ logs: [], loading: authorUids.length > 0 });
+
+  useEffect(() => {
+    if (!authorUids.length) {
+      setState({ logs: [], loading: false });
+      return;
+    }
+    if (!(firebaseConfigured && db)) {
+      setState({ logs: [], loading: false });
+      return;
+    }
+    const slice = authorUids.slice(0, 30);
+    const q = query(
+      collection(db, 'diveLogs'),
+      where('uid', 'in', slice),
+      where('privacy', 'in', ['public', 'friends']),
+      orderBy('loggedAt', 'desc'),
+      fbLimit(max),
+    );
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        setState({
+          loading: false,
+          logs: snap.docs.map((d) => normalize(d.id, d.data())),
+        });
+      },
+      () => setState({ logs: [], loading: false }),
+    );
+    return unsub;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, max]);
+
+  return state;
+}
+
 export function useSpotDiveLogs(spotId: string | undefined, max = 50): State {
   const [state, setState] = useState<State>({ logs: [], loading: !!spotId });
 

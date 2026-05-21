@@ -33,16 +33,20 @@ export type SpotReportState = {
  * working in development. Once the backend is deployed, the same hook
  * starts returning live data with no caller change required.
  */
-export function useSpotReport(spot: Spot): SpotReportState {
+export function useSpotReport(spot: Spot | undefined): SpotReportState {
   const [state, setState] = useState<SpotReportState>({
     data: electricBeachReport,
     backend: null,
     source: 'mock',
-    loading: true,
+    loading: !!spot,
     error: null,
   });
 
   useEffect(() => {
+    if (!spot) {
+      setState({ data: electricBeachReport, backend: null, source: 'mock', loading: false, error: null });
+      return;
+    }
     const ctrl = new AbortController();
     let cancelled = false;
 
@@ -66,7 +70,7 @@ export function useSpotReport(spot: Spot): SpotReportState {
       cancelled = true;
       ctrl.abort();
     };
-  }, [spot.id]);
+  }, [spot?.id]);
 
   return state;
 }
@@ -126,12 +130,22 @@ function mergeBackendIntoReport(backend: BackendReport, spot: Spot): SpotReport 
       m.windSpeedKts != null
         ? Math.round(m.windSpeedKts * KTS_TO_MPH)
         : fallback.windMph,
+    windDeg: Number.isFinite(m.windDeg as number) ? (m.windDeg as number) : null,
     gustMph:
       m.windGustKts != null
         ? Math.round(m.windGustKts * KTS_TO_MPH)
         : fallback.gustMph,
-    // currentMph + uvIndex aren't in the backend yet — keep the mock.
-    currentMph: fallback.currentMph,
+    // Backend doesn't carry a current speed yet — same heuristic the
+    // backend's rating uses (windKts × 0.07 ≈ surface drift in mph).
+    // Direction is "alongshore" — 90° clockwise of the wind bearing.
+    currentMph:
+      m.windSpeedKts != null
+        ? Number((m.windSpeedKts * KTS_TO_MPH * 0.07).toFixed(2))
+        : fallback.currentMph,
+    currentDeg:
+      Number.isFinite(m.windDeg as number)
+        ? Math.round((((m.windDeg as number) + 90) % 360))
+        : null,
     uvIndex: fallback.uvIndex,
     tide: fromMaybe(coerceTide(backend.tide ?? backend.now.tide), fallback.tide),
     moon: fromMaybe(coerceMoon(backend.now.analysis?.moon), fallback.moon),

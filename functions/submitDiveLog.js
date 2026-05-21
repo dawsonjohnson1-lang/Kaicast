@@ -411,3 +411,44 @@ exports.submitDiveLog = onCall(
     };
   },
 );
+
+// ─── deleteDiveLog ─────────────────────────────────────────────────────────────
+// Callable: lets an authed user delete a dive log they authored.
+// Anonymous-claim logs (uid prefix "anon:") can only be deleted by an
+// admin token (request.auth.token.admin === true) — once a log carries
+// an anon token, the original "owner" can't be re-derived securely.
+exports.deleteDiveLog = onCall(
+  {
+    region: 'us-central1',
+    timeoutSeconds: 30,
+    memory: '256MiB',
+  },
+  async (req) => {
+    const uid = req.auth?.uid;
+    if (!uid) throw new HttpsError('unauthenticated', 'Sign in required.');
+
+    const logId = String(req.data?.log_id ?? '').trim();
+    if (!logId) throw new HttpsError('invalid-argument', 'log_id is required.');
+
+    const ref = admin.firestore().collection('diveLogs').doc(logId);
+    const snap = await ref.get();
+    if (!snap.exists) throw new HttpsError('not-found', 'Log does not exist.');
+
+    const data = snap.data() || {};
+    const ownerUid = String(data.uid ?? '');
+    const isAnon = ownerUid.startsWith('anon:');
+    const isAdmin = req.auth?.token?.admin === true;
+
+    if (isAnon) {
+      if (!isAdmin) {
+        throw new HttpsError('permission-denied', 'Anonymous logs can only be removed by an admin.');
+      }
+    } else if (ownerUid !== uid) {
+      throw new HttpsError('permission-denied', 'You can only delete your own dive logs.');
+    }
+
+    await ref.delete();
+    logger.info('deleteDiveLog: deleted', { uid, logId });
+    return { ok: true, logId };
+  },
+);

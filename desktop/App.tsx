@@ -1,7 +1,18 @@
 import React from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
 import { colors, fonts } from './tokens';
-import type { NavigateFn, RouteKey, RouteParams } from './router';
+import {
+  AUTH_ROUTES,
+  HIDE_FOOTER_ROUTES,
+  PRIVATE_ROUTES,
+  type NavigateFn,
+  type RouteKey,
+  type RouteParams,
+} from './router';
+
+import { AuthProvider, useAuth } from './hooks/useAuth';
+import { Footer } from './components/Footer';
+import { CookieBanner } from './components/CookieBanner';
 
 import { SpotDetailScreen } from './SpotDetailScreen';
 import { ConditionsScreen } from './ConditionsScreen';
@@ -11,53 +22,75 @@ import { ProfileScreen } from './ProfileScreen';
 import { LogDiveScreen } from './LogDiveScreen';
 import { MyDivesScreen } from './MyDivesScreen';
 import { CommunityScreen } from './CommunityScreen';
+import { LandingScreen } from './LandingScreen';
+import { AuthScreen } from './AuthScreen';
+import { LegalScreen, type LegalDoc } from './LegalScreen';
 
 /**
- * Desktop preview shell — now a real router.
+ * Desktop app shell.
  *
- * Maintains a small history stack so the floating picker can offer
- * back/forward + persists the current route to localStorage so reloads
- * land on the same screen.
- *
- * Each screen receives `onNavigate(routeKey, params?)` and uses it for
- * its CTAs, nav links, card clicks, etc.
+ *  - <AuthProvider> wraps the whole tree so screens can read/write auth.
+ *  - AppInner handles route gating: signed-out users on private routes
+ *    bounce to /signin; signed-in users on /signin or /signup bounce to
+ *    /dashboard.
+ *  - History stack persists current route to localStorage so reloads
+ *    land on the same screen (but unsigned users always re-land on
+ *    landing, regardless of what was saved).
+ *  - Footer + cookie banner sit beneath every screen unless suppressed
+ *    (auth screens are intentionally chrome-free).
  */
 
-const SCREENS: Record<RouteKey, { label: string; component: React.ComponentType<any> }> = {
-  'dashboard':    { label: 'Dashboard',    component: DashboardScreen },
-  'spot-detail':  { label: 'Spot Detail',  component: SpotDetailScreen },
-  'conditions':   { label: 'Conditions',   component: ConditionsScreen },
-  'spots-map':    { label: 'Spots & Maps', component: SpotsMapScreen },
-  'log-dive':     { label: 'Log Dive',     component: LogDiveScreen },
-  'profile':      { label: 'Profile',      component: ProfileScreen },
-  'my-dives':     { label: 'My Dives',     component: MyDivesScreen },
-  'community':    { label: 'Community',    component: CommunityScreen },
+const SCREENS: Record<RouteKey, React.ComponentType<any>> = {
+  'landing':      LandingScreen,
+  'signin':       (p: any) => <AuthScreen mode="signin" {...p} />,
+  'signup':       (p: any) => <AuthScreen mode="signup" {...p} />,
+  'dashboard':    DashboardScreen,
+  'spot-detail':  SpotDetailScreen,
+  'conditions':   ConditionsScreen,
+  'spots-map':    SpotsMapScreen,
+  'log-dive':     LogDiveScreen,
+  'profile':      ProfileScreen,
+  'my-dives':     MyDivesScreen,
+  'community':    CommunityScreen,
+  'terms':        (p: any) => <LegalScreen doc="terms" {...p} />,
+  'privacy':      (p: any) => <LegalScreen doc="privacy" {...p} />,
+  'cookies':      (p: any) => <LegalScreen doc="cookies" {...p} />,
+  'refund':       (p: any) => <LegalScreen doc="refund" {...p} />,
+  'dmca':         (p: any) => <LegalScreen doc="dmca" {...p} />,
+  'aup':          (p: any) => <LegalScreen doc="aup" {...p} />,
 };
 
-const ROUTE_ORDER: RouteKey[] = [
-  'dashboard',
-  'spot-detail',
-  'conditions',
-  'spots-map',
-  'log-dive',
-  'profile',
-  'my-dives',
-  'community',
-];
+const ALL_ROUTES = Object.keys(SCREENS) as RouteKey[];
 
 const LS_KEY = 'kaicast.desktop.route';
+// Set the first time a user successfully signs in so we can distinguish
+// brand-new accounts (land on the map after sign-in for the orientation
+// tour) from returning users (land on the dashboard every time).
+const LS_RETURNING_KEY = 'kaicast.desktop.returningUser';
 
 type Frame = { route: RouteKey; params?: RouteParams };
 
 export function App() {
+  return (
+    <AuthProvider>
+      <AppInner />
+    </AuthProvider>
+  );
+}
+
+function AppInner() {
+  const auth = useAuth();
+
   const [history, setHistory] = React.useState<Frame[]>(() => {
     if (typeof window !== 'undefined') {
       const saved = window.localStorage?.getItem(LS_KEY);
-      if (saved && ROUTE_ORDER.includes(saved as RouteKey)) {
+      if (saved && ALL_ROUTES.includes(saved as RouteKey)) {
         return [{ route: saved as RouteKey }];
       }
     }
-    return [{ route: 'dashboard' }];
+    // First visit (or cleared storage): open the map of all spots so
+    // visitors can poke around immediately — no auth wall up front.
+    return [{ route: 'spots-map' }];
   });
   const [cursor, setCursor] = React.useState(0);
 
@@ -71,112 +104,98 @@ export function App() {
     setCursor((c) => c + 1);
   }, [cursor]);
 
+  // ── Route gate ──
+  // Compute the route we should actually render, given auth state.
+  // We don't mutate history here — we just show a different screen.
+  // This means after sign-in, the user lands on whatever they originally
+  // asked for (via params.returnTo on the signin frame, if it was set).
+  const effective = computeEffectiveFrame(current, auth.user != null, auth.loading);
+
   React.useEffect(() => {
     if (typeof window !== 'undefined') {
       window.localStorage?.setItem(LS_KEY, current.route);
-      // Scroll to top on navigation so deep pages don't land mid-scroll.
       window.scrollTo(0, 0);
     }
   }, [current.route]);
 
-  const goBack    = () => setCursor((c) => Math.max(0, c - 1));
-  const goForward = () => setCursor((c) => Math.min(history.length - 1, c + 1));
-  const canBack    = cursor > 0;
-  const canForward = cursor < history.length - 1;
+  // After sign-in, route based on history:
+  //   - signin had a returnTo → honor it (user was bounced from a
+  //     private route)
+  //   - first-ever login on this browser → land on the spots map so
+  //     they can explore before getting the dashboard firehose
+  //   - returning user → straight to dashboard
+  // We set a localStorage flag on the first successful sign-in so the
+  // "first vs returning" distinction survives refreshes.
+  React.useEffect(() => {
+    if (auth.loading) return;
+    if (!auth.user) return;
+    if (current.route !== 'signin' && current.route !== 'signup') return;
+    const returnTo = current.params?.returnTo;
+    if (returnTo) {
+      navigate(returnTo);
+      return;
+    }
+    const isReturning = typeof window !== 'undefined'
+      ? !!window.localStorage?.getItem(LS_RETURNING_KEY)
+      : false;
+    if (typeof window !== 'undefined') {
+      window.localStorage?.setItem(LS_RETURNING_KEY, '1');
+    }
+    navigate(isReturning ? 'dashboard' : 'spots-map');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auth.loading, auth.user]);
 
-  const ScreenComponent = SCREENS[current.route].component;
+  if (auth.loading) {
+    return (
+      <View style={styles.fullCenter}>
+        <ActivityIndicator color={colors.accent} />
+        <Text style={styles.loadingText}>Loading…</Text>
+      </View>
+    );
+  }
+
+  const ScreenComponent = SCREENS[effective.route];
+  const showFooter = !HIDE_FOOTER_ROUTES.has(effective.route);
 
   return (
     <View style={styles.root}>
-      {/* `key` forces re-mount when navigating between same-route entries
-          with different params; for now most screens ignore params, so
-          re-mounting is harmless. */}
-      <ScreenComponent
-        key={`${current.route}-${cursor}`}
-        onNavigate={navigate}
-      />
-      <PreviewPicker
-        active={current.route}
-        onPick={(r) => navigate(r)}
-        onBack={goBack}
-        onForward={goForward}
-        canBack={canBack}
-        canForward={canForward}
-      />
+      <View style={styles.screenWrap}>
+        <ScreenComponent
+          key={`${effective.route}-${cursor}`}
+          onNavigate={navigate}
+          params={effective.params}
+        />
+      </View>
+      {showFooter ? <Footer onNavigate={navigate} /> : null}
+      <CookieBanner onNavigate={navigate} />
     </View>
   );
 }
 
-function PreviewPicker({
-  active,
-  onPick,
-  onBack,
-  onForward,
-  canBack,
-  canForward,
-}: {
-  active: RouteKey;
-  onPick: (r: RouteKey) => void;
-  onBack: () => void;
-  onForward: () => void;
-  canBack: boolean;
-  canForward: boolean;
-}) {
-  const [collapsed, setCollapsed] = React.useState(false);
+// Decide which route to actually render. We never mutate history (so the
+// user's back-stack stays intact); we just swap the screen.
+function computeEffectiveFrame(
+  current: Frame,
+  signedIn: boolean,
+  loading: boolean,
+): Frame {
+  if (loading) return current;
 
-  if (collapsed) {
-    return (
-      <Pressable
-        style={[styles.fab, { boxShadow: '0 6px 20px rgba(9,161,251,0.45)' } as object]}
-        onPress={() => setCollapsed(false)}
-      >
-        <Text style={styles.fabText}>⌥</Text>
-      </Pressable>
-    );
+  // Signed-out + private route → bounce to signin with returnTo.
+  if (!signedIn && PRIVATE_ROUTES.has(current.route)) {
+    return {
+      route: 'signin',
+      params: { returnTo: current.route },
+    };
   }
 
-  return (
-    <View style={[styles.picker, { boxShadow: '0 6px 32px rgba(0,0,0,0.4)' } as object]}>
-      <View style={styles.pickerHeader}>
-        <Text style={styles.pickerTitle}>PREVIEW</Text>
-        <View style={styles.pickerHistoryBtns}>
-          <Pressable
-            onPress={onBack}
-            disabled={!canBack}
-            style={[styles.histBtn, !canBack && styles.histBtnDisabled]}
-          >
-            <Text style={[styles.histBtnText, !canBack && styles.histBtnTextDisabled]}>←</Text>
-          </Pressable>
-          <Pressable
-            onPress={onForward}
-            disabled={!canForward}
-            style={[styles.histBtn, !canForward && styles.histBtnDisabled]}
-          >
-            <Text style={[styles.histBtnText, !canForward && styles.histBtnTextDisabled]}>→</Text>
-          </Pressable>
-        </View>
-        <Pressable onPress={() => setCollapsed(true)} hitSlop={8}>
-          <Text style={styles.pickerCollapse}>×</Text>
-        </Pressable>
-      </View>
-      <View style={styles.pickerList}>
-        {ROUTE_ORDER.map((r) => {
-          const isActive = r === active;
-          return (
-            <Pressable
-              key={r}
-              onPress={() => onPick(r)}
-              style={[styles.pickerBtn, isActive && styles.pickerBtnActive]}
-            >
-              <Text style={[styles.pickerBtnText, isActive && styles.pickerBtnTextActive]}>
-                {SCREENS[r].label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
-    </View>
-  );
+  // Signed-in + auth route → no need; punt to dashboard. (The post-signin
+  // effect in AppInner will navigate to returnTo if one was carried.)
+  if (signedIn && AUTH_ROUTES.has(current.route)) {
+    return { route: 'dashboard' };
+  }
+
+  return current;
 }
 
 const styles = StyleSheet.create({
@@ -185,97 +204,21 @@ const styles = StyleSheet.create({
     minHeight: '100vh' as unknown as number,
     backgroundColor: colors.bg,
   },
-  picker: {
-    position: 'fixed' as unknown as 'absolute',
-    bottom: 16,
-    right: 16,
-    width: 200,
-    padding: 10,
-    borderRadius: 12,
-    backgroundColor: 'rgba(12,16,21,0.92)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.14)',
-    gap: 6,
-    zIndex: 1000,
-  },
-  pickerHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 4,
-    paddingBottom: 4,
-    gap: 8,
-  },
-  pickerTitle: {
+  screenWrap: {
     flex: 1,
+  },
+  fullCenter: {
+    flex: 1,
+    minHeight: '100vh' as unknown as number,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.bg,
+    gap: 12,
+  },
+  loadingText: {
     fontFamily: fonts.mono,
-    fontSize: 10,
+    fontSize: 11,
     letterSpacing: 1.2,
     color: colors.text3,
-    fontWeight: '700',
-  },
-  pickerHistoryBtns: {
-    flexDirection: 'row',
-    gap: 2,
-  },
-  histBtn: {
-    width: 22,
-    height: 22,
-    borderRadius: 6,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  histBtnDisabled: {
-    opacity: 0.3,
-  },
-  histBtnText: {
-    fontFamily: fonts.body,
-    fontSize: 12,
-    color: colors.text2,
-  },
-  histBtnTextDisabled: {
-    color: colors.text4,
-  },
-  pickerCollapse: {
-    fontSize: 16,
-    color: colors.text3,
-    paddingHorizontal: 4,
-  },
-  pickerList: {
-    gap: 2,
-  },
-  pickerBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: 8,
-  },
-  pickerBtnActive: {
-    backgroundColor: colors.accentDim,
-  },
-  pickerBtnText: {
-    fontFamily: fonts.body,
-    fontSize: 12,
-    color: colors.text2,
-  },
-  pickerBtnTextActive: {
-    color: colors.text1,
-    fontWeight: '600',
-  },
-  fab: {
-    position: 'fixed' as unknown as 'absolute',
-    bottom: 16,
-    right: 16,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 1000,
-  },
-  fabText: {
-    fontSize: 16,
-    color: colors.bg,
-    fontWeight: '700',
   },
 });

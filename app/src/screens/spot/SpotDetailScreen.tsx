@@ -16,8 +16,9 @@ import { Icon } from '@/components/Icon';
 import { MoonInfoCard } from './overview/MoonInfoCard';
 import { DirectionalReadingCard } from '@/components/DirectionalReadingCard';
 import { colors, radius, spacing, typography, RATING_COLORS } from '@/theme';
-import { diveReports, exploreSpots, featuredSpot } from '@/api/mockData';
+import { exploreSpots } from '@/api/mockData';
 import { useSpotReport } from '@/hooks/useSpotReport';
+import { useSpots } from '@/hooks/useSpots';
 import type { BackendReport } from '@/api/kaicast';
 import type { RootNav, RootStackParamList } from '@/navigation/types';
 import type { Spot, SpotReport, ConditionRating } from '@/types';
@@ -30,10 +31,6 @@ import { useAuth } from '@/hooks/useAuth';
 import { useFavorites } from '@/hooks/useFavorites';
 import { addFavorite, removeFavorite } from '@/api/favorites';
 
-function findSpot(id: string): Spot {
-  return exploreSpots.find((s) => s.id === id) ?? featuredSpot;
-}
-
 type SpotTab = 'Overview' | 'Hazards' | 'Forecast' | 'Guide';
 
 const TABS: SpotTab[] = ['Overview', 'Hazards', 'Forecast', 'Guide'];
@@ -43,23 +40,46 @@ export function SpotDetailScreen() {
   const route = useRoute<RouteProp<RootStackParamList, 'SpotDetail'>>();
   const [tab, setTab] = useState<SpotTab>('Overview');
 
-  const spot = findSpot(route.params.spotId);
+  // Resolve the spot from Firestore first; the legacy `exploreSpots`
+  // mock list is kept only as a final fallback so we don't crash on
+  // an unknown id mid-network-load (Firebase rules already permit
+  // public reads of all 26 canonical spots).
+  const { spots: liveSpots } = useSpots();
+  const spot =
+    liveSpots.find((s) => s.id === route.params.spotId) ??
+    exploreSpots.find((s) => s.id === route.params.spotId) ??
+    null;
+
   const { user } = useAuth();
   const { isFavorite } = useFavorites(user?.id);
-  const favorited = isFavorite(spot.id);
+  const favorited = !!spot && isFavorite(spot.id);
   const onToggleFavorite = () => {
-    if (!user) return;
+    if (!user || !spot) return;
     if (favorited) removeFavorite(user.id, spot.id);
     else addFavorite(user.id, spot.id);
   };
-  const reportState = useSpotReport(spot);
+  const reportState = useSpotReport(spot ?? undefined);
   const r = reportState.data;
-  const { logs: spotLogs } = useSpotDiveLogs(spot.id);
-  // Live community feed for this spot. When nobody's logged a dive
-  // here yet, fall back to the mock list so the UI doesn't go blank.
-  const friendsReports = spotLogs.length
+  const { logs: spotLogs } = useSpotDiveLogs(spot?.id);
+  // Live community feed for this spot. We no longer fall back to the
+  // mocks — an empty list renders the "Be the first to log here" CTA.
+  const friendsReports = spot
     ? spotLogs.map((l) => diveLogToReport(l, 'Diver', spot.name))
-    : diveReports;
+    : [];
+
+  if (!spot) {
+    return (
+      <Screen padding={spacing.lg}>
+        <Header transparent onBack={() => nav.goBack()} />
+        <View style={{ alignItems: 'center', marginTop: spacing.xxl * 2 }}>
+          <Text style={typography.h2}>Spot unavailable</Text>
+          <Text style={[typography.bodySm, { color: colors.textSecondary, marginTop: spacing.sm, textAlign: 'center' }]}>
+            We couldn't find this spot. It may have been removed.
+          </Text>
+        </View>
+      </Screen>
+    );
+  }
   const heroSatelliteUri = satelliteUrl(spot.lat, spot.lon, 800, 600, 16);
 
   return (
@@ -210,7 +230,7 @@ function OverviewTab({
         value={r.currentMph}
         unit="MPH"
         descriptor={currentDescriptor(r.currentMph)}
-        directionDegrees={CURRENT_DIRECTION_DEG}
+        directionDegrees={r.currentDeg ?? 0}
         spotCoords={{ lat: spot.lat, lon: spot.lon }}
       />
 
@@ -227,7 +247,7 @@ function OverviewTab({
         value={r.windMph}
         unit="MPH"
         descriptor={windDescriptor(r.windMph)}
-        directionDegrees={WIND_DIRECTION_DEG}
+        directionDegrees={r.windDeg ?? 0}
         spotCoords={{ lat: spot.lat, lon: spot.lon }}
         footnote={`${r.gustMph} MPH GUST`}
       />
@@ -271,12 +291,6 @@ function uvSeverityColor(uv: number): string {
   if (uv <= 7) return colors.warn;
   return colors.hazard;
 }
-
-// TODO: thread real wind/current direction through the report shape.
-// Figma hardcodes the dial bearings; the directional cards read from
-// these constants so the icon, dial, and arrow stay in sync.
-const WIND_DIRECTION_DEG = 120;
-const CURRENT_DIRECTION_DEG = 45;
 
 const uvCardStyles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },

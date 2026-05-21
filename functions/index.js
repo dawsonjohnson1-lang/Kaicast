@@ -70,7 +70,7 @@ const SPOTS = [
     id: 'airport-beach',
     name: "Airport Beach",
     lat: 20.9042,
-    lon: -156.6833,
+    lon: -156.69,
     tz: 'Pacific/Honolulu',
     coast: 'west',
     island: "Maui",
@@ -90,7 +90,7 @@ const SPOTS = [
     id: 'ala-wharf',
     name: "Ala Wharf",
     lat: 20.8989,
-    lon: -156.6855,
+    lon: -156.69,
     tz: 'Pacific/Honolulu',
     coast: 'west',
     island: "Maui",
@@ -109,8 +109,8 @@ const SPOTS = [
   {
     id: 'black-rock-kaanapali',
     name: "Black Rock (Kaanapali)",
-    lat: 20.926149,
-    lon: -156.69621,
+    lat: 20.9262,
+    lon: -156.7,
     tz: 'Pacific/Honolulu',
     coast: 'west',
     island: "Maui",
@@ -129,7 +129,7 @@ const SPOTS = [
   {
     id: 'brenneckes-ledge',
     name: "Brennecke's Ledge",
-    lat: 21.873,
+    lat: 21.87,
     lon: -159.458,
     tz: 'Pacific/Honolulu',
     coast: 'south',
@@ -169,8 +169,8 @@ const SPOTS = [
   {
     id: 'electric-beach',
     name: "Electric Beach",
-    lat: 21.354627,
-    lon: -158.13633,
+    lat: 21.355,
+    lon: -158.14,
     tz: 'Pacific/Honolulu',
     coast: 'west',
     island: "Oahu",
@@ -269,7 +269,7 @@ const SPOTS = [
   {
     id: 'koloa-landing',
     name: "Koloa Landing",
-    lat: 21.87788,
+    lat: 21.875,
     lon: -159.461,
     tz: 'Pacific/Honolulu',
     coast: 'south',
@@ -289,8 +289,8 @@ const SPOTS = [
   {
     id: 'makena-landing',
     name: "Makena Landing",
-    lat: 20.653606,
-    lon: -156.441495,
+    lat: 20.6536,
+    lon: -156.446,
     tz: 'Pacific/Honolulu',
     coast: 'south',
     island: "Maui",
@@ -309,8 +309,8 @@ const SPOTS = [
   {
     id: 'makua',
     name: "Makua Beach",
-    lat: 21.531326,
-    lon: -158.234336,
+    lat: 21.5313,
+    lon: -158.24,
     tz: 'Pacific/Honolulu',
     coast: 'west',
     island: "Oahu",
@@ -367,10 +367,32 @@ const SPOTS = [
     sedimentSensitivity: 'low',
   },
   {
+    id: 'mokulua',
+    name: "Mokulua Islands (the Mokes)",
+    // Leeward side of Moku Nui (the larger of the two), the classic
+    // Lanikai kayak-to-snorkel anchorage. Windward (east) Oahu.
+    lat: 21.395,
+    lon: -157.703,
+    tz: 'Pacific/Honolulu',
+    coast: 'east',
+    island: "Oahu",
+    buoyStation: '51202',
+    runoffSensitivity: 'low',
+    nearStreamMouth: false,
+    nearDrainage: false,
+    maxCleanSwellFt: 4,
+    hardNoGoSwellFt: 7,
+    siteType: 'reef',
+    maxDepthM: 15,
+    typicalDiveDepthM: 8,
+    sedimentType: 'reef',
+    sedimentSensitivity: 'low',
+  },
+  {
     id: 'mokuleia',
     name: "Mokuleia",
-    lat: 21.580952,
-    lon: -158.253094,
+    lat: 21.585,
+    lon: -158.2531,
     tz: 'Pacific/Honolulu',
     coast: 'west',
     island: "Oahu",
@@ -467,26 +489,6 @@ const SPOTS = [
     sedimentSensitivity: 'low',
   },
   {
-    id: 'three-tables',
-    name: "Three Tables",
-    lat: 21.6367,
-    lon: -158.0633,
-    tz: 'Pacific/Honolulu',
-    coast: 'north',
-    island: "Oahu",
-    buoyStation: '51201',
-    runoffSensitivity: 'medium',
-    nearStreamMouth: false,
-    nearDrainage: true,
-    maxCleanSwellFt: 3,
-    hardNoGoSwellFt: 6,
-    siteType: 'reef',
-    maxDepthM: 12,
-    typicalDiveDepthM: 6,
-    sedimentType: 'coral_rubble',
-    sedimentSensitivity: 'medium',
-  },
-  {
     id: 'tunnels-reef',
     name: "Tunnels Reef",
     lat: 22.223269,
@@ -509,10 +511,13 @@ const SPOTS = [
   {
     id: 'turtle-canyon',
     name: "Turtle Canyon",
-    lat: 21.274238,
-    lon: -157.839264,
+    // Leeward (west) Oahu offshore — corrected 2026-05-21 from the
+    // prior Waikiki coords; this matches the actual dive site off the
+    // Nanakuli / Maili coast.
+    lat: 21.398,
+    lon: -158.170,
     tz: 'Pacific/Honolulu',
-    coast: 'south',
+    coast: 'west',
     island: "Oahu",
     buoyStation: '51202',
     runoffSensitivity: 'low',
@@ -549,8 +554,8 @@ const SPOTS = [
   {
     id: 'wailea-point-ulua-beach',
     name: "Wailea Point/Ulua Beach",
-    lat: 20.683277,
-    lon: -156.444016,
+    lat: 20.6833,
+    lon: -156.4475,
     tz: 'Pacific/Honolulu',
     coast: 'west',
     island: "Maui",
@@ -565,26 +570,6 @@ const SPOTS = [
     typicalDiveDepthM: 10,
     sedimentType: 'reef',
     sedimentSensitivity: 'low',
-  },
-  {
-    id: 'waimea-bay',
-    name: "Waimea Bay",
-    lat: 21.64139,
-    lon: -158.066588,
-    tz: 'Pacific/Honolulu',
-    coast: 'north',
-    island: "Oahu",
-    buoyStation: '51201',
-    runoffSensitivity: 'medium',
-    nearStreamMouth: false,
-    nearDrainage: true,
-    maxCleanSwellFt: 3,
-    hardNoGoSwellFt: 6,
-    siteType: 'reef',
-    maxDepthM: 18,
-    typicalDiveDepthM: 10,
-    sedimentType: 'sand',
-    sedimentSensitivity: 'medium',
   },
 ];
 
@@ -1566,6 +1551,7 @@ exports.deleteUserAccount = onCall(
 // See functions/types/schema.js for the canonical doc shapes.
 
 exports.submitDiveLog  = require('./submitDiveLog').submitDiveLog;
+exports.deleteDiveLog  = require('./submitDiveLog').deleteDiveLog;
 exports.archiveHourly  = require('./archiveHourly').archiveHourly;
 
 // Legacy onDiveLogCreated trigger removed — its responsibilities

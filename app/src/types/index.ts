@@ -69,8 +69,12 @@ export type SpotReport = {
   waterTempF: number;
   airTempF: number;
   windMph: number;
+  /** Bearing the wind is blowing FROM, 0-359° (compass) — null when unknown. */
+  windDeg: number | null;
   gustMph: number;
   currentMph: number;
+  /** Bearing the surface current is flowing TOWARD, 0-359° — null when unknown. */
+  currentDeg: number | null;
   uvIndex: number;
   tide: { trend: 'rising' | 'falling'; nowFt: number; nextFt: number; nextLabel: string; series: TidePoint[] };
   moon: { phase: string; illumination: number; daysSinceFullMoon: number };

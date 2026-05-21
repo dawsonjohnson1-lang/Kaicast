@@ -13,7 +13,18 @@ import {
 import { DesktopNav } from './components/DesktopNav';
 import { ConditionPill } from './components/ConditionPill';
 import { DiveReportCard, type DiveReportCardProps } from './components/DiveReportCard';
-import type { NavigateFn } from './router';
+import { KaiCastMap } from './components/maps/KaiCastMap';
+import { useBreakpoint, pick } from './hooks/useBreakpoint';
+import type { NavigateFn, RouteParams } from './router';
+import { findSpot, mapboxSatelliteUrl, SPOTS } from './data/spots';
+import {
+  useSpotReport,
+  tierFromRating,
+  bestWindowLabel,
+  relativeTime,
+  backendDayToDesktopDay,
+  type BackendReport,
+} from './data/getReport';
 
 /**
  * Spot Detail / Forecast — desktop screen.
@@ -29,21 +40,59 @@ import type { NavigateFn } from './router';
  * Mock data matches the Figma reference (Electric Beach, O'ahu).
  */
 
-// ─── Mock data ────────────────────────────────────────────────────────────
+// ─── Resolved-spot context ────────────────────────────────────────────────
+//
+// Hero / mini-map / breadcrumb read from this so a single resolved
+// Spot record drives every "this spot" rendering. Conditions data
+// (rating, summary, etc.) stays static for now — until the desktop
+// wires up the live getReport endpoint, only the identity bits
+// (name, region, coords) change per spot.
 
-const SPOT = {
+type ResolvedSpot = {
+  id: string;
+  name: string;
+  region: string;
+  lat: number;
+  lon: number;
+};
+
+const DEFAULT_SPOT: ResolvedSpot = {
+  id: 'electric-beach',
   name: 'Electric Beach',
-  region: "O'ahu · Leeward Coast",
-  coords: '21.354°N, 158.118°W',
-  distance: '4.2 mi away',
-  updatedAt: 'Updated 2 min ago',
+  region: 'Oahu',
+  lat: 21.354627,
+  lon: -158.13633,
+};
+
+const SpotCtx = React.createContext<ResolvedSpot>(DEFAULT_SPOT);
+function useSpotCtx(): ResolvedSpot {
+  return React.useContext(SpotCtx);
+}
+
+type LiveReport = { data: BackendReport | null; loading: boolean; error: string | null };
+const ReportCtx = React.createContext<LiveReport>({ data: null, loading: false, error: null });
+function useReportCtx(): LiveReport {
+  return React.useContext(ReportCtx);
+}
+
+function coordsLabel(lat: number, lon: number): string {
+  const ns = lat >= 0 ? 'N' : 'S';
+  const ew = lon >= 0 ? 'E' : 'W';
+  return `${Math.abs(lat).toFixed(3)}°${ns}, ${Math.abs(lon).toFixed(3)}°${ew}`;
+}
+
+// Static placeholder narrative — until the conditions/getReport
+// pipeline is wired here, this gives the hero a reasonable summary.
+const STATIC_NARRATIVE = {
   rating: 'excellent' as ConditionTier,
   summary:
-    'Crystal clear visibility with a building WNW groundswell makes for ideal afternoon conditions. Light trades hold through 5pm, then a midnight wind shift cleans up the surface for an early dawn patrol.',
+    'Light trades and a clean WNW groundswell keep the surface readable through the afternoon. Check tide and runoff before splashing.',
   bestWindow: '2pm – 5pm',
   activities: ['Freedive', 'Snorkel', 'Scuba'],
   currentLevel: 'Light · 0.4 kt',
   runoff: 'No runoff risk',
+  distance: '',
+  updatedAt: 'Static preview',
 };
 
 type ForecastDay = {
@@ -80,18 +129,19 @@ type HourRow = {
   wave: string;
   vis: string;
   wind: string;
+  current: string;
   tide: string;
   swell: string;
 };
 
 const HOURLY: HourRow[] = [
-  { time: '2 PM', rating: 'excellent', stars: 5, wave: '3.1 FT @ 9s', vis: '58 FT', wind: '7 KT NE', tide: '+1.4 FT', swell: '295° WNW' },
-  { time: '3 PM', rating: 'excellent', stars: 5, wave: '3.2 FT @ 9s', vis: '60 FT', wind: '8 KT NE', tide: '+0.9 FT', swell: '295° WNW' },
-  { time: '4 PM', rating: 'excellent', stars: 5, wave: '3.4 FT @ 9s', vis: '58 FT', wind: '9 KT NE', tide: '+0.5 FT', swell: '295° WNW' },
-  { time: '5 PM', rating: 'great',     stars: 4, wave: '3.4 FT @ 9s', vis: '55 FT', wind: '11 KT NE', tide: '+0.3 FT', swell: '295° WNW' },
-  { time: '6 PM', rating: 'great',     stars: 4, wave: '3.3 FT @ 9s', vis: '52 FT', wind: '11 KT NE', tide: '+0.5 FT', swell: '300° WNW' },
-  { time: '7 PM', rating: 'good',      stars: 3, wave: '3.1 FT @ 8s', vis: '48 FT', wind: '10 KT NE', tide: '+0.9 FT', swell: '300° WNW' },
-  { time: '8 PM', rating: 'good',      stars: 3, wave: '3.0 FT @ 8s', vis: '45 FT', wind: '8 KT NE',  tide: '+1.4 FT', swell: '300° WNW' },
+  { time: '2 PM', rating: 'excellent', stars: 5, wave: '3.1 FT @ 9s', vis: '58 FT', wind: '7 KT NE',  current: '0.4 MPH SE', tide: '+1.4 FT', swell: '295° WNW' },
+  { time: '3 PM', rating: 'excellent', stars: 5, wave: '3.2 FT @ 9s', vis: '60 FT', wind: '8 KT NE',  current: '0.5 MPH SE', tide: '+0.9 FT', swell: '295° WNW' },
+  { time: '4 PM', rating: 'excellent', stars: 5, wave: '3.4 FT @ 9s', vis: '58 FT', wind: '9 KT NE',  current: '0.6 MPH SE', tide: '+0.5 FT', swell: '295° WNW' },
+  { time: '5 PM', rating: 'great',     stars: 4, wave: '3.4 FT @ 9s', vis: '55 FT', wind: '11 KT NE', current: '0.7 MPH SE', tide: '+0.3 FT', swell: '295° WNW' },
+  { time: '6 PM', rating: 'great',     stars: 4, wave: '3.3 FT @ 9s', vis: '52 FT', wind: '11 KT NE', current: '0.7 MPH E',  tide: '+0.5 FT', swell: '300° WNW' },
+  { time: '7 PM', rating: 'good',      stars: 3, wave: '3.1 FT @ 8s', vis: '48 FT', wind: '10 KT NE', current: '0.6 MPH E',  tide: '+0.9 FT', swell: '300° WNW' },
+  { time: '8 PM', rating: 'good',      stars: 3, wave: '3.0 FT @ 8s', vis: '45 FT', wind: '8 KT NE',  current: '0.5 MPH E',  tide: '+1.4 FT', swell: '300° WNW' },
 ];
 
 const NEARBY = [
@@ -115,16 +165,32 @@ export interface SpotDetailScreenProps {
   /** Currently-selected primary nav tab. Defaults to Forecast (this screen IS the forecast). */
   activeNav?: 'dashboard' | 'forecast' | 'spots' | 'log';
   onNavigate?: NavigateFn;
+  params?: RouteParams;
 }
 
-export function SpotDetailScreen({ activeNav = 'forecast', onNavigate }: SpotDetailScreenProps) {
+export function SpotDetailScreen({ activeNav = 'forecast', onNavigate, params }: SpotDetailScreenProps) {
   const [tab, setTab] = React.useState('Forecast');
+  const bp = useBreakpoint();
+  const sidePad = pick(bp, 28, 16);
+
+  // Resolve the requested spot by id; fall back to Electric Beach so
+  // direct loads of /spot-detail without a param still render.
+  const resolved = React.useMemo<ResolvedSpot>(() => {
+    const hit = findSpot(params?.spotId);
+    return hit ?? DEFAULT_SPOT;
+  }, [params?.spotId]);
+
+  // Live `getReport` for the resolved spot. Drives rating tier,
+  // best-window, current, runoff, and freshness on the hero.
+  const report = useSpotReport(resolved.id);
 
   return (
+    <SpotCtx.Provider value={resolved}>
+    <ReportCtx.Provider value={report}>
     <ScrollView style={styles.page} contentContainerStyle={styles.pageContent}>
       <DesktopNav active={activeNav} onNavigate={onNavigate} />
 
-      <View style={styles.maxWidth}>
+      <View style={[styles.maxWidth, { paddingHorizontal: sidePad }]}>
         <Breadcrumb onNavigate={onNavigate} />
         <Hero />
         <ForecastStrip />
@@ -132,12 +198,14 @@ export function SpotDetailScreen({ activeNav = 'forecast', onNavigate }: SpotDet
         {tab === 'Forecast'   ? <ForecastTabBody  onNavigate={onNavigate} /> : null}
         {tab === 'Spot Info'  ? <SpotInfoTabBody  /> : null}
         {tab === 'Hazards'    ? <HazardsTabBody /> : null}
-        {tab === 'Reports'    ? <ReportsTabBody /> : null}
+        {tab === 'Reports'    ? <ReportsTabBody onNavigate={onNavigate} /> : null}
         {tab === 'Buoys'      ? <BuoysTabBody /> : null}
-        {tab === 'Photos'     ? <PhotosTabBody /> : null}
+        {tab === 'Photos'     ? <PhotosTabBody onNavigate={onNavigate} /> : null}
         {tab === 'Conditions' ? <ConditionsTabBody /> : null}
       </View>
     </ScrollView>
+    </ReportCtx.Provider>
+    </SpotCtx.Provider>
   );
 }
 
@@ -154,12 +222,11 @@ function TabComingSoon({ name }: { name: string }) {
 // ─── Breadcrumb ───────────────────────────────────────────────────────────
 
 function Breadcrumb({ onNavigate }: { onNavigate?: NavigateFn }) {
-  // First parts navigate up; last is the current location and stays inert.
+  const spot = useSpotCtx();
   const parts: Array<{ label: string; to?: () => void }> = [
     { label: 'Hawaiian Islands', to: () => onNavigate?.('spots-map') },
-    { label: "O'ahu",             to: () => onNavigate?.('spots-map') },
-    { label: 'Leeward Coast',     to: () => onNavigate?.('conditions') },
-    { label: 'Electric Beach' },
+    { label: spot.region,        to: () => onNavigate?.('spots-map') },
+    { label: spot.name },
   ];
   return (
     <View style={styles.breadcrumb}>
@@ -184,45 +251,82 @@ function Breadcrumb({ onNavigate }: { onNavigate?: NavigateFn }) {
 // ─── Hero ─────────────────────────────────────────────────────────────────
 
 function Hero() {
+  const spot = useSpotCtx();
+  const { data: report, loading } = useReportCtx();
+  // Real satellite tile centered on this spot's coords. Falls back to
+  // the figma placeholder if VITE_MAPBOX_TOKEN is unset at build time.
+  const heroUri = mapboxSatelliteUrl(spot.lat, spot.lon, 1200, 720, 15) ?? (forecastHeroBg as string);
+
+  const rating = report?.now?.rating;
+  const tier = rating ? tierFromRating(rating) : STATIC_NARRATIVE.rating;
+  const summary = rating?.reason || rating?.cautionNote || STATIC_NARRATIVE.summary;
+  const bestWindow = bestWindowLabel(report?.windows) ?? STATIC_NARRATIVE.bestWindow;
+
+  // Live "current": backend doesn't carry a knots reading yet, so derive
+  // from wind (same heuristic the rating uses: kts × 0.07 → mph).
+  const windKts = (report?.now?.metrics?.windSpeedKts as number | undefined) ?? null;
+  const currentLabel = windKts != null
+    ? `${(windKts * 1.15078 * 0.07).toFixed(1)} mph drift`
+    : STATIC_NARRATIVE.currentLevel;
+
+  // Runoff badge.
+  const runoffSeverity = report?.now?.runoff?.severity;
+  const runoffLabel = runoffSeverity
+    ? runoffSeverity === 'none' || runoffSeverity === 'low'
+      ? 'No runoff risk'
+      : `${runoffSeverity.charAt(0).toUpperCase() + runoffSeverity.slice(1)} runoff`
+    : STATIC_NARRATIVE.runoff;
+
+  // Freshness from backend.generatedAt; fall back to "static preview"
+  // only when the request is still loading.
+  const updatedAt = report?.generatedAt
+    ? `Updated ${relativeTime(Date.parse(report.generatedAt))}`
+    : loading ? 'Loading…' : STATIC_NARRATIVE.updatedAt;
+
+  const metaParts = [
+    coordsLabel(spot.lat, spot.lon),
+    spot.region,
+    updatedAt,
+  ].filter(Boolean);
+
   return (
     <View style={styles.heroOuter}>
       <View style={styles.heroInner}>
         <View style={styles.heroHeaderRow}>
-          <Text style={styles.heroTitle}>{SPOT.name}</Text>
+          <Text style={styles.heroTitle}>{spot.name}</Text>
           <Stars n={5} size={22} />
           <View style={styles.heroBadgesRow}>
             <View style={styles.liveBadge}>
               <View style={styles.liveDot} />
               <Text style={styles.liveText}>LIVE</Text>
             </View>
-            <ConditionPill tier={SPOT.rating} size="md" />
+            <ConditionPill tier={tier} size="md" />
           </View>
         </View>
 
         <View style={styles.heroMetaRow}>
-          <MetaItem text={SPOT.coords} />
-          <MetaDot />
-          <MetaItem text={SPOT.distance} />
-          <MetaDot />
-          <MetaItem text="Leeward Coast" />
-          <MetaDot />
-          <MetaItem text={SPOT.updatedAt} />
+          {metaParts.map((m, i) => (
+            <React.Fragment key={i}>
+              {i > 0 ? <MetaDot /> : null}
+              <MetaItem text={m} />
+            </React.Fragment>
+          ))}
         </View>
 
         <View style={styles.heroBody}>
           <View style={styles.heroBodyLeft}>
-            <Text style={styles.heroSummary}>{SPOT.summary}</Text>
+            <Text style={styles.heroSummary}>{summary}</Text>
 
             <View style={styles.heroInlineFacts}>
-              <InlineFact label="Best window" value={SPOT.bestWindow} />
-              <InlineFact label="Activities" value={SPOT.activities.join(' · ')} />
-              <InlineFact label="Current" value={SPOT.currentLevel} />
-              <InlineFact label="Runoff" value={SPOT.runoff} />
+              <InlineFact label="Best window" value={bestWindow} />
+              <InlineFact label="Activities" value={STATIC_NARRATIVE.activities.join(' · ')} />
+              <InlineFact label="Current" value={currentLabel} />
+              <InlineFact label="Runoff" value={runoffLabel} />
             </View>
           </View>
 
           <Image
-            source={{ uri: forecastHeroBg }}
+            source={{ uri: heroUri }}
             style={styles.heroImage}
             resizeMode="cover"
           />
@@ -250,12 +354,24 @@ function InlineFact({ label, value }: { label: string; value: string }) {
 // ─── 7-day forecast strip ─────────────────────────────────────────────────
 
 function ForecastStrip() {
+  const { data: report } = useReportCtx();
+  // Map the backend's daily aggregates to the desktop ForecastDay shape.
+  // Fall back to the static FORECAST_DAYS mock only while we're waiting
+  // for the first report (or if the endpoint is down).
+  const days: ForecastDay[] = React.useMemo(() => {
+    const src = report?.days;
+    if (Array.isArray(src) && src.length > 0) {
+      return src.slice(0, 7).map(backendDayToDesktopDay) as ForecastDay[];
+    }
+    return FORECAST_DAYS;
+  }, [report]);
+
   return (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
         <View style={styles.cardHeaderLeft}>
           <View style={styles.cardHeaderDot} />
-          <Text style={styles.cardHeaderTitle}>7-day forecast · WNW swell building Thursday</Text>
+          <Text style={styles.cardHeaderTitle}>7-day forecast</Text>
         </View>
         <View style={styles.unitToggle}>
           <View style={[styles.unitToggleBtn, styles.unitToggleBtnActive]}>
@@ -268,8 +384,8 @@ function ForecastStrip() {
       </View>
 
       <View style={styles.forecastRow}>
-        {FORECAST_DAYS.map((d, i) => (
-          <ForecastDayCard key={d.label} day={d} isFirst={i === 0} />
+        {days.map((d, i) => (
+          <ForecastDayCard key={`${d.label}-${i}`} day={d} isFirst={i === 0} />
         ))}
       </View>
     </View>
@@ -434,6 +550,7 @@ const HISTORY_FACTS = [
 ];
 
 function SpotInfoTabBody() {
+  const spot = useSpotCtx();
   return (
     <View style={styles.mainGrid}>
       <View style={styles.mainLeft}>
@@ -441,6 +558,18 @@ function SpotInfoTabBody() {
           {ABOUT_PARAGRAPHS.map((p, i) => (
             <Text key={i} style={styles.infoBodyText}>{p}</Text>
           ))}
+        </InfoSection>
+
+        <InfoSection title="Location">
+          <View style={styles.spotInfoMapWrap}>
+            <KaiCastMap
+              markers={[{ id: spot.id, lng: spot.lon, lat: spot.lat, tier: STATIC_NARRATIVE.rating, label: spot.name }]}
+              center={[spot.lon, spot.lat]}
+              zoom={11.5}
+              selectedId={spot.id}
+              showZoomControls
+            />
+          </View>
         </InfoSection>
 
         <InfoSection title="Access & parking">
@@ -493,9 +622,7 @@ function SpotInfoTabBody() {
               </View>
             </View>
           ))}
-          <Pressable style={styles.tipsCta}>
-            <Text style={styles.tipsCtaText}>+ Add a tip after your next dive</Text>
-          </Pressable>
+          <AddTipCta />
         </InfoSection>
 
         <InfoSection title="Permits & rules">
@@ -1126,7 +1253,7 @@ const CONDITIONS_SUMMARY = {
   ] as ConditionTier[],
 };
 
-function ReportsTabBody() {
+function ReportsTabBody({ onNavigate }: { onNavigate?: NavigateFn }) {
   type Filter = 'All' | 'Scuba' | 'Freediving' | 'Spearfishing' | 'Snorkel';
   type Sort = 'recent' | 'top' | 'deepest';
   const [filter, setFilter] = React.useState<Filter>('All');
@@ -1154,7 +1281,10 @@ function ReportsTabBody() {
               {COMMUNITY_REPORTS.length} reports in the last 30 days · 8 unique divers
             </Text>
           </View>
-          <Pressable style={styles.reportsHeaderBtn}>
+          <Pressable
+            style={styles.reportsHeaderBtn}
+            onPress={() => onNavigate?.('log-dive')}
+          >
             <Text style={styles.reportsHeaderBtnText}>+ Post a report</Text>
           </Pressable>
         </View>
@@ -1805,7 +1935,7 @@ const TOP_PHOTOGRAPHERS = [
   { name: 'Alana T.',   initials: 'AT', count: 11 },
 ];
 
-function PhotosTabBody() {
+function PhotosTabBody({ onNavigate }: { onNavigate?: NavigateFn }) {
   const [filter, setFilter] = React.useState<(typeof PHOTO_FILTERS)[number]>('All');
 
   const filtered = React.useMemo(() => {
@@ -1825,7 +1955,10 @@ function PhotosTabBody() {
               {PHOTOS.length} photos from {TOP_PHOTOGRAPHERS.length}+ divers · last 30 days
             </Text>
           </View>
-          <Pressable style={styles.photosUploadBtn}>
+          <Pressable
+            style={styles.photosUploadBtn}
+            onPress={() => onNavigate?.('log-dive')}
+          >
             <Text style={styles.photosUploadBtnIcon}>↑</Text>
             <Text style={styles.photosUploadBtnText}>Upload</Text>
           </Pressable>
@@ -1930,7 +2063,10 @@ function PhotosTabBody() {
           <Text style={styles.uploadCtaBody}>
             Upload from your last dive — JPG, RAW, or MP4 up to 100MB. Auto-tagged with conditions from your log.
           </Text>
-          <Pressable style={styles.uploadCtaBtn}>
+          <Pressable
+            style={styles.uploadCtaBtn}
+            onPress={() => onNavigate?.('log-dive')}
+          >
             <Text style={styles.uploadCtaBtnText}>Upload photos</Text>
           </Pressable>
         </View>
@@ -2387,11 +2523,12 @@ function HourlyCard() {
         <View style={styles.hourlyHeader}>
           <HourlyCell text="Time" header width={80} />
           <HourlyCell text="Rating" header width={110} />
-          <HourlyCell text="Stars" header width={162} />
+          <HourlyCell text="Stars" header width={140} />
           <HourlyCell text="Wave" header width={110} />
-          <HourlyCell text="Vis" header width={90} />
-          <HourlyCell text="Wind" header width={110} />
-          <HourlyCell text="Tide" header width={90} />
+          <HourlyCell text="Vis" header width={80} />
+          <HourlyCell text="Wind" header width={100} />
+          <HourlyCell text="Current" header width={110} />
+          <HourlyCell text="Tide" header width={80} />
           <HourlyCell text="Swell" header flex />
         </View>
 
@@ -2401,13 +2538,14 @@ function HourlyCard() {
             <View style={[styles.hourlyCell, { width: 110 }]}>
               <ConditionPill tier={row.rating} size="sm" />
             </View>
-            <View style={[styles.hourlyCell, { width: 162 }]}>
+            <View style={[styles.hourlyCell, { width: 140 }]}>
               <Stars n={row.stars} size={11} />
             </View>
             <HourlyCell text={row.wave} width={110} />
-            <HourlyCell text={row.vis} width={90} />
-            <HourlyCell text={row.wind} width={110} />
-            <HourlyCell text={row.tide} width={90} />
+            <HourlyCell text={row.vis} width={80} />
+            <HourlyCell text={row.wind} width={100} />
+            <HourlyCell text={row.current} width={110} />
+            <HourlyCell text={row.tide} width={80} />
             <HourlyCell text={row.swell} flex />
           </View>
         ))}
@@ -2492,30 +2630,140 @@ function SwellsCard() {
 
 // ─── Tide / moon ──────────────────────────────────────────────────────────
 
-const TIDE_EVENTS = [
-  { kind: '▲', label: 'High', value: '2.3', time: '02:38 AM' },
-  { kind: '▼', label: 'Low',  value: '0.2', time: '08:24 AM' },
-  { kind: '▲', label: 'High', value: '2.7', time: '04:55 PM' },
-  { kind: '▼', label: 'Low',  value: '0.4', time: '10:48 PM' },
+type TideEvent = { kind: '▲' | '▼'; label: 'High' | 'Low'; value: string; time: string; tsMs: number; heightFt: number };
+
+const PLACEHOLDER_TIDE_EVENTS: TideEvent[] = [
+  { kind: '▲', label: 'High', value: '2.3', time: '02:38 AM', tsMs: 0, heightFt: 2.3 },
+  { kind: '▼', label: 'Low',  value: '0.2', time: '08:24 AM', tsMs: 1, heightFt: 0.2 },
+  { kind: '▲', label: 'High', value: '2.7', time: '04:55 PM', tsMs: 2, heightFt: 2.7 },
+  { kind: '▼', label: 'Low',  value: '0.4', time: '10:48 PM', tsMs: 3, heightFt: 0.4 },
 ];
 
+function formatTideTime(iso: string): string {
+  const d = new Date(iso);
+  if (!Number.isFinite(d.getTime())) return '—';
+  return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+
+function tideEventsFromReport(tide: Record<string, unknown> | undefined | null): TideEvent[] {
+  if (!tide) return PLACEHOLDER_TIDE_EVENTS;
+  const raw: Array<{ iso?: unknown; height?: unknown; kind: '▲' | '▼'; label: 'High' | 'Low' }> = [
+    { iso: tide.lowTide1Time,    height: tide.lowTide1Height,    kind: '▼', label: 'Low' },
+    { iso: tide.risingTideTime,  height: tide.risingTideHeight,  kind: '▲', label: 'High' },
+    { iso: tide.highTideTime,    height: tide.highTideHeight,    kind: '▲', label: 'High' },
+    { iso: tide.fallingTideTime, height: tide.fallingTideHeight, kind: '▼', label: 'Low' },
+    { iso: tide.lowTide2Time,    height: tide.lowTide2Height,    kind: '▼', label: 'Low' },
+  ];
+  const out: TideEvent[] = [];
+  for (const r of raw) {
+    const iso = typeof r.iso === 'string' ? r.iso : null;
+    const ft = typeof r.height === 'number' ? r.height : null;
+    if (!iso || ft == null) continue;
+    const ts = Date.parse(iso);
+    if (!Number.isFinite(ts)) continue;
+    out.push({ kind: r.kind, label: r.label, value: ft.toFixed(1), time: formatTideTime(iso), tsMs: ts, heightFt: ft });
+  }
+  // The cycle has both turning points (rising/falling) and the actual
+  // peaks. For the chip row we only need 4 — drop intermediates.
+  const turnsOnly = out.filter((e, i) => i === 0 || i === out.length - 1 || (i > 0 && out[i - 1].label !== e.label));
+  return turnsOnly.length >= 2 ? turnsOnly : PLACEHOLDER_TIDE_EVENTS;
+}
+
+function TideCurve({ events, currentTs, currentHeight }: { events: TideEvent[]; currentTs: number | null; currentHeight: number | null }) {
+  // Width is filled by the parent card; height fixed for a stable card row.
+  const HEIGHT = 96;
+  const PAD_X = 18;
+  const PAD_Y = 14;
+  // Span the chart from first to last event timestamp.
+  const real = events.filter((e) => Number.isFinite(e.tsMs) && e.tsMs > 10);
+  if (real.length < 2) return null;
+  const t0 = real[0].tsMs;
+  const t1 = real[real.length - 1].tsMs;
+  const heights = real.map((e) => e.heightFt);
+  const hMin = Math.min(...heights) - 0.3;
+  const hMax = Math.max(...heights) + 0.3;
+  const xFor = (ts: number, width: number) =>
+    PAD_X + ((ts - t0) / (t1 - t0)) * (width - PAD_X * 2);
+  const yFor = (ft: number) =>
+    HEIGHT - PAD_Y - ((ft - hMin) / (hMax - hMin)) * (HEIGHT - PAD_Y * 2);
+
+  // RN-Web renders Views as <div>s; raw SVG via React.createElement lets
+  // us draw a real curve without pulling in react-native-svg.
+  // 1200px viewBox width matches the typical card width; SVG scales by
+  // preserveAspectRatio.
+  const W = 1200;
+  // Smooth cubic between consecutive event points.
+  let path = '';
+  for (let i = 0; i < real.length; i++) {
+    const x = xFor(real[i].tsMs, W);
+    const y = yFor(real[i].heightFt);
+    if (i === 0) { path += `M ${x.toFixed(1)} ${y.toFixed(1)}`; continue; }
+    const px = xFor(real[i - 1].tsMs, W);
+    const py = yFor(real[i - 1].heightFt);
+    const cx = (px + x) / 2;
+    path += ` C ${cx.toFixed(1)} ${py.toFixed(1)}, ${cx.toFixed(1)} ${y.toFixed(1)}, ${x.toFixed(1)} ${y.toFixed(1)}`;
+  }
+  const fillPath = `${path} L ${xFor(real[real.length - 1].tsMs, W).toFixed(1)} ${HEIGHT - PAD_Y} L ${xFor(real[0].tsMs, W).toFixed(1)} ${HEIGHT - PAD_Y} Z`;
+
+  const nowX = currentTs != null && currentTs >= t0 && currentTs <= t1 ? xFor(currentTs, W) : null;
+  const nowY = currentHeight != null && nowX != null ? yFor(currentHeight) : null;
+
+  return React.createElement(
+    'svg' as unknown as 'div',
+    {
+      viewBox: `0 0 ${W} ${HEIGHT}`,
+      width: '100%',
+      height: HEIGHT,
+      preserveAspectRatio: 'none',
+      style: { display: 'block' },
+    },
+    React.createElement('defs', { key: 'defs' },
+      React.createElement('linearGradient', { id: 'tideFill', x1: '0', y1: '0', x2: '0', y2: '1' },
+        React.createElement('stop', { offset: '0', stopColor: '#0C9BFA', stopOpacity: 0.32 }),
+        React.createElement('stop', { offset: '1', stopColor: '#0C9BFA', stopOpacity: 0 }),
+      ),
+    ),
+    React.createElement('path', { key: 'fill', d: fillPath, fill: 'url(#tideFill)' }),
+    React.createElement('path', { key: 'stroke', d: path, stroke: '#0C9BFA', strokeWidth: 2, fill: 'none' }),
+    ...real.map((e, i) => React.createElement('circle', {
+      key: `pt-${i}`, cx: xFor(e.tsMs, W), cy: yFor(e.heightFt), r: 3.5, fill: '#0C9BFA',
+    })),
+    nowX != null && nowY != null
+      ? React.createElement('g', { key: 'now' },
+          React.createElement('line', { x1: nowX, y1: PAD_Y - 2, x2: nowX, y2: HEIGHT - PAD_Y + 2, stroke: 'rgba(255,255,255,0.55)', strokeWidth: 1, strokeDasharray: '3,4' }),
+          React.createElement('circle', { cx: nowX, cy: nowY, r: 5, fill: '#FFFFFF', stroke: '#0C9BFA', strokeWidth: 1.5 }),
+        )
+      : null,
+  );
+}
+
 function TideCard() {
+  const { data: report } = useReportCtx();
+  const tide = report?.tide ?? report?.now?.tide ?? null;
+  const events = React.useMemo(() => tideEventsFromReport(tide), [tide]);
+  const currentTs = report?.generatedAt ? Date.parse(report.generatedAt) : null;
+  const currentHeightRaw = tide ? (tide as { currentTideHeight?: number }).currentTideHeight : null;
+  const currentHeight = typeof currentHeightRaw === 'number' ? currentHeightRaw : null;
+  // Moon glimpse: use the analysis.moon block if backend gave us one.
+  const moon = report?.now?.analysis?.moon as { phase?: string; daysSinceFullMoon?: number } | undefined;
+  const moonLabel = moon?.phase ? moon.phase.toUpperCase() : 'TIDE · LIVE';
+
   return (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
         <Text style={styles.cardHeaderTitle}>Tide · sunrise · moon</Text>
-        <Text style={styles.cardHeaderMono}>NEW MOON IN 3 DAYS</Text>
+        <Text style={styles.cardHeaderMono}>{moonLabel}</Text>
       </View>
 
       <View style={styles.tideChartPlaceholder}>
-        <Text style={styles.tideChartLabel}>TIDE CURVE</Text>
+        <TideCurve events={events} currentTs={currentTs} currentHeight={currentHeight} />
       </View>
 
       <View style={styles.tideEventsRow}>
-        {TIDE_EVENTS.map((e, i) => (
+        {events.slice(0, 4).map((e, i) => (
           <View
             key={i}
-            style={[styles.tideEvent, i < TIDE_EVENTS.length - 1 && styles.tideEventDivider]}
+            style={[styles.tideEvent, i < Math.min(events.length, 4) - 1 && styles.tideEventDivider]}
           >
             <View style={styles.tideEventLabelRow}>
               <Text style={styles.tideEventKind}>{e.kind}</Text>
@@ -2684,6 +2932,9 @@ function ReportsCard() {
 // ─── Pro CTA ──────────────────────────────────────────────────────────────
 
 function ProCTACard() {
+  // Pro upgrade flow isn't wired (no billing in the desktop preview); for now
+  // the CTA acknowledges the intent inline so testers see something happen.
+  const [tapped, setTapped] = React.useState(false);
   return (
     <View style={styles.proCard}>
       <View style={styles.proGlow} />
@@ -2691,10 +2942,25 @@ function ProCTACard() {
       <Text style={styles.proBody}>
         Unlock long-range LOLA-grade visibility models, custom alerts, and ad-free spot pages.
       </Text>
-      <Pressable style={styles.proButton}>
-        <Text style={styles.proButtonText}>Try free for 7 days →</Text>
+      <Pressable style={styles.proButton} onPress={() => setTapped(true)}>
+        <Text style={styles.proButtonText}>
+          {tapped ? 'Thanks — we\'ll email when billing is live' : 'Try free for 7 days →'}
+        </Text>
       </Pressable>
     </View>
+  );
+}
+
+function AddTipCta() {
+  // Inline "thanks" feedback — there's no tip-submission backend yet on the
+  // desktop preview. The real flow will route into LogDive's notes step.
+  const [submitted, setSubmitted] = React.useState(false);
+  return (
+    <Pressable style={styles.tipsCta} onPress={() => setSubmitted(true)}>
+      <Text style={styles.tipsCtaText}>
+        {submitted ? '✓ Noted — add the rest in your next dive log' : '+ Add a tip after your next dive'}
+      </Text>
+    </Pressable>
   );
 }
 
@@ -3603,6 +3869,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.text1,
     lineHeight: 20,
+  },
+
+  spotInfoMapWrap: {
+    height: 320,
+    borderRadius: radius.md,
+    overflow: 'hidden',
+    backgroundColor: colors.surface0,
   },
 
   marineList: {

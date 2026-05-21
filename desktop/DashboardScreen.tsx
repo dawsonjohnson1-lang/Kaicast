@@ -14,6 +14,8 @@ import { SpotCard } from './components/SpotCard';
 import { MetricTile } from './components/MetricTile';
 import { HeatmapCell } from './components/HeatmapCell';
 import { DiveRow } from './components/DiveRow';
+import { KaiCastMap, type MapMarker } from './components/maps/KaiCastMap';
+import { useBreakpoint, pick } from './hooks/useBreakpoint';
 import type { NavigateFn } from './router';
 
 /**
@@ -29,56 +31,64 @@ import type { NavigateFn } from './router';
 
 // ─── Mock data ────────────────────────────────────────────────────────────
 
+// Personal-data constants are empty for every account at launch — no
+// users/{uid} backing exists yet, so showing Dawson's mocked 147 dives
+// to a brand-new visitor is misleading. When the user-profile collection
+// lands these become per-user lookups.
 const USER = {
-  initials: 'DJ',
-  name: 'Dawson J.',
-  location: "Mililani, O'ahu",
-  tier: 'Pro member',
-  totalDives: 147,
-  species: 34,
+  initials: '',
+  name: '',
+  location: '',
+  tier: '',
+  totalDives: 0,
+  species: 0,
 };
 
 const SIDEBAR_NAV = [
   { key: 'dashboard', label: 'Dashboard',  active: true },
-  { key: 'dives',     label: 'My dives',   active: false, count: 147 },
+  { key: 'dives',     label: 'My dives',   active: false, count: 0 },
   { key: 'explore',   label: 'Explore',    active: false },
   { key: 'community', label: 'Community',  active: false },
 ];
 
-const FAVORITES = [
-  { name: 'Electric Beach', rating: 'excellent' as ConditionTier },
-  { name: "Shark's Cove",   rating: 'great'     as ConditionTier },
-  { name: 'Tunnels Beach',  rating: 'good'      as ConditionTier },
-  { name: 'Molokini',       rating: 'excellent' as ConditionTier },
-];
+// Canonical spots lookup is still needed for the map; but FAVORITES
+// (the user's saved spots) is empty until they actually star one.
+import { findSpot as findCanonicalSpot } from './data/spots';
+import { useSpotRatings } from './data/getReport';
+const FAVORITE_IDS: ReadonlyArray<string> = [];
+const BASE_FAVORITES: Array<{
+  name: string; rating: ConditionTier; lat: number; lng: number; spotId: string;
+}> = FAVORITE_IDS
+  .map((id) => findCanonicalSpot(id))
+  .filter((s): s is NonNullable<ReturnType<typeof findCanonicalSpot>> => !!s)
+  .map((s) => ({
+    name: s.name,
+    rating: 'good' as ConditionTier,
+    lat: s.lat,
+    lng: s.lon,
+    spotId: s.id,
+  }));
 
 const STATS = [
-  { label: 'Total dives',         value: '147', unit: '' },
-  { label: 'Cumulative depth',    value: '550', unit: 'ft' },
-  { label: 'Total bottom time',   value: '38h 22m', unit: '' },
-  { label: 'Species logged',      value: '34',  unit: '' },
+  { label: 'Total dives',         value: '0',  unit: '' },
+  { label: 'Cumulative depth',    value: '0',  unit: 'ft' },
+  { label: 'Total bottom time',   value: '0h', unit: '' },
+  { label: 'Species logged',      value: '0',  unit: '' },
 ];
 
-const FAVORITE_CARDS = [
-  { name: 'Electric Beach', region: "O'AHU · LEEWARD",     rating: 'excellent' as ConditionTier, visibilityFt: 56, waterTempF: 79, swellFt: 3, bestWindow: '2pm – 5pm' },
-  { name: "Shark's Cove",   region: "O'AHU · NORTH SHORE", rating: 'great'     as ConditionTier, visibilityFt: 48, waterTempF: 78, swellFt: 3.5, bestWindow: '7am – 11am' },
-  { name: 'Tunnels Beach',  region: "KAUA'I · NORTH",      rating: 'good'      as ConditionTier, visibilityFt: 45, waterTempF: 76, swellFt: 2.5, bestWindow: '9am – 1pm' },
-];
+const FAVORITE_CARDS: Array<{
+  name: string; region: string; rating: ConditionTier;
+  visibilityFt: number; waterTempF: number; swellFt: number; bestWindow: string;
+}> = [];
 
-const RECENT_DIVES = [
-  { date: 'APR 14', spot: 'Electric Beach', activity: 'Freediving',  depthFt: 38, durationMin: 45, rating: 'excellent' as ConditionTier },
-  { date: 'APR 12', spot: "Shark's Cove",   activity: 'Scuba',       depthFt: 52, durationMin: 38, rating: 'great'     as ConditionTier },
-  { date: 'APR 09', spot: 'Hanauma Bay',    activity: 'Snorkel',     depthFt: 12, durationMin: 60, rating: 'good'      as ConditionTier },
-  { date: 'APR 06', spot: 'Three Tables',   activity: 'Freediving',  depthFt: 45, durationMin: 50, rating: 'great'     as ConditionTier },
-  { date: 'APR 03', spot: 'Magic Island',   activity: 'Scuba',       depthFt: 28, durationMin: 42, rating: 'good'      as ConditionTier },
-];
+const RECENT_DIVES: Array<{
+  date: string; spot: string; activity: string;
+  depthFt: number; durationMin: number; rating: ConditionTier;
+}> = [];
 
-const BEST_WINDOW = {
-  spotName: 'Electric Beach',
-  window: 'Today, 2:00 – 5:00 PM',
-  hoursAway: 'PEAK IN 1H 13M',
-  rating: 'excellent' as ConditionTier,
-};
+const BEST_WINDOW: {
+  spotName: string; window: string; hoursAway: string; rating: ConditionTier;
+} | null = null;
 
 const ISLAND_BREAKDOWN: Array<{ island: string; counts: Partial<Record<ConditionTier, number>> }> = [
   { island: "O'AHU",      counts: { excellent: 1, great: 2, good: 3, fair: 1 } },
@@ -93,31 +103,16 @@ const DASHBOARD_ALERTS = [
   { title: 'Hanauma Bay closed Tuesdays',      body: 'Conservation closure. Next open: Wednesday.',    when: '1D' },
 ];
 
-const FRIENDS_DIVES = [
-  { initials: 'KM', name: 'Kai M.',     spot: 'Electric Beach', rating: 'excellent' as ConditionTier, when: 'NOW' },
-  { initials: 'LS', name: 'Leilani S.', spot: 'Molokini',       rating: 'excellent' as ConditionTier, when: '14M' },
-  { initials: 'MH', name: 'Marcus H.',  spot: "Shark's Cove",   rating: 'great'     as ConditionTier, when: '32M' },
-  { initials: 'AT', name: 'Alana T.',   spot: 'Kealakekua',     rating: 'great'     as ConditionTier, when: '1H' },
-];
+// Friends' recent dives — empty until the friend graph + dive feed
+// surfaces in the real backend.
+const FRIENDS_DIVES: Array<{
+  initials: string; name: string; spot: string; rating: ConditionTier; when: string;
+}> = [];
 
-// 52 weeks × 7 days of fake activity
-const HEATMAP = (() => {
-  const data: number[][] = [];
-  for (let w = 0; w < 52; w++) {
-    const col: number[] = [];
-    for (let d = 0; d < 7; d++) {
-      // Cluster activity around weekends + recent weeks
-      const recency = w / 52;
-      const isWeekend = d === 0 || d === 6;
-      const base = isWeekend ? 2 : 0.6;
-      const r = Math.random();
-      const val = Math.min(4, Math.max(0, Math.round(base * recency + r * 1.5 - 0.5)));
-      col.push(val);
-    }
-    data.push(col);
-  }
-  return data;
-})();
+// 52 weeks × 7 days — all zeros until the user has logged dives.
+const HEATMAP: number[][] = Array.from({ length: 52 }, () =>
+  Array.from({ length: 7 }, () => 0),
+);
 
 // ─── Screen ───────────────────────────────────────────────────────────────
 
@@ -127,24 +122,44 @@ export interface DashboardScreenProps {
 }
 
 export function DashboardScreen({ activeNav = 'dashboard', onNavigate }: DashboardScreenProps) {
+  const bp = useBreakpoint();
+  const sidebarW = pick(bp, 240, 200);
+  const railW = pick(bp, 340, 260);
+
+  // Pull live rating tier per favorite from getReport (cached, one fetch
+  // per id) so the colored dots and map pins reflect today's conditions
+  // instead of the static placeholder shipped in BASE_FAVORITES.
+  const favoriteIds = React.useMemo(() => BASE_FAVORITES.map((f) => f.spotId), []);
+  const liveRatings = useSpotRatings(favoriteIds);
+  const favorites = React.useMemo(
+    () => BASE_FAVORITES.map((f) => ({ ...f, rating: liveRatings.get(f.spotId) ?? f.rating })),
+    [liveRatings],
+  );
+
   return (
     <ScrollView style={styles.page} contentContainerStyle={styles.pageContent}>
       <DesktopNav active={activeNav} onNavigate={onNavigate} />
 
       <View style={styles.maxWidth}>
         <View style={styles.body}>
-          <Sidebar onNavigate={onNavigate} />
-          <Main onNavigate={onNavigate} />
-          <RightRail onNavigate={onNavigate} />
+          <View style={{ width: sidebarW }}>
+            <Sidebar onNavigate={onNavigate} favorites={favorites} />
+          </View>
+          <Main onNavigate={onNavigate} favorites={favorites} />
+          <View style={{ width: railW }}>
+            <RightRail onNavigate={onNavigate} />
+          </View>
         </View>
       </View>
     </ScrollView>
   );
 }
 
+type FavoriteRow = (typeof BASE_FAVORITES)[number];
+
 // ─── Left sidebar ─────────────────────────────────────────────────────────
 
-function Sidebar({ onNavigate }: { onNavigate?: NavigateFn }) {
+function Sidebar({ onNavigate, favorites }: { onNavigate?: NavigateFn; favorites: FavoriteRow[] }) {
   return (
     <View style={styles.sidebar}>
       <View style={styles.sidebarSection}>
@@ -172,7 +187,7 @@ function Sidebar({ onNavigate }: { onNavigate?: NavigateFn }) {
 
       <View style={styles.sidebarSection}>
         <Text style={styles.sidebarGroupLabel}>FAVORITES</Text>
-        {FAVORITES.map((f) => (
+        {favorites.map((f) => (
           <Pressable
             key={f.name}
             onPress={() => onNavigate?.('spot-detail', { spotId: slugify(f.name) })}
@@ -237,15 +252,44 @@ function slugify(s: string): string {
 
 // ─── Main ─────────────────────────────────────────────────────────────────
 
-function Main({ onNavigate }: { onNavigate?: NavigateFn }) {
+function Main({ onNavigate, favorites }: { onNavigate?: NavigateFn; favorites: FavoriteRow[] }) {
   return (
     <ScrollView style={styles.main} contentContainerStyle={styles.mainContent}>
       <WelcomeBanner onNavigate={onNavigate} />
       <StatsRow />
+      <ArchipelagoOverview onNavigate={onNavigate} favorites={favorites} />
       <FavoriteSpotsRow onNavigate={onNavigate} />
       <HeatmapSection />
       <RecentDivesSection />
     </ScrollView>
+  );
+}
+
+function ArchipelagoOverview({ onNavigate, favorites }: { onNavigate?: NavigateFn; favorites: FavoriteRow[] }) {
+  // Glance-only archipelago map of favorite spots, colored by current
+  // condition tier. Read-only — no zoom/pan controls, just an at-a-
+  // glance "where am I dialed in" visual. Pin click jumps to detail.
+  const markers: MapMarker[] = React.useMemo(
+    () => favorites.map((f) => ({ id: f.spotId, lng: f.lng, lat: f.lat, tier: f.rating, label: f.name })),
+    [favorites],
+  );
+  return (
+    <View style={styles.archipelagoSection}>
+      <View style={styles.archipelagoHeader}>
+        <Text style={styles.archipelagoTitle}>YOUR ARCHIPELAGO</Text>
+        <Pressable onPress={() => onNavigate?.('spots-map')}>
+          <Text style={styles.archipelagoLink}>View all spots →</Text>
+        </Pressable>
+      </View>
+      <View style={styles.archipelagoMapWrap}>
+        <KaiCastMap
+          markers={markers}
+          interactive={false}
+          showZoomControls={false}
+          onMarkerClick={(spotId) => onNavigate?.('spot-detail', { spotId })}
+        />
+      </View>
+    </View>
   );
 }
 
@@ -378,6 +422,18 @@ function RightRail({ onNavigate }: { onNavigate?: NavigateFn }) {
 }
 
 function UpcomingBestWindow({ onNavigate }: { onNavigate?: NavigateFn }) {
+  if (!BEST_WINDOW) {
+    return (
+      <View style={styles.rightCard}>
+        <View style={styles.rightCardHeader}>
+          <Text style={styles.rightCardTitle}>Upcoming best window</Text>
+        </View>
+        <Pressable style={styles.bestWindowBody} onPress={() => onNavigate?.('spots-map')}>
+          <Text style={styles.bestWindowTime}>Save spots to your favorites and we'll surface their best window here.</Text>
+        </Pressable>
+      </View>
+    );
+  }
   return (
     <View style={styles.rightCard}>
       <View style={styles.rightCardHeader}>
@@ -488,9 +544,6 @@ function FriendsFeed() {
 
 // ─── Styles ───────────────────────────────────────────────────────────────
 
-const SIDEBAR_W = 240;
-const RAIL_W = 340;
-
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: colors.bg },
   pageContent: { alignItems: 'center' },
@@ -500,7 +553,7 @@ const styles = StyleSheet.create({
 
   // ── Sidebar ──
   sidebar: {
-    width: SIDEBAR_W,
+    // Width comes from the responsive wrapper in DashboardScreen.
     paddingVertical: 24,
     borderRightWidth: 1,
     borderRightColor: colors.hairline,
@@ -779,6 +832,36 @@ const styles = StyleSheet.create({
     color: colors.text3,
   },
 
+  // Archipelago overview map
+  archipelagoSection: {
+    gap: 10,
+  },
+  archipelagoHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  archipelagoTitle: {
+    fontFamily: fonts.mono,
+    fontSize: 11,
+    letterSpacing: 1.2,
+    color: colors.text3,
+  },
+  archipelagoLink: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.accent,
+  },
+  archipelagoMapWrap: {
+    height: 280,
+    borderRadius: radius.md,
+    overflow: 'hidden',
+    backgroundColor: colors.surface0,
+    borderWidth: 1,
+    borderColor: colors.hairline,
+  },
+
   // Section block (heading + body)
   sectionBlock: { gap: 14 },
   sectionHeader: {
@@ -847,7 +930,7 @@ const styles = StyleSheet.create({
 
   // ── Right rail ──
   rightRail: {
-    width: RAIL_W,
+    // Width comes from the responsive wrapper in DashboardScreen.
     padding: 16,
     gap: 16,
     borderLeftWidth: 1,

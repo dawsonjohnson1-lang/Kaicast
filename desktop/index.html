@@ -3,7 +3,28 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>KaiCast Desktop — preview</title>
+    <title>KaiCast</title>
+    <script>
+      // Mobile bounce — runs before the React bundle even starts loading.
+      // Phone-class user agents or narrow viewports get the static
+      // coming-soon page; everything else falls through to the SPA.
+      // ?force=desktop on either page skips the redirect so testers
+      // can preview the other surface.
+      (function () {
+        try {
+          var qs = window.location.search;
+          if (qs.indexOf('force=desktop') !== -1) return;
+          var ua = navigator.userAgent || '';
+          var isPhoneUA = /Android.+Mobile|iPhone|iPod|BlackBerry|Mini Mobile/i.test(ua);
+          var isNarrow = window.innerWidth < 768;
+          if (isPhoneUA || isNarrow) {
+            window.location.replace('/mobile.html');
+          }
+        } catch (e) {
+          // Detection failed — fall through to the SPA rather than redirect.
+        }
+      })();
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link

@@ -7,7 +7,28 @@ import {
   DESKTOP_MAX_WIDTH,
 } from './tokens';
 import { DesktopNav } from './components/DesktopNav';
+import { KaiCastMap, HAWAII_CENTER, HAWAII_ZOOM, type MapMarker } from './components/maps/KaiCastMap';
+import { useBreakpoint, pick } from './hooks/useBreakpoint';
 import type { NavigateFn } from './router';
+
+// Subset of known Hawaii dive spots — used by the Step 01 map picker.
+// Clicking a pin sets form.spot to that name. Kept in lockstep with
+// the SpotsMapScreen ISLANDS data; a future refactor could extract
+// these into a shared module.
+const PICKER_SPOTS: Array<{ name: string; lat: number; lng: number }> = [
+  { name: 'Electric Beach', lat: 21.3550, lng: -158.1220 },
+  { name: "Shark's Cove",   lat: 21.6417, lng: -158.0617 },
+  { name: 'Three Tables',   lat: 21.6367, lng: -158.0633 },
+  { name: 'Magic Island',   lat: 21.2840, lng: -157.8458 },
+  { name: 'Hanauma Bay',    lat: 21.2694, lng: -157.6939 },
+  { name: 'Molokini Crater', lat: 20.6330, lng: -156.4950 },
+  { name: 'Honolua Bay',    lat: 21.0123, lng: -156.6398 },
+  { name: 'Black Rock',     lat: 20.9333, lng: -156.6920 },
+  { name: 'Kealakekua Bay', lat: 19.4791, lng: -155.9197 },
+  { name: 'Two Step',       lat: 19.4187, lng: -155.9099 },
+  { name: 'Tunnels Beach',  lat: 22.2233, lng: -159.5705 },
+  { name: 'Poipu Beach',    lat: 21.8736, lng: -159.4537 },
+];
 
 /**
  * Log Dive — desktop screen (Figma 459:1527).
@@ -56,34 +77,44 @@ interface FormState {
   shareToCommunity: boolean;
 }
 
+// Blank-slate form for a brand-new dive entry. Today's date is filled
+// at first render (todayString below); everything else is empty so the
+// user is never staring at someone else's mock values when they sit
+// down to log.
+function todayString(): string {
+  const d = new Date();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${mm} / ${dd} / ${d.getFullYear()}`;
+}
+
 const INITIAL_FORM: FormState = {
   diveType: 'Scuba',
-  spot: 'Electric Beach',
-  date: '04 / 15 / 2024',
-  entryTime: '02 : 30 PM',
-  exitTime: '03 : 28 PM',
+  spot: '',
+  date: todayString(),
+  entryTime: '',
+  exitTime: '',
   buddy: '',
   diveSiteType: 'Shore dive',
   depthMax: '',
   bottomTime: '',
   depthAvg: '',
-  visibility: 56,
-  waterTemp: 79,
-  airTemp: 82,
+  visibility: 0,
+  waterTemp: 0,
+  airTemp: 0,
   currentStrength: 'None',
   surfaceConditions: 'Calm',
   surgeSwell: 'None',
-  startPressure: 3000,
-  endPressure: 500,
+  startPressure: 0,
+  endPressure: 0,
   gasMix: 'Air (21% O₂)',
   wetsuitThickness: '3mm full',
-  weightUsed: 8,
+  weightUsed: 0,
   thermoclinePresent: false,
-  marineLifeSelected: ['Green Turtle', 'Reef Fish'],
+  marineLifeSelected: [],
   sightingNotes: '',
-  notes:
-    "Crystal clear today — trades dropped out around noon and the outflow did its thing. Entry at the stairs was easy, viz opened up immediately. Saw a hawksbill at the cleaning station around 35ft, didn't spook. Current was nothing, tide window was perfect…",
-  ratingStars: 4,
+  notes: '',
+  ratingStars: 0,
   recommend: 'Definitely',
   reefHealth: 'Healthy',
   shareToCommunity: true,
@@ -156,6 +187,10 @@ export interface LogDiveScreenProps {
 }
 
 export function LogDiveScreen({ activeNav = 'log', onNavigate }: LogDiveScreenProps) {
+  const bp = useBreakpoint();
+  const sidePad = pick(bp, 28, 16);
+  const colGap = pick(bp, 28, 16);
+  const leftColW = pick(bp, 323, 260);
   const [published, setPublished] = React.useState(false);
   const [form, setForm] = React.useState<FormState>(INITIAL_FORM);
   const [draftSavedAt, setDraftSavedAt] = React.useState<number | null>(null);
@@ -184,14 +219,16 @@ export function LogDiveScreen({ activeNav = 'log', onNavigate }: LogDiveScreenPr
             onNavigate={onNavigate}
           />
         ) : (
-          <View style={styles.body}>
-            <LeftPreview
-              form={form}
-              draftSavedAt={draftSavedAt}
-              onPublish={() => setPublished(true)}
-              onSaveDraft={() => setDraftSavedAt(Date.now())}
-              onShareToggle={() => update('shareToCommunity', !form.shareToCommunity)}
-            />
+          <View style={[styles.body, { paddingHorizontal: sidePad, gap: colGap }]}>
+            <View style={{ width: leftColW }}>
+              <LeftPreview
+                form={form}
+                draftSavedAt={draftSavedAt}
+                onPublish={() => setPublished(true)}
+                onSaveDraft={() => setDraftSavedAt(Date.now())}
+                onShareToggle={() => update('shareToCommunity', !form.shareToCommunity)}
+              />
+            </View>
             <RightForm form={form} update={update} />
           </View>
         )}
@@ -546,6 +583,7 @@ function RightForm({ form, update }: { form: FormState; update: Update }) {
           value={form.spot}
           onChange={(v) => update('spot', v)}
         />
+        <SpotMapPicker value={form.spot} onPick={(name) => update('spot', name)} />
         <Row3>
           <NumericField label="Date"       value={form.date}      onChange={(v) => update('date', v)} />
           <NumericField label="Entry time" value={form.entryTime} onChange={(v) => update('entryTime', v)} />
@@ -689,6 +727,50 @@ function RightForm({ form, update }: { form: FormState; update: Update }) {
           <ChipGroupField label="Reef health observed"           options={REEF_HEALTH_CHIPS} value={form.reefHealth} onChange={(v) => update('reefHealth', v)} />
         </Row2>
       </Section>
+    </View>
+  );
+}
+
+// ─── Spot map picker (Step 01) ────────────────────────────────────────────
+
+/**
+ * Collapsible Mapbox picker beneath the Dive spot combo field.
+ * Clicking a pin sets the form.spot value to that spot's name; the
+ * map and combo stay in sync via the shared selection.
+ */
+function SpotMapPicker({ value, onPick }: { value: string; onPick: (name: string) => void }) {
+  const [open, setOpen] = React.useState(false);
+  const markers: MapMarker[] = React.useMemo(
+    () => PICKER_SPOTS.map((s) => ({ id: s.name, lng: s.lng, lat: s.lat })),
+    [],
+  );
+  const selected = PICKER_SPOTS.find((s) => s.name === value);
+  const center: [number, number] = selected ? [selected.lng, selected.lat] : HAWAII_CENTER;
+  const zoom = selected ? 9.5 : HAWAII_ZOOM;
+  return (
+    <View style={styles.spotPickerWrap}>
+      <Pressable onPress={() => setOpen((o) => !o)} style={styles.spotPickerToggle}>
+        <Text style={styles.spotPickerToggleIcon}>{open ? '−' : '+'}</Text>
+        <Text style={styles.spotPickerToggleText}>
+          {open ? 'Hide map' : 'Pick on map'}
+        </Text>
+        <View style={styles.spotPickerToggleSpacer} />
+        <Text style={styles.spotPickerToggleHint}>
+          {selected ? `Selected: ${selected.name}` : 'No spot selected'}
+        </Text>
+      </Pressable>
+      {open ? (
+        <View style={styles.spotPickerMap}>
+          <KaiCastMap
+            markers={markers}
+            center={center}
+            zoom={zoom}
+            selectedId={selected?.name}
+            onMarkerClick={onPick}
+            showZoomControls
+          />
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -1361,7 +1443,7 @@ const styles = StyleSheet.create({
 
   // ── Left preview ──
   leftCol: {
-    width: 323,
+    // Width set by responsive wrapper in LogDiveScreen.
     gap: 16,
   },
   previewSectionLabel: {
@@ -2036,5 +2118,50 @@ const styles = StyleSheet.create({
     fontFamily: fonts.body,
     fontSize: 14,
     color: colors.text2,
+  },
+
+  // Step 01 spot map picker
+  spotPickerWrap: {
+    gap: 12,
+    marginTop: -4,
+  },
+  spotPickerToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.hairlineStrong,
+    backgroundColor: colors.surface0,
+  },
+  spotPickerToggleIcon: {
+    fontFamily: fonts.display,
+    fontSize: 16,
+    color: colors.accent,
+    width: 14,
+    textAlign: 'center',
+  },
+  spotPickerToggleText: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.text1,
+  },
+  spotPickerToggleSpacer: {
+    flex: 1,
+  },
+  spotPickerToggleHint: {
+    fontFamily: fonts.mono,
+    fontSize: 10,
+    color: colors.text3,
+    letterSpacing: 0.5,
+  },
+  spotPickerMap: {
+    height: 360,
+    borderRadius: radius.md,
+    overflow: 'hidden',
+    backgroundColor: colors.surface0,
   },
 });

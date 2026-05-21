@@ -108,17 +108,52 @@ const MOLOKAI_SPOTS: SpotRow[] = [
   { name: "Mo'omomi", region: 'North · Remote', rating: 'fair', forecast: ['fair','fair','no-go','no-go','fair','fair','good'], vis: 25, temp: 77, swell: 4.0 },
 ];
 
-const FILTER_TABS = ['All conditions', 'Excellent', 'Great', 'Good', 'Fair', 'Hazardous'] as const;
-const SIDEBAR_CONDITION_FILTERS = [
-  { key: 'all', label: 'All conditions',        active: true,  count: 23 },
-  { key: 'exc', label: 'Excellent',             active: false, count: 5,  tier: 'excellent' as ConditionTier },
-  { key: 'gre', label: 'Great',                 active: false, count: 9,  tier: 'great' as ConditionTier },
-  { key: 'goo', label: 'Good',                  active: false, count: 6,  tier: 'good' as ConditionTier },
-  { key: 'fai', label: 'Fair',                  active: false, count: 3,  tier: 'fair' as ConditionTier },
-  { key: 'nog', label: 'No-go',                 active: false, count: 0,  tier: 'no-go' as ConditionTier },
-] as const;
+type FilterTab = 'All conditions' | 'Excellent' | 'Great' | 'Good' | 'Fair' | 'Hazardous';
+const FILTER_TABS: readonly FilterTab[] = ['All conditions', 'Excellent', 'Great', 'Good', 'Fair', 'Hazardous'];
+
+// Map top-bar / sidebar filter labels to row tiers. "Hazardous" maps to
+// 'no-go' (the dataset's worst tier). 'All conditions' applies no filter.
+const TAB_TO_TIER: Partial<Record<FilterTab, ConditionTier>> = {
+  Excellent: 'excellent',
+  Great: 'great',
+  Good: 'good',
+  Fair: 'fair',
+  Hazardous: 'no-go',
+};
+
+// The sidebar's "Condition" group mirrors the top tabs — same labels, same
+// tier mapping. `active` is derived from state at render time, not stored
+// on the descriptor.
+const SIDEBAR_CONDITION_FILTERS: ReadonlyArray<{
+  tab: FilterTab;
+  tier?: ConditionTier;
+  count: number;
+}> = [
+  { tab: 'All conditions', count: 23 },
+  { tab: 'Excellent',      count: 5,  tier: 'excellent' },
+  { tab: 'Great',          count: 9,  tier: 'great' },
+  { tab: 'Good',           count: 6,  tier: 'good' },
+  { tab: 'Fair',           count: 3,  tier: 'fair' },
+  { tab: 'Hazardous',      count: 0,  tier: 'no-go' },
+];
+
 const SIDEBAR_DIVE_TYPES = ['🤿 Scuba', '🧜 Freediving', '🎣 Spearfishing', '🐠 Snorkel'];
-const SIDEBAR_VISIBILITY_FILTERS = ['80+ ft (gin clear)', '50–80 ft (clean)', '25–50 ft (decent)', '< 25 ft (murky)'];
+
+type VisFilter = '80+ ft (gin clear)' | '50–80 ft (clean)' | '25–50 ft (decent)' | '< 25 ft (murky)';
+const SIDEBAR_VISIBILITY_FILTERS: readonly VisFilter[] = [
+  '80+ ft (gin clear)', '50–80 ft (clean)', '25–50 ft (decent)', '< 25 ft (murky)',
+];
+
+function visMatches(vis: number, range: VisFilter): boolean {
+  switch (range) {
+    case '80+ ft (gin clear)':  return vis >= 80;
+    case '50–80 ft (clean)':    return vis >= 50 && vis < 80;
+    case '25–50 ft (decent)':   return vis >= 25 && vis < 50;
+    case '< 25 ft (murky)':     return vis < 25;
+  }
+}
+
+const MY_SPOTS = new Set(['Electric Beach', "Shark's Cove", 'Molokini Crater', 'Three Tables']);
 
 // ─── Screen ───────────────────────────────────────────────────────────────
 
@@ -128,18 +163,47 @@ export interface ConditionsScreenProps {
 }
 
 export function ConditionsScreen({ activeNav = 'forecast', onNavigate }: ConditionsScreenProps) {
-  const [activeFilter, setActiveFilter] = React.useState<string>('All conditions');
+  const [activeFilter, setActiveFilter] = React.useState<FilterTab>('All conditions');
+  const [visFilter, setVisFilter] = React.useState<VisFilter | null>(null);
+  const [diveTypeFilter, setDiveTypeFilter] = React.useState<string | null>(null);
+  const [mySpotsOnly, setMySpotsOnly] = React.useState(false);
+  const [viewMode, setViewMode] = React.useState<'table' | 'grid'>('table');
+
+  const filterRow = React.useCallback(
+    (s: SpotRow): boolean => {
+      const tabTier = TAB_TO_TIER[activeFilter];
+      if (tabTier && s.rating !== tabTier) return false;
+      if (visFilter && !visMatches(s.vis, visFilter)) return false;
+      if (mySpotsOnly && !MY_SPOTS.has(s.name)) return false;
+      return true;
+    },
+    [activeFilter, visFilter, mySpotsOnly],
+  );
 
   return (
     <ScrollView style={styles.page} contentContainerStyle={styles.pageContent}>
       <DesktopNav active={activeNav} onNavigate={onNavigate} />
 
       <View style={styles.maxWidth}>
-        <FilterBar value={activeFilter} onChange={setActiveFilter} />
+        <FilterBar
+          value={activeFilter}
+          onChange={setActiveFilter}
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
+        />
 
         <View style={styles.body}>
-          <Sidebar />
-          <Main onNavigate={onNavigate} />
+          <Sidebar
+            activeFilter={activeFilter}
+            onActiveFilterChange={setActiveFilter}
+            visFilter={visFilter}
+            onVisFilterChange={setVisFilter}
+            diveTypeFilter={diveTypeFilter}
+            onDiveTypeFilterChange={setDiveTypeFilter}
+            mySpotsOnly={mySpotsOnly}
+            onMySpotsOnlyChange={setMySpotsOnly}
+          />
+          <Main filterRow={filterRow} onNavigate={onNavigate} />
         </View>
       </View>
     </ScrollView>
@@ -148,7 +212,17 @@ export function ConditionsScreen({ activeNav = 'forecast', onNavigate }: Conditi
 
 // ─── Filter bar ───────────────────────────────────────────────────────────
 
-function FilterBar({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function FilterBar({
+  value,
+  onChange,
+  viewMode,
+  onViewModeChange,
+}: {
+  value: FilterTab;
+  onChange: (v: FilterTab) => void;
+  viewMode: 'table' | 'grid';
+  onViewModeChange: (m: 'table' | 'grid') => void;
+}) {
   return (
     <View style={styles.filterBar}>
       <View style={styles.filterTabs}>
@@ -170,11 +244,19 @@ function FilterBar({ value, onChange }: { value: string; onChange: (v: string) =
 
       <View style={styles.filterDivider} />
 
+      {/* Table/grid toggle is interactive but grid view isn't implemented
+          yet, so for now the active button is purely visual. */}
       <View style={styles.viewToggle}>
-        <Pressable style={[styles.viewToggleBtn, styles.viewToggleBtnActive]}>
+        <Pressable
+          onPress={() => onViewModeChange('table')}
+          style={[styles.viewToggleBtn, viewMode === 'table' && styles.viewToggleBtnActive]}
+        >
           <Text style={styles.viewToggleText}>▦</Text>
         </Pressable>
-        <Pressable style={styles.viewToggleBtn}>
+        <Pressable
+          onPress={() => onViewModeChange('grid')}
+          style={[styles.viewToggleBtn, viewMode === 'grid' && styles.viewToggleBtnActive]}
+        >
           <Text style={styles.viewToggleText}>▤</Text>
         </Pressable>
       </View>
@@ -188,17 +270,44 @@ function FilterBar({ value, onChange }: { value: string; onChange: (v: string) =
 
 // ─── Sidebar ──────────────────────────────────────────────────────────────
 
-function Sidebar() {
+function Sidebar({
+  activeFilter,
+  onActiveFilterChange,
+  visFilter,
+  onVisFilterChange,
+  diveTypeFilter,
+  onDiveTypeFilterChange,
+  mySpotsOnly,
+  onMySpotsOnlyChange,
+}: {
+  activeFilter: FilterTab;
+  onActiveFilterChange: (v: FilterTab) => void;
+  visFilter: VisFilter | null;
+  onVisFilterChange: (v: VisFilter | null) => void;
+  diveTypeFilter: string | null;
+  onDiveTypeFilterChange: (v: string | null) => void;
+  mySpotsOnly: boolean;
+  onMySpotsOnlyChange: (v: boolean) => void;
+}) {
+  // Filter rows toggle: clicking the active filter clears it. Makes the
+  // sidebar a self-contained way to back out of a filter without hunting
+  // for a separate "clear" button.
+  const toggleVis = (label: VisFilter) =>
+    onVisFilterChange(visFilter === label ? null : label);
+  const toggleDiveType = (label: string) =>
+    onDiveTypeFilterChange(diveTypeFilter === label ? null : label);
+
   return (
     <View style={styles.sidebar}>
       <SidebarGroup title="Condition">
         {SIDEBAR_CONDITION_FILTERS.map((f) => (
           <SidebarFilterRow
-            key={f.key}
-            label={f.label}
+            key={f.tab}
+            label={f.tab}
             count={f.count}
-            tier={'tier' in f ? f.tier : undefined}
-            active={f.active}
+            tier={f.tier}
+            active={f.tab === activeFilter}
+            onPress={() => onActiveFilterChange(f.tab)}
           />
         ))}
       </SidebarGroup>
@@ -207,7 +316,12 @@ function Sidebar() {
 
       <SidebarGroup title="Dive type">
         {SIDEBAR_DIVE_TYPES.map((label) => (
-          <SidebarRow key={label} label={label} />
+          <SidebarRow
+            key={label}
+            label={label}
+            active={diveTypeFilter === label}
+            onPress={() => toggleDiveType(label)}
+          />
         ))}
       </SidebarGroup>
 
@@ -215,7 +329,12 @@ function Sidebar() {
 
       <SidebarGroup title="Visibility">
         {SIDEBAR_VISIBILITY_FILTERS.map((label) => (
-          <SidebarRow key={label} label={label} />
+          <SidebarRow
+            key={label}
+            label={label}
+            active={visFilter === label}
+            onPress={() => toggleVis(label)}
+          />
         ))}
       </SidebarGroup>
 
@@ -226,8 +345,13 @@ function Sidebar() {
       <Divider />
 
       <SidebarGroup title="My spots">
+        <SidebarRow
+          label={mySpotsOnly ? 'Showing my spots only' : 'Show only my spots'}
+          active={mySpotsOnly}
+          onPress={() => onMySpotsOnlyChange(!mySpotsOnly)}
+        />
         {['Electric Beach', "Shark's Cove", 'Molokini Crater', 'Three Tables'].map((s) => (
-          <SidebarRow key={s} label={s} />
+          <SidebarRow key={s} label={s} muted />
         ))}
       </SidebarGroup>
     </View>
@@ -243,11 +367,32 @@ function SidebarGroup({ title, children }: { title: string; children: React.Reac
   );
 }
 
-function SidebarRow({ label }: { label: string }) {
+function SidebarRow({
+  label,
+  onPress,
+  active,
+  muted,
+}: {
+  label: string;
+  onPress?: () => void;
+  active?: boolean;
+  muted?: boolean;
+}) {
+  // `muted` is for read-only rows (e.g. the list of my-spot names that
+  // sits below the actual "Show only my spots" toggle).
+  const Wrapper = onPress ? Pressable : View;
   return (
-    <Pressable style={styles.sidebarRow}>
-      <Text style={styles.sidebarRowLabel}>{label}</Text>
-    </Pressable>
+    <Wrapper onPress={onPress} style={[styles.sidebarRow, active && styles.sidebarRowActive]}>
+      <Text
+        style={[
+          styles.sidebarRowLabel,
+          active && styles.sidebarRowLabelActive,
+          muted && styles.sidebarRowLabelMuted,
+        ]}
+      >
+        {label}
+      </Text>
+    </Wrapper>
   );
 }
 
@@ -256,14 +401,16 @@ function SidebarFilterRow({
   count,
   tier,
   active,
+  onPress,
 }: {
   label: string;
   count: number;
   tier?: ConditionTier;
   active?: boolean;
+  onPress?: () => void;
 }) {
   return (
-    <Pressable style={[styles.sidebarRow, active && styles.sidebarRowActive]}>
+    <Pressable onPress={onPress} style={[styles.sidebarRow, active && styles.sidebarRowActive]}>
       {tier ? (
         <View style={[styles.sidebarRowDot, { backgroundColor: TIER_COLORS[tier] }]} />
       ) : (
@@ -325,15 +472,37 @@ function TodaysSnapshot() {
 
 // ─── Main ─────────────────────────────────────────────────────────────────
 
-function Main({ onNavigate }: { onNavigate?: NavigateFn }) {
+function Main({
+  filterRow,
+  onNavigate,
+}: {
+  filterRow: (s: SpotRow) => boolean;
+  onNavigate?: NavigateFn;
+}) {
+  // Pre-filter per-island so we can skip rendering empty island tables.
+  // Total filtered count drives the "no spots match" empty state below.
+  const islands = [
+    { title: "O'ahu",    spots: OAHU_SPOTS.filter(filterRow) },
+    { title: 'Maui',     spots: MAUI_SPOTS.filter(filterRow) },
+    { title: "Hawai'i",  spots: BIG_ISLAND_SPOTS.filter(filterRow) },
+    { title: "Kaua'i",   spots: KAUAI_SPOTS.filter(filterRow) },
+    { title: "Moloka'i", spots: MOLOKAI_SPOTS.filter(filterRow) },
+  ];
+  const total = islands.reduce((n, x) => n + x.spots.length, 0);
+
   return (
     <View style={styles.main}>
       <FiringNow onNavigate={onNavigate} />
-      <SpotTable title="O'ahu"    spots={OAHU_SPOTS}        onNavigate={onNavigate} />
-      <SpotTable title="Maui"     spots={MAUI_SPOTS}        onNavigate={onNavigate} />
-      <SpotTable title="Hawai'i"  spots={BIG_ISLAND_SPOTS}  onNavigate={onNavigate} />
-      <SpotTable title="Kaua'i"   spots={KAUAI_SPOTS}       onNavigate={onNavigate} />
-      <SpotTable title="Moloka'i" spots={MOLOKAI_SPOTS}     onNavigate={onNavigate} />
+      {total === 0 ? (
+        <View style={styles.emptyWrap}>
+          <Text style={styles.emptyTitle}>No spots match these filters</Text>
+          <Text style={styles.emptySub}>Try clearing one — the sidebar filters toggle off on a second click.</Text>
+        </View>
+      ) : (
+        islands
+          .filter((i) => i.spots.length > 0)
+          .map((i) => <SpotTable key={i.title} title={i.title} spots={i.spots} onNavigate={onNavigate} />)
+      )}
     </View>
   );
 }
@@ -449,7 +618,7 @@ function capitalize(s: string): string {
 
 // ─── Styles ───────────────────────────────────────────────────────────────
 
-const SIDEBAR_WIDTH = 240;
+const SIDEBAR_WIDTH = 200;
 
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: colors.bg },
@@ -595,6 +764,25 @@ const styles = StyleSheet.create({
   sidebarRowLabelActive: {
     color: colors.text1,
     fontWeight: '500',
+  },
+  sidebarRowLabelMuted: {
+    color: colors.text3,
+  },
+  emptyWrap: {
+    paddingVertical: 56,
+    alignItems: 'center',
+    gap: 6,
+  },
+  emptyTitle: {
+    fontFamily: fonts.display,
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text1,
+  },
+  emptySub: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: colors.text3,
   },
   sidebarRowCountWrap: {
     minWidth: 18,
