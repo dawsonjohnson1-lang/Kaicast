@@ -151,6 +151,19 @@ export function SpotsMapScreen({ activeNav = 'spots', onNavigate }: SpotsMapScre
   const [selectedName, setSelectedName] = React.useState<string>('Electric Beach');
   const [hoveredName, setHoveredName] = React.useState<string | undefined>(undefined);
 
+  // Pin the document scroll to the top while this screen is mounted.
+  // Setting body overflow:hidden killed wheel events on the inner
+  // ScrollViews, so instead we just clamp the html height to 100vh
+  // and rely on pageFixed's overflow:hidden + the hidden footer to
+  // keep total content at exactly one viewport.
+  React.useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const html = document.documentElement;
+    const prev = html.style.height;
+    html.style.height = '100vh';
+    return () => { html.style.height = prev; };
+  }, []);
+
   // Flat list of every spot — used by the map (always shows all pins,
   // sidebar filtering only affects the list panel).
   const baseSpots = React.useMemo(
@@ -186,38 +199,43 @@ export function SpotsMapScreen({ activeNav = 'spots', onNavigate }: SpotsMapScre
   );
 
   return (
-    <ScrollView style={styles.page} contentContainerStyle={styles.pageContent}>
+    <View style={[styles.page, styles.pageFixed]}>
       <DesktopNav active={activeNav} onNavigate={onNavigate} />
+      <AlertBanner />
 
-      <View style={styles.maxWidth}>
-        <AlertBanner />
-
-        <View style={styles.body}>
-          <View style={{ width: sidebarW }}>
-            <Sidebar
-              tab={tab}
-              onTab={setTab}
-              search={search}
-              onSearch={setSearch}
-              selectedName={selectedName}
-              onSelect={setSelectedName}
-              onHover={setHoveredName}
-              onNavigate={onNavigate}
-              ratings={liveRatings}
-            />
-          </View>
-          <MapColumn
-            markers={mapMarkers}
+      {/* Body fills the rest of the viewport. Left + right columns
+          scroll independently; the map column is fixed (no scroll). */}
+      <View style={styles.bodyFixed}>
+        <View style={{ width: sidebarW, height: '100%' }}>
+          <Sidebar
+            tab={tab}
+            onTab={setTab}
+            search={search}
+            onSearch={setSearch}
             selectedName={selectedName}
-            hoveredName={hoveredName}
             onSelect={setSelectedName}
+            onHover={setHoveredName}
+            onNavigate={onNavigate}
+            ratings={liveRatings}
           />
-          <View style={{ width: panelW }}>
+        </View>
+        <MapColumn
+          markers={mapMarkers}
+          selectedName={selectedName}
+          hoveredName={hoveredName}
+          onSelect={setSelectedName}
+        />
+        <View style={{ width: panelW, height: '100%' }}>
+          <ScrollView
+            style={styles.panelScroll}
+            contentContainerStyle={styles.panelScrollContent}
+            showsVerticalScrollIndicator={false}
+          >
             <SelectedSpotPanel spot={selectedSpot} onNavigate={onNavigate} />
-          </View>
+          </ScrollView>
         </View>
       </View>
-    </ScrollView>
+    </View>
   );
 }
 
@@ -406,7 +424,10 @@ function SidebarSpotRow({
       {spot.rating ? (
         <ConditionPill tier={spot.rating} size="sm" label={shortTier(spot.rating)} />
       ) : null}
-      <FavoriteButton spotId={spot.id} variant="icon" returnTo="spots-map" onNavigate={onNavigate} />
+      {/* Favorite control moved to the SelectedSpotPanel header — one
+          per panel rather than one per row. Keeps the list scannable
+          and stops the favorite icon from competing with the
+          condition pill on every line. */}
     </Pressable>
   );
 }
@@ -504,19 +525,30 @@ function SelectedSpotPanel({
   const metrics = report ? buildLiveMetrics(report) : SELECTED_SPOT.metrics;
   return (
     <View style={styles.panel}>
-      <Pressable
-        style={styles.panelHeader}
-        onPress={() => onNavigate?.('spot-detail', { spotId })}
-      >
-        <View style={styles.panelHeaderTextWrap}>
+      <View style={styles.panelHeader}>
+        <Pressable
+          style={styles.panelHeaderTextWrap}
+          onPress={() => onNavigate?.('spot-detail', { spotId })}
+        >
           <Text style={styles.panelTitle}>{name}</Text>
           <Text style={styles.panelSub}>{region}</Text>
           {loading && !report ? (
             <Text style={[styles.panelSub, { color: colors.text4 }]}>Loading conditions…</Text>
           ) : null}
+        </Pressable>
+        <View style={styles.panelHeaderActions}>
+          <ConditionPill tier={rating} size="md" />
+          {/* Single favorite control per panel — top-right next to the
+              condition pill. Toggling here syncs across every other
+              surface that uses useFavorites (in-module pubsub). */}
+          <FavoriteButton
+            spotId={spotId}
+            variant="hero"
+            returnTo="spots-map"
+            onNavigate={onNavigate}
+          />
         </View>
-        <ConditionPill tier={rating} size="md" />
-      </Pressable>
+      </View>
 
       <View style={styles.metricsGrid}>
         {metrics.map((m, i) => (
@@ -888,10 +920,35 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     height: 1067,
   },
+  // Page wrapper that takes full viewport height so the body row can
+  // flex: 1 inside it (replaces the old scrolling page approach).
+  pageFixed: {
+    height: '100vh' as unknown as number,
+    overflow: 'hidden' as unknown as 'visible',
+  },
+  // Body row inside pageFixed — fills the remaining viewport so the
+  // left + right columns scroll within their own bounds while the
+  // map column stays fixed. overflow:hidden lets the inner column
+  // ScrollViews own their scrolling without bleeding out of the row.
+  bodyFixed: {
+    flex: 1,
+    flexDirection: 'row',
+    minHeight: 0, // critical for flex children that scroll on web
+    overflow: 'hidden' as unknown as 'visible',
+  },
+  panelScroll: {
+    flex: 1,
+  },
+  panelScrollContent: {
+    paddingBottom: 24,
+  },
 
   // ── Sidebar (left) ──
   sidebar: {
     // Width set by responsive wrapper in SpotsMapScreen.
+    // Fills its column height so the inner sidebarList scroll has
+    // bounded space to overflow into.
+    flex: 1,
     borderRightWidth: 1,
     borderRightColor: colors.hairline,
   },
@@ -1108,6 +1165,11 @@ const styles = StyleSheet.create({
   panelHeaderTextWrap: {
     flex: 1,
     gap: 4,
+  },
+  panelHeaderActions: {
+    flexDirection: 'column',
+    alignItems: 'flex-end',
+    gap: 6,
   },
   panelTitle: {
     fontFamily: fonts.display,

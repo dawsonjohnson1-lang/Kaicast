@@ -55,7 +55,7 @@ export function FavoriteButton({
       >
         <Text style={[styles.heroGlyph, on && styles.heroGlyphOn]}>{on ? '♥' : '♡'}</Text>
         <Text style={[styles.heroLabel, on && styles.heroLabelOn]}>
-          {on ? 'Favorited' : 'Favorite'}
+          {on ? 'Saved' : 'Save'}
         </Text>
       </Pressable>
     );
@@ -75,13 +75,16 @@ export function FavoriteButton({
 
 const styles = StyleSheet.create({
   // ── Hero variant ─────────────────────────────────────────────────
+  // Sized to match the LIVE badge + ConditionPill md in the spot-detail
+  // header row (both are 20px tall). Slightly taller (24px) so it still
+  // feels tappable, but no longer dominates the neighboring pills.
   heroBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    height: 36,
-    paddingHorizontal: 14,
-    borderRadius: radius.sm,
+    gap: 5,
+    height: 24,
+    paddingHorizontal: 10,
+    borderRadius: 4,
     backgroundColor: colors.surface1,
     borderWidth: 1,
     borderColor: colors.hairlineStrong,
@@ -91,17 +94,18 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(247,55,38,0.40)',
   },
   heroGlyph: {
-    fontSize: 16,
+    fontSize: 12,
     color: colors.text2,
-    lineHeight: 18,
+    lineHeight: 14,
   },
   heroGlyphOn: {
     color: colors.nogo,
   },
   heroLabel: {
     fontFamily: fonts.body,
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: '600',
+    letterSpacing: 0.4,
     color: colors.text2,
   },
   heroLabelOn: {
