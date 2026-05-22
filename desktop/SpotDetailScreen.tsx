@@ -12,6 +12,7 @@ import {
 } from './tokens';
 import { DesktopNav } from './components/DesktopNav';
 import { ConditionPill } from './components/ConditionPill';
+import { FavoriteButton } from './components/FavoriteButton';
 import { DiveReportCard, type DiveReportCardProps } from './components/DiveReportCard';
 import { KaiCastMap } from './components/maps/KaiCastMap';
 import { useBreakpoint, pick } from './hooks/useBreakpoint';
@@ -192,7 +193,7 @@ export function SpotDetailScreen({ activeNav = 'forecast', onNavigate, params }:
 
       <View style={[styles.maxWidth, { paddingHorizontal: sidePad }]}>
         <Breadcrumb onNavigate={onNavigate} />
-        <Hero />
+        <Hero onNavigate={onNavigate} />
         <ForecastStrip />
         <TabBar tab={tab} onTab={setTab} />
         {tab === 'Forecast'   ? <ForecastTabBody  onNavigate={onNavigate} /> : null}
@@ -250,7 +251,7 @@ function Breadcrumb({ onNavigate }: { onNavigate?: NavigateFn }) {
 
 // ─── Hero ─────────────────────────────────────────────────────────────────
 
-function Hero() {
+function Hero({ onNavigate }: { onNavigate?: NavigateFn }) {
   const spot = useSpotCtx();
   const { data: report, loading } = useReportCtx();
   // Real satellite tile centered on this spot's coords. Falls back to
@@ -301,6 +302,7 @@ function Hero() {
               <Text style={styles.liveText}>LIVE</Text>
             </View>
             <ConditionPill tier={tier} size="md" />
+            <FavoriteButton spotId={spot.id} variant="hero" returnTo="spot-detail" onNavigate={onNavigate} />
           </View>
         </View>
 

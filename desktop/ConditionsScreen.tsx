@@ -11,6 +11,7 @@ import {
 import { DesktopNav } from './components/DesktopNav';
 import { ConditionPill } from './components/ConditionPill';
 import { SpotCard } from './components/SpotCard';
+import { useFavorites } from './hooks/useFavorites';
 import type { NavigateFn } from './router';
 
 /**
@@ -168,16 +169,22 @@ export function ConditionsScreen({ activeNav = 'forecast', onNavigate }: Conditi
   const [diveTypeFilter, setDiveTypeFilter] = React.useState<string | null>(null);
   const [mySpotsOnly, setMySpotsOnly] = React.useState(false);
   const [viewMode, setViewMode] = React.useState<'table' | 'grid'>('table');
+  const favs = useFavorites();
 
   const filterRow = React.useCallback(
     (s: SpotRow): boolean => {
       const tabTier = TAB_TO_TIER[activeFilter];
       if (tabTier && s.rating !== tabTier) return false;
       if (visFilter && !visMatches(s.vis, visFilter)) return false;
-      if (mySpotsOnly && !MY_SPOTS.has(s.name)) return false;
+      // "My spots" reads from the per-user favorites hook. Spot row names
+      // are slugified to match the canonical SPOTS ids; if a row's name
+      // doesn't map cleanly (some rows here aren't in data/spots.ts) it
+      // simply won't ever match a favorite — same behavior as the old
+      // hardcoded set.
+      if (mySpotsOnly && !favs.isFavorite(slugify(s.name))) return false;
       return true;
     },
-    [activeFilter, visFilter, mySpotsOnly],
+    [activeFilter, visFilter, mySpotsOnly, favs],
   );
 
   return (

@@ -13,6 +13,8 @@ import { DesktopNav } from './components/DesktopNav';
 import { ConditionPill } from './components/ConditionPill';
 import { KaiCastMap, HAWAII_CENTER, HAWAII_ZOOM, type MapMarker } from './components/maps/KaiCastMap';
 import { useBreakpoint, pick } from './hooks/useBreakpoint';
+import { useFavorites } from './hooks/useFavorites';
+import { FavoriteButton } from './components/FavoriteButton';
 import { SPOTS as CANONICAL_SPOTS } from './data/spots';
 import { useSpotRatings, useSpotReport, tierFromRating, type BackendReport } from './data/getReport';
 import type mapboxgl from 'mapbox-gl';
@@ -110,9 +112,9 @@ const FRIENDS = [
   { initials: 'MH', name: 'Marcus H.',  activity: "at Shark's Cove · Spearfishing",   when: '32M' },
 ];
 
-// Favorites set powering the sidebar "Favorites" tab — matches the spots
-// listed under "My spots" elsewhere in the app for consistency.
-const FAVORITE_SPOTS = new Set(['Electric Beach', "Shark's Cove", 'Molokini Crater', 'Mokulua Islands']);
+// Sidebar "Favorites" tab is now powered by the per-user useFavorites
+// hook (localStorage-backed). The Sidebar component reads from it
+// directly via favs.isFavorite(spot.id) in matchTab().
 
 // "Nearby" cutoff for the Nearby tab. Distance is parsed out of the
 // region string ("Leeward · 4.2 mi · ⚠ Runoff") since the data is flat
@@ -263,9 +265,10 @@ function Sidebar({
   ratings: Map<string, ConditionTier>;
 }) {
   const q = search.trim().toLowerCase();
+  const favs = useFavorites();
 
   const matchTab = (spot: SidebarSpot): boolean => {
-    if (tab === 'Favorites') return FAVORITE_SPOTS.has(spot.name);
+    if (tab === 'Favorites') return favs.isFavorite(spot.id);
     if (tab === 'Nearby') {
       const mi = parseMiles(spot.region);
       return mi !== null && mi <= NEARBY_MAX_MI;
@@ -351,6 +354,7 @@ function Sidebar({
                   onHoverIn={() => onHover(s.name)}
                   onHoverOut={() => onHover(undefined)}
                   onOpen={() => onNavigate?.('spot-detail', { spotId: slugify(s.name) })}
+                  onNavigate={onNavigate}
                 />
               ))}
             </View>
@@ -368,6 +372,7 @@ function SidebarSpotRow({
   onHoverIn,
   onHoverOut,
   onOpen,
+  onNavigate,
 }: {
   spot: SidebarSpot;
   selected: boolean;
@@ -375,6 +380,7 @@ function SidebarSpotRow({
   onHoverIn: () => void;
   onHoverOut: () => void;
   onOpen: () => void;
+  onNavigate?: NavigateFn;
 }) {
   // Single press selects (syncs map pin); double press / second tap on
   // already-selected row opens the spot detail page.
@@ -400,6 +406,7 @@ function SidebarSpotRow({
       {spot.rating ? (
         <ConditionPill tier={spot.rating} size="sm" label={shortTier(spot.rating)} />
       ) : null}
+      <FavoriteButton spotId={spot.id} variant="icon" returnTo="spots-map" onNavigate={onNavigate} />
     </Pressable>
   );
 }
