@@ -56,6 +56,7 @@ const SIDEBAR_NAV = [
 import { findSpot as findCanonicalSpot } from './data/spots';
 import { useSpotRatings, useSpotReport, tierFromRating, bestWindowLabel, type BackendReport } from './data/getReport';
 import { useFavorites } from './hooks/useFavorites';
+import { useAuth } from './hooks/useAuth';
 const FAVORITE_IDS: ReadonlyArray<string> = [];
 
 // Default favorite spots shown on the dashboard only when the user
@@ -303,7 +304,7 @@ function Main({
 }) {
   return (
     <ScrollView style={styles.main} contentContainerStyle={styles.mainContent}>
-      <WelcomeBanner onNavigate={onNavigate} />
+      <WelcomeBanner onNavigate={onNavigate} favorites={favorites} />
       <StatsRow />
       <ArchipelagoOverview onNavigate={onNavigate} favorites={favorites} />
       <FavoriteSpotsRow onNavigate={onNavigate} favoriteSpotIds={favorites.map((f) => f.spotId)} />
@@ -341,38 +342,93 @@ function ArchipelagoOverview({ onNavigate, favorites }: { onNavigate?: NavigateF
   );
 }
 
-function WelcomeBanner({ onNavigate }: { onNavigate?: NavigateFn }) {
+// Tier ranking — lower index is better. Used to pick the user's
+// "best favorite right now" for the welcome headline.
+const TIER_RANK: Record<ConditionTier, number> = {
+  excellent: 0, great: 1, good: 2, fair: 3, 'no-go': 4,
+};
+const TIER_HEADLINE_WORD: Record<ConditionTier, string> = {
+  excellent: 'firing',
+  great:     'great',
+  good:      'solid',
+  fair:      'fair',
+  'no-go':   'tough',
+};
+
+function WelcomeBanner({
+  onNavigate,
+  favorites,
+}: {
+  onNavigate?: NavigateFn;
+  favorites: FavoriteRow[];
+}) {
+  const auth = useAuth();
   // Live greeting + date so the banner doesn't look like a frozen mockup.
   const now = new Date();
   const hr = now.getHours();
   const greeting = hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening';
   const dateStr = now.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
   const timeStr = now.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+
+  // First name from displayName (split on whitespace). Falls through to
+  // the email local-part for accounts where displayName isn't set yet.
+  // Final fallback is "diver" so the greeting still reads as a sentence.
+  const firstName =
+    auth.user?.displayName?.trim().split(/\s+/)[0] ||
+    auth.user?.email?.split('@')[0] ||
+    'diver';
+
+  // Best favorite right now — sorted by today's live tier rank, ties
+  // broken alphabetically by name so the same spot stays headlined as
+  // long as the rating holds. Null when the user hasn't favorited
+  // anything yet.
+  const topFav = favorites.length === 0
+    ? null
+    : [...favorites].sort((a, b) => {
+        const r = TIER_RANK[a.rating] - TIER_RANK[b.rating];
+        return r !== 0 ? r : a.name.localeCompare(b.name);
+      })[0];
+
   return (
     <View style={styles.welcomeBanner}>
       <View style={styles.welcomeText}>
-        <Text style={styles.welcomeGreeting}>{greeting}, Dawson.</Text>
+        <Text style={styles.welcomeGreeting}>{greeting}, {firstName}.</Text>
         <Text style={styles.welcomeMeta}>{dateStr} · {timeStr}</Text>
-        <Text style={styles.welcomeHeadline}>
-          <Text style={styles.welcomeHeadlineSpot}>Electric Beach</Text>
-          {' is firing — '}
-          <Text style={styles.welcomeHeadlineTier}>EXCELLENT</Text>
-          {' right now'}
+
+        {topFav ? (
+          <Text style={styles.welcomeHeadline}>
+            <Text style={styles.welcomeHeadlineSpot}>{topFav.name}</Text>
+            {` is ${TIER_HEADLINE_WORD[topFav.rating]} — `}
+            <Text style={styles.welcomeHeadlineTier}>{topFav.rating.toUpperCase()}</Text>
+            {' right now'}
+          </Text>
+        ) : (
+          <Text style={styles.welcomeHeadline}>
+            Find spots you love, then we'll surface their best windows here.
+          </Text>
+        )}
+        <Text style={styles.welcomeSub}>
+          {topFav
+            ? `Check the forecast strip below for the next 7 days.`
+            : `Browse the map — tap the heart on any spot to make it yours.`}
         </Text>
-        <Text style={styles.welcomeSub}>Trades drop at 5pm · peak window incoming</Text>
 
         <View style={styles.welcomeButtonRow}>
           <Pressable
             style={[styles.welcomeBtn, styles.welcomeBtnPrimary]}
-            onPress={() => onNavigate?.('log-dive')}
+            onPress={() => onNavigate?.(topFav ? 'log-dive' : 'spots-map')}
           >
-            <Text style={styles.welcomeBtnPrimaryText}>Log a dive</Text>
+            <Text style={styles.welcomeBtnPrimaryText}>
+              {topFav ? 'Log a dive' : 'Find your spots'}
+            </Text>
           </Pressable>
           <Pressable
             style={styles.welcomeBtn}
-            onPress={() => onNavigate?.('spots-map')}
+            onPress={() => onNavigate?.(topFav ? 'spot-detail' : 'spots-map', topFav ? { spotId: topFav.spotId } : undefined)}
           >
-            <Text style={styles.welcomeBtnText}>Explore spots</Text>
+            <Text style={styles.welcomeBtnText}>
+              {topFav ? `Open ${topFav.name}` : 'Explore spots'}
+            </Text>
           </Pressable>
         </View>
       </View>
