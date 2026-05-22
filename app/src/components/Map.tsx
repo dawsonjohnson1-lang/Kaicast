@@ -5,6 +5,19 @@ import Svg, { Circle, Path } from 'react-native-svg';
 
 import { colors, spacing, typography } from '@/theme';
 import { mapboxSatelliteUrl, satelliteUrl, projectLatLonToImage, fitPointsToViewport } from '@/api/satellite';
+import {
+  KAICAST_MAP_STYLE,
+  HAWAII_CENTER,
+  HAWAII_ZOOM,
+  SPOT_FOCUS_ZOOM,
+  MARKER_RADIUS_UNSELECTED,
+  MARKER_RADIUS_SELECTED,
+  MARKER_STROKE_WIDTH,
+  MARKER_STROKE_COLOR,
+  HALO_RADIUS,
+  HALO_OPACITY,
+  spotsToGeoJSON,
+} from '@/theme/mapStyle';
 import type { Spot } from '@/types';
 
 // Pixel-grid clustering radius. Pins whose projected screen positions
@@ -26,14 +39,20 @@ const SHEET_COVER_FRAC = 0.55;
 let Mapbox: any = null;
 let MapView: any = null;
 let Camera: any = null;
-let PointAnnotation: any = null;
+let ShapeSource: any = null;
+let CircleLayer: any = null;
 try {
   if (Platform.OS !== 'web') {
     const mod = require('@rnmapbox/maps');
     Mapbox = mod.default;
     MapView = mod.MapView;
     Camera = mod.Camera;
-    PointAnnotation = mod.PointAnnotation;
+    // ShapeSource + CircleLayer is the GeoJSON-driven rendering path —
+    // way more reliable than PointAnnotation, which has known re-render
+    // bugs when child styling (selected state) changes. Style expressions
+    // also let selection + tier color flow from feature properties.
+    ShapeSource = mod.ShapeSource;
+    CircleLayer = mod.CircleLayer;
   }
 } catch {
   // Native module not linked (Expo Go) — fall back to FauxMap.
@@ -56,41 +75,112 @@ if (Mapbox && useMapbox) {
 
 type SpotMapProps = {
   spots: Spot[];
+  /** Currently-selected spot id. Marker grows + gets a halo ring. */
+  selectedSpotId?: string | null;
+  /** Fires when a marker is tapped. Parent typically selects + centers. */
   onSpotPress?: (spot: Spot) => void;
-  /** Tap-handler when a cluster of 2+ spots is pressed. */
+  /** Fires when an empty area of the map is tapped — used to deselect. */
+  onMapPress?: () => void;
+  /**
+   * Legacy cluster-tap handler from the old static-image FauxMap. The
+   * live Mapbox surface doesn't cluster (it pans/zooms), so this only
+   * fires on the FauxMap fallback path.
+   */
   onClusterPress?: (spots: Spot[]) => void;
 };
 
-export function SpotMap({ spots, onSpotPress, onClusterPress }: SpotMapProps) {
+export function SpotMap({
+  spots,
+  selectedSpotId,
+  onSpotPress,
+  onMapPress,
+  onClusterPress,
+}: SpotMapProps) {
   if (!useMapbox) return <FauxMap spots={spots} onSpotPress={onSpotPress} onClusterPress={onClusterPress} />;
+
+  // Camera follows the selected spot — pan/zoom to spot-focus when
+  // selected, archipelago overview otherwise. Mirrors desktop's
+  // MapColumn behavior in SpotsMapScreen.tsx.
+  const selected = selectedSpotId ? spots.find((s) => s.id === selectedSpotId) : null;
+  const center: [number, number] = selected ? [selected.lon, selected.lat] : HAWAII_CENTER;
+  const zoom = selected ? SPOT_FOCUS_ZOOM : HAWAII_ZOOM;
+
+  const geojson = useMemo(() => spotsToGeoJSON(spots), [spots]);
+  const spotsById = useMemo(() => new Map(spots.map((s) => [s.id, s])), [spots]);
+
+  // Selected-id passed into Mapbox layer style expressions. We coerce
+  // null/undefined to an empty string so the `==` comparison in the
+  // expression has a stable type (Mapbox expressions don't tolerate
+  // null in equality cleanly).
+  const selectedExprValue = selectedSpotId ?? '';
+
+  const onShapePress = (e: any) => {
+    const feature = e?.features?.[0];
+    const id = feature?.properties?.id as string | undefined;
+    if (!id) return;
+    const spot = spotsById.get(id);
+    if (spot && onSpotPress) onSpotPress(spot);
+  };
 
   return (
     <View style={StyleSheet.absoluteFill}>
       <MapView
         style={StyleSheet.absoluteFill}
-        styleURL="mapbox://styles/mapbox/satellite-streets-v12"
+        styleURL={KAICAST_MAP_STYLE}
         logoEnabled={false}
         attributionEnabled={false}
         compassEnabled={false}
         scaleBarEnabled={false}
+        // Mobile parity with desktop: pan + pinch-zoom only. No
+        // rotate/pitch — diving conditions are a 2D problem and
+        // pitch+rotate were giving people accidental 3D views.
+        rotateEnabled={false}
+        pitchEnabled={false}
+        onPress={() => onMapPress?.()}
       >
-        <Camera centerCoordinate={[-157.85, 20.9]} zoomLevel={6.2} animationMode="none" />
-        {spots.map((spot) => (
-          <PointAnnotation
-            key={spot.id}
-            id={spot.id}
-            coordinate={[spot.lon, spot.lat]}
-            onSelected={() => onSpotPress?.(spot)}
-          >
-            <View style={pinStyles.outer}>
-              <View style={pinStyles.inner} />
-            </View>
-          </PointAnnotation>
-        ))}
+        <Camera
+          centerCoordinate={center}
+          zoomLevel={zoom}
+          animationMode="easeTo"
+          animationDuration={600}
+        />
+
+        <ShapeSource id="kaicast-spots" shape={geojson} onPress={onShapePress}>
+          {/* Halo: rendered first so the marker circle sits on top.
+              Mapbox renders sibling CircleLayers in document order,
+              earlier = beneath. Opacity is 0 except for the selected
+              feature, where it goes to HALO_OPACITY. */}
+          <CircleLayer
+            id="kaicast-spots-halo"
+            style={{
+              circleColor: ['get', 'color'],
+              circleRadius: HALO_RADIUS,
+              circleOpacity: [
+                'case',
+                ['==', ['get', 'id'], selectedExprValue],
+                HALO_OPACITY,
+                0,
+              ],
+              circlePitchAlignment: 'map',
+            }}
+          />
+          <CircleLayer
+            id="kaicast-spots-circles"
+            style={{
+              circleColor: ['get', 'color'],
+              circleRadius: [
+                'case',
+                ['==', ['get', 'id'], selectedExprValue],
+                MARKER_RADIUS_SELECTED,
+                MARKER_RADIUS_UNSELECTED,
+              ],
+              circleStrokeColor: MARKER_STROKE_COLOR,
+              circleStrokeWidth: MARKER_STROKE_WIDTH,
+              circlePitchAlignment: 'map',
+            }}
+          />
+        </ShapeSource>
       </MapView>
-      {/* Nighttime tint overlay. pointerEvents=none so pan/zoom still
-          reach the underlying MapView untouched. */}
-      <NightOverlay />
     </View>
   );
 }

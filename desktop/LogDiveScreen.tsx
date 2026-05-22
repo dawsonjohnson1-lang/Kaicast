@@ -8,6 +8,7 @@ import {
 } from './tokens';
 import { DesktopNav } from './components/DesktopNav';
 import { KaiCastMap, HAWAII_CENTER, HAWAII_ZOOM, type MapMarker } from './components/maps/KaiCastMap';
+import { CertEligibilityBadge, evaluateEligibility, type DiveForBadge } from './components/CertEligibilityBadge';
 import { useBreakpoint, pick } from './hooks/useBreakpoint';
 import type { NavigateFn } from './router';
 
@@ -45,6 +46,28 @@ const PICKER_SPOTS: Array<{ name: string; lat: number; lng: number }> = [
 
 // ─── Form state ───────────────────────────────────────────────────────────
 
+/**
+ * Form state.
+ *
+ * SCUBA-specific fields (everything under "// scuba: ...") only matter
+ * when diveType === 'Scuba'. They power the cert-eligibility logic
+ * (see components/CertEligibilityBadge.tsx) so a dive can count toward
+ * PADI / SSI / NAUI / SDI advanced + pro-level certifications.
+ *
+ * Fields NOT yet captured here (flagged TODO for future passes):
+ *  - Tank size/material, BCD/regulator model, entry/exit method
+ *  - Wreck/Cave/Drift/Altitude/Ice conditional reveals (only Night +
+ *    Deep are wired in v1; the others follow the same pattern)
+ *  - Drawn signature pad + remote sign flow (typed name is the only
+ *    signatureMethod for now; remote sign is the bigger UX project)
+ *  - Auto-populated dive number + repetitive-dive surface interval
+ *    (need Firestore query against the user's prior logs)
+ *  - Dive computer profile upload + parsing
+ */
+type VerificationType = 'self' | 'buddy' | 'instructor';
+export type AgencyOption = 'PADI' | 'SSI' | 'NAUI' | 'SDI' | 'RAID' | 'CMAS' | 'BSAC' | 'GUE' | 'TDI' | 'Other';
+export type BuddyCertLevel = 'OW' | 'AOW' | 'Rescue' | 'DM' | 'Instructor' | 'Other';
+
 interface FormState {
   diveType: string;
   spot: string;
@@ -75,6 +98,42 @@ interface FormState {
   recommend: string;
   reefHealth: string;
   shareToCommunity: boolean;
+
+  // ── SCUBA-specific (cert-eligibility) ───────────────────────────
+
+  /**
+   * Top-level mode toggle. OFF (default) = casual log; ON = cert-grade
+   * official entry. When ON, the form runs full validation against the
+   * agency-canonical required-field set before allowing publish.
+   * Casual dives never count toward any cert level.
+   */
+  isOfficial: boolean;
+
+  scubaSubtypes: string[];       // multi-select of Boat/Shore/Drift/Night/Deep/Wreck/Cave/etc
+  waterTempDepth: number;        // °F at depth (vs surface waterTemp above)
+  surfaceInterval: number;       // minutes since previous dive — TODO autocompute from Firestore
+  diveComputer: string;          // free text, e.g. "Shearwater Teric"
+
+  // Verification — this is what makes a dive count for cert credit.
+  verificationType: VerificationType;
+  verifierName: string;
+  verifierCertLevel: BuddyCertLevel;     // only used when verificationType === 'buddy'
+  verifierAgency: AgencyOption;          // only used when verificationType === 'instructor'
+  verifierCertNumber: string;
+  verifierSignatureTyped: string;        // typed-name acknowledgment
+  verificationDate: string;              // MM / DD / YYYY
+
+  // Conditional reveals — populated only when the matching subtype is
+  // selected. Other subtypes (Wreck/Cave/Drift/Altitude/Ice) follow
+  // the same pattern but aren't wired yet.
+  nightLightSource: string;
+  nightAmbientLight: string;
+  nightVisibility: number;
+
+  deepConfirmedFromComputer: boolean;
+  deepNarcosisExperienced: boolean;
+  deepNarcosisNotes: string;
+  deepGasPlan: string;
 }
 
 // Blank-slate form for a brand-new dive entry. Today's date is filled
@@ -118,7 +177,55 @@ const INITIAL_FORM: FormState = {
   recommend: 'Definitely',
   reefHealth: 'Healthy',
   shareToCommunity: true,
+
+  // SCUBA defaults — blank/safe initial state.
+  isOfficial: false,
+  scubaSubtypes: [],
+  waterTempDepth: 0,
+  surfaceInterval: 0,
+  diveComputer: '',
+  verificationType: 'self',
+  verifierName: '',
+  verifierCertLevel: 'OW',
+  verifierAgency: 'PADI',
+  verifierCertNumber: '',
+  verifierSignatureTyped: '',
+  verificationDate: todayString(),
+
+  nightLightSource: 'Primary + backup',
+  nightAmbientLight: 'New moon / dark',
+  nightVisibility: 0,
+
+  deepConfirmedFromComputer: false,
+  deepNarcosisExperienced: false,
+  deepNarcosisNotes: '',
+  deepGasPlan: '',
 };
+
+// Multi-select SCUBA dive subtype chips (Section 02 sub-block).
+// Selecting Night reveals the night-specific block; Deep reveals the
+// deep-specific block; the rest (Wreck/Cave/Drift/Altitude/Ice) are
+// captured in the multi-select but their reveal blocks are flagged
+// TODO — same shape as Night/Deep, just more fields.
+const SCUBA_DIVE_SUBTYPES = [
+  'Boat', 'Shore', 'Drift', 'Night', 'Deep', 'Wreck',
+  'Cave', 'Cavern', 'Ice', 'Altitude', 'Reef', 'Wall',
+  'Training', 'Search & Recovery',
+] as const;
+
+const AGENCY_OPTIONS: ReadonlyArray<AgencyOption> = [
+  'PADI', 'SSI', 'NAUI', 'SDI', 'RAID', 'CMAS', 'BSAC', 'GUE', 'TDI', 'Other',
+];
+const BUDDY_CERT_LEVELS: ReadonlyArray<BuddyCertLevel> = [
+  'OW', 'AOW', 'Rescue', 'DM', 'Instructor', 'Other',
+];
+
+const NIGHT_LIGHT_OPTIONS = [
+  'Primary only', 'Primary + backup', 'Primary + backup + chemlight', 'Other',
+];
+const NIGHT_AMBIENT_OPTIONS = [
+  'New moon / dark', 'Quarter moon', 'Half moon', 'Full moon', 'Dusk/dawn',
+];
 
 // Per-field option lists for cycling SelectFields (no real dropdowns yet —
 // click cycles to the next option; predictable on a keyboard-less prototype).
@@ -506,10 +613,37 @@ function LeftPreview({
         </View>
       </Pressable>
 
-      {/* Primary CTA */}
+      {/* Cert-eligibility badge — official dives only. */}
+      {form.diveType === 'Scuba' && form.isOfficial ? (
+        <View style={styles.certBadgeWrap}>
+          <Text style={styles.certBadgeLabel}>CERT ELIGIBILITY</Text>
+          <CertEligibilityBadge
+            dive={{
+              isOfficial: form.isOfficial,
+              verificationType: form.verificationType,
+              verifierName: form.verifierName,
+              verifierCertNumber: form.verifierCertNumber,
+              verifierAgency: form.verifierAgency,
+              verifierSignatureTyped: form.verifierSignatureTyped,
+              spot: form.spot,
+              depthMax: form.depthMax,
+              bottomTime: form.bottomTime,
+              gasMix: form.gasMix,
+              waterTemp: form.waterTemp,
+              visibility: form.visibility,
+              buddy: form.buddy,
+              scubaSubtypes: form.scubaSubtypes,
+            }}
+          />
+        </View>
+      ) : null}
+
+      {/* Primary CTA — label flips to "Sign and publish" when official. */}
       <Pressable style={styles.publishBtn} onPress={onPublish}>
         <Text style={styles.publishBtnIcon}>↑</Text>
-        <Text style={styles.publishBtnText}>Publish dive log</Text>
+        <Text style={styles.publishBtnText}>
+          {form.diveType === 'Scuba' && form.isOfficial ? 'Sign and publish' : 'Publish dive log'}
+        </Text>
       </Pressable>
       <Pressable style={styles.draftBtn} onPress={onSaveDraft}>
         <Text style={styles.draftBtnText}>
@@ -573,8 +707,25 @@ function RightForm({ form, update }: { form: FormState; update: Update }) {
     : form.ratingStars >= 1 ? 'Tough dive'
     : 'Not rated';
 
+  const missingForOfficial = form.diveType === 'Scuba' && form.isOfficial
+    ? computeMissingOfficialFields(form)
+    : [];
+
   return (
     <View style={styles.rightCol}>
+      {missingForOfficial.length > 0 ? (
+        <MissingFieldsBanner
+          missing={missingForOfficial}
+          onTurnOff={() => update('isOfficial', false)}
+        />
+      ) : null}
+      {form.diveType === 'Scuba' && form.isOfficial && missingForOfficial.length === 0 ? (
+        <View style={styles.bannerReady}>
+          <Text style={styles.bannerReadyText}>
+            ✓ All required fields complete. Ready to sign and publish.
+          </Text>
+        </View>
+      ) : null}
       <Section step="01" title="Where & When" subtitle="— spot, date, and time">
         <ComboField
           label="Dive spot"
@@ -622,6 +773,39 @@ function RightForm({ form, update }: { form: FormState; update: Update }) {
             );
           })}
         </View>
+
+        {form.diveType === 'Scuba' ? (
+          <SubSection title="SCUBA subtype — pick all that apply">
+            <View style={styles.chipGrid}>
+              {SCUBA_DIVE_SUBTYPES.map((s) => {
+                const selected = form.scubaSubtypes.includes(s);
+                return (
+                  <Pressable
+                    key={s}
+                    onPress={() => {
+                      const next = selected
+                        ? form.scubaSubtypes.filter((x) => x !== s)
+                        : [...form.scubaSubtypes, s];
+                      update('scubaSubtypes', next);
+                    }}
+                    style={[styles.scubaSubtypeChip, selected && styles.scubaSubtypeChipActive]}
+                  >
+                    <Text style={[styles.scubaSubtypeText, selected && styles.scubaSubtypeTextActive]}>
+                      {s}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </SubSection>
+        ) : null}
+
+        {form.diveType === 'Scuba' ? (
+          <OfficialToggle
+            value={form.isOfficial}
+            onChange={(v) => update('isOfficial', v)}
+          />
+        ) : null}
       </Section>
 
       <Section step="03" title="Dive Stats">
@@ -667,7 +851,100 @@ function RightForm({ form, update }: { form: FormState; update: Update }) {
             {form.thermoclinePresent ? 'Thermocline detected' : 'No thermocline detected'}
           </Text>
         </Pressable>
+
+        {form.diveType === 'Scuba' ? (
+          <SubSection title="At-depth water temperature">
+            <Row2>
+              <StepperField
+                label="Water temp at depth"
+                value={form.waterTempDepth}
+                unit="°F"
+                onChange={(v) => update('waterTempDepth', v)}
+              />
+              <NumericField
+                label="Dive computer"
+                value={form.diveComputer}
+                onChange={(v) => update('diveComputer', v)}
+              />
+            </Row2>
+          </SubSection>
+        ) : null}
       </Section>
+
+      {form.diveType === 'Scuba' && form.scubaSubtypes.includes('Night') ? (
+        <Section step="N1" title="Night Dive Details" subtitle="— specialty-dive specifics">
+          <Row2>
+            <SelectField
+              label="Light source"
+              value={form.nightLightSource}
+              options={NIGHT_LIGHT_OPTIONS}
+              onChange={(v) => update('nightLightSource', v)}
+            />
+            <SelectField
+              label="Ambient light"
+              value={form.nightAmbientLight}
+              options={NIGHT_AMBIENT_OPTIONS}
+              onChange={(v) => update('nightAmbientLight', v)}
+            />
+          </Row2>
+          <Row2>
+            <StepperField
+              label="Visibility (night)"
+              value={form.nightVisibility}
+              unit="ft"
+              onChange={(v) => update('nightVisibility', v)}
+              min={0}
+            />
+            <View />
+          </Row2>
+        </Section>
+      ) : null}
+
+      {form.diveType === 'Scuba' &&
+       (form.scubaSubtypes.includes('Deep') || Number(form.depthMax) > 60) ? (
+        <Section step="D1" title="Deep Dive Details" subtitle="— required for deep specialty">
+          <Pressable
+            style={styles.thermoclineRow}
+            onPress={() => update('deepConfirmedFromComputer', !form.deepConfirmedFromComputer)}
+          >
+            <View style={[styles.toggleTrack, !form.deepConfirmedFromComputer && styles.toggleTrackOff]}>
+              <View style={[styles.toggleThumb, !form.deepConfirmedFromComputer && styles.toggleThumbOff]} />
+            </View>
+            <Text style={styles.thermoclineLabel}>
+              Max depth confirmed from dive computer
+            </Text>
+          </Pressable>
+          <Pressable
+            style={styles.thermoclineRow}
+            onPress={() => update('deepNarcosisExperienced', !form.deepNarcosisExperienced)}
+          >
+            <View style={[styles.toggleTrack, !form.deepNarcosisExperienced && styles.toggleTrackOff]}>
+              <View style={[styles.toggleThumb, !form.deepNarcosisExperienced && styles.toggleThumbOff]} />
+            </View>
+            <Text style={styles.thermoclineLabel}>
+              Narcosis symptoms experienced
+            </Text>
+          </Pressable>
+          {form.deepNarcosisExperienced ? (
+            <TextAreaField
+              label="Narcosis notes"
+              placeholder="What did you experience? At what depth? How did you manage it?"
+              value={form.deepNarcosisNotes}
+              onChange={(v) => update('deepNarcosisNotes', v)}
+            />
+          ) : null}
+          <TextAreaField
+            label="Gas plan"
+            placeholder="e.g. Air to 100ft, EAN50 deco at 20ft"
+            value={form.deepGasPlan}
+            onChange={(v) => update('deepGasPlan', v)}
+          />
+        </Section>
+      ) : null}
+
+      {form.diveType === 'Scuba' && form.isOfficial ? (
+        <VerificationBlock form={form} update={update} />
+      ) : null}
 
       <Section step="05" title="Marine Life" subtitle="— what did you see?">
         <View style={styles.marineGrid}>
@@ -772,6 +1049,249 @@ function SpotMapPicker({ value, onPick }: { value: string; onPick: (name: string
         </View>
       ) : null}
     </View>
+  );
+}
+
+// ─── "Make official" toggle + cert-eligibility helpers ──────────────────
+
+/**
+ * Top-level mode toggle for SCUBA dives. When ON, the form runs full
+ * validation against the agency-canonical required-field set before
+ * publish. When OFF (default), the dive is a casual log and skips
+ * verification + cert credit entirely.
+ */
+function OfficialToggle({
+  value,
+  onChange,
+}: {
+  value: boolean;
+  onChange: (next: boolean) => void;
+}) {
+  return (
+    <Pressable
+      onPress={() => onChange(!value)}
+      style={[styles.officialToggle, value && styles.officialToggleOn]}
+    >
+      <View style={styles.officialToggleText}>
+        <View style={styles.officialToggleTitleRow}>
+          <Text style={styles.officialToggleTitle}>Make official</Text>
+          {value ? (
+            <View style={styles.officialBadge}>
+              <Text style={styles.officialBadgeText}>OFFICIAL · CERT-ELIGIBLE</Text>
+            </View>
+          ) : null}
+        </View>
+        <Text style={styles.officialToggleSub}>
+          {value
+            ? 'Official logbook entry — all required fields must be completed before sign + publish.'
+            : 'Cert-grade entry. Counts toward AOW, Rescue, DM, Instructor logbook requirements. Requires buddy or instructor verification before submit.'}
+        </Text>
+      </View>
+      <View style={[styles.toggleTrack, !value && styles.toggleTrackOff]}>
+        <View style={[styles.toggleThumb, !value && styles.toggleThumbOff]} />
+      </View>
+    </Pressable>
+  );
+}
+
+/**
+ * Returns the list of missing required fields for an official scuba
+ * entry. Field labels match what the banner surfaces to the user.
+ * Caller is expected to gate on `form.isOfficial && form.diveType === 'Scuba'`.
+ */
+function computeMissingOfficialFields(form: FormState): string[] {
+  const missing: string[] = [];
+  if (!form.spot) missing.push('Dive spot');
+  if (!form.bottomTime || Number(form.bottomTime) <= 0) missing.push('Bottom time');
+  if (!form.depthMax || Number(form.depthMax) <= 0) missing.push('Max depth');
+  if (!form.startPressure) missing.push('Start pressure');
+  if (!form.endPressure) missing.push('End pressure');
+  if (!form.gasMix) missing.push('Gas mix');
+  if (!form.weightUsed) missing.push('Weight used');
+  if (!form.wetsuitThickness) missing.push('Exposure suit');
+  if (!form.waterTemp) missing.push('Water temperature');
+  if (!form.visibility) missing.push('Visibility');
+  if (!form.buddy) missing.push('Buddy name');
+
+  if (form.verificationType === 'self') {
+    missing.push('Verification (buddy or instructor — self-log is not eligible)');
+  } else {
+    if (!form.verifierName) {
+      missing.push(form.verificationType === 'instructor' ? 'Instructor name' : 'Buddy name (verifier)');
+    }
+    if (form.verificationType === 'instructor') {
+      if (!form.verifierAgency) missing.push('Verifier agency');
+      if (!form.verifierCertNumber) missing.push('Verifier cert / member number');
+    }
+    if (!form.verifierSignatureTyped) missing.push('Verifier signature acknowledgment');
+  }
+
+  // Conditional required fields tied to specialty subtypes
+  if (form.scubaSubtypes.includes('Night') && !form.nightLightSource) {
+    missing.push('Night-dive light source');
+  }
+  if ((form.scubaSubtypes.includes('Deep') || Number(form.depthMax) > 60) && !form.deepConfirmedFromComputer) {
+    missing.push('Confirm max depth from dive computer (deep dive)');
+  }
+
+  return missing;
+}
+
+/**
+ * Sticky-style banner shown above the form when "Make official" is on
+ * but required fields are missing. Lists missing fields and gives a
+ * one-click escape hatch to turn the toggle back off so the user can
+ * save as a casual log.
+ */
+function MissingFieldsBanner({
+  missing,
+  onTurnOff,
+}: {
+  missing: string[];
+  onTurnOff: () => void;
+}) {
+  return (
+    <View style={styles.bannerMissing}>
+      <Text style={styles.bannerMissingTitle}>
+        ⚠ {missing.length} required field{missing.length === 1 ? '' : 's'} missing for official entry
+      </Text>
+      <View style={styles.bannerMissingList}>
+        {missing.slice(0, 6).map((m) => (
+          <Text key={m} style={styles.bannerMissingItem}>· {m}</Text>
+        ))}
+        {missing.length > 6 ? (
+          <Text style={styles.bannerMissingItem}>· +{missing.length - 6} more</Text>
+        ) : null}
+      </View>
+      <View style={styles.bannerMissingActions}>
+        <Pressable style={styles.bannerMissingBtn} onPress={onTurnOff}>
+          <Text style={styles.bannerMissingBtnText}>Turn off "Make official"</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+// ─── Verification block (cert-eligibility) ───────────────────────────────
+
+function VerificationBlock({ form, update }: { form: FormState; update: Update }) {
+  const VERIFICATION_OPTIONS: Array<{ value: VerificationType; label: string; sub: string }> = [
+    { value: 'self',       label: 'Self-logged',                 sub: 'No cert credit toward pro levels' },
+    { value: 'buddy',      label: 'Buddy verified',              sub: 'Counts toward AOW, Rescue' },
+    { value: 'instructor', label: 'Instructor / Divemaster',     sub: 'Required for DM + Instructor credit' },
+  ];
+
+  return (
+    <Section
+      step="V1"
+      title="Verification"
+      subtitle="— required for pro-level certifications (DM, Instructor)"
+    >
+      <View style={styles.verifRadioGroup}>
+        {VERIFICATION_OPTIONS.map((opt) => {
+          const selected = opt.value === form.verificationType;
+          return (
+            <Pressable
+              key={opt.value}
+              onPress={() => update('verificationType', opt.value)}
+              style={[styles.verifRadioRow, selected && styles.verifRadioRowActive]}
+            >
+              <View style={[styles.verifRadio, selected && styles.verifRadioActive]}>
+                {selected ? <View style={styles.verifRadioDot} /> : null}
+              </View>
+              <View style={styles.verifRadioText}>
+                <Text style={[styles.verifRadioLabel, selected && styles.verifRadioLabelActive]}>
+                  {opt.label}
+                </Text>
+                <Text style={styles.verifRadioSub}>{opt.sub}</Text>
+              </View>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      {form.verificationType === 'buddy' ? (
+        <SubSection title="Buddy details">
+          <Row2>
+            <NumericField
+              label="Buddy name"
+              value={form.verifierName}
+              onChange={(v) => update('verifierName', v)}
+            />
+            <SelectField
+              label="Buddy cert level"
+              value={form.verifierCertLevel}
+              options={BUDDY_CERT_LEVELS as readonly string[]}
+              onChange={(v) => update('verifierCertLevel', v as BuddyCertLevel)}
+            />
+          </Row2>
+          <Row2>
+            <NumericField
+              label="Cert # (optional)"
+              value={form.verifierCertNumber}
+              onChange={(v) => update('verifierCertNumber', v)}
+            />
+            <NumericField
+              label="Date verified"
+              value={form.verificationDate}
+              onChange={(v) => update('verificationDate', v)}
+            />
+          </Row2>
+          <NumericField
+            label="Type buddy name as acknowledgment"
+            value={form.verifierSignatureTyped}
+            onChange={(v) => update('verifierSignatureTyped', v)}
+          />
+          <Text style={styles.verifTodo}>
+            🔒 Send-to-buddy signing link · coming soon
+          </Text>
+        </SubSection>
+      ) : null}
+
+      {form.verificationType === 'instructor' ? (
+        <SubSection title="Instructor / Divemaster details">
+          <Row2>
+            <NumericField
+              label="Instructor name"
+              value={form.verifierName}
+              onChange={(v) => update('verifierName', v)}
+            />
+            <SelectField
+              label="Agency"
+              value={form.verifierAgency}
+              options={AGENCY_OPTIONS as readonly string[]}
+              onChange={(v) => update('verifierAgency', v as AgencyOption)}
+            />
+          </Row2>
+          <Row2>
+            <NumericField
+              label="Cert / member number"
+              value={form.verifierCertNumber}
+              onChange={(v) => update('verifierCertNumber', v)}
+            />
+            <NumericField
+              label="Date verified"
+              value={form.verificationDate}
+              onChange={(v) => update('verificationDate', v)}
+            />
+          </Row2>
+          <NumericField
+            label="Type instructor name as acknowledgment"
+            value={form.verifierSignatureTyped}
+            onChange={(v) => update('verifierSignatureTyped', v)}
+          />
+          <Text style={styles.verifTodo}>
+            🔒 Send-to-instructor signing link + drawn-signature pad · coming soon
+          </Text>
+        </SubSection>
+      ) : null}
+
+      {form.verificationType === 'self' ? (
+        <Text style={styles.verifTodo}>
+          Self-logged dives still appear in your dive history and can earn AOW credit later if you add buddy/instructor verification afterward. Pro-level certs (DM, Instructor) require instructor verification.
+        </Text>
+      ) : null}
+    </Section>
   );
 }
 
@@ -2163,5 +2683,225 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     overflow: 'hidden',
     backgroundColor: colors.surface0,
+  },
+
+  // ── SCUBA cert-eligibility extension ─────────────────────────────────
+  chipGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  scubaSubtypeChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.hairlineStrong,
+    backgroundColor: colors.surface0,
+  },
+  scubaSubtypeChipActive: {
+    backgroundColor: colors.accentDim,
+    borderColor: colors.accent,
+  },
+  scubaSubtypeText: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.text2,
+  },
+  scubaSubtypeTextActive: {
+    color: colors.text1,
+    fontWeight: '600',
+  },
+
+  // OfficialToggle row
+  officialToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    padding: 16,
+    marginTop: 12,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.hairlineStrong,
+    backgroundColor: colors.surface0,
+  },
+  officialToggleOn: {
+    borderColor: colors.accent,
+    backgroundColor: 'rgba(9,161,251,0.08)',
+  },
+  officialToggleText: {
+    flex: 1,
+    gap: 4,
+  },
+  officialToggleTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  officialToggleTitle: {
+    fontFamily: fonts.display,
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.text1,
+  },
+  officialToggleSub: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.text2,
+    lineHeight: 17,
+  },
+  officialBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 4,
+    backgroundColor: colors.accent,
+  },
+  officialBadgeText: {
+    fontFamily: fonts.mono,
+    fontSize: 9,
+    letterSpacing: 0.8,
+    color: '#04070d',
+    fontWeight: '700',
+  },
+
+  // MissingFieldsBanner
+  bannerMissing: {
+    padding: 16,
+    marginBottom: 16,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: 'rgba(247,55,38,0.4)',
+    backgroundColor: 'rgba(247,55,38,0.08)',
+    gap: 10,
+  },
+  bannerMissingTitle: {
+    fontFamily: fonts.display,
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.nogo,
+  },
+  bannerMissingList: {
+    gap: 2,
+    paddingLeft: 4,
+  },
+  bannerMissingItem: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.text1,
+    lineHeight: 18,
+  },
+  bannerMissingActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 6,
+  },
+  bannerMissingBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.hairlineStrong,
+    backgroundColor: colors.surface1,
+  },
+  bannerMissingBtnText: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.text1,
+    fontWeight: '500',
+  },
+  bannerReady: {
+    padding: 12,
+    marginBottom: 16,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: 'rgba(39,214,103,0.35)',
+    backgroundColor: 'rgba(39,214,103,0.10)',
+  },
+  bannerReadyText: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.great,
+  },
+
+  // VerificationBlock
+  verifRadioGroup: {
+    gap: 8,
+  },
+  verifRadioRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    padding: 12,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.hairlineStrong,
+    backgroundColor: colors.surface0,
+  },
+  verifRadioRowActive: {
+    borderColor: colors.accent,
+    backgroundColor: 'rgba(9,161,251,0.08)',
+  },
+  verifRadio: {
+    width: 16,
+    height: 16,
+    borderRadius: 999,
+    borderWidth: 1.5,
+    borderColor: colors.hairlineStrong,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
+  },
+  verifRadioActive: {
+    borderColor: colors.accent,
+  },
+  verifRadioDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: colors.accent,
+  },
+  verifRadioText: {
+    flex: 1,
+    gap: 2,
+  },
+  verifRadioLabel: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: '500',
+    color: colors.text2,
+  },
+  verifRadioLabelActive: {
+    color: colors.text1,
+    fontWeight: '600',
+  },
+  verifRadioSub: {
+    fontFamily: fonts.body,
+    fontSize: 11,
+    color: colors.text3,
+  },
+  verifTodo: {
+    fontFamily: fonts.body,
+    fontSize: 11,
+    color: colors.text3,
+    fontStyle: 'italic',
+    lineHeight: 16,
+    marginTop: 4,
+  },
+
+  // Cert badge wrap in LeftPreview
+  certBadgeWrap: {
+    padding: 12,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.hairlineStrong,
+    backgroundColor: colors.surface0,
+    gap: 8,
+  },
+  certBadgeLabel: {
+    fontFamily: fonts.mono,
+    fontSize: 9,
+    letterSpacing: 1,
+    color: colors.text3,
   },
 });

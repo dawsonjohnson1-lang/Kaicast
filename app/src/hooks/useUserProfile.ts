@@ -57,9 +57,12 @@ export function useUserProfile(uid: string | undefined): State & { refresh: () =
             profile: {
               uid,
               email: data.email,
-              name: data.name,
+              // Prefer canonical Firestore keys (displayName/photoURL),
+              // fall back to legacy (name/photoUrl) until the migration
+              // script has run on every existing user doc.
+              name: data.displayName ?? data.name,
               handle: data.handle,
-              photoUrl: data.photoUrl,
+              photoUrl: data.photoURL ?? data.photoUrl,
               firstName: data.firstName,
               lastName: data.lastName,
               nickname: data.nickname,

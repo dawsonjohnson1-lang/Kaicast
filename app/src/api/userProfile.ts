@@ -2,13 +2,22 @@
 // configured, falls back to AsyncStorage so the onboarding form still
 // produces a record in demo mode.
 //
-// Schema (users/{uid}):
-//   email, name, handle, photoUrl,
+// Canonical schema (matches desktop — see /Users/dawsonjohnson/Kaicast/
+// functions/migrations/unify_user_schema.js):
+//
+//   displayName  (was: `name` pre-2026-05)
+//   photoURL     (was: `photoUrl` pre-2026-05)
+//   handle, email, bio,
 //   homeIsland, homeTown, homeSpot,
-//   activities[] (multi-select dive types from onboarding),
-//   experienceLevel, yearsActive,
+//   activities[], experienceLevel, yearsActive, certification,
 //   firstName, lastName, nickname,
-//   updatedAt, createdAt
+//   onboardingComplete, updatedAt, createdAt
+//
+// The mobile RN UI was written against `name`/`photoUrl`; the internal
+// `UserProfile` type retains those names so existing screens don't have
+// to be touched. Read path accepts either canonical or legacy keys;
+// write path emits only canonical names. The migration script renames
+// existing prod docs in a one-shot batch.
 
 import {
   doc,
@@ -52,30 +61,55 @@ export type UserProfile = {
 
 export type UserProfileInput = Omit<UserProfile, 'uid' | 'updatedAt' | 'createdAt'>;
 
+/**
+ * Map a raw Firestore doc to the internal UserProfile shape. Prefers
+ * canonical (`displayName`, `photoURL`) keys but falls back to legacy
+ * (`name`, `photoUrl`) for any docs the migration hasn't touched yet.
+ * Internal type still surfaces `name`/`photoUrl` so RN screens don't
+ * have to change.
+ */
+function fromFirestore(uid: string, data: any): UserProfile {
+  return {
+    uid,
+    email: data.email,
+    name: data.displayName ?? data.name,
+    handle: data.handle,
+    photoUrl: data.photoURL ?? data.photoUrl,
+    firstName: data.firstName,
+    lastName: data.lastName,
+    nickname: data.nickname,
+    homeIsland: data.homeIsland,
+    homeTown: data.homeTown,
+    homeSpot: data.homeSpot,
+    activities: data.activities,
+    experienceLevel: data.experienceLevel,
+    yearsActive: data.yearsActive,
+    certification: data.certification,
+    onboardingComplete: data.onboardingComplete === true,
+    updatedAt: data.updatedAt?.toDate?.() ?? null,
+    createdAt: data.createdAt?.toDate?.() ?? null,
+  };
+}
+
+/**
+ * Map an internal UserProfileInput to the canonical Firestore payload.
+ * Renames `name` → `displayName`, `photoUrl` → `photoURL`. All other
+ * fields pass through unchanged.
+ */
+function toFirestore(input: UserProfileInput): Record<string, unknown> {
+  const { name, photoUrl, ...rest } = input;
+  const payload: Record<string, unknown> = { ...rest };
+  if (name !== undefined) payload.displayName = name;
+  if (photoUrl !== undefined) payload.photoURL = photoUrl;
+  return payload;
+}
+
 /** Read the profile for a given uid. Returns null if no profile exists. */
 export async function getUserProfile(uid: string): Promise<UserProfile | null> {
   if (firebaseConfigured && db) {
     const snap = await getDoc(doc(db, 'users', uid));
     if (!snap.exists()) return null;
-    const data = snap.data() as any;
-    return {
-      uid,
-      email: data.email,
-      name: data.name,
-      handle: data.handle,
-      photoUrl: data.photoUrl,
-      firstName: data.firstName,
-      lastName: data.lastName,
-      nickname: data.nickname,
-      homeIsland: data.homeIsland,
-      homeTown: data.homeTown,
-      homeSpot: data.homeSpot,
-      activities: data.activities,
-      experienceLevel: data.experienceLevel,
-      yearsActive: data.yearsActive,
-      updatedAt: data.updatedAt?.toDate?.() ?? null,
-      createdAt: data.createdAt?.toDate?.() ?? null,
-    };
+    return fromFirestore(uid, snap.data());
   }
   // Stub fallback.
   const raw = await AsyncStorage.getItem(STUB_KEY_PREFIX + uid);
@@ -87,8 +121,8 @@ export async function setUserProfile(uid: string, input: UserProfileInput): Prom
   if (firebaseConfigured && db) {
     const ref = doc(db, 'users', uid);
     const existing = await getDoc(ref);
-    const payload: any = {
-      ...input,
+    const payload: Record<string, unknown> = {
+      ...toFirestore(input),
       updatedAt: serverTimestamp(),
     };
     if (!existing.exists()) {

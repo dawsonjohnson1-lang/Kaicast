@@ -1553,6 +1553,12 @@ exports.submitDiveLog  = require('./submitDiveLog').submitDiveLog;
 exports.deleteDiveLog  = require('./submitDiveLog').deleteDiveLog;
 exports.archiveHourly  = require('./archiveHourly').archiveHourly;
 
+// User stats aggregation — recomputes /users/{uid}/stats/summary on
+// every diveLogs write. Only writer to that doc; both clients read it
+// directly rather than computing stats at render. See aggregations/
+// userStats.js for the trigger and field semantics.
+exports.aggregateUserStats = require('./aggregations/userStats').aggregateUserStats;
+
 // Legacy onDiveLogCreated trigger removed — its responsibilities
 // (ingesting reported_vis vs predicted_vis into abyss_diver_reports)
 // are now part of the submitDiveLog callable, with the same data

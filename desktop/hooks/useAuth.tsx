@@ -14,10 +14,12 @@ import React from 'react';
 import {
   GoogleAuthProvider,
   createUserWithEmailAndPassword,
+  getRedirectResult,
   onAuthStateChanged,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signInWithPopup,
+  signInWithRedirect,
   signOut as fbSignOut,
   updateProfile,
   type User,
@@ -46,6 +48,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
       return;
     }
+    // Complete any pending redirect-based Google sign-in. When popup
+    // is blocked we fall back to signInWithRedirect; this consumes the
+    // result on the next page load. Silent on no-op.
+    getRedirectResult(auth).catch((err) => {
+      // eslint-disable-next-line no-console
+      console.warn('[auth] redirect result error', err);
+    });
     return onAuthStateChanged(auth, (u) => {
       setUser(u);
       setLoading(false);
@@ -73,7 +82,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     },
     signInGoogle: async () => {
       const a = requireAuth();
-      await signInWithPopup(a, new GoogleAuthProvider());
+      const provider = new GoogleAuthProvider();
+      // Some browsers (Safari with strict tracking, or any environment
+      // with popup blockers) silently kill the popup. We try popup
+      // first because it's better UX (no full-page redirect), but fall
+      // back to redirect for the second try.
+      try {
+        await signInWithPopup(a, provider);
+      } catch (err) {
+        const code = (err as { code?: string })?.code ?? '';
+        if (
+          code === 'auth/popup-blocked' ||
+          code === 'auth/popup-closed-by-user' ||
+          code === 'auth/cancelled-popup-request' ||
+          code === 'auth/operation-not-supported-in-this-environment'
+        ) {
+          await signInWithRedirect(a, provider);
+          return;
+        }
+        throw err;
+      }
     },
     resetPassword: async (email) => {
       await sendPasswordResetEmail(requireAuth(), email);

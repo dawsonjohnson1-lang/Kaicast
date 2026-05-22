@@ -55,12 +55,12 @@ const SIDEBAR_NAV = [
 // (the user's saved spots) is empty until they actually star one.
 import { findSpot as findCanonicalSpot } from './data/spots';
 import { useSpotRatings, useSpotReport, tierFromRating, bestWindowLabel, type BackendReport } from './data/getReport';
+import { useFavorites } from './hooks/useFavorites';
 const FAVORITE_IDS: ReadonlyArray<string> = [];
 
-// Default favorite spots shown on the dashboard until per-user
-// favorites are wired. These render as SpotCards with live data
-// pulled from getReport (rating, visibility, water temp, swell,
-// best window) so the cards never go stale.
+// Default favorite spots shown on the dashboard only when the user
+// hasn't hearted any spots yet. Once they pick favorites, the
+// FavoriteSpotsRow renders their actual list instead (see hook).
 const DEFAULT_FAVORITE_SPOT_IDS: ReadonlyArray<string> = [
   'electric-beach',
   'sharks-cove',
@@ -131,14 +131,31 @@ export function DashboardScreen({ activeNav = 'dashboard', onNavigate }: Dashboa
   const sidebarW = pick(bp, 240, 200);
   const railW = pick(bp, 340, 260);
 
-  // Pull live rating tier per favorite from getReport (cached, one fetch
-  // per id) so the colored dots and map pins reflect today's conditions
-  // instead of the static placeholder shipped in BASE_FAVORITES.
-  const favoriteIds = React.useMemo(() => BASE_FAVORITES.map((f) => f.spotId), []);
+  // Real favorites from the per-user useFavorites hook. Resolves each
+  // favorited spotId to its canonical record (lat/lon/name/region) via
+  // findCanonicalSpot, then layers today's live tier on top through
+  // useSpotRatings. IDs that no longer exist in SPOTS (e.g. user
+  // favorited something we later deleted from data/spots.ts) silently
+  // drop out instead of rendering as a broken row.
+  const favs = useFavorites();
+  const favoriteIds = React.useMemo(() => [...favs.ids], [favs.ids]);
   const liveRatings = useSpotRatings(favoriteIds);
-  const favorites = React.useMemo(
-    () => BASE_FAVORITES.map((f) => ({ ...f, rating: liveRatings.get(f.spotId) ?? f.rating })),
-    [liveRatings],
+  const favorites: FavoriteRow[] = React.useMemo(
+    () =>
+      favoriteIds
+        .map((id) => {
+          const spot = findCanonicalSpot(id);
+          if (!spot) return null;
+          return {
+            name: spot.name,
+            rating: liveRatings.get(id) ?? ('good' as ConditionTier),
+            lat: spot.lat,
+            lng: spot.lon,
+            spotId: spot.id,
+          };
+        })
+        .filter((f): f is FavoriteRow => !!f),
+    [favoriteIds, liveRatings],
   );
 
   return (
@@ -160,7 +177,16 @@ export function DashboardScreen({ activeNav = 'dashboard', onNavigate }: Dashboa
   );
 }
 
-type FavoriteRow = (typeof BASE_FAVORITES)[number];
+// Shape the Sidebar / Main / ArchipelagoOverview expect for each favorite.
+// Used to live as `(typeof BASE_FAVORITES)[number]` back when this list was
+// hardcoded; now BASE_FAVORITES is always empty, so we declare it explicitly.
+type FavoriteRow = {
+  name: string;
+  rating: ConditionTier;
+  lat: number;
+  lng: number;
+  spotId: string;
+};
 
 // ─── Left sidebar ─────────────────────────────────────────────────────────
 
@@ -192,16 +218,27 @@ function Sidebar({ onNavigate, favorites }: { onNavigate?: NavigateFn; favorites
 
       <View style={styles.sidebarSection}>
         <Text style={styles.sidebarGroupLabel}>FAVORITES</Text>
-        {favorites.map((f) => (
+        {favorites.length === 0 ? (
           <Pressable
-            key={f.name}
-            onPress={() => onNavigate?.('spot-detail', { spotId: slugify(f.name) })}
-            style={styles.sidebarFavRow}
+            onPress={() => onNavigate?.('spots-map')}
+            style={styles.sidebarFavEmpty}
           >
-            <View style={[styles.sidebarFavDot, { backgroundColor: TIER_COLORS[f.rating] }]} />
-            <Text style={styles.sidebarFavName}>{f.name}</Text>
+            <Text style={styles.sidebarFavEmptyText}>
+              No favorites yet — open a spot and tap the heart to save it.
+            </Text>
           </Pressable>
-        ))}
+        ) : (
+          favorites.map((f) => (
+            <Pressable
+              key={f.spotId}
+              onPress={() => onNavigate?.('spot-detail', { spotId: f.spotId })}
+              style={styles.sidebarFavRow}
+            >
+              <View style={[styles.sidebarFavDot, { backgroundColor: TIER_COLORS[f.rating] }]} />
+              <Text style={styles.sidebarFavName}>{f.name}</Text>
+            </Pressable>
+          ))
+        )}
       </View>
 
       <View style={styles.sidebarDivider} />
@@ -257,13 +294,19 @@ function slugify(s: string): string {
 
 // ─── Main ─────────────────────────────────────────────────────────────────
 
-function Main({ onNavigate, favorites }: { onNavigate?: NavigateFn; favorites: FavoriteRow[] }) {
+function Main({
+  onNavigate,
+  favorites,
+}: {
+  onNavigate?: NavigateFn;
+  favorites: FavoriteRow[];
+}) {
   return (
     <ScrollView style={styles.main} contentContainerStyle={styles.mainContent}>
       <WelcomeBanner onNavigate={onNavigate} />
       <StatsRow />
       <ArchipelagoOverview onNavigate={onNavigate} favorites={favorites} />
-      <FavoriteSpotsRow onNavigate={onNavigate} />
+      <FavoriteSpotsRow onNavigate={onNavigate} favoriteSpotIds={favorites.map((f) => f.spotId)} />
       <HeatmapSection onNavigate={onNavigate} />
       <RecentDivesSection />
     </ScrollView>
@@ -352,15 +395,38 @@ function StatsRow() {
   );
 }
 
-function FavoriteSpotsRow({ onNavigate }: { onNavigate?: NavigateFn }) {
+function FavoriteSpotsRow({
+  onNavigate,
+  favoriteSpotIds,
+}: {
+  onNavigate?: NavigateFn;
+  favoriteSpotIds: string[];
+}) {
+  const hasFavorites = favoriteSpotIds.length > 0;
+  // When the user has no favorites yet, surface the three popular
+  // starter spots so the row isn't an empty rectangle — and mark the
+  // section accordingly so they know to click the heart on one.
+  const idsToShow = hasFavorites ? favoriteSpotIds.slice(0, 6) : DEFAULT_FAVORITE_SPOT_IDS;
+
   return (
     <View style={styles.sectionBlock}>
       <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Favorite spots</Text>
-        <Text style={styles.sectionLink}>Manage favorites →</Text>
+        <Text style={styles.sectionTitle}>
+          {hasFavorites ? 'Your favorite spots' : 'Popular spots'}
+        </Text>
+        <Pressable onPress={() => onNavigate?.('spots-map')}>
+          <Text style={styles.sectionLink}>
+            {hasFavorites ? 'Manage favorites →' : 'Find your spots →'}
+          </Text>
+        </Pressable>
       </View>
+      {!hasFavorites ? (
+        <Text style={styles.favCardsHint}>
+          Tap the heart on any spot to pin it here.
+        </Text>
+      ) : null}
       <View style={styles.favCardsRow}>
-        {DEFAULT_FAVORITE_SPOT_IDS.map((spotId) => (
+        {idsToShow.map((spotId) => (
           <LiveFavoriteCard key={spotId} spotId={spotId} onNavigate={onNavigate} />
         ))}
       </View>
@@ -675,6 +741,28 @@ const styles = StyleSheet.create({
     fontFamily: fonts.body,
     fontSize: 13,
     color: colors.text2,
+  },
+  sidebarFavEmpty: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginHorizontal: 4,
+    borderRadius: radius.sm,
+    backgroundColor: colors.surface0,
+    borderWidth: 1,
+    borderColor: colors.hairline,
+  },
+  sidebarFavEmptyText: {
+    fontFamily: fonts.body,
+    fontSize: 11,
+    color: colors.text3,
+    lineHeight: 15,
+  },
+  favCardsHint: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.text3,
+    fontStyle: 'italic',
+    marginBottom: 4,
   },
   sidebarLogRow: {
     flexDirection: 'row',

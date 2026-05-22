@@ -45,6 +45,10 @@ export function ExploreScreen() {
   // spot ids — re-fits the viewport to that subset so they spread
   // apart visually. Null means "show every spot".
   const [focusedIds, setFocusedIds] = useState<string[] | null>(null);
+  // Selected-spot id. First tap on a marker selects (pans/zooms +
+  // shows halo); second tap on the same marker navigates to detail.
+  // Mirrors desktop's SpotsMapScreen selection model.
+  const [selectedSpotId, setSelectedSpotId] = useState<string | null>(null);
   const sheetRef = useRef<BottomSheet>(null);
   // Sheet's top-edge Y position (px from screen top). Tracks the sheet
   // through drag gestures and snap animations so the FAB above it can
@@ -110,7 +114,17 @@ export function ExploreScreen() {
         />
         <SpotMap
           spots={mapSpots}
-          onSpotPress={(spot) => nav.navigate('SpotDetail', { spotId: spot.id })}
+          selectedSpotId={selectedSpotId}
+          onSpotPress={(spot) => {
+            // Desktop pattern (SpotsMapScreen.tsx:387): first tap selects,
+            // second tap on already-selected marker opens detail.
+            if (selectedSpotId === spot.id) {
+              nav.navigate('SpotDetail', { spotId: spot.id });
+            } else {
+              setSelectedSpotId(spot.id);
+            }
+          }}
+          onMapPress={() => setSelectedSpotId(null)}
           onClusterPress={(clusterSpots) => setFocusedIds(clusterSpots.map((s) => s.id))}
         />
         <View style={styles.appBarPad} pointerEvents="box-none">
