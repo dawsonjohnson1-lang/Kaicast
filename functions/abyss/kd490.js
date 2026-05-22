@@ -42,7 +42,7 @@ const logger = require('firebase-functions/logger');
 // we recover quickly from a transient outage without hammering.
 const CACHE_TTL_OK_MS    = 7 * 24 * 3600 * 1000;
 const CACHE_TTL_FAIL_MS  = 30 * 60 * 1000;
-const GRID_STEP          = 0.04; // ~4 km — coarser than dataset for dedupe
+const GRID_STEP          = 0.01; // ~1 km — fine enough that adjacent spots get distinct cache entries (dataset native res is 2 km)
 const FETCH_TIMEOUT_MS   = 6000; // tight — if ERDDAP is slow we want to give up + serve heuristic
 
 const ERDDAP_BASE = 'https://coastwatch.noaa.gov/erddap/griddap';
@@ -266,7 +266,16 @@ function kd490ToVisibility(kd490) {
     };
   }
   const secchiDepthM = 1.7 / kd490;
-  const visibilityEstimateM = Math.round(secchiDepthM * 2.5 * 10) / 10;
+  // Horizontal vis = secchi × 2.5 in theory, but real diver visibility
+  // plateaus around 20-25 m even when satellite KD490 says "cleaner."
+  // Apply a soft saturation above 15 m so two spots with KD490=0.02
+  // vs 0.03 don't both pin at the 40 m theoretical max — they show
+  // distinct 22 m vs 24 m. Hard cap at 25 m (≈82 ft) since that's
+  // about the realistic ceiling Hawaii spots ever see in practice.
+  const rawVisM = secchiDepthM * 2.5;
+  const visibilityEstimateM = rawVisM <= 15
+    ? Math.round(rawVisM * 10) / 10
+    : Math.round((15 + (25 - 15) * (1 - Math.exp(-(rawVisM - 15) / 8))) * 10) / 10;
   const lightAt5mPercent  = Math.round(Math.exp(-kd490 *  5) * 1000) / 10;
   const lightAt10mPercent = Math.round(Math.exp(-kd490 * 10) * 1000) / 10;
   const lightAt20mPercent = Math.round(Math.exp(-kd490 * 20) * 1000) / 10;

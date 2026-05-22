@@ -683,13 +683,10 @@ function buildLiveMetrics(report: BackendReport): MetricCell[] {
   const v = report.now?.visibility ?? {};
   const tide = (report.now?.tide ?? {}) as Record<string, unknown>;
 
-  // Cap displayed visibility at 80 ft — the backend's
-  // `estimatedVisibilityFeet` is a satellite-derived theoretical max
-  // (40m = 131ft) on the clearest water. Realistic diver vis in
-  // Hawaii tops out around 60-80ft, and showing 130+ creates a UX
-  // mismatch with the per-hour forecast which never reads that high.
-  const rawVisFt = (v as { estimatedVisibilityFeet?: number }).estimatedVisibilityFeet;
-  const visFt = rawVisFt == null ? rawVisFt : Math.min(80, rawVisFt);
+  // Backend now produces realistic 5-82ft visibility numbers via a
+  // saturated KD490 curve (functions/abyss/kd490.js), so no display
+  // clamp needed — distinct spots show distinct vis.
+  const visFt = (v as { estimatedVisibilityFeet?: number }).estimatedVisibilityFeet;
   const visTone = visFt == null ? colors.text3
     : visFt >= 50 ? colors.great
     : visFt >= 30 ? colors.good
