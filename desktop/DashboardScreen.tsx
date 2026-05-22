@@ -480,17 +480,34 @@ function FavoriteSpotsRow({
 
   // Layout: each card is exactly 1/3 of the row width with a 12px gap
   // between cards. When there are ≤3 favorites the row fills exactly;
-  // with more, the row horizontal-scrolls so the user can swipe to
-  // additional cards while the 3-up grid feel stays consistent.
-  // We measure the visible row width via onLayout so per-card widths
-  // can be computed precisely; before first measure we render at flex:1
-  // (no scroll until we know the width).
+  // with more, the row horizontal-scrolls (and the prev/next arrow
+  // buttons below give explicit affordance since macOS hides the
+  // scrollbar when idle).
   const [rowWidth, setRowWidth] = React.useState(0);
+  const [scrollX, setScrollX] = React.useState(0);
+  const scrollRef = React.useRef<ScrollView | null>(null);
   const cardGap = 12;
   const cardWidth = rowWidth > 0
     ? Math.floor((rowWidth - cardGap * 2) / 3)
     : null;
   const scrollable = idsToShow.length > 3 && cardWidth != null;
+
+  // Each "page" of scroll = 3 card widths plus the gaps between.
+  const pageStep = cardWidth != null ? cardWidth * 3 + cardGap * 3 : 0;
+  // Furthest scroll position = (total card width) - (visible row width).
+  const maxScroll = cardWidth != null
+    ? Math.max(0, idsToShow.length * cardWidth + (idsToShow.length - 1) * cardGap - rowWidth)
+    : 0;
+  const canScrollLeft = scrollable && scrollX > 1;
+  const canScrollRight = scrollable && scrollX < maxScroll - 1;
+  const currentPage = pageStep > 0 ? Math.round(scrollX / pageStep) + 1 : 1;
+  const totalPages = pageStep > 0 ? Math.ceil(idsToShow.length / 3) : 1;
+
+  const scrollByPage = (dir: -1 | 1) => {
+    if (!scrollRef.current || pageStep === 0) return;
+    const next = Math.max(0, Math.min(maxScroll, scrollX + dir * pageStep));
+    scrollRef.current.scrollTo({ x: next, animated: true });
+  };
 
   return (
     <View style={styles.sectionBlock}>
@@ -498,11 +515,34 @@ function FavoriteSpotsRow({
         <Text style={styles.sectionTitle}>
           {hasFavorites ? 'Your favorite spots' : 'Popular spots'}
         </Text>
-        <Pressable onPress={() => onNavigate?.('spots-map')}>
-          <Text style={styles.sectionLink}>
-            {hasFavorites ? 'Manage favorites →' : 'Find your spots →'}
-          </Text>
-        </Pressable>
+        <View style={styles.favHeaderActions}>
+          {scrollable ? (
+            <>
+              <Text style={styles.favPageCounter}>
+                {currentPage} / {totalPages}
+              </Text>
+              <Pressable
+                onPress={() => scrollByPage(-1)}
+                disabled={!canScrollLeft}
+                style={[styles.favArrowBtn, !canScrollLeft && styles.favArrowBtnDisabled]}
+              >
+                <Text style={[styles.favArrowText, !canScrollLeft && styles.favArrowTextDisabled]}>‹</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => scrollByPage(1)}
+                disabled={!canScrollRight}
+                style={[styles.favArrowBtn, !canScrollRight && styles.favArrowBtnDisabled]}
+              >
+                <Text style={[styles.favArrowText, !canScrollRight && styles.favArrowTextDisabled]}>›</Text>
+              </Pressable>
+            </>
+          ) : null}
+          <Pressable onPress={() => onNavigate?.('spots-map')}>
+            <Text style={styles.sectionLink}>
+              {hasFavorites ? 'Manage favorites →' : 'Find your spots →'}
+            </Text>
+          </Pressable>
+        </View>
       </View>
       {!hasFavorites ? (
         <Text style={styles.favCardsHint}>
@@ -518,11 +558,14 @@ function FavoriteSpotsRow({
         </Text>
       )}
       <ScrollView
+        ref={scrollRef}
         horizontal
         showsHorizontalScrollIndicator={scrollable}
         scrollEnabled={scrollable}
         contentContainerStyle={{ gap: cardGap }}
         onLayout={(e) => setRowWidth(e.nativeEvent.layout.width)}
+        onScroll={(e) => setScrollX(e.nativeEvent.contentOffset.x)}
+        scrollEventThrottle={16}
       >
         {idsToShow.map((spotId) => (
           <View
@@ -1144,6 +1187,42 @@ const styles = StyleSheet.create({
   favCardsRow: {
     flexDirection: 'row',
     gap: 12,
+  },
+  favHeaderActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  favPageCounter: {
+    fontFamily: fonts.mono,
+    fontSize: 11,
+    color: colors.text3,
+    letterSpacing: 0.6,
+    minWidth: 32,
+    textAlign: 'right',
+  },
+  favArrowBtn: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.hairlineStrong,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface1,
+  },
+  favArrowBtnDisabled: {
+    opacity: 0.35,
+  },
+  favArrowText: {
+    fontFamily: fonts.display,
+    fontSize: 16,
+    lineHeight: 18,
+    color: colors.text1,
+    marginTop: -2,
+  },
+  favArrowTextDisabled: {
+    color: colors.text3,
   },
   favCardLoading: {
     fontFamily: fonts.mono,
