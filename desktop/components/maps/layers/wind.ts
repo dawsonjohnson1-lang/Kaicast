@@ -1,17 +1,23 @@
 /**
- * Wind layer — OpenWeatherMap `wind_new` raster.
+ * Wind layer — NWS NDFD Hawaii wind barbs.
  *
- * Switched off the NDFD Hawaii WMS to OWM because:
- *   - NDFD wind speed renders extremely subtly (light blue gradient on
- *     transparent background) — users reported "wind isn't showing
- *     anything". OWM's wind raster uses a saturated rainbow gradient
- *     that's clearly visible even at low zoom.
- *   - NDFD's WMS occasionally returns "Invalid TMS Request" text on
- *     out-of-bounds tiles which Mapbox surfaces as console errors.
- *   - We already pay for OWM (precipitation uses the same token), so
- *     no extra credentials.
+ * Switched from OWM raster (flat color gradient, looked uniform over
+ * Hawaii's tradewind belt) to NDFD's grid-barb style. Wind barbs are
+ * the standard marine/aviation glyph — they encode BOTH direction
+ * (line orientation) and speed (number of flags), so the user can
+ * actually read what the wind is doing instead of staring at one
+ * color across the whole archipelago.
  *
- * Global coverage, no bbox restriction needed. Free-tier cap is z=9.
+ * Layer variable: `ndfd.hawaii.windspd.gridbarbs.english`
+ *   - gridbarbs = barb at every grid point (vs. sparse windbarbs)
+ *   - english   = mph/kt-friendly internal calc (display is unit-less
+ *                 glyphs either way)
+ *
+ * Service quirks:
+ *   - WMS 1.1.1 (SRS not CRS)
+ *   - `vtit` dimension required; 3-hour UTC slots
+ *   - bounded to Hawaii bbox so non-HI tile requests don't surface
+ *     "Invalid TMS Request" PNGs from the service
  */
 
 import type mapboxgl from 'mapbox-gl';
@@ -19,26 +25,56 @@ import type mapboxgl from 'mapbox-gl';
 export const WIND_SOURCE_ID = 'kc-wind-src';
 export const WIND_LAYER_ID = 'kc-wind-lyr';
 
-const OWM_KEY = (import.meta as { env?: Record<string, string | undefined> }).env?.VITE_OPENWEATHER_TOKEN;
+const WMS_BASE = 'https://digital.weather.gov/ndfd.hawaii/wms';
+
+// NDFD slots are every 3h UTC. Bias 1.5h forward so we pick the slot
+// the user is currently in (rather than rounding down to the past slot
+// when they happen to load mid-period).
+function currentVtit(): string {
+  const d = new Date(Date.now() + 1.5 * 3600 * 1000);
+  d.setUTCHours(Math.floor(d.getUTCHours() / 3) * 3, 0, 0, 0);
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(d.getUTCDate()).padStart(2, '0');
+  const hh = String(d.getUTCHours()).padStart(2, '0');
+  return `${y}-${m}-${dd}T${hh}:00`;
+}
+
+function buildTileUrl(vtit: string): string {
+  return (
+    `${WMS_BASE}` +
+    `?REQUEST=GetMap` +
+    `&SERVICE=WMS` +
+    `&VERSION=1.1.1` +
+    `&LAYERS=ndfd.hawaii.windspd.gridbarbs.english` +
+    `&SRS=EPSG:3857` +
+    `&BBOX={bbox-epsg-3857}` +
+    `&WIDTH=256` +
+    `&HEIGHT=256` +
+    `&FORMAT=image/png` +
+    `&TRANSPARENT=TRUE` +
+    `&STYLES=` +
+    `&vtit=${vtit}`
+  );
+}
 
 export function addWind(map: mapboxgl.Map): void {
   if (map.getSource(WIND_SOURCE_ID)) return;
   if (!map.getStyle()) return;
-  if (!OWM_KEY) {
-    // eslint-disable-next-line no-console
-    console.warn('[wind] VITE_OPENWEATHER_TOKEN missing — wind overlay disabled');
-    return;
-  }
-
-  const tileUrl = `https://tile.openweathermap.org/map/wind_new/{z}/{x}/{y}.png?appid=${OWM_KEY}`;
 
   map.addSource(WIND_SOURCE_ID, {
     type: 'raster',
-    tiles: [tileUrl],
+    tiles: [buildTileUrl(currentVtit())],
     tileSize: 256,
-    maxzoom: 9, // OWM free-tier ceiling
+    maxzoom: 12,
+    // Restrict to Hawaii so out-of-coverage tile requests don't fire.
+    // NDFD returns "Invalid TMS Request" error PNGs for bboxes outside
+    // its service area, which Mapbox would otherwise render as visible
+    // error overlays.
+    bounds: [-161, 18, -154, 23],
+    minzoom: 4,
     attribution:
-      '© <a href="https://openweathermap.org/" target="_blank" rel="noopener">OpenWeather</a>',
+      '© <a href="https://digital.weather.gov/" target="_blank" rel="noopener">NWS NDFD</a>',
   });
 
   const anchor = map.getLayer('country-label') ? 'country-label' : undefined;
@@ -48,9 +84,9 @@ export function addWind(map: mapboxgl.Map): void {
       type: 'raster',
       source: WIND_SOURCE_ID,
       paint: {
-        // Strong enough to read the rainbow gradient over the dark
-        // basemap; low enough the islands stay legible.
-        'raster-opacity': 0.65,
+        // Barbs are thin black glyphs on transparent — high opacity
+        // so they're actually visible on the dark basemap.
+        'raster-opacity': 1.0,
         'raster-fade-duration': 200,
       },
     },

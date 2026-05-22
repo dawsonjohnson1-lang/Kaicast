@@ -1,9 +1,10 @@
 /**
- * Lightweight route map for the desktop preview.
+ * Route table + URL ↔ route serialization for the desktop SPA.
  *
- * Not a real router (no URL parsing, no history) — a typed enum of
- * destinations plus an optional `params` shelf that screens use when
- * navigation needs to carry context (e.g. which spot to open).
+ * Each RouteKey gets a real URL path (see STATIC_ROUTES below), so deep
+ * links, browser back/forward, refresh, and per-page SEO/analytics all
+ * work. App.tsx pushes to window.history on navigate() and listens to
+ * popstate to handle back/forward.
  *
  * Lives in its own file because both App.tsx and every screen import
  * the NavigateFn type, and circular imports between siblings get
@@ -58,3 +59,90 @@ export const AUTH_ROUTES: ReadonlySet<RouteKey> = new Set(['signin', 'signup']);
 // Routes that the global Footer renders below. The auth + legal screens
 // have their own footers / no chrome, so we skip them.
 export const HIDE_FOOTER_ROUTES: ReadonlySet<RouteKey> = new Set(['signin', 'signup']);
+
+// ── URL ↔ route mapping ──────────────────────────────────────────────
+// Firebase Hosting's desktop target already rewrites every path to
+// /index.html (see firebase.json), and Vite's default SPA fallback
+// handles dev refreshes — so no infra changes are needed.
+
+const STATIC_ROUTES: Record<RouteKey, string> = {
+  landing:       '/',
+  signin:        '/signin',
+  signup:        '/signup',
+  dashboard:     '/dashboard',
+  // spot-detail is dynamic; pathFor() embeds the spotId in the path.
+  // Listed here to keep the Record exhaustive over RouteKey.
+  'spot-detail': '/spot',
+  conditions:    '/conditions',
+  'spots-map':   '/spots',
+  'log-dive':    '/log-dive',
+  profile:       '/profile',
+  'my-dives':    '/my-dives',
+  community:     '/community',
+  terms:         '/terms',
+  privacy:       '/privacy',
+  cookies:       '/cookies',
+  refund:        '/refund',
+  dmca:          '/dmca',
+  aup:           '/aup',
+};
+
+const ALL_ROUTE_KEYS: ReadonlySet<string> = new Set(Object.keys(STATIC_ROUTES));
+
+/** Serialize a route + params to a URL path (with query string). */
+export function pathFor(route: RouteKey, params?: RouteParams): string {
+  let path: string;
+  if (route === 'spot-detail') {
+    path = `/spot/${encodeURIComponent(params?.spotId ?? '')}`;
+  } else {
+    path = STATIC_ROUTES[route];
+  }
+  // Sub-tab + signin returnTo ride along as query string so URLs can
+  // express them (e.g. /profile?tab=Settings, /signin?returnTo=profile).
+  const qs = new URLSearchParams();
+  if (params?.tab) qs.set('tab', params.tab);
+  if (params?.returnTo) qs.set('returnTo', params.returnTo);
+  const qsStr = qs.toString();
+  return qsStr ? `${path}?${qsStr}` : path;
+}
+
+/** Parse window.location into a route + params. Unknown paths → landing. */
+export function parseLocation(loc: { pathname: string; search: string }): {
+  route: RouteKey;
+  params?: RouteParams;
+} {
+  const qs = new URLSearchParams(loc.search);
+  const tab = qs.get('tab') ?? undefined;
+  const returnToRaw = qs.get('returnTo');
+  const returnTo = returnToRaw && ALL_ROUTE_KEYS.has(returnToRaw)
+    ? (returnToRaw as RouteKey)
+    : undefined;
+
+  const pathname = loc.pathname.replace(/\/+$/, '') || '/';
+
+  // Dynamic: /spot/:spotId
+  const spotMatch = pathname.match(/^\/spot\/([^/]+)$/);
+  if (spotMatch) {
+    const params: RouteParams = { spotId: decodeURIComponent(spotMatch[1]) };
+    if (tab) params.tab = tab;
+    if (returnTo) params.returnTo = returnTo;
+    return { route: 'spot-detail', params };
+  }
+
+  // Static routes: reverse-lookup by path.
+  for (const [route, staticPath] of Object.entries(STATIC_ROUTES) as Array<[RouteKey, string]>) {
+    if (route === 'spot-detail') continue;
+    if (staticPath === pathname) {
+      const params: RouteParams = {};
+      if (tab) params.tab = tab;
+      if (returnTo) params.returnTo = returnTo;
+      return {
+        route,
+        params: Object.keys(params).length ? params : undefined,
+      };
+    }
+  }
+
+  // Unknown path → landing. Could become a real 404 screen later.
+  return { route: 'landing' };
+}

@@ -14,7 +14,7 @@ import { ConditionPill } from './components/ConditionPill';
 import { KaiCastMap, HAWAII_CENTER, HAWAII_ZOOM, type MapMarker } from './components/maps/KaiCastMap';
 import { useBreakpoint, pick } from './hooks/useBreakpoint';
 import { SPOTS as CANONICAL_SPOTS } from './data/spots';
-import { useSpotRatings } from './data/getReport';
+import { useSpotRatings, useSpotReport, tierFromRating, type BackendReport } from './data/getReport';
 import type mapboxgl from 'mapbox-gl';
 import type { NavigateFn } from './router';
 
@@ -112,7 +112,7 @@ const FRIENDS = [
 
 // Favorites set powering the sidebar "Favorites" tab — matches the spots
 // listed under "My spots" elsewhere in the app for consistency.
-const FAVORITE_SPOTS = new Set(['Electric Beach', "Shark's Cove", 'Molokini Crater', 'Three Tables']);
+const FAVORITE_SPOTS = new Set(['Electric Beach', "Shark's Cove", 'Molokini Crater', 'Mokulua Islands']);
 
 // "Nearby" cutoff for the Nearby tab. Distance is parsed out of the
 // region string ("Leeward · 4.2 mi · ⚠ Runoff") since the data is flat
@@ -481,14 +481,20 @@ function SelectedSpotPanel({
   spot?: SidebarSpot;
   onNavigate?: NavigateFn;
 }) {
-  // Header reflects the selected spot. Below the header, the metric
-  // grid + alerts + friends rows stay on the canonical Electric Beach
-  // mock — per-spot live metrics are a backend wiring task, not part
-  // of the map-wireup pass.
+  // Use the spot's canonical id (matches Firestore `spots/`) — slugify
+  // on the name loses fidelity for spots like "Shark's Cove" or
+  // "Mokulua Islands (the Mokes)", which made the panel fall back to
+  // the static SELECTED_SPOT placeholder for several rows.
+  const spotId = spot?.id ?? 'electric-beach';
+  // Live per-spot report from the deployed getReport function.
+  const { data: report, loading } = useSpotReport(spotId);
+  // Header reflects the selected spot. Rating uses the live report's
+  // current rating when available, falling back to the sidebar's
+  // placeholder tier so the chip never shows blank.
   const name = spot?.name ?? SELECTED_SPOT.name;
   const region = spot?.region ?? SELECTED_SPOT.region;
-  const rating = spot?.rating ?? SELECTED_SPOT.rating;
-  const spotId = spot ? slugify(spot.name) : 'electric-beach';
+  const rating = report ? tierFromRating(report.now?.rating) : (spot?.rating ?? SELECTED_SPOT.rating);
+  const metrics = report ? buildLiveMetrics(report) : SELECTED_SPOT.metrics;
   return (
     <View style={styles.panel}>
       <Pressable
@@ -498,12 +504,15 @@ function SelectedSpotPanel({
         <View style={styles.panelHeaderTextWrap}>
           <Text style={styles.panelTitle}>{name}</Text>
           <Text style={styles.panelSub}>{region}</Text>
+          {loading && !report ? (
+            <Text style={[styles.panelSub, { color: colors.text4 }]}>Loading conditions…</Text>
+          ) : null}
         </View>
         <ConditionPill tier={rating} size="md" />
       </Pressable>
 
       <View style={styles.metricsGrid}>
-        {SELECTED_SPOT.metrics.map((m, i) => (
+        {metrics.map((m, i) => (
           <View
             key={m.label}
             style={[
@@ -524,7 +533,7 @@ function SelectedSpotPanel({
 
       <Pressable
         style={styles.logDiveCta}
-        onPress={() => onNavigate?.('log-dive', { spotId: 'electric-beach' })}
+        onPress={() => onNavigate?.('log-dive', { spotId })}
       >
         <View style={styles.logDiveCtaIcon}>
           <Text style={styles.logDiveCtaPlus}>+</Text>
@@ -535,7 +544,7 @@ function SelectedSpotPanel({
         </View>
       </Pressable>
 
-      <BestWindow />
+      <BestWindow report={report} />
 
       <PanelSection title="Condition alerts">
         {ALERTS.map((a, i) => (
@@ -578,28 +587,250 @@ function PanelSection({ title, children }: { title: string; children: React.Reac
   );
 }
 
-function BestWindow() {
+function BestWindow({ report }: { report: BackendReport | null }) {
+  // Derive bar tiers + peak window from the live windows[]. Each
+  // window covers 3h; bars index left-to-right across 24h. Peak is
+  // the highest-scoring window.
+  const segments: ConditionTier[] = React.useMemo(() => {
+    const wins = report?.windows ?? [];
+    if (wins.length === 0) return BEST_WINDOW_BAR;
+    return wins.slice(0, 8).map((w) => {
+      const score = Number((w.rating as { score?: number } | undefined)?.score ?? 50);
+      return score >= 80 ? 'excellent'
+        : score >= 60 ? 'great'
+        : score >= 40 ? 'good'
+        : score >= 20 ? 'fair'
+        : 'no-go';
+    });
+  }, [report]);
+
+  // Peak window: highest-scoring 3h slot. Format as "2 PM – 5 PM".
+  const peakLabel = React.useMemo(() => {
+    const wins = report?.windows ?? [];
+    if (wins.length === 0) return null;
+    let best: typeof wins[number] | null = null;
+    for (const w of wins) {
+      const s = Number((w.rating as { score?: number } | undefined)?.score ?? 0);
+      if (!best || s > Number((best.rating as { score?: number } | undefined)?.score ?? 0)) best = w;
+    }
+    if (!best?.startIso) return null;
+    const start = new Date(best.startIso);
+    if (!Number.isFinite(start.getTime())) return null;
+    const fmt = (d: Date) => d.toLocaleTimeString([], { hour: 'numeric' }).replace(' ', '');
+    const end = new Date(start.getTime() + 3 * 3600 * 1000);
+    return `${fmt(start)} – ${fmt(end)} TODAY`;
+  }, [report]);
+
+  // Mark the active peak segment in the time row.
+  const peakIdx = React.useMemo(() => {
+    if (segments.length === 0) return -1;
+    const rank = (t: ConditionTier) => ({ excellent: 4, great: 3, good: 2, fair: 1, 'no-go': 0 }[t]);
+    let bestIdx = 0;
+    for (let i = 1; i < segments.length; i++) {
+      if (rank(segments[i]) > rank(segments[bestIdx])) bestIdx = i;
+    }
+    return bestIdx;
+  }, [segments]);
+
   return (
     <View style={styles.bestWindow}>
       <Text style={styles.panelSectionTitle}>Best window today</Text>
       <View style={styles.bestWindowBar}>
-        {BEST_WINDOW_BAR.map((tier, i) => (
+        {segments.map((tier, i) => (
           <View key={i} style={[styles.bestWindowSeg, { backgroundColor: TIER_COLORS[tier] }]} />
         ))}
       </View>
       <View style={styles.bestWindowTimeRow}>
-        {['12a', '6a', '12p', '▼ 2p', '6p', '12a'].map((t, i) => (
+        {['12a', '3a', '6a', '9a', '12p', '3p', '6p', '9p', '12a'].slice(0, segments.length + 1).map((t, i) => (
           <Text
             key={i}
-            style={[styles.bestWindowTime, t.startsWith('▼') && styles.bestWindowTimeActive]}
+            style={[styles.bestWindowTime, i === peakIdx && styles.bestWindowTimeActive]}
           >
             {t}
           </Text>
         ))}
       </View>
-      <Text style={styles.bestWindowCaption}>★ PEAK WINDOW: 2 PM – 5 PM TODAY</Text>
+      {peakLabel ? (
+        <Text style={styles.bestWindowCaption}>★ PEAK WINDOW: {peakLabel}</Text>
+      ) : null}
     </View>
   );
+}
+
+// ─── Live-metric derivation ───────────────────────────────────────────────
+
+// Compass cardinal/intercardinal from a degree value (0=N, 90=E, …).
+function degToCompass(deg: number | null | undefined): string {
+  if (deg == null || !Number.isFinite(deg)) return '';
+  const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+  return dirs[Math.round(((deg % 360) / 45)) % 8];
+}
+
+const C_TO_F = (c: number) => Math.round(c * 1.8 + 32);
+const M_TO_FT = (m: number) => Math.round(m * 3.28084);
+const KT_TO_MPH = (k: number) => Math.round(k * 1.15078);
+
+type MetricCell = {
+  label: string;
+  value: string;
+  unit: string;
+  caption: string;
+  captionTone: string;
+};
+
+function buildLiveMetrics(report: BackendReport): MetricCell[] {
+  const m = report.now?.metrics ?? {};
+  const v = report.now?.visibility ?? {};
+  const tide = (report.now?.tide ?? {}) as Record<string, unknown>;
+
+  // Cap displayed visibility at 80 ft — the backend's
+  // `estimatedVisibilityFeet` is a satellite-derived theoretical max
+  // (40m = 131ft) on the clearest water. Realistic diver vis in
+  // Hawaii tops out around 60-80ft, and showing 130+ creates a UX
+  // mismatch with the per-hour forecast which never reads that high.
+  const rawVisFt = (v as { estimatedVisibilityFeet?: number }).estimatedVisibilityFeet;
+  const visFt = rawVisFt == null ? rawVisFt : Math.min(80, rawVisFt);
+  const visTone = visFt == null ? colors.text3
+    : visFt >= 50 ? colors.great
+    : visFt >= 30 ? colors.good
+    : visFt >= 15 ? colors.fair
+    : colors.nogo;
+  const visCaption = visFt == null ? '—'
+    : visFt >= 50 ? 'Excellent clarity'
+    : visFt >= 35 ? 'Good clarity'
+    : visFt >= 20 ? 'Moderate clarity'
+    : 'Poor clarity';
+
+  const waterC = m.waterTempC;
+  const waterF = waterC == null ? null : C_TO_F(waterC);
+  const waterCaption = waterF == null ? '—'
+    : waterF >= 80 ? 'Skin or 1mm'
+    : waterF >= 76 ? '3mm wetsuit'
+    : waterF >= 72 ? '5mm wetsuit'
+    : 'Thick suit + hood';
+
+  const waveM = m.waveHeightM;
+  const waveFt = waveM == null ? null : M_TO_FT(waveM);
+  const waveDir = degToCompass(m.waveDirectionDegFrom);
+  const wavePeriod = m.wavePeriodS;
+  const waveCaption = waveDir && wavePeriod
+    ? `${waveDir} · ${Math.round(wavePeriod)}s swell`
+    : waveDir || (wavePeriod ? `${Math.round(wavePeriod)}s` : '—');
+
+  const windKt = m.windSpeedKts;
+  const windMph = windKt == null ? null : KT_TO_MPH(windKt);
+  const windGustKt = m.windGustKts;
+  const windGustMph = windGustKt == null ? null : KT_TO_MPH(windGustKt);
+  const windDir = degToCompass(m.windDeg);
+  const windCaption = windDir
+    ? (windGustMph ? `${windDir} · ${windGustMph} gust` : windDir)
+    : '—';
+
+  // Wind-derived alongshore current proxy — backend doesn't ship an
+  // explicit surface current scalar today, so use the standard
+  // oceanographic rule-of-thumb: surface current ≈ 3% of wind speed.
+  const currentKt = windKt == null ? null : Math.max(0.1, Math.round(windKt * 0.03 * 10) / 10);
+  const currentCaption = currentKt == null ? '—'
+    : currentKt < 0.5 ? 'Non-existent'
+    : currentKt < 1.5 ? 'Light'
+    : currentKt < 2.5 ? 'Moderate'
+    : 'Strong';
+
+  // Tide: interpolate between the last passed event and the next one.
+  const tideEvents = collectTideEvents(tide);
+  const tideNow = interpolateTide(tideEvents, Date.now());
+  const tideTrend = tideNow ? (tideNow.rising ? '↑ Rising' : '↓ Falling') : '—';
+  const tideTone = tideNow?.rising ? colors.great : colors.text3;
+
+  return [
+    {
+      label: 'Visibility',
+      value: visFt != null ? String(visFt) : '—',
+      unit: visFt != null ? 'FT' : '',
+      caption: visCaption,
+      captionTone: visTone,
+    },
+    {
+      label: 'Water temp',
+      value: waterF != null ? String(waterF) : '—',
+      unit: waterF != null ? '°F' : '',
+      caption: waterCaption,
+      captionTone: colors.text3,
+    },
+    {
+      label: 'Wave height',
+      value: waveFt != null ? String(waveFt) : '—',
+      unit: waveFt != null ? 'FT' : '',
+      caption: waveCaption,
+      captionTone: colors.text3,
+    },
+    {
+      label: 'Wind',
+      value: windMph != null ? String(windMph) : '—',
+      unit: windMph != null ? 'MPH' : '',
+      caption: windCaption,
+      captionTone: colors.text3,
+    },
+    {
+      label: 'Current',
+      value: currentKt != null ? String(currentKt) : '—',
+      unit: currentKt != null ? 'KT' : '',
+      caption: currentCaption,
+      captionTone: colors.text3,
+    },
+    {
+      label: 'Tide',
+      value: tideNow ? tideNow.heightFt.toFixed(1) : '—',
+      unit: tideNow ? 'FT' : '',
+      caption: tideTrend,
+      captionTone: tideTone,
+    },
+  ];
+}
+
+// Pull the named tide events out of the backend's tide object and
+// sort them. The backend names them low/rising/high/falling per
+// half-cycle; we just need (timeMs, heightFt) pairs in chronological
+// order to interpolate against.
+function collectTideEvents(tide: Record<string, unknown>): Array<{ t: number; h: number }> {
+  const pairs: Array<[string, string]> = [
+    ['lowTide1Time', 'lowTide1Height'],
+    ['risingTideTime', 'risingTideHeight'],
+    ['highTideTime', 'highTideHeight'],
+    ['fallingTideTime', 'fallingTideHeight'],
+    ['lowTide2Time', 'lowTide2Height'],
+  ];
+  const events: Array<{ t: number; h: number }> = [];
+  for (const [tk, hk] of pairs) {
+    const iso = tide[tk];
+    const h = tide[hk];
+    if (typeof iso === 'string' && typeof h === 'number') {
+      const t = Date.parse(iso);
+      if (Number.isFinite(t)) events.push({ t, h });
+    }
+  }
+  return events.sort((a, b) => a.t - b.t);
+}
+
+function interpolateTide(
+  events: Array<{ t: number; h: number }>,
+  nowMs: number,
+): { heightFt: number; rising: boolean } | null {
+  if (events.length < 2) return null;
+  // Find the bracket [a, b] where a.t <= nowMs <= b.t.
+  for (let i = 0; i < events.length - 1; i++) {
+    const a = events[i];
+    const b = events[i + 1];
+    if (nowMs >= a.t && nowMs <= b.t) {
+      const frac = (nowMs - a.t) / Math.max(1, b.t - a.t);
+      const h = a.h + (b.h - a.h) * frac;
+      return { heightFt: h, rising: b.h > a.h };
+    }
+  }
+  // Beyond the last event — take last segment's direction.
+  const a = events[events.length - 2];
+  const b = events[events.length - 1];
+  return { heightFt: b.h, rising: b.h > a.h };
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────

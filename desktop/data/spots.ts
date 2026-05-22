@@ -21,7 +21,7 @@ export const SPOTS: Spot[] = [
   { id: 'electric-beach', name: "Electric Beach", region: 'Oahu', lat: 21.355, lon: -158.140 },
   { id: 'hanauma-bay', name: "Hanauma Bay", region: 'Oahu', lat: 21.266, lon: -157.694 },
   { id: 'china-walls', name: "China Walls", region: 'Oahu', lat: 21.261, lon: -157.714 },
-  { id: 'turtle-canyon', name: "Turtle Canyon", region: 'Oahu', lat: 21.398, lon: -158.170 },
+  { id: 'turtle-canyon', name: "Turtle Canyon", region: 'Oahu', lat: 21.274714, lon: -157.839682 },
   { id: 'mokulua', name: "Mokulua Islands (the Mokes)", region: 'Oahu', lat: 21.395, lon: -157.703 },
   { id: 'sharks-cove', name: "Shark's Cove", region: 'Oahu', lat: 21.6545, lon: -158.0651 },
   { id: 'turtle-reef-turtle-bay', name: "Turtle Reef/Turtle Bay", region: 'Oahu', lat: 21.708, lon: -158.005 },

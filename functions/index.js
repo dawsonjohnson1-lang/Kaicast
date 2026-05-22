@@ -511,13 +511,12 @@ const SPOTS = [
   {
     id: 'turtle-canyon',
     name: "Turtle Canyon",
-    // Leeward (west) Oahu offshore — corrected 2026-05-21 from the
-    // prior Waikiki coords; this matches the actual dive site off the
-    // Nanakuli / Maili coast.
-    lat: 21.398,
-    lon: -158.170,
+    // Offshore Waikiki between Diamond Head and the Ala Wai Harbor —
+    // the conventional boat-tour dive site. User-pinned coords.
+    lat: 21.274714,
+    lon: -157.839682,
     tz: 'Pacific/Honolulu',
-    coast: 'west',
+    coast: 'south',
     island: "Oahu",
     buoyStation: '51202',
     runoffSensitivity: 'low',

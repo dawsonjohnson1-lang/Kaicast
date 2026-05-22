@@ -42,13 +42,11 @@ interface VisibilityPoint {
 const MOCK_VISIBILITY: VisibilityPoint[] = [
   { spotId: 'electric-beach',   lng: -158.1220, lat: 21.3550, visibilityFt: 56 },
   { spotId: 'sharks-cove',      lng: -158.0617, lat: 21.6417, visibilityFt: 48 },
-  { spotId: 'three-tables',     lng: -158.0633, lat: 21.6367, visibilityFt: 45 },
   { spotId: 'pupukea-beach',    lng: -158.0500, lat: 21.6500, visibilityFt: 42 },
   { spotId: 'magic-island',     lng: -157.8458, lat: 21.2840, visibilityFt: 38 },
   { spotId: 'hanauma-bay',      lng: -157.6939, lat: 21.2694, visibilityFt: 30 },
   { spotId: 'turtle-canyon',    lng: -158.1500, lat: 21.4000, visibilityFt: 18 },
   { spotId: 'koko-crater',      lng: -157.6700, lat: 21.2820, visibilityFt: 26 },
-  { spotId: 'waimea-bay',       lng: -158.0670, lat: 21.6420, visibilityFt: 28 },
   { spotId: 'molokini-crater',  lng: -156.4950, lat: 20.6330, visibilityFt: 75 },
   { spotId: 'honolua-bay',      lng: -156.6398, lat: 21.0123, visibilityFt: 50 },
   { spotId: 'ulua-beach',       lng: -156.4427, lat: 20.6843, visibilityFt: 40 },

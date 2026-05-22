@@ -73,7 +73,7 @@ const FIRING_NOW = [
 const OAHU_SPOTS: SpotRow[] = [
   { name: 'Electric Beach', region: 'Leeward · Shore',  rating: 'excellent', forecast: ['excellent','excellent','great','good','fair','good','great'], vis: 56, temp: 79, swell: 3 },
   { name: "Shark's Cove",   region: 'North Shore',      rating: 'great',     forecast: ['great','great','good','good','fair','fair','good'],            vis: 48, temp: 78, swell: 3.5 },
-  { name: 'Three Tables',   region: 'North Shore',      rating: 'great',     forecast: ['great','great','good','good','fair','good','good'],             vis: 50, temp: 78, swell: 3.2 },
+  { name: 'Mokulua Islands',   region: 'North Shore',      rating: 'great',     forecast: ['great','great','good','good','fair','good','good'],             vis: 50, temp: 78, swell: 3.2 },
   { name: 'Hanauma Bay',    region: 'East Shore',       rating: 'good',      forecast: ['good','good','good','fair','fair','good','good'],               vis: 40, temp: 79, swell: 1.4 },
   { name: 'Magic Island',   region: 'South Shore',      rating: 'good',      forecast: ['good','great','great','good','good','good','great'],            vis: 35, temp: 80, swell: 1.8 },
   { name: 'China Walls',    region: 'East Shore',       rating: 'good',      forecast: ['good','good','fair','fair','fair','good','good'],               vis: 38, temp: 79, swell: 2.0 },
@@ -99,7 +99,7 @@ const BIG_ISLAND_SPOTS: SpotRow[] = [
 
 const KAUAI_SPOTS: SpotRow[] = [
   { name: 'Koloa Landing',     region: 'South · Shore',   rating: 'great', forecast: ['great','great','good','good','great','great','great'], vis: 50, temp: 76, swell: 2.0 },
-  { name: 'Tunnels',           region: 'North · Shore',   rating: 'good',  forecast: ['good','good','fair','fair','fair','good','good'],       vis: 45, temp: 76, swell: 2.5 },
+  { name: 'Tunnels Beach',     region: 'North · Shore',   rating: 'good',  forecast: ['good','good','fair','fair','fair','good','good'],       vis: 45, temp: 76, swell: 2.5 },
   { name: "Brennecke's Ledge", region: 'South · Shore',   rating: 'good',  forecast: ['good','good','good','great','great','good','good'],     vis: 40, temp: 76, swell: 2.0 },
   { name: 'Nukumoi Point',     region: 'South · Shore',   rating: 'fair',  forecast: ['fair','fair','good','good','good','fair','fair'],       vis: 30, temp: 76, swell: 2.8 },
 ];
@@ -153,7 +153,7 @@ function visMatches(vis: number, range: VisFilter): boolean {
   }
 }
 
-const MY_SPOTS = new Set(['Electric Beach', "Shark's Cove", 'Molokini Crater', 'Three Tables']);
+const MY_SPOTS = new Set(['Electric Beach', "Shark's Cove", 'Molokini Crater', 'Mokulua Islands']);
 
 // ─── Screen ───────────────────────────────────────────────────────────────
 
@@ -350,7 +350,7 @@ function Sidebar({
           active={mySpotsOnly}
           onPress={() => onMySpotsOnlyChange(!mySpotsOnly)}
         />
-        {['Electric Beach', "Shark's Cove", 'Molokini Crater', 'Three Tables'].map((s) => (
+        {['Electric Beach', "Shark's Cove", 'Molokini Crater', 'Mokulua Islands'].map((s) => (
           <SidebarRow key={s} label={s} muted />
         ))}
       </SidebarGroup>

@@ -110,7 +110,7 @@ const FEED: FeedItem[] = [
     when: '11:30 AM',
     whenAgo: '4H AGO',
     author: { initials: 'NO', name: 'Nina O.' },
-    spot: 'Three Tables',
+    spot: 'Mokulua Islands',
     caption: 'Whitetip cruising the lava arches at 35ft. Held my breath the whole time.',
     tint: '#0b5a6f',
     likes: 124, comments: 18, liked: true,

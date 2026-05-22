@@ -145,7 +145,7 @@ const HOURLY: HourRow[] = [
 ];
 
 const NEARBY = [
-  { name: 'Three Tables',  region: 'North Shore',  dist: '12.4 MI', rating: 'great'     as ConditionTier, swell: '3.2 FT' },
+  { name: 'Mokulua Islands',  region: 'North Shore',  dist: '12.4 MI', rating: 'great'     as ConditionTier, swell: '3.2 FT' },
   { name: "Shark's Cove",  region: 'North Shore',  dist: '12.8 MI', rating: 'great'     as ConditionTier, swell: '3.0 FT' },
   { name: 'Magic Island',  region: 'South Shore',  dist: '18.1 MI', rating: 'good'      as ConditionTier, swell: '1.8 FT' },
   { name: 'Hanauma Bay',   region: 'East Shore',   dist: '24.6 MI', rating: 'good'      as ConditionTier, swell: '1.2 FT' },
@@ -153,7 +153,7 @@ const NEARBY = [
 
 const BUOYS = [
   { id: '51212', name: 'Pearl Harbor', dist: '8.4 MI',  height: '3.1' },
-  { id: '51201', name: 'Waimea Bay',   dist: '21.6 MI', height: '3.4' },
+  { id: '51201', name: "Shark's Cove",   dist: '21.6 MI', height: '3.4' },
   { id: '51001', name: 'NW Hawaii',    dist: '27.2 MI', height: '4.2' },
 ];
 
@@ -1454,7 +1454,7 @@ const BUOYS_FULL: Buoy[] = [
     airPressureMb: 1018.2, airPressureTrend: 'steady',
   },
   {
-    id: '51201', name: 'Waimea Bay',
+    id: '51201', name: "Shark's Cove",
     distMi: 21.6, status: 'live', lastUpdated: '12M AGO',
     waveHeightFt: 3.4, waveHeightM: 1.04,
     dominantPeriodS: 10.1, meanPeriodS: 8.3,

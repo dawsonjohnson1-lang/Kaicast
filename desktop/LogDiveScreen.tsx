@@ -18,7 +18,7 @@ import type { NavigateFn } from './router';
 const PICKER_SPOTS: Array<{ name: string; lat: number; lng: number }> = [
   { name: 'Electric Beach', lat: 21.3550, lng: -158.1220 },
   { name: "Shark's Cove",   lat: 21.6417, lng: -158.0617 },
-  { name: 'Three Tables',   lat: 21.6367, lng: -158.0633 },
+  { name: 'Mokulua Islands',   lat: 21.6367, lng: -158.0633 },
   { name: 'Magic Island',   lat: 21.2840, lng: -157.8458 },
   { name: 'Hanauma Bay',    lat: 21.2694, lng: -157.6939 },
   { name: 'Molokini Crater', lat: 20.6330, lng: -156.4950 },

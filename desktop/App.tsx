@@ -5,6 +5,8 @@ import {
   AUTH_ROUTES,
   HIDE_FOOTER_ROUTES,
   PRIVATE_ROUTES,
+  parseLocation,
+  pathFor,
   type NavigateFn,
   type RouteKey,
   type RouteParams,
@@ -33,9 +35,10 @@ import { LegalScreen, type LegalDoc } from './LegalScreen';
  *  - AppInner handles route gating: signed-out users on private routes
  *    bounce to /signin; signed-in users on /signin or /signup bounce to
  *    /dashboard.
- *  - History stack persists current route to localStorage so reloads
- *    land on the same screen (but unsigned users always re-land on
- *    landing, regardless of what was saved).
+ *  - Routing is URL-driven: window.location is the source of truth, we
+ *    pushState() on navigate, and listen to popstate for back/forward.
+ *    No more localStorage-stashed route — refresh + deep links + SEO
+ *    just work.
  *  - Footer + cookie banner sit beneath every screen unless suppressed
  *    (auth screens are intentionally chrome-free).
  */
@@ -60,9 +63,6 @@ const SCREENS: Record<RouteKey, React.ComponentType<any>> = {
   'aup':          (p: any) => <LegalScreen doc="aup" {...p} />,
 };
 
-const ALL_ROUTES = Object.keys(SCREENS) as RouteKey[];
-
-const LS_KEY = 'kaicast.desktop.route';
 // Set the first time a user successfully signs in so we can distinguish
 // brand-new accounts (land on the map after sign-in for the orientation
 // tour) from returning users (land on the dashboard every time).
@@ -81,42 +81,62 @@ export function App() {
 function AppInner() {
   const auth = useAuth();
 
-  const [history, setHistory] = React.useState<Frame[]>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = window.localStorage?.getItem(LS_KEY);
-      if (saved && ALL_ROUTES.includes(saved as RouteKey)) {
-        return [{ route: saved as RouteKey }];
-      }
+  // URL is the source of truth. Initialize from window.location; unknown
+  // paths fall back to landing inside parseLocation.
+  const [current, setCurrent] = React.useState<Frame>(() => {
+    if (typeof window !== 'undefined' && window.location) {
+      return parseLocation(window.location);
     }
-    // First visit (or cleared storage): open the map of all spots so
-    // visitors can poke around immediately — no auth wall up front.
-    return [{ route: 'spots-map' }];
+    return { route: 'landing' };
   });
-  const [cursor, setCursor] = React.useState(0);
-
-  const current = history[cursor];
+  // Bumped on every navigate() call (NOT on back/forward) — used as a
+  // React key so clicking a link to the same route remounts the screen,
+  // while back/forward reuses the existing instance.
+  const [navTick, setNavTick] = React.useState(0);
 
   const navigate: NavigateFn = React.useCallback((route, params) => {
-    setHistory((prev) => {
-      const truncated = prev.slice(0, cursor + 1); // drop forward history on new nav
-      return [...truncated, { route, params }];
-    });
-    setCursor((c) => c + 1);
-  }, [cursor]);
+    const next: Frame = { route, params };
+    setCurrent(next);
+    setNavTick((t) => t + 1);
+    if (typeof window !== 'undefined') {
+      const url = pathFor(route, params);
+      const currentUrl = window.location.pathname + window.location.search;
+      if (currentUrl !== url) window.history.pushState({}, '', url);
+      window.scrollTo(0, 0);
+    }
+  }, []);
+
+  // Back/forward: parse the new URL and update state. Don't pushState —
+  // the browser already moved the history cursor for us.
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onPop = () => {
+      setCurrent(parseLocation(window.location));
+      window.scrollTo(0, 0);
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
+  // If the initial URL didn't match a known route, parseLocation coerced
+  // us to landing — replaceState so the URL bar reflects what we render.
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const canonical = pathFor(current.route, current.params);
+    const actual = window.location.pathname + window.location.search;
+    if (actual !== canonical) {
+      window.history.replaceState({}, '', canonical);
+    }
+    // Run-once on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── Route gate ──
   // Compute the route we should actually render, given auth state.
-  // We don't mutate history here — we just show a different screen.
-  // This means after sign-in, the user lands on whatever they originally
-  // asked for (via params.returnTo on the signin frame, if it was set).
+  // We don't mutate the URL here — we just swap the screen. This means
+  // after sign-in, the user lands on whatever they originally asked for
+  // (via params.returnTo on the signin frame, if it was set).
   const effective = computeEffectiveFrame(current, auth.user != null, auth.loading);
-
-  React.useEffect(() => {
-    if (typeof window !== 'undefined') {
-      window.localStorage?.setItem(LS_KEY, current.route);
-      window.scrollTo(0, 0);
-    }
-  }, [current.route]);
 
   // After sign-in, route based on history:
   //   - signin had a returnTo → honor it (user was bounced from a
@@ -161,7 +181,7 @@ function AppInner() {
     <View style={styles.root}>
       <View style={styles.screenWrap}>
         <ScreenComponent
-          key={`${effective.route}-${cursor}`}
+          key={`${effective.route}-${navTick}`}
           onNavigate={navigate}
           params={effective.params}
         />
