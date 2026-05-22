@@ -23,6 +23,7 @@ export type RouteKey =
   | 'profile'
   | 'my-dives'
   | 'community'
+  | 'manage-favorites'
   | 'terms'
   | 'privacy'
   | 'cookies'
@@ -49,6 +50,7 @@ export const PRIVATE_ROUTES: ReadonlySet<RouteKey> = new Set([
   'profile',
   'my-dives',
   'log-dive',
+  'manage-favorites',
 ]);
 
 // Routes the auth screens themselves use — visiting these while signed-in
@@ -86,6 +88,7 @@ const STATIC_ROUTES: Record<RouteKey, string> = {
   profile:       '/profile',
   'my-dives':    '/my-dives',
   community:     '/community',
+  'manage-favorites': '/favorites',
   terms:         '/terms',
   privacy:       '/privacy',
   cookies:       '/cookies',

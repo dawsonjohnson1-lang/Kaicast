@@ -537,7 +537,9 @@ function FavoriteSpotsRow({
               </Pressable>
             </>
           ) : null}
-          <Pressable onPress={() => onNavigate?.('spots-map')}>
+          <Pressable
+            onPress={() => onNavigate?.(hasFavorites ? 'manage-favorites' : 'spots-map')}
+          >
             <Text style={styles.sectionLink}>
               {hasFavorites ? 'Manage favorites →' : 'Find your spots →'}
             </Text>

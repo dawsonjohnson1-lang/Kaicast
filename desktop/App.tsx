@@ -25,6 +25,7 @@ import { LogDiveScreen } from './LogDiveScreen';
 import { MyDivesScreen } from './MyDivesScreen';
 import { CommunityScreen } from './CommunityScreen';
 import { LandingScreen } from './LandingScreen';
+import { ManageFavoritesScreen } from './ManageFavoritesScreen';
 import { AuthScreen } from './AuthScreen';
 import { LegalScreen, type LegalDoc } from './LegalScreen';
 
@@ -55,6 +56,7 @@ const SCREENS: Record<RouteKey, React.ComponentType<any>> = {
   'profile':      ProfileScreen,
   'my-dives':     MyDivesScreen,
   'community':    CommunityScreen,
+  'manage-favorites': ManageFavoritesScreen,
   'terms':        (p: any) => <LegalScreen doc="terms" {...p} />,
   'privacy':      (p: any) => <LegalScreen doc="privacy" {...p} />,
   'cookies':      (p: any) => <LegalScreen doc="cookies" {...p} />,
