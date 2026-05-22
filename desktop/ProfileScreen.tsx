@@ -11,7 +11,7 @@ import {
 } from './tokens';
 import { DesktopNav } from './components/DesktopNav';
 import { ConditionPill } from './components/ConditionPill';
-import { HeatmapCell } from './components/HeatmapCell';
+import { SpotConditionMap } from './components/SpotConditionMap';
 import { DiveReportCard, type DiveReportCardProps } from './components/DiveReportCard';
 import { initialsFromUser, useAuth } from './hooks/useAuth';
 import type { NavigateFn } from './router';
@@ -135,7 +135,7 @@ const _MOCK_REPORTS: DiveReportCardProps[] = [
   },
   {
     date: 'Mar 28, 2024', time: '5:30 PM',
-    spot: 'Three Tables', region: "O'AHU · NORTH SHORE",
+    spot: 'Mokulua Islands', region: "O'AHU · NORTH SHORE",
     diveType: '🧜 Freediving', rating: 'great',
     depthFt: 45, durationMin: 50, vizFt: 55, waterTempF: 76,
     conditions: { current: 'None', surface: 'Calm', surge: 'None' },
@@ -402,7 +402,7 @@ function DashboardTabBody({ onNavigate }: { onNavigate?: NavigateFn }) {
           ))}
         </View>
 
-        <HeatmapBlock />
+        <HeatmapBlock onNavigate={onNavigate} />
 
         <RecentDivesBlock />
       </View>
@@ -1412,41 +1412,18 @@ function HelpLink({ label }: { label: string }) {
   );
 }
 
-function HeatmapBlock() {
+function HeatmapBlock({ onNavigate }: { onNavigate?: NavigateFn }) {
+  // Previously a GitHub-style 52×7 grid of dive activity — replaced with
+  // a compact Hawaii map of every spot dot-colored by today's tier. More
+  // actionable than a sparse activity grid, especially for new users.
   return (
     <View style={styles.heatmapBlock}>
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Dive activity · last 12 months</Text>
-        <Text style={styles.sectionMeta}>147 dives</Text>
-      </View>
-
-      <View style={styles.heatmapBody}>
-        <View style={styles.heatmapDayLabels}>
-          {['Mon', 'Wed', 'Fri', 'Sun'].map((d) => (
-            <Text key={d} style={styles.heatmapDayLabel}>{d}</Text>
-          ))}
-        </View>
-        <View style={styles.heatmapGrid}>
-          {HEATMAP.map((col, ci) => (
-            <View key={ci} style={styles.heatmapCol}>
-              {col.map((v, di) => <HeatmapCell key={di} intensity={v} />)}
-            </View>
-          ))}
-        </View>
-      </View>
-
-      <View style={styles.heatmapFooter}>
-        <View style={styles.heatmapMonths}>
-          {['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr'].map((m, i) => (
-            <Text key={i} style={styles.heatmapMonth}>{m}</Text>
-          ))}
-        </View>
-        <View style={styles.heatmapLegend}>
-          <Text style={styles.heatmapLegendLabel}>Less</Text>
-          {[0, 1, 2, 3, 4].map((i) => <HeatmapCell key={i} intensity={i as 0 | 1 | 2 | 3 | 4} />)}
-          <Text style={styles.heatmapLegendLabel}>More</Text>
-        </View>
-      </View>
+      <SpotConditionMap
+        title="Conditions across Hawaii"
+        subtitle="Every KaiCast spot · colored by today's rating · click to open"
+        height={320}
+        onNavigate={onNavigate}
+      />
     </View>
   );
 }

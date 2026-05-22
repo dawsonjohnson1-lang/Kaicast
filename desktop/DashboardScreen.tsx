@@ -12,7 +12,7 @@ import { DesktopNav } from './components/DesktopNav';
 import { ConditionPill } from './components/ConditionPill';
 import { SpotCard } from './components/SpotCard';
 import { MetricTile } from './components/MetricTile';
-import { HeatmapCell } from './components/HeatmapCell';
+import { SpotConditionMap } from './components/SpotConditionMap';
 import { DiveRow } from './components/DiveRow';
 import { KaiCastMap, type MapMarker } from './components/maps/KaiCastMap';
 import { useBreakpoint, pick } from './hooks/useBreakpoint';
@@ -259,7 +259,7 @@ function Main({ onNavigate, favorites }: { onNavigate?: NavigateFn; favorites: F
       <StatsRow />
       <ArchipelagoOverview onNavigate={onNavigate} favorites={favorites} />
       <FavoriteSpotsRow onNavigate={onNavigate} />
-      <HeatmapSection />
+      <HeatmapSection onNavigate={onNavigate} />
       <RecentDivesSection />
     </ScrollView>
   );
@@ -294,11 +294,17 @@ function ArchipelagoOverview({ onNavigate, favorites }: { onNavigate?: NavigateF
 }
 
 function WelcomeBanner({ onNavigate }: { onNavigate?: NavigateFn }) {
+  // Live greeting + date so the banner doesn't look like a frozen mockup.
+  const now = new Date();
+  const hr = now.getHours();
+  const greeting = hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening';
+  const dateStr = now.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+  const timeStr = now.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
   return (
     <View style={styles.welcomeBanner}>
       <View style={styles.welcomeText}>
-        <Text style={styles.welcomeGreeting}>Good afternoon, Dawson.</Text>
-        <Text style={styles.welcomeMeta}>Wednesday, April 15 · 2:41 PM</Text>
+        <Text style={styles.welcomeGreeting}>{greeting}, Dawson.</Text>
+        <Text style={styles.welcomeMeta}>{dateStr} · {timeStr}</Text>
         <Text style={styles.welcomeHeadline}>
           <Text style={styles.welcomeHeadlineSpot}>Electric Beach</Text>
           {' is firing — '}
@@ -363,31 +369,18 @@ function FavoriteSpotsRow({ onNavigate }: { onNavigate?: NavigateFn }) {
   );
 }
 
-function HeatmapSection() {
+function HeatmapSection({ onNavigate }: { onNavigate?: NavigateFn }) {
+  // Was a year-in-review activity grid; replaced with a compact Hawaii
+  // map of every spot dot-colored by today's tier. More immediately
+  // useful (and not empty for new users).
   return (
     <View style={styles.sectionBlock}>
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Activity</Text>
-        <Text style={styles.sectionMeta}>147 dives · 52 weeks</Text>
-      </View>
-      <View style={styles.heatmapWrap}>
-        <View style={styles.heatmapGrid}>
-          {HEATMAP.map((week, wi) => (
-            <View key={wi} style={styles.heatmapCol}>
-              {week.map((day, di) => (
-                <HeatmapCell key={di} intensity={day as 0 | 1 | 2 | 3 | 4} />
-              ))}
-            </View>
-          ))}
-        </View>
-        <View style={styles.heatmapLegendRow}>
-          <Text style={styles.heatmapLegendLabel}>Less</Text>
-          {[0, 1, 2, 3, 4].map((i) => (
-            <HeatmapCell key={i} intensity={i as 0 | 1 | 2 | 3 | 4} />
-          ))}
-          <Text style={styles.heatmapLegendLabel}>More</Text>
-        </View>
-      </View>
+      <SpotConditionMap
+        title="Conditions across Hawaii"
+        subtitle="Every KaiCast spot · colored by today's rating · click to open"
+        height={300}
+        onNavigate={onNavigate}
+      />
     </View>
   );
 }
