@@ -134,6 +134,35 @@ interface FormState {
   deepNarcosisExperienced: boolean;
   deepNarcosisNotes: string;
   deepGasPlan: string;
+
+  // ── Tagged dive partners (any activity) ─────────────────────────
+  // Replaces single-string `buddy` field. Each entry is either a
+  // KaiCast user (uid set) or a free-text name (uid undefined).
+  // The legacy `buddy` field is kept for back-compat and auto-syncs
+  // to a comma-joined list of these names.
+  taggedBuddies: TaggedBuddy[];
+
+  // ── Freediving-specific (only when diveType === 'Freediving') ───
+  freediveDiscipline: string;
+  freediveTargetDepth: number;     // ft (or m, depending on user pref — ft for v1)
+  freediveBreathHold: string;      // mm:ss text
+  freediveAttempts: number;
+  freediveSurfaceProtocolPass: boolean;
+  freediveSafetyOnDuty: boolean;
+  freediveEqualization: string;
+
+  // ── Spearfishing-specific (only when diveType === 'Spearfishing')
+  spearGear: string;
+  spearSpeciesLanded: string;      // free text, comma-separated for v1
+  spearCatchWeight: number;        // lbs
+  spearStringerUsed: boolean;
+  spearAccessMode: string;         // 'Shore' | 'Boat'
+}
+
+export interface TaggedBuddy {
+  /** Defined when buddy is a KaiCast user. Undefined for free-text adds. */
+  uid?: string;
+  name: string;
 }
 
 // Blank-slate form for a brand-new dive entry. Today's date is filled
@@ -200,7 +229,56 @@ const INITIAL_FORM: FormState = {
   deepNarcosisExperienced: false,
   deepNarcosisNotes: '',
   deepGasPlan: '',
+
+  taggedBuddies: [],
+
+  freediveDiscipline: 'Constant weight (CWT)',
+  freediveTargetDepth: 0,
+  freediveBreathHold: '',
+  freediveAttempts: 1,
+  freediveSurfaceProtocolPass: true,
+  freediveSafetyOnDuty: false,
+  freediveEqualization: 'Frenzel',
+
+  spearGear: 'Pole spear',
+  spearSpeciesLanded: '',
+  spearCatchWeight: 0,
+  spearStringerUsed: false,
+  spearAccessMode: 'Shore',
 };
+
+const FREEDIVE_DISCIPLINES = [
+  'Constant weight (CWT)',
+  'Constant no fins (CNF)',
+  'Free immersion (FIM)',
+  'Variable weight (VWT)',
+  'No-limits (NLT)',
+  'Dynamic apnea (DYN)',
+  'Dynamic no fins (DNF)',
+  'Static apnea (STA)',
+  'Recreational',
+];
+
+const FREEDIVE_EQUALIZATION = [
+  'Frenzel', 'Mouthfill', 'Valsalva', 'BTV (hands-free)', 'Other',
+];
+
+const SPEAR_GEAR_OPTIONS = [
+  'Pole spear', 'Hawaiian sling', 'Speargun (band)', 'Speargun (pneumatic)', 'Three-prong', 'Other',
+];
+
+const SPEAR_ACCESS_OPTIONS = ['Shore', 'Boat', 'Kayak'];
+
+// Mock community user list for buddy autocomplete. Real Firestore-
+// backed user search is TODO — for now we suggest a curated set so
+// the chips UI is usable in the preview.
+const KNOWN_BUDDIES: ReadonlyArray<TaggedBuddy> = [
+  { uid: 'u-kai',     name: 'Kai M.' },
+  { uid: 'u-leilani', name: 'Leilani S.' },
+  { uid: 'u-marcus',  name: 'Marcus H.' },
+  { uid: 'u-alana',   name: 'Alana T.' },
+  { uid: 'u-ryan',    name: 'Ryan P.' },
+];
 
 // Multi-select SCUBA dive subtype chips (Section 02 sub-block).
 // Selecting Night reveals the night-specific block; Deep reveals the
@@ -740,20 +818,21 @@ function RightForm({ form, update }: { form: FormState; update: Update }) {
           <NumericField label="Entry time" value={form.entryTime} onChange={(v) => update('entryTime', v)} />
           <NumericField label="Exit time"  value={form.exitTime}  onChange={(v) => update('exitTime', v)} />
         </Row3>
-        <Row2>
-          <ComboField
-            label="Buddy (optional)"
-            placeholder="Search divers or add name…"
-            value={form.buddy}
-            onChange={(v) => update('buddy', v)}
-          />
-          <SelectField
-            label="Dive site type"
-            value={form.diveSiteType}
-            options={DIVE_SITE_TYPE_OPTIONS}
-            onChange={(v) => update('diveSiteType', v)}
-          />
-        </Row2>
+        <BuddyChipsField
+          value={form.taggedBuddies}
+          onChange={(next) => {
+            update('taggedBuddies', next);
+            // Keep legacy `buddy` string in sync for cert-eligibility +
+            // preview surfaces that still read the flat string field.
+            update('buddy', next.map((b) => b.name).join(', '));
+          }}
+        />
+        <SelectField
+          label="Dive site type"
+          value={form.diveSiteType}
+          options={DIVE_SITE_TYPE_OPTIONS}
+          onChange={(v) => update('diveSiteType', v)}
+        />
       </Section>
 
       <Section step="02" title="Dive Type">
@@ -815,17 +894,28 @@ function RightForm({ form, update }: { form: FormState; update: Update }) {
           <StepperField label="Avg depth"   value={Number(form.depthAvg)   || 0} unit="ft"  onChange={(v) => update('depthAvg',   String(v))} min={0} />
         </Row3>
 
-        <SubSection title="Tank & gas">
-          <Row3>
-            <StepperField label="Start pressure" value={form.startPressure} unit="psi" onChange={(v) => update('startPressure', v)} step={100} min={0} />
-            <StepperField label="End pressure"   value={form.endPressure}   unit="psi" onChange={(v) => update('endPressure',   v)} step={100} min={0} />
-            <SelectField  label="Gas mix"        value={form.gasMix}        options={GAS_MIX_OPTIONS} onChange={(v) => update('gasMix', v)} />
-          </Row3>
-          <Row2>
-            <SelectField  label="Wetsuit thickness" value={form.wetsuitThickness} options={WETSUIT_OPTIONS} onChange={(v) => update('wetsuitThickness', v)} />
-            <StepperField label="Weight used"       value={form.weightUsed} unit="lbs" onChange={(v) => update('weightUsed', v)} min={0} />
-          </Row2>
-        </SubSection>
+        {form.diveType === 'Scuba' ? (
+          <SubSection title="Tank & gas">
+            <Row3>
+              <StepperField label="Start pressure" value={form.startPressure} unit="psi" onChange={(v) => update('startPressure', v)} step={100} min={0} />
+              <StepperField label="End pressure"   value={form.endPressure}   unit="psi" onChange={(v) => update('endPressure',   v)} step={100} min={0} />
+              <SelectField  label="Gas mix"        value={form.gasMix}        options={GAS_MIX_OPTIONS} onChange={(v) => update('gasMix', v)} />
+            </Row3>
+            <Row2>
+              <SelectField  label="Wetsuit thickness" value={form.wetsuitThickness} options={WETSUIT_OPTIONS} onChange={(v) => update('wetsuitThickness', v)} />
+              <StepperField label="Weight used"       value={form.weightUsed} unit="lbs" onChange={(v) => update('weightUsed', v)} min={0} />
+            </Row2>
+          </SubSection>
+        ) : (
+          // Freediving / Snorkel / Spearfishing — no tank, but still
+          // capture exposure suit + weights for honest dive logging.
+          <SubSection title="Exposure">
+            <Row2>
+              <SelectField  label="Wetsuit thickness" value={form.wetsuitThickness} options={WETSUIT_OPTIONS} onChange={(v) => update('wetsuitThickness', v)} />
+              <StepperField label="Weight used"       value={form.weightUsed} unit="lbs" onChange={(v) => update('weightUsed', v)} min={0} />
+            </Row2>
+          </SubSection>
+        )}
       </Section>
 
       <Section step="04" title="Conditions" subtitle="— what did you find down there?">
@@ -946,6 +1036,110 @@ function RightForm({ form, update }: { form: FormState; update: Update }) {
         <VerificationBlock form={form} update={update} />
       ) : null}
 
+      {form.diveType === 'Freediving' ? (
+        <Section step="F1" title="Freediving Details" subtitle="— discipline + breath-hold metrics">
+          <Row2>
+            <SelectField
+              label="Discipline"
+              value={form.freediveDiscipline}
+              options={FREEDIVE_DISCIPLINES}
+              onChange={(v) => update('freediveDiscipline', v)}
+            />
+            <SelectField
+              label="Equalization"
+              value={form.freediveEqualization}
+              options={FREEDIVE_EQUALIZATION}
+              onChange={(v) => update('freediveEqualization', v)}
+            />
+          </Row2>
+          <Row3>
+            <StepperField
+              label="Target depth"
+              value={form.freediveTargetDepth}
+              unit="ft"
+              onChange={(v) => update('freediveTargetDepth', v)}
+              min={0}
+            />
+            <NumericField
+              label="Breath-hold (mm:ss)"
+              value={form.freediveBreathHold}
+              onChange={(v) => update('freediveBreathHold', v)}
+            />
+            <StepperField
+              label="Attempts"
+              value={form.freediveAttempts}
+              unit=""
+              onChange={(v) => update('freediveAttempts', v)}
+              min={1}
+            />
+          </Row3>
+          <Pressable
+            style={styles.thermoclineRow}
+            onPress={() => update('freediveSurfaceProtocolPass', !form.freediveSurfaceProtocolPass)}
+          >
+            <View style={[styles.toggleTrack, !form.freediveSurfaceProtocolPass && styles.toggleTrackOff]}>
+              <View style={[styles.toggleThumb, !form.freediveSurfaceProtocolPass && styles.toggleThumbOff]} />
+            </View>
+            <Text style={styles.thermoclineLabel}>
+              Surface protocol passed (clean recovery within 15s)
+            </Text>
+          </Pressable>
+          <Pressable
+            style={styles.thermoclineRow}
+            onPress={() => update('freediveSafetyOnDuty', !form.freediveSafetyOnDuty)}
+          >
+            <View style={[styles.toggleTrack, !form.freediveSafetyOnDuty && styles.toggleTrackOff]}>
+              <View style={[styles.toggleThumb, !form.freediveSafetyOnDuty && styles.toggleThumbOff]} />
+            </View>
+            <Text style={styles.thermoclineLabel}>
+              Safety diver on duty (strongly recommended for depth)
+            </Text>
+          </Pressable>
+        </Section>
+      ) : null}
+
+      {form.diveType === 'Spearfishing' ? (
+        <Section step="S1" title="Spearfishing Details" subtitle="— gear, catch, access">
+          <Row2>
+            <SelectField
+              label="Gear"
+              value={form.spearGear}
+              options={SPEAR_GEAR_OPTIONS}
+              onChange={(v) => update('spearGear', v)}
+            />
+            <SelectField
+              label="Access"
+              value={form.spearAccessMode}
+              options={SPEAR_ACCESS_OPTIONS}
+              onChange={(v) => update('spearAccessMode', v)}
+            />
+          </Row2>
+          <NumericField
+            label="Species landed (comma-separated)"
+            value={form.spearSpeciesLanded}
+            onChange={(v) => update('spearSpeciesLanded', v)}
+          />
+          <Row2>
+            <StepperField
+              label="Total catch"
+              value={form.spearCatchWeight}
+              unit="lbs"
+              onChange={(v) => update('spearCatchWeight', v)}
+              min={0}
+            />
+            <Pressable
+              style={styles.thermoclineRow}
+              onPress={() => update('spearStringerUsed', !form.spearStringerUsed)}
+            >
+              <View style={[styles.toggleTrack, !form.spearStringerUsed && styles.toggleTrackOff]}>
+                <View style={[styles.toggleThumb, !form.spearStringerUsed && styles.toggleThumbOff]} />
+              </View>
+              <Text style={styles.thermoclineLabel}>Stringer used</Text>
+            </Pressable>
+          </Row2>
+        </Section>
+      ) : null}
+
       <Section step="05" title="Marine Life" subtitle="— what did you see?">
         <View style={styles.marineGrid}>
           {MARINE_LIFE_OPTIONS.map((m) => {
@@ -1048,6 +1242,97 @@ function SpotMapPicker({ value, onPick }: { value: string; onPick: (name: string
           />
         </View>
       ) : null}
+    </View>
+  );
+}
+
+// ─── Buddy chips (tag dive partners) ────────────────────────────────────
+
+/**
+ * Multi-buddy chip input. Suggests names from KNOWN_BUDDIES (a mock
+ * KaiCast user list) as the user types; pressing Enter on a non-match
+ * adds the typed string as a free-text buddy. Real Firestore-backed
+ * user search is TODO.
+ */
+function BuddyChipsField({
+  value,
+  onChange,
+}: {
+  value: TaggedBuddy[];
+  onChange: (next: TaggedBuddy[]) => void;
+}) {
+  const [draft, setDraft] = React.useState('');
+  const matches = React.useMemo(() => {
+    const q = draft.trim().toLowerCase();
+    if (!q) return [];
+    return KNOWN_BUDDIES.filter(
+      (b) =>
+        b.name.toLowerCase().includes(q) &&
+        !value.some((v) => v.name.toLowerCase() === b.name.toLowerCase()),
+    ).slice(0, 5);
+  }, [draft, value]);
+
+  const addBuddy = (b: TaggedBuddy) => {
+    if (!b.name.trim()) return;
+    if (value.some((v) => v.name.toLowerCase() === b.name.toLowerCase())) return;
+    onChange([...value, b]);
+    setDraft('');
+  };
+  const removeBuddy = (name: string) => {
+    onChange(value.filter((v) => v.name !== name));
+  };
+
+  return (
+    <View style={styles.fieldWrap}>
+      <FieldLabel>Dive partners (optional)</FieldLabel>
+
+      {value.length > 0 ? (
+        <View style={styles.buddyChipsRow}>
+          {value.map((b) => (
+            <View key={b.name} style={styles.buddyChip}>
+              {b.uid ? <Text style={styles.buddyChipUser}>@</Text> : null}
+              <Text style={styles.buddyChipText}>{b.name}</Text>
+              <Pressable onPress={() => removeBuddy(b.name)} hitSlop={8}>
+                <Text style={styles.buddyChipX}>×</Text>
+              </Pressable>
+            </View>
+          ))}
+        </View>
+      ) : null}
+
+      <View style={styles.buddyInputWrap}>
+        <TextInput
+          style={[styles.fieldNumericInput, { outlineStyle: 'none' } as object]}
+          value={draft}
+          onChangeText={setDraft}
+          placeholder="Search KaiCast users or type a name"
+          placeholderTextColor={colors.text4}
+          onSubmitEditing={() => addBuddy({ name: draft.trim() })}
+          returnKeyType="done"
+        />
+        {matches.length > 0 ? (
+          <View style={styles.buddySuggestList}>
+            {matches.map((m) => (
+              <Pressable
+                key={m.uid}
+                style={styles.buddySuggestRow}
+                onPress={() => addBuddy(m)}
+              >
+                <Text style={styles.buddyChipUser}>@</Text>
+                <Text style={styles.buddySuggestText}>{m.name}</Text>
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
+        {draft.trim() && matches.length === 0 ? (
+          <Pressable
+            style={styles.buddySuggestRow}
+            onPress={() => addBuddy({ name: draft.trim() })}
+          >
+            <Text style={styles.buddySuggestText}>+ Add "{draft.trim()}" as free-text buddy</Text>
+          </Pressable>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -1534,39 +1819,54 @@ function VisibilitySlider({
   value: number;
   onChange: (next: number) => void;
 }) {
-  const [trackWidth, setTrackWidth] = React.useState(0);
-  const pct = Math.max(0, Math.min(100, value));
   const descriptor =
     value >= 50 ? 'Excellent visibility — 50+ ft is exceptional for Hawaii waters'
     : value >= 30 ? 'Clean — typical good Hawaii conditions'
     : value >= 15 ? 'Decent — some particulate'
-    : 'Murky — limited sight';
+    : value > 0 ? 'Murky — limited sight'
+    : 'Not set';
   const descriptorColor =
     value >= 50 ? colors.excellent
     : value >= 30 ? colors.great
     : value >= 15 ? colors.good
-    : colors.fair;
+    : value > 0 ? colors.fair
+    : colors.text4;
+
+  // Render a real HTML range input — the prior custom Pressable slider
+  // depended on nativeEvent.locationX which RN-Web doesn't reliably
+  // provide on click, so dragging + clicking the track silently no-op'd.
+  // The range input gives free drag, keyboard arrow control, and
+  // accessibility out of the box. Styled via inline CSS to match the
+  // KaiCast palette.
+  const rangeInput = React.createElement('input', {
+    type: 'range',
+    min: 0,
+    max: 100,
+    step: 1,
+    value: String(value),
+    onChange: (e: React.ChangeEvent<HTMLInputElement>) => {
+      const n = Number(e.target.value);
+      if (Number.isFinite(n)) onChange(n);
+    },
+    style: {
+      flex: 1,
+      height: 6,
+      borderRadius: 3,
+      appearance: 'none',
+      WebkitAppearance: 'none',
+      background: `linear-gradient(to right, ${colors.accent} 0%, ${colors.accent} ${value}%, ${colors.surface2} ${value}%, ${colors.surface2} 100%)`,
+      outline: 'none',
+      cursor: 'pointer',
+    },
+  });
 
   return (
     <View style={styles.fieldWrap}>
       <FieldLabel>Underwater visibility</FieldLabel>
       <View style={styles.sliderRow}>
-        {/* Click anywhere on the track to set value. Not a true drag handler
-            (RN-Web doesn't ship one out of the box) — good enough for a
-            prototype, and easier than wiring PanResponder for desktop. */}
-        <Pressable
-          style={styles.sliderTrack}
-          onLayout={(e) => setTrackWidth(e.nativeEvent.layout.width)}
-          onPress={(e) => {
-            if (trackWidth <= 0) return;
-            const x = e.nativeEvent.locationX;
-            const next = Math.round((x / trackWidth) * 100);
-            onChange(Math.max(0, Math.min(100, next)));
-          }}
-        >
-          <View style={[styles.sliderFill, { width: `${pct}%` }]} />
-          <View style={[styles.sliderHandle, { left: `${pct}%` }]} />
-        </Pressable>
+        <View style={{ flex: 1 }}>
+          {rangeInput}
+        </View>
         <View style={styles.sliderValueBox}>
           <Text style={styles.sliderValue}>{value}</Text>
           <Text style={styles.sliderUnit}>FT</Text>
@@ -2887,6 +3187,64 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     lineHeight: 16,
     marginTop: 4,
+  },
+
+  // Buddy chips field
+  buddyChipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 8,
+  },
+  buddyChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingLeft: 10,
+    paddingRight: 8,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: colors.accentDim,
+    borderWidth: 1,
+    borderColor: colors.accent,
+  },
+  buddyChipUser: {
+    fontFamily: fonts.mono,
+    fontSize: 11,
+    color: colors.accent,
+    fontWeight: '700',
+  },
+  buddyChipText: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.text1,
+  },
+  buddyChipX: {
+    fontFamily: fonts.display,
+    fontSize: 16,
+    color: colors.text2,
+    lineHeight: 16,
+  },
+  buddyInputWrap: {
+    gap: 4,
+  },
+  buddySuggestList: {
+    gap: 2,
+    paddingVertical: 4,
+  },
+  buddySuggestRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: radius.sm,
+    backgroundColor: colors.surface1,
+  },
+  buddySuggestText: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.text2,
   },
 
   // Cert badge wrap in LeftPreview
