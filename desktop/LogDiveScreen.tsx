@@ -1692,18 +1692,133 @@ function SelectField({
   options: readonly string[];
   onChange: (next: string) => void;
 }) {
-  // Cycle through options on press. Not a true dropdown — see comment on
-  // DIVE_SITE_TYPE_OPTIONS etc. — but interactive and predictable.
+  // Real dropdown rendered as a viewport-anchored fixed popover so it
+  // floats above sibling form fields regardless of parent stacking
+  // contexts. We measure the field's bounding rect on open and pin
+  // the menu beneath it.
+  const [open, setOpen] = React.useState(false);
+  const [rect, setRect] = React.useState<{ top: number; left: number; width: number } | null>(null);
+  const rowRef = React.useRef<View>(null);
+
+  const openMenu = () => {
+    const node = rowRef.current as unknown as HTMLElement | null;
+    if (node && typeof node.getBoundingClientRect === 'function') {
+      const r = node.getBoundingClientRect();
+      setRect({ top: r.bottom + 4, left: r.left, width: r.width });
+    }
+    setOpen(true);
+  };
+
+  // Reposition on scroll/resize so the menu tracks the field.
+  React.useEffect(() => {
+    if (!open) return;
+    const update = () => {
+      const node = rowRef.current as unknown as HTMLElement | null;
+      if (!node || typeof node.getBoundingClientRect !== 'function') return;
+      const r = node.getBoundingClientRect();
+      setRect({ top: r.bottom + 4, left: r.left, width: r.width });
+    };
+    window.addEventListener('scroll', update, true);
+    window.addEventListener('resize', update);
+    return () => {
+      window.removeEventListener('scroll', update, true);
+      window.removeEventListener('resize', update);
+    };
+  }, [open]);
+
   return (
     <View style={styles.fieldWrap}>
       <FieldLabel>{label}</FieldLabel>
-      <Pressable style={styles.fieldRow} onPress={() => onChange(cycle(options, value))}>
+      <Pressable
+        ref={rowRef}
+        style={styles.fieldRow}
+        onPress={() => (open ? setOpen(false) : openMenu())}
+      >
         <Text style={styles.fieldSelectValue}>{value}</Text>
-        <Text style={styles.fieldCaret}>▾</Text>
+        <Text style={styles.fieldCaret}>{open ? '▴' : '▾'}</Text>
       </Pressable>
+      {open && rect ? (
+        <>
+          <Pressable
+            onPress={() => setOpen(false)}
+            style={selectStyles.backdrop}
+          />
+          <View
+            style={[
+              selectStyles.menu,
+              { top: rect.top, left: rect.left, width: rect.width },
+            ]}
+          >
+            <ScrollView style={selectStyles.menuScroll} keyboardShouldPersistTaps="handled">
+              {options.map((opt) => {
+                const isSelected = opt === value;
+                return (
+                  <Pressable
+                    key={opt}
+                    onPress={() => { onChange(opt); setOpen(false); }}
+                    style={[selectStyles.menuItem, isSelected && selectStyles.menuItemSelected]}
+                  >
+                    <Text style={[selectStyles.menuItemText, isSelected && selectStyles.menuItemTextSelected]}>
+                      {opt}
+                    </Text>
+                    {isSelected ? <Text style={selectStyles.menuItemCheck}>✓</Text> : null}
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </>
+      ) : null}
     </View>
   );
 }
+
+const selectStyles = StyleSheet.create({
+  backdrop: {
+    position: 'fixed' as unknown as 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
+    zIndex: 9998,
+  },
+  menu: {
+    position: 'fixed' as unknown as 'absolute',
+    backgroundColor: colors.surface1,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.hairlineStrong,
+    zIndex: 9999,
+    maxHeight: 280,
+  },
+  menuScroll: {
+    maxHeight: 280,
+  },
+  menuItem: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  menuItemSelected: {
+    backgroundColor: colors.accentDim,
+  },
+  menuItemText: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: colors.text2,
+    flex: 1,
+  },
+  menuItemTextSelected: {
+    color: colors.text1,
+    fontWeight: '600',
+  },
+  menuItemCheck: {
+    fontFamily: fonts.display,
+    fontSize: 11,
+    color: colors.accent,
+    fontWeight: '700',
+  },
+});
 
 function StepperField({
   label,

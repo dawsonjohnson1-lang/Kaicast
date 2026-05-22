@@ -14,6 +14,24 @@ import { ConditionPill } from './components/ConditionPill';
 import { SpotConditionMap } from './components/SpotConditionMap';
 import { DiveReportCard, type DiveReportCardProps } from './components/DiveReportCard';
 import { initialsFromUser, useAuth } from './hooks/useAuth';
+import { useUserProfile } from './hooks/useUserProfile';
+import { useUserStats, type UserStats } from './hooks/useUserStats';
+import { useUserSettings } from './hooks/useUserSettings';
+import { updateUserSetting, reauthWithPassword, pathRequiresReauth } from './api/updateUserSetting';
+import {
+  CERTIFICATION_LABELS,
+  CERTIFICATION_VALUES,
+  PREFERRED_DIVE_TYPE_LABELS,
+  PREFERRED_DIVE_TYPE_VALUES,
+  UNITS_LABELS,
+  UNITS_VALUES,
+  SETTINGS_PATHS,
+  LEGAL_LINKS,
+  type SettingsPath,
+} from './shared/userSettings';
+import { SPOTS as CANONICAL_SPOTS_FOR_SETTINGS } from './data/spots';
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import { app as firebaseApp, firebaseConfigured } from './firebase';
 import type { NavigateFn } from './router';
 
 /**
@@ -56,11 +74,15 @@ const USER = {
 
 const TABS = ['Dashboard', 'Dive Reports', 'Friends', 'Settings'] as const;
 
-const STAT_CARDS = [
-  { icon: '🤿', value: '0', unit: '',   label: 'Dives logged' },
-  { icon: '📏', value: '—', unit: 'ft', label: 'Personal depth record' },
-  { icon: '⏱',  value: '0', unit: 'h',  label: 'Total bottom time' },
-];
+// Stat-card border colors. Hex literals (not desktop tokens) so the
+// three colored outlines match the mobile profile dashboard one-to-one
+// — both surfaces read from /users/{uid}/stats/summary and should look
+// identical at a glance. Mirrors app/src/theme/colors.ts.
+const STAT_CARD_BORDERS = {
+  divesLogged:    '#22d36b', // green  — matches mobile colors.excellent
+  depthRecord:    '#1ab8ff', // blue   — matches mobile colors.accent
+  bottomTime:     '#a16ad9', // purple — matches mobile colors.scuba
+} as const;
 
 const DIVE_LIST: Array<{
   spot: string; meta: string; type: string;
@@ -202,17 +224,43 @@ type EditableProfile = {
 export function ProfileScreen({ activeNav = 'dashboard', onNavigate }: ProfileScreenProps) {
   const [tab, setTab] = React.useState<(typeof TABS)[number]>('Dashboard');
   const auth = useAuth();
+  // Live read of the canonical /users/{uid} doc — same Firestore data
+  // the mobile app writes to. When the user logs a dive on mobile or
+  // edits their profile there, this snapshot updates and the header
+  // re-renders without a refresh.
+  const { profile: liveProfile } = useUserProfile(auth.user?.uid);
+  // Aggregated stats — written exclusively by aggregateUserStats
+  // (functions/aggregations/userStats.js). Never compute from
+  // diveLogs at render time.
+  const { stats } = useUserStats(auth.user?.uid);
 
   // Editable profile fields, lifted here so the header and the Settings
-  // tab's Account section read/write the same source of truth. Seed from
-  // the Firebase auth user once at mount; later edits live in local
-  // state until we have a users/{uid} doc to persist to.
+  // tab's Account section read/write the same source of truth. Seed
+  // priority: live Firestore doc > Firebase Auth user > empty USER stub.
   const [profile, setProfile] = React.useState<EditableProfile>(() => ({
     name: auth.user?.displayName?.trim() || USER.name,
     handle: auth.user?.email ? `@${auth.user.email.split('@')[0]}` : USER.handle,
     location: USER.location,
     bio: USER.bio,
   }));
+
+  // Hydrate from the live profile whenever it changes — including the
+  // first load after Firestore reports in. The local-edits flow stays
+  // intact because `setProfile` from inside Settings still mutates the
+  // same state; this effect just lays down the Firestore-derived
+  // baseline.
+  React.useEffect(() => {
+    if (!liveProfile) return;
+    setProfile((prev) => ({
+      // Prefer Firestore values when present; otherwise keep whatever
+      // the user has edited locally so an empty profile doc doesn't
+      // wipe in-progress edits.
+      name:     liveProfile.displayName ?? prev.name,
+      handle:   liveProfile.handle ? (liveProfile.handle.startsWith('@') ? liveProfile.handle : `@${liveProfile.handle}`) : prev.handle,
+      location: liveProfile.homeTown || liveProfile.homeIsland || prev.location,
+      bio:      liveProfile.bio ?? prev.bio,
+    }));
+  }, [liveProfile?.displayName, liveProfile?.handle, liveProfile?.homeTown, liveProfile?.homeIsland, liveProfile?.bio]);
 
   return (
     <ScrollView style={styles.page} contentContainerStyle={styles.pageContent}>
@@ -221,15 +269,41 @@ export function ProfileScreen({ activeNav = 'dashboard', onNavigate }: ProfileSc
       <View style={styles.maxWidth}>
         <ProfileHeader
           profile={profile}
+          stats={stats}
           onEditProfile={() => setTab('Settings')}
         />
         <TabBar value={tab} onTab={setTab} />
-        {tab === 'Dashboard'    ? <DashboardTabBody    onNavigate={onNavigate} /> : null}
+        {tab === 'Dashboard'    ? <DashboardTabBody    onNavigate={onNavigate} stats={stats} /> : null}
         {tab === 'Dive Reports' ? <DiveReportsTabBody  onNavigate={onNavigate} /> : null}
         {tab === 'Friends'      ? <FriendsTabBody onNavigate={onNavigate} /> : null}
         {tab === 'Settings'     ? <SettingsTabBody profile={profile} setProfile={setProfile} /> : null}
       </View>
     </ScrollView>
+  );
+}
+
+// Colored-outline stat card. Matches the mobile profile-dashboard
+// tiles one-to-one — same hex border colors, same big-value-on-top
+// + small-uppercase-label-underneath layout, no icon.
+function StatCard({
+  value,
+  unit,
+  label,
+  borderColor,
+}: {
+  value: string;
+  unit: string;
+  label: string;
+  borderColor: string;
+}) {
+  return (
+    <View style={[styles.statTile, { borderColor }]}>
+      <View style={styles.statTileValueRow}>
+        <Text style={styles.statTileValue}>{value}</Text>
+        {unit ? <Text style={styles.statTileUnit}>{unit}</Text> : null}
+      </View>
+      <Text style={styles.statTileLabel}>{label}</Text>
+    </View>
   );
 }
 
@@ -247,9 +321,11 @@ function ComingSoon({ name }: { name: string }) {
 
 function ProfileHeader({
   profile,
+  stats,
   onEditProfile,
 }: {
   profile: EditableProfile;
+  stats: { totalDives: number; spotsLogged: number; speciesCount: number } | null;
   onEditProfile?: () => void;
 }) {
   const auth = useAuth();
@@ -259,6 +335,19 @@ function ProfileHeader({
   const displayName = profile.name || USER.name;
   const displayInitials = initialsFromUser(auth.user, USER.initials);
   const handle = profile.handle || USER.handle;
+
+  // Live counts from /users/{uid}/stats/summary when available. Followers/
+  // Following still render zero until the social-graph rollup lands —
+  // those counts live in the users/{uid}/followers and following
+  // subcollections, which would need a separate aggregator (out of scope
+  // for the schema-unification task).
+  const liveStats = [
+    { label: 'Dives',     value: stats ? String(stats.totalDives) : USER.stats[0].value },
+    { label: 'Spots',     value: stats ? String(stats.spotsLogged) : USER.stats[1].value },
+    { label: 'Species',   value: stats ? String(stats.speciesCount) : USER.stats[2].value },
+    { label: 'Followers', value: USER.stats[3].value },
+    { label: 'Following', value: USER.stats[4].value },
+  ];
 
   const onSignOut = async () => {
     try { await auth.signOut(); } catch {}
@@ -308,7 +397,7 @@ function ProfileHeader({
             <Text style={styles.headerBio}>{profile.bio}</Text>
 
             <View style={styles.headerStatsRow}>
-              {USER.stats.map((s) => (
+              {liveStats.map((s) => (
                 <View key={s.label} style={styles.headerStat}>
                   <Text style={styles.headerStatValue}>{s.value}</Text>
                   <Text style={styles.headerStatLabel}>{s.label}</Text>
@@ -384,22 +473,29 @@ function TabBar({
 
 // ─── Dashboard tab body ───────────────────────────────────────────────────
 
-function DashboardTabBody({ onNavigate }: { onNavigate?: NavigateFn }) {
+function DashboardTabBody({
+  onNavigate,
+  stats,
+}: {
+  onNavigate?: NavigateFn;
+  stats: UserStats | null;
+}) {
+  const totalDives = stats?.totalDives ?? 0;
+  const deepestDiveFt = stats?.deepestDive ?? 0;
+  const totalBottomTimeHours = stats
+    ? Math.round((stats.totalBottomTime / 3600) * 10) / 10
+    : 0;
+  const bottomTimeStr = Number.isInteger(totalBottomTimeHours)
+    ? String(totalBottomTimeHours)
+    : totalBottomTimeHours.toFixed(1);
+
   return (
     <View style={styles.body}>
       <View style={styles.bodyMain}>
         <View style={styles.statCardsRow}>
-          {STAT_CARDS.map((s) => (
-            <View key={s.label} style={styles.statCard}>
-              <Text style={styles.statCardIcon}>{s.icon}</Text>
-              <View style={styles.statCardValueRow}>
-                <Text style={styles.statCardValue}>{s.value}</Text>
-                {s.unit ? <Text style={styles.statCardUnit}>{s.unit}</Text> : null}
-              </View>
-              <Text style={styles.statCardLabel}>{s.label}</Text>
-              <Text style={styles.statCardBgIcon}>{s.icon}</Text>
-            </View>
-          ))}
+          <StatCard value={String(totalDives)}   unit=""   label="DIVES LOGGED"          borderColor={STAT_CARD_BORDERS.divesLogged} />
+          <StatCard value={String(deepestDiveFt)} unit="ft" label="PERSONAL DEPTH RECORD" borderColor={STAT_CARD_BORDERS.depthRecord} />
+          <StatCard value={bottomTimeStr}        unit="h"  label="TOTAL BOTTOM TIME"     borderColor={STAT_CARD_BORDERS.bottomTime} />
         </View>
 
         <HeatmapBlock onNavigate={onNavigate} />
@@ -892,249 +988,494 @@ function ImportFriendsCard() {
 }
 
 // ─── Settings tab body ───────────────────────────────────────────────────
+//
+// Canonical Settings surface — fields + write path mirror the mobile
+// app's ProfileSettingsScreen.tsx exactly. Subscribes to /users/{uid}
+// via useUserSettings; every write funnels through the
+// `updateUserSetting` callable so validation lives in one place.
 
-type SettingsState = {
-  // Display & units
-  units: 'imperial' | 'metric';
-  temp: '°F' | '°C';
-  depth: 'ft' | 'm';
-  timeFormat: '12h' | '24h';
-  theme: 'dark' | 'system';
-  // Notifications
-  pushAlerts: boolean;
-  emailDigest: boolean;
-  bestWindowAlerts: boolean;
-  runoffAlerts: boolean;
-  friendActivity: boolean;
-  // Privacy
-  profileVisibility: 'public' | 'followers' | 'private';
-  defaultDivePrivacy: 'public' | 'followers' | 'private';
-  shareLocation: boolean;
-  shareTrips: boolean;
-};
+type SettingsPendingMap = Partial<Record<SettingsPath, string | boolean>>;
 
-const DEFAULT_SETTINGS: SettingsState = {
-  units: 'imperial',
-  temp: '°F',
-  depth: 'ft',
-  timeFormat: '12h',
-  theme: 'dark',
-  pushAlerts: true,
-  emailDigest: true,
-  bestWindowAlerts: true,
-  runoffAlerts: true,
-  friendActivity: false,
-  profileVisibility: 'public',
-  defaultDivePrivacy: 'followers',
-  shareLocation: true,
-  shareTrips: true,
-};
+type DesktopPickerSpec =
+  | { kind: 'enum'; path: SettingsPath; title: string; options: Array<{ value: string; label: string }>; current: string }
+  | { kind: 'spot'; current: string }
+  | { kind: 'text'; path: SettingsPath; title: string; placeholder: string; current: string; needsReauth?: boolean };
 
 function SettingsTabBody({
+  // Legacy props from the pre-unification screen — kept so the call
+  // site doesn't have to change, but unused now. Settings reads from
+  // /users/{uid} via useUserSettings rather than the in-memory
+  // EditableProfile state lifted from the header.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   profile,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   setProfile,
 }: {
   profile: EditableProfile;
   setProfile: React.Dispatch<React.SetStateAction<EditableProfile>>;
 }) {
-  const [s, setS] = React.useState<SettingsState>(DEFAULT_SETTINGS);
-  const set = <K extends keyof SettingsState>(k: K, v: SettingsState[K]) => setS((p) => ({ ...p, [k]: v }));
   const auth = useAuth();
-  const setField = <K extends keyof EditableProfile>(k: K, v: EditableProfile[K]) =>
-    setProfile((p) => ({ ...p, [k]: v }));
+  const { settings, loading } = useUserSettings(auth.user?.uid ?? null);
+  const [pending, setPending] = React.useState<SettingsPendingMap>({});
+  const [picker, setPicker] = React.useState<DesktopPickerSpec | null>(null);
+
+  // Optimistic read: in-flight write wins; otherwise the snapshot.
+  function read<T extends string | boolean>(path: SettingsPath, fallback: T): T {
+    const p = pending[path];
+    if (p !== undefined) return p as T;
+    if (!settings) return fallback;
+    return readSettingsField(settings, path) as T;
+  }
+
+  async function write(
+    path: SettingsPath,
+    value: string | boolean,
+    opts?: { acknowledgedReauth?: boolean },
+  ): Promise<void> {
+    setPending((m) => ({ ...m, [path]: value }));
+    try {
+      await updateUserSetting({ path, value, acknowledgedReauth: opts?.acknowledgedReauth === true });
+      setPending((m) => { const next = { ...m }; delete next[path]; return next; });
+    } catch (err) {
+      setPending((m) => { const next = { ...m }; delete next[path]; return next; });
+      const msg = (err as { message?: string })?.message ?? 'Please try again.';
+      // eslint-disable-next-line no-alert
+      window.alert(`Couldn’t save: ${msg}`);
+    }
+  }
+
+  const certVal = read(SETTINGS_PATHS.certification, 'none');
+  const diveTypeVal = read(SETTINGS_PATHS.preferredDiveType, 'scuba');
+  const unitsVal = read(SETTINGS_PATHS.units, 'imperial');
+  const homeSpotIdVal = read(SETTINGS_PATHS.homeSpotId, '');
+  const phoneVal = read(SETTINGS_PATHS.phone, '');
+  const emailVal = settings?.email || auth.user?.email || '';
+  const homeSpotLabel = labelForSpotId(homeSpotIdVal) || 'Pick a spot';
+
+  const pushEnabled = read(SETTINGS_PATHS.pushEnabled, true);
+  const pushConditions = read(SETTINGS_PATHS.pushCategoryConditionAlerts, true);
+  const pushFriends = read(SETTINGS_PATHS.pushCategoryFriendReports, true);
+  const pushSystem = read(SETTINGS_PATHS.pushCategorySystem, true);
+
+  const onSignOut = async () => {
+    try { await auth.signOut(); } catch { /* surfaced by AuthProvider listeners */ }
+  };
+
+  const onDeleteAccount = async () => {
+    // eslint-disable-next-line no-alert
+    const confirmed = window.confirm(
+      'Delete your account? This is permanent — profile, dive logs, and stats will be removed.',
+    );
+    if (!confirmed) return;
+    if (!firebaseConfigured || !firebaseApp) return;
+    try {
+      const fn = httpsCallable(getFunctions(firebaseApp, 'us-central1'), 'deleteUserAccount');
+      await fn({});
+    } catch (err) {
+      const msg = (err as { message?: string })?.message ?? 'Recent sign-in may be required.';
+      // eslint-disable-next-line no-alert
+      window.alert(`Couldn’t delete: ${msg}`);
+    }
+  };
 
   return (
     <View style={styles.body}>
       <View style={styles.bodyMain}>
-        <SettingsSection title="Account" subtitle="Your identity on KaiCast">
-          <EditableSettingsRow
-            label="Display name"
-            value={profile.name}
-            placeholder="Your name"
-            onSave={(v) => setField('name', v)}
-          />
-          <EditableSettingsRow
-            label="Handle"
-            value={profile.handle}
-            placeholder="@yourhandle"
-            onSave={(v) => setField('handle', v.startsWith('@') ? v : `@${v}`)}
-          />
-          <EditableSettingsRow
-            label="Location"
-            value={profile.location}
-            placeholder="City, Island"
-            onSave={(v) => setField('location', v)}
-          />
-          <EditableSettingsRow
-            label="Bio"
-            value={profile.bio}
-            placeholder="Tell other divers about yourself"
-            multiline
-            onSave={(v) => setField('bio', v)}
-          />
-          <SettingsRow label="Email" value={auth.user?.email ?? '—'} />
-          <SettingsRow label="Password" value="Last changed —" actionLabel="Change" />
-          <SettingsRow label="Time zone" value="Pacific/Honolulu (UTC−10)" isLast />
-        </SettingsSection>
+        {loading && !settings ? (
+          <Text style={styles.settingsSectionSubtitle}>Loading settings…</Text>
+        ) : null}
 
-        <SettingsSection title="Display & units" subtitle="How KaiCast shows numbers and time">
-          <SegmentedRow
-            label="Unit system"
-            value={s.units}
-            options={[{ key: 'imperial', label: 'Imperial' }, { key: 'metric', label: 'Metric' }]}
-            onChange={(v) => set('units', v as SettingsState['units'])}
+        <SettingsSection title="Account" subtitle="How you sign in">
+          {/* Email is a Firebase Auth identity; editing it cleanly
+              requires verifyBeforeUpdateEmail to keep auth + Firestore
+              in sync. Display-only for v1 — see CHANGES.md. */}
+          <SettingsRow label="Email" value={emailVal || '—'} />
+          <SettingsRow
+            label="Phone"
+            value={phoneVal || 'Add phone (+18085550129)'}
+            actionLabel="Edit"
+            onAction={() => setPicker({
+              kind: 'text',
+              path: SETTINGS_PATHS.phone,
+              title: 'Phone (E.164)',
+              placeholder: '+18085550129',
+              current: phoneVal,
+              needsReauth: pathRequiresReauth(SETTINGS_PATHS.phone),
+            })}
           />
-          <SegmentedRow
-            label="Temperature"
-            value={s.temp}
-            options={[{ key: '°F', label: '°F' }, { key: '°C', label: '°C' }]}
-            onChange={(v) => set('temp', v as SettingsState['temp'])}
-          />
-          <SegmentedRow
-            label="Depth"
-            value={s.depth}
-            options={[{ key: 'ft', label: 'ft' }, { key: 'm', label: 'm' }]}
-            onChange={(v) => set('depth', v as SettingsState['depth'])}
-          />
-          <SegmentedRow
-            label="Time format"
-            value={s.timeFormat}
-            options={[{ key: '12h', label: '12-hour' }, { key: '24h', label: '24-hour' }]}
-            onChange={(v) => set('timeFormat', v as SettingsState['timeFormat'])}
-          />
-          <SegmentedRow
-            label="Theme"
-            value={s.theme}
-            options={[{ key: 'dark', label: 'Dark' }, { key: 'system', label: 'Match system' }]}
-            onChange={(v) => set('theme', v as SettingsState['theme'])}
+          <SettingsRow
+            label="Password & security"
+            actionLabel="Change"
+            onAction={() => window.open('https://accounts.google.com/AccountChooser', '_blank')}
             isLast
           />
         </SettingsSection>
 
-        <SettingsSection title="Notifications" subtitle="When KaiCast should reach out">
+        <SettingsSection title="Diver profile">
+          <SettingsRow
+            label="Certification"
+            value={CERTIFICATION_LABELS[certVal as keyof typeof CERTIFICATION_LABELS]}
+            actionLabel="Edit"
+            onAction={() => setPicker({
+              kind: 'enum',
+              path: SETTINGS_PATHS.certification,
+              title: 'Certification',
+              options: CERTIFICATION_VALUES.map((v) => ({ value: v, label: CERTIFICATION_LABELS[v] })),
+              current: certVal,
+            })}
+          />
+          <SettingsRow
+            label="Preferred dive type"
+            value={PREFERRED_DIVE_TYPE_LABELS[diveTypeVal as keyof typeof PREFERRED_DIVE_TYPE_LABELS]}
+            actionLabel="Edit"
+            onAction={() => setPicker({
+              kind: 'enum',
+              path: SETTINGS_PATHS.preferredDiveType,
+              title: 'Preferred dive type',
+              options: PREFERRED_DIVE_TYPE_VALUES.map((v) => ({
+                value: v,
+                label: PREFERRED_DIVE_TYPE_LABELS[v],
+              })),
+              current: diveTypeVal,
+            })}
+          />
+          <SettingsRow
+            label="Home spot"
+            value={homeSpotLabel}
+            actionLabel="Edit"
+            onAction={() => setPicker({ kind: 'spot', current: homeSpotIdVal })}
+            isLast
+          />
+        </SettingsSection>
+
+        <SettingsSection title="Preferences">
           <ToggleRow
             label="Push notifications"
-            sub="Browser and mobile push for time-sensitive alerts"
-            value={s.pushAlerts}
-            onToggle={(v) => set('pushAlerts', v)}
+            sub="Master toggle for all categories below"
+            value={pushEnabled}
+            onToggle={(v) => write(SETTINGS_PATHS.pushEnabled, v)}
           />
           <ToggleRow
-            label="Email digest"
-            sub="Weekly summary of activity at your favorite spots"
-            value={s.emailDigest}
-            onToggle={(v) => set('emailDigest', v)}
+            label="Condition alerts"
+            sub="Best-window and runoff warnings at favorite spots"
+            value={pushConditions && pushEnabled}
+            onToggle={(v) => write(SETTINGS_PATHS.pushCategoryConditionAlerts, v)}
           />
           <ToggleRow
-            label="Best-window alerts"
-            sub="Push me when conditions hit Excellent at a favorite"
-            value={s.bestWindowAlerts}
-            onToggle={(v) => set('bestWindowAlerts', v)}
+            label="Friend reports"
+            sub="When people you follow log a dive"
+            value={pushFriends && pushEnabled}
+            onToggle={(v) => write(SETTINGS_PATHS.pushCategoryFriendReports, v)}
           />
           <ToggleRow
-            label="Runoff & hazard warnings"
-            sub="Always-on safety alerts for spots you've logged"
-            value={s.runoffAlerts}
-            onToggle={(v) => set('runoffAlerts', v)}
+            label="System"
+            sub="Service announcements, sign-in alerts"
+            value={pushSystem && pushEnabled}
+            onToggle={(v) => write(SETTINGS_PATHS.pushCategorySystem, v)}
           />
-          <ToggleRow
-            label="Friend activity"
-            sub="Notify when friends post new reports"
-            value={s.friendActivity}
-            onToggle={(v) => set('friendActivity', v)}
+          <SegmentedRow
+            label="Units"
+            value={unitsVal}
+            options={UNITS_VALUES.map((v) => ({ key: v, label: UNITS_LABELS[v] }))}
+            onChange={(v) => write(SETTINGS_PATHS.units, v)}
             isLast
           />
         </SettingsSection>
 
-        <SettingsSection title="Privacy & sharing" subtitle="What gets shown and to whom">
-          <SegmentedRow
-            label="Profile visibility"
-            value={s.profileVisibility}
-            options={[
-              { key: 'public',    label: 'Public' },
-              { key: 'followers', label: 'Followers' },
-              { key: 'private',   label: 'Private' },
-            ]}
-            onChange={(v) => set('profileVisibility', v as SettingsState['profileVisibility'])}
+        <SettingsSection title="Legal & support">
+          <SettingsRow
+            label="Privacy Policy"
+            actionLabel="Open"
+            onAction={() => window.open(LEGAL_LINKS.privacyPolicy, '_blank')}
           />
-          <SegmentedRow
-            label="Default dive privacy"
-            value={s.defaultDivePrivacy}
-            options={[
-              { key: 'public',    label: 'Public' },
-              { key: 'followers', label: 'Followers' },
-              { key: 'private',   label: 'Private' },
-            ]}
-            onChange={(v) => set('defaultDivePrivacy', v as SettingsState['defaultDivePrivacy'])}
+          <SettingsRow
+            label="Terms of Service"
+            actionLabel="Open"
+            onAction={() => window.open(LEGAL_LINKS.termsOfService, '_blank')}
           />
-          <ToggleRow
-            label="Share precise dive location"
-            sub="When off, spots are coarsened to the nearest 1km grid"
-            value={s.shareLocation}
-            onToggle={(v) => set('shareLocation', v)}
-          />
-          <ToggleRow
-            label="Show me on 'In the water now'"
-            sub="Friends see when you're actively diving at one of their spots"
-            value={s.shareTrips}
-            onToggle={(v) => set('shareTrips', v)}
+          <SettingsRow
+            label="Help & support"
+            actionLabel="Contact"
+            onAction={() => { window.location.href = LEGAL_LINKS.supportMailto; }}
             isLast
           />
         </SettingsSection>
 
-        <SettingsSection title="About">
-          <SettingsRow label="Version"        value="0.0.1 · Desktop preview build" />
-          <SettingsRow label="Forecast model" value="KaiCast Abyss v1.2 · 7 layers" />
-          <SettingsRow label="Last sync"      value="2:47 PM · 4 min ago" />
-          <SettingsRow label="Terms of Service" actionLabel="Read" value="" />
-          <SettingsRow label="Privacy Policy"   actionLabel="Read" value="" isLast />
+        <SettingsSection title="Danger zone">
+          <SettingsRow label="Sign out" actionLabel="Sign out" onAction={onSignOut} />
+          <SettingsRow label="Delete account" actionLabel="Delete" onAction={onDeleteAccount} isLast />
         </SettingsSection>
       </View>
 
       <View style={styles.bodySidebar}>
         <View style={styles.sideBlock}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Account status</Text>
+            <Text style={styles.sectionTitle}>Sync status</Text>
           </View>
           <View style={styles.accountStatusCard}>
-            <View style={styles.accountStatusAvatar}>
-              <Text style={styles.accountStatusAvatarText}>{USER.initials}</Text>
-            </View>
-            <Text style={styles.accountStatusName}>{USER.name}</Text>
-            <Text style={styles.accountStatusHandle}>{USER.handle}</Text>
-            <View style={styles.accountStatusTierWrap}>
-              <Text style={styles.accountStatusTier}>⬡ Pro member · since Nov 2023</Text>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.sideBlock}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Quick actions</Text>
-          </View>
-          <View style={styles.quickActionsCard}>
-            <QuickAction icon="↗" label="View public profile" />
-            <QuickAction icon="↻" label="Re-sync all sources" />
-            <QuickAction icon="✉" label="Contact support" />
-            <QuickAction icon="↤" label="Sign out" tone="muted" />
-          </View>
-        </View>
-
-        <View style={styles.sideBlock}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Help</Text>
-          </View>
-          <View style={styles.helpCard}>
-            <HelpLink label="What's the visibility model?" />
-            <HelpLink label="How are conditions rated?" />
-            <HelpLink label="Privacy & data handling" />
-            <HelpLink label="Pro tier features" />
-            <HelpLink label="Report a bug" />
+            <Text style={styles.accountStatusName}>{auth.user?.displayName ?? auth.user?.email ?? 'Diver'}</Text>
+            <Text style={styles.accountStatusHandle}>
+              {settings?.meta.updatedAt
+                ? `Last edited ${settings.meta.updatedAt.toLocaleString()}`
+                : 'No edits yet'}
+            </Text>
+            {settings?.meta.updatedBy ? (
+              <View style={styles.accountStatusTierWrap}>
+                <Text style={styles.accountStatusTier}>via {settings.meta.updatedBy.toUpperCase()}</Text>
+              </View>
+            ) : null}
           </View>
         </View>
       </View>
+
+      {picker ? (
+        <SettingsPickerOverlay
+          spec={picker}
+          onClose={() => setPicker(null)}
+          onCommit={async (value, p) => {
+            setPicker(null);
+            if (p.kind === 'spot') await write(SETTINGS_PATHS.homeSpotId, value);
+            else if (p.kind === 'enum') await write(p.path, value);
+            else if (p.kind === 'text') await write(p.path, value, { acknowledgedReauth: p.needsReauth });
+          }}
+        />
+      ) : null}
     </View>
   );
 }
+
+// Read a Settings field by canonical dotted path. Mirror of the mobile
+// helper in ProfileSettingsScreen.tsx.
+function readSettingsField(
+  s: NonNullable<ReturnType<typeof useUserSettings>['settings']>,
+  path: SettingsPath,
+): string | boolean {
+  switch (path) {
+    case SETTINGS_PATHS.email:                       return s.email;
+    case SETTINGS_PATHS.phone:                       return s.phone;
+    case SETTINGS_PATHS.certification:               return s.profile.certification;
+    case SETTINGS_PATHS.preferredDiveType:           return s.profile.preferredDiveType;
+    case SETTINGS_PATHS.homeSpotId:                  return s.profile.homeSpotId;
+    case SETTINGS_PATHS.units:                       return s.prefs.units;
+    case SETTINGS_PATHS.pushEnabled:                 return s.prefs.pushNotifications.enabled;
+    case SETTINGS_PATHS.pushCategoryConditionAlerts: return s.prefs.pushNotifications.categories.conditionAlerts;
+    case SETTINGS_PATHS.pushCategoryFriendReports:   return s.prefs.pushNotifications.categories.friendReports;
+    case SETTINGS_PATHS.pushCategorySystem:          return s.prefs.pushNotifications.categories.system;
+    default:                                         return '';
+  }
+}
+
+function labelForSpotId(spotId: string): string {
+  if (!spotId) return '';
+  const found = CANONICAL_SPOTS_FOR_SETTINGS.find((s) => s.id === spotId);
+  return found ? `${found.name} · ${found.region}` : spotId;
+}
+
+function SettingsPickerOverlay({
+  spec,
+  onClose,
+  onCommit,
+}: {
+  spec: DesktopPickerSpec;
+  onClose: () => void;
+  onCommit: (value: string, spec: DesktopPickerSpec) => void;
+}) {
+  const [phase, setPhase] = React.useState<'reauth' | 'value'>(
+    spec.kind === 'text' && spec.needsReauth ? 'reauth' : 'value',
+  );
+  const [password, setPassword] = React.useState('');
+  const [draft, setDraft] = React.useState(spec.kind !== 'spot' ? spec.current : '');
+  const [working, setWorking] = React.useState(false);
+  const [reauthErr, setReauthErr] = React.useState<string | null>(null);
+
+  const submitReauth = async () => {
+    setWorking(true);
+    setReauthErr(null);
+    try {
+      await reauthWithPassword(password);
+      setPhase('value');
+    } catch (err) {
+      const msg = (err as { message?: string })?.message ?? 'Wrong password?';
+      setReauthErr(msg);
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  return (
+    <Pressable style={overlayStyles.backdrop} onPress={onClose}>
+      <Pressable style={overlayStyles.sheet} onPress={() => undefined}>
+        {phase === 'reauth' && spec.kind === 'text' ? (
+          <>
+            <Text style={overlayStyles.title}>Confirm your password</Text>
+            <Text style={overlayStyles.sub}>Changing {spec.title.toLowerCase()} requires re-authentication.</Text>
+            <TextInput
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              autoFocus
+              placeholder="Password"
+              placeholderTextColor={colors.text3}
+              style={[overlayStyles.input, { outlineStyle: 'none' } as object]}
+            />
+            {reauthErr ? <Text style={overlayStyles.err}>{reauthErr}</Text> : null}
+            <View style={overlayStyles.actions}>
+              <Pressable onPress={onClose} style={overlayStyles.btn}>
+                <Text style={overlayStyles.btnGhostText}>Cancel</Text>
+              </Pressable>
+              <Pressable onPress={submitReauth} style={[overlayStyles.btn, overlayStyles.btnPrimary]} disabled={working}>
+                <Text style={overlayStyles.btnPrimaryText}>{working ? 'Verifying…' : 'Continue'}</Text>
+              </Pressable>
+            </View>
+          </>
+        ) : null}
+
+        {phase === 'value' && spec.kind === 'enum' ? (
+          <>
+            <Text style={overlayStyles.title}>{spec.title}</Text>
+            <ScrollView style={{ maxHeight: 420 }}>
+              {spec.options.map((opt) => {
+                const isCur = opt.value === spec.current;
+                return (
+                  <Pressable
+                    key={opt.value}
+                    style={[overlayStyles.optRow, isCur && overlayStyles.optRowSel]}
+                    onPress={() => onCommit(opt.value, spec)}
+                  >
+                    <Text style={overlayStyles.optText}>{opt.label}</Text>
+                    {isCur ? <Text style={overlayStyles.optCheck}>✓</Text> : null}
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </>
+        ) : null}
+
+        {phase === 'value' && spec.kind === 'spot' ? (
+          <SpotPickerOverlay current={spec.current} onPick={(spotId) => onCommit(spotId, spec)} />
+        ) : null}
+
+        {phase === 'value' && spec.kind === 'text' ? (
+          <>
+            <Text style={overlayStyles.title}>{spec.title}</Text>
+            <TextInput
+              value={draft}
+              onChangeText={setDraft}
+              autoFocus
+              placeholder={spec.placeholder}
+              placeholderTextColor={colors.text3}
+              style={[overlayStyles.input, { outlineStyle: 'none' } as object]}
+            />
+            <View style={overlayStyles.actions}>
+              <Pressable onPress={onClose} style={overlayStyles.btn}>
+                <Text style={overlayStyles.btnGhostText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => onCommit(draft.trim(), spec)}
+                style={[overlayStyles.btn, overlayStyles.btnPrimary]}
+              >
+                <Text style={overlayStyles.btnPrimaryText}>Save</Text>
+              </Pressable>
+            </View>
+          </>
+        ) : null}
+      </Pressable>
+    </Pressable>
+  );
+}
+
+function SpotPickerOverlay({ current, onPick }: { current: string; onPick: (spotId: string) => void }) {
+  const [q, setQ] = React.useState('');
+  const filtered = React.useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    if (!needle) return CANONICAL_SPOTS_FOR_SETTINGS;
+    return CANONICAL_SPOTS_FOR_SETTINGS.filter(
+      (s) => s.name.toLowerCase().includes(needle) || s.region.toLowerCase().includes(needle),
+    );
+  }, [q]);
+  return (
+    <>
+      <Text style={overlayStyles.title}>Home spot</Text>
+      <TextInput
+        value={q}
+        onChangeText={setQ}
+        placeholder="Filter spots…"
+        placeholderTextColor={colors.text3}
+        style={[overlayStyles.input, { outlineStyle: 'none' } as object]}
+      />
+      <ScrollView style={{ maxHeight: 360 }}>
+        {filtered.map((s) => {
+          const isCur = s.id === current;
+          return (
+            <Pressable
+              key={s.id}
+              style={[overlayStyles.optRow, isCur && overlayStyles.optRowSel]}
+              onPress={() => onPick(s.id)}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={overlayStyles.optText}>{s.name}</Text>
+                <Text style={overlayStyles.optSub}>{s.region}</Text>
+              </View>
+              {isCur ? <Text style={overlayStyles.optCheck}>✓</Text> : null}
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+    </>
+  );
+}
+
+const overlayStyles = StyleSheet.create({
+  backdrop: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 100,
+  },
+  sheet: {
+    width: 480,
+    maxWidth: '92%',
+    backgroundColor: colors.surface1,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.hairlineStrong,
+    padding: 24,
+    gap: 14,
+  },
+  title: { fontFamily: fonts.display, fontSize: 18, fontWeight: '700', color: colors.text1 },
+  sub:   { fontFamily: fonts.body, fontSize: 13, color: colors.text3 },
+  err:   { fontFamily: fonts.body, fontSize: 12, color: colors.nogo },
+  input: {
+    backgroundColor: colors.surface0,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.hairlineStrong,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    color: colors.text1,
+    fontFamily: fonts.body,
+    fontSize: 14,
+  },
+  actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8, marginTop: 6 },
+  btn: { paddingHorizontal: 16, paddingVertical: 9, borderRadius: radius.sm },
+  btnGhostText: { color: colors.text3, fontFamily: fonts.body, fontSize: 13, fontWeight: '600' },
+  btnPrimary: { backgroundColor: colors.accent },
+  btnPrimaryText: { color: colors.bg, fontFamily: fonts.body, fontSize: 13, fontWeight: '700' },
+  optRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: radius.sm,
+    gap: 10,
+  },
+  optRowSel: { backgroundColor: colors.accentDim },
+  optText: { fontFamily: fonts.body, fontSize: 14, color: colors.text1 },
+  optSub: { fontFamily: fonts.mono, fontSize: 10, color: colors.text3, marginTop: 2 },
+  optCheck: { color: colors.accent, fontFamily: fonts.body, fontWeight: '700' },
+});
 
 function SettingsSection({
   title,
@@ -1781,56 +2122,52 @@ const styles = StyleSheet.create({
   bodyMain: { flex: 1, gap: 24 },
   bodySidebar: { width: 280, gap: 24 },
 
-  // Stat cards
+  // Stat tiles — colored-outline style, matches mobile (no icon,
+  // transparent dark fill, big number on top, small label underneath).
   statCardsRow: {
     flexDirection: 'row',
     gap: 14,
   },
-  statCard: {
+  statTile: {
     flex: 1,
-    height: 148,
+    height: 132,
     padding: 20,
-    backgroundColor: colors.surface0,
-    borderWidth: 1,
-    borderColor: colors.hairline,
-    borderRadius: radius.md,
-    position: 'relative',
-    overflow: 'hidden',
+    backgroundColor: 'transparent',
+    borderWidth: 1.5,
+    borderRadius: radius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  statCardIcon: {
-    fontSize: 22,
-  },
-  statCardValueRow: {
+  statTileValueRow: {
     flexDirection: 'row',
     alignItems: 'baseline',
+    justifyContent: 'center',
     gap: 4,
-    marginTop: 12,
   },
-  statCardValue: {
+  statTileValue: {
     fontFamily: fonts.display,
-    fontSize: 36,
-    fontWeight: '700',
+    fontSize: 42,
+    lineHeight: 46,
+    fontWeight: '800',
     color: colors.text1,
-    letterSpacing: -0.5,
+    letterSpacing: -1,
+    textAlign: 'center',
   },
-  statCardUnit: {
+  statTileUnit: {
     fontFamily: fonts.mono,
     fontSize: 14,
     color: colors.text3,
+    marginLeft: 2,
   },
-  statCardLabel: {
+  statTileLabel: {
     fontFamily: fonts.mono,
-    fontSize: 11,
-    letterSpacing: 1,
+    fontSize: 10,
+    letterSpacing: 1.1,
+    fontWeight: '700',
     color: colors.text3,
-    marginTop: 6,
-  },
-  statCardBgIcon: {
-    position: 'absolute',
-    right: 12,
-    bottom: 12,
-    fontSize: 72,
-    opacity: 0.05,
+    marginTop: 8,
+    textTransform: 'uppercase',
+    textAlign: 'center',
   },
 
   // Sections

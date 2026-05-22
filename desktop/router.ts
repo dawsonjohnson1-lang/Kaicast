@@ -27,8 +27,8 @@ export type RouteKey =
   | 'privacy'
   | 'cookies'
   | 'refund'
-  | 'dmca'
-  | 'aup';
+  | 'aup'
+  | 'not-found';
 
 export type RouteParams = {
   spotId?: string;
@@ -57,8 +57,15 @@ export const PRIVATE_ROUTES: ReadonlySet<RouteKey> = new Set([
 export const AUTH_ROUTES: ReadonlySet<RouteKey> = new Set(['signin', 'signup']);
 
 // Routes that the global Footer renders below. The auth + legal screens
-// have their own footers / no chrome, so we skip them.
-export const HIDE_FOOTER_ROUTES: ReadonlySet<RouteKey> = new Set(['signin', 'signup']);
+// have their own footers / no chrome, so we skip them. Spots & Maps is
+// also a viewport-locked layout (body overflow:hidden on mount) so the
+// map stays fixed while side columns scroll — a footer would push the
+// layout past 100vh and re-enable the page scroll we're trying to kill.
+export const HIDE_FOOTER_ROUTES: ReadonlySet<RouteKey> = new Set([
+  'signin',
+  'signup',
+  'spots-map',
+]);
 
 // ── URL ↔ route mapping ──────────────────────────────────────────────
 // Firebase Hosting's desktop target already rewrites every path to
@@ -83,8 +90,8 @@ const STATIC_ROUTES: Record<RouteKey, string> = {
   privacy:       '/privacy',
   cookies:       '/cookies',
   refund:        '/refund',
-  dmca:          '/dmca',
   aup:           '/aup',
+  'not-found':   '/not-found',
 };
 
 const ALL_ROUTE_KEYS: ReadonlySet<string> = new Set(Object.keys(STATIC_ROUTES));
@@ -143,6 +150,10 @@ export function parseLocation(loc: { pathname: string; search: string }): {
     }
   }
 
-  // Unknown path → landing. Could become a real 404 screen later.
-  return { route: 'landing' };
+  // Unknown path → 404 screen. (Firebase Hosting's SPA rewrite always
+  // returns HTTP 200 with index.html, so a real 404 status isn't
+  // possible without changing hosting config — but we at least render
+  // a Not Found page so deleted routes like /dmca don't silently
+  // resolve to the landing page.)
+  return { route: 'not-found' };
 }

@@ -13,7 +13,19 @@ service cloud.firestore {
   match /databases/{database}/documents {
     match /users/{uid} {
       allow read: if true;
-      allow write: if request.auth != null && request.auth.uid == uid;
+
+      // Canonical Settings fields (profile.*, prefs.*, meta.*, phone)
+      // are server-only — the `updateUserSetting` callable validates +
+      // writes them via Admin SDK. Direct client writes to those keys
+      // are denied; legacy / non-canonical fields (displayName, handle,
+      // bio, photoURL, the mobile onboarding fields) remain owner-
+      // writeable here so onboarding + edit-profile keep working
+      // without round-tripping through a callable for every field.
+      allow create: if request.auth != null && request.auth.uid == uid;
+      allow update: if request.auth != null && request.auth.uid == uid
+                    && !request.resource.data.diff(resource.data).affectedKeys()
+                         .hasAny(['profile', 'prefs', 'meta', 'phone']);
+      allow delete: if request.auth != null && request.auth.uid == uid;
 
       // Per-user favorites subcollection: users/{uid}/favorites/{spotId}
       // Public read (for follower-style "their favorite spots" UI later)

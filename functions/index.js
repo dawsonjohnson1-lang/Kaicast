@@ -1559,6 +1559,12 @@ exports.archiveHourly  = require('./archiveHourly').archiveHourly;
 // userStats.js for the trigger and field semantics.
 exports.aggregateUserStats = require('./aggregations/userStats').aggregateUserStats;
 
+// Settings writes funnel here so we can validate enum values, phone
+// format, and spotId existence in one place — and the rules can deny
+// direct client writes to profile/prefs/meta. See userSettings.js for
+// the request/response contract and the shared/ allowlist.
+exports.updateUserSetting = require('./userSettings').updateUserSetting;
+
 // Legacy onDiveLogCreated trigger removed — its responsibilities
 // (ingesting reported_vis vs predicted_vis into abyss_diver_reports)
 // are now part of the submitDiveLog callable, with the same data

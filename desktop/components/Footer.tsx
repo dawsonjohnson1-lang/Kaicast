@@ -36,7 +36,6 @@ const COLUMNS: ReadonlyArray<{ title: string; links: ReadonlyArray<FooterLink> }
       { label: 'Privacy Policy',    route: 'privacy' },
       { label: 'Cookie Policy',     route: 'cookies' },
       { label: 'Acceptable Use',    route: 'aup' },
-      { label: 'DMCA',              route: 'dmca' },
     ],
   },
   {

@@ -18,6 +18,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useProfilePhoto } from '@/hooks/useProfilePhoto';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { useUserDiveLogs, diveLogToReport } from '@/hooks/useDiveLogs';
+import { useUserStats } from '@/hooks/useUserStats';
 import { useSpots } from '@/hooks/useSpots';
 import { useFollowing } from '@/hooks/useFollowing';
 import * as Notifications from 'expo-notifications';
@@ -57,15 +58,15 @@ export function ProfileScreen() {
     diveLogToReport(l, authorName, spotsById.get(l.spotId) ?? l.spotId),
   );
 
-  // Live profile stats from the user's logs — show real zeros until
-  // they actually have dives logged, no mock-inflated totals.
-  const maxDepthFt = userLogs.length
-    ? Math.max(...userLogs.map((l) => l.depthFt ?? 0))
+  // Live profile stats come from /users/{uid}/stats/summary, written by
+  // the aggregateUserStats Cloud Function. Single writer, both clients
+  // read the same numbers — see functions/aggregations/userStats.js.
+  const { stats } = useUserStats(user?.id);
+  const totalDives = stats?.totalDives ?? 0;
+  const deepestDiveFt = stats?.deepestDive ?? 0;
+  const totalBottomTimeHours = stats
+    ? Math.round((stats.totalBottomTime / 3600) * 10) / 10
     : 0;
-  const uniqueSpots = userLogs.length
-    ? new Set(userLogs.map((l) => l.spotId)).size
-    : 0;
-  const totalLogs = userLogs.length;
 
   // Real favorites (heart icon on Spot Detail) → carousel content.
   const { favorites: favoriteIds } = useFavorites(user?.id);
@@ -133,9 +134,9 @@ export function ProfileScreen() {
       {tab === 'Dashboard' && (
         <View style={{ marginTop: spacing.xl, gap: spacing.xl }}>
           <View style={styles.tileGrid}>
-            <StatTile value={String(maxDepthFt)}  unit="ft" label="MAX DEPTH REPORTED"    borderColor={colors.excellent} />
-            <StatTile value={String(uniqueSpots)} unit=""   label="DIFFERENT SPOTS DIVED" borderColor={colors.accent} />
-            <StatTile value={String(totalLogs)}   unit=""   label="LOGGED DIVES"          borderColor={colors.scuba} />
+            <StatTile value={String(totalDives)}                                 unit=""   label="DIVES LOGGED"          borderColor={colors.excellent} />
+            <StatTile value={String(deepestDiveFt)}                              unit="ft" label="PERSONAL DEPTH RECORD" borderColor={colors.accent} />
+            <StatTile value={Number.isInteger(totalBottomTimeHours) ? String(totalBottomTimeHours) : totalBottomTimeHours.toFixed(1)} unit="h"  label="TOTAL BOTTOM TIME"     borderColor={colors.scuba} />
           </View>
 
           <View>

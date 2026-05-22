@@ -129,7 +129,8 @@ export async function setUserProfile(uid: string, input: UserProfileInput): Prom
       payload.createdAt = serverTimestamp();
       await setDoc(ref, payload, { merge: true });
     } else {
-      await updateDoc(ref, payload);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await updateDoc(ref, payload as any);
     }
     return;
   }

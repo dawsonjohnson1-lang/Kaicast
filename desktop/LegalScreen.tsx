@@ -12,17 +12,15 @@ import termsMd    from './legal/terms.md?raw';
 import privacyMd  from './legal/privacy.md?raw';
 import cookiesMd  from './legal/cookies.md?raw';
 import refundMd   from './legal/refund.md?raw';
-import dmcaMd     from './legal/dmca.md?raw';
 import aupMd      from './legal/aup.md?raw';
 
-export type LegalDoc = 'terms' | 'privacy' | 'cookies' | 'refund' | 'dmca' | 'aup';
+export type LegalDoc = 'terms' | 'privacy' | 'cookies' | 'refund' | 'aup';
 
 const DOCS: Record<LegalDoc, { title: string; source: string }> = {
   terms:    { title: 'Terms of Service',  source: termsMd },
   privacy:  { title: 'Privacy Policy',    source: privacyMd },
   cookies:  { title: 'Cookie Policy',     source: cookiesMd },
   refund:   { title: 'Refund Policy',     source: refundMd },
-  dmca:     { title: 'DMCA Policy',       source: dmcaMd },
   aup:      { title: 'Acceptable Use Policy', source: aupMd },
 };
 

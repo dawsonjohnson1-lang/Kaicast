@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
 import { colors, fonts } from './tokens';
 import {
   AUTH_ROUTES,
@@ -59,9 +59,79 @@ const SCREENS: Record<RouteKey, React.ComponentType<any>> = {
   'privacy':      (p: any) => <LegalScreen doc="privacy" {...p} />,
   'cookies':      (p: any) => <LegalScreen doc="cookies" {...p} />,
   'refund':       (p: any) => <LegalScreen doc="refund" {...p} />,
-  'dmca':         (p: any) => <LegalScreen doc="dmca" {...p} />,
   'aup':          (p: any) => <LegalScreen doc="aup" {...p} />,
+  'not-found':    NotFoundScreen,
 };
+
+function NotFoundScreen({ onNavigate }: { onNavigate?: NavigateFn }) {
+  // Set the page title so the tab + crawlers see "Not found" even
+  // though Firebase Hosting can't return a real 404 status given the
+  // SPA fallback config.
+  React.useEffect(() => {
+    if (typeof document !== 'undefined') {
+      const prev = document.title;
+      document.title = 'Not found · KaiCast';
+      return () => { document.title = prev; };
+    }
+  }, []);
+  return (
+    <View style={notFoundStyles.wrap}>
+      <Text style={notFoundStyles.code}>404</Text>
+      <Text style={notFoundStyles.title}>Page not found</Text>
+      <Text style={notFoundStyles.body}>
+        The page you’re looking for has moved or no longer exists.
+      </Text>
+      <Pressable style={notFoundStyles.cta} onPress={() => onNavigate?.('spots-map')}>
+        <Text style={notFoundStyles.ctaText}>Back to the map</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+const notFoundStyles = StyleSheet.create({
+  wrap: {
+    flex: 1,
+    minHeight: '60vh' as unknown as number,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 64,
+    gap: 12,
+  },
+  code: {
+    fontFamily: fonts.mono,
+    fontSize: 48,
+    letterSpacing: 4,
+    color: colors.text3,
+    fontWeight: '700',
+  },
+  title: {
+    fontFamily: fonts.display,
+    fontSize: 28,
+    color: colors.text1,
+    fontWeight: '700',
+  },
+  body: {
+    fontFamily: fonts.body,
+    fontSize: 14,
+    color: colors.text3,
+    textAlign: 'center',
+    maxWidth: 420,
+  },
+  cta: {
+    marginTop: 16,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    backgroundColor: colors.accent,
+    borderRadius: 999,
+  },
+  ctaText: {
+    fontFamily: fonts.body,
+    fontSize: 14,
+    color: '#04070d',
+    fontWeight: '600',
+  },
+});
 
 // Set the first time a user successfully signs in so we can distinguish
 // brand-new accounts (land on the map after sign-in for the orientation

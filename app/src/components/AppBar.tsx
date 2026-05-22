@@ -4,6 +4,8 @@ import { colors, spacing, typography } from '@/theme';
 import { Logo } from './Logo';
 import { Avatar } from './Avatar';
 import { useProfilePhoto } from '@/hooks/useProfilePhoto';
+import { useAuth } from '@/hooks/useAuth';
+import { useUserProfile } from '@/hooks/useUserProfile';
 
 type Props = {
   userName?: string;
@@ -22,8 +24,18 @@ export function AppBar({
   photoSource,
   onAvatarPress,
 }: Props) {
+  // The auth snapshot's photoUrl is captured once at sign-in, so when
+  // a user updates their photo from the Profile screen the menu would
+  // stay stale until next sign-in. Subscribe to the live users/{uid}
+  // doc here so every AppBar (Home, Saved, Explore) reads the same
+  // photoUrl the Profile page does — single source of truth.
+  const { user } = useAuth();
+  const { profile } = useUserProfile(user?.id);
+  const livePhotoUri = profile?.photoUrl ?? user?.photoUrl;
+  const effectivePhotoUri = photoUri ?? livePhotoUri;
+
   const hookPhoto = useProfilePhoto();
-  const photo = photoUri ? undefined : (photoSource ?? hookPhoto);
+  const photo = effectivePhotoUri ? undefined : (photoSource ?? hookPhoto);
   return (
     <View style={styles.row}>
       <Logo size={26} showWordmark />
@@ -32,7 +44,7 @@ export function AppBar({
           <Text style={styles.name}>{userName}</Text>
           <Text style={styles.loc}>{userLocation}</Text>
         </View>
-        <Avatar initials={initials} size={42} ring imageUri={photoUri} imageSource={photo} />
+        <Avatar initials={initials} size={42} ring imageUri={effectivePhotoUri} imageSource={photo} />
       </Pressable>
     </View>
   );
