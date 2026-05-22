@@ -54,8 +54,18 @@ const SIDEBAR_NAV = [
 // Canonical spots lookup is still needed for the map; but FAVORITES
 // (the user's saved spots) is empty until they actually star one.
 import { findSpot as findCanonicalSpot } from './data/spots';
-import { useSpotRatings } from './data/getReport';
+import { useSpotRatings, useSpotReport, tierFromRating, bestWindowLabel, type BackendReport } from './data/getReport';
 const FAVORITE_IDS: ReadonlyArray<string> = [];
+
+// Default favorite spots shown on the dashboard until per-user
+// favorites are wired. These render as SpotCards with live data
+// pulled from getReport (rating, visibility, water temp, swell,
+// best window) so the cards never go stale.
+const DEFAULT_FAVORITE_SPOT_IDS: ReadonlyArray<string> = [
+  'electric-beach',
+  'sharks-cove',
+  'molokini-crater',
+];
 const BASE_FAVORITES: Array<{
   name: string; rating: ConditionTier; lat: number; lng: number; spotId: string;
 }> = FAVORITE_IDS
@@ -75,11 +85,6 @@ const STATS = [
   { label: 'Total bottom time',   value: '0h', unit: '' },
   { label: 'Species logged',      value: '0',  unit: '' },
 ];
-
-const FAVORITE_CARDS: Array<{
-  name: string; region: string; rating: ConditionTier;
-  visibilityFt: number; waterTempF: number; swellFt: number; bestWindow: string;
-}> = [];
 
 const RECENT_DIVES: Array<{
   date: string; spot: string; activity: string;
@@ -355,18 +360,76 @@ function FavoriteSpotsRow({ onNavigate }: { onNavigate?: NavigateFn }) {
         <Text style={styles.sectionLink}>Manage favorites →</Text>
       </View>
       <View style={styles.favCardsRow}>
-        {FAVORITE_CARDS.map((s) => (
-          <Pressable
-            key={s.name}
-            style={{ flex: 1 }}
-            onPress={() => onNavigate?.('spot-detail', { spotId: slugify(s.name) })}
-          >
-            <SpotCard {...s} />
-          </Pressable>
+        {DEFAULT_FAVORITE_SPOT_IDS.map((spotId) => (
+          <LiveFavoriteCard key={spotId} spotId={spotId} onNavigate={onNavigate} />
         ))}
       </View>
     </View>
   );
+}
+
+// Render a single SpotCard with live conditions pulled from getReport.
+// Each card owns its own useSpotReport call — they cache per-spotId so
+// re-renders don't refetch and the 3 calls fire in parallel.
+function LiveFavoriteCard({
+  spotId,
+  onNavigate,
+}: {
+  spotId: string;
+  onNavigate?: NavigateFn;
+}) {
+  const { data: report, loading } = useSpotReport(spotId);
+  const canonical = findCanonicalSpot(spotId);
+  const name = canonical?.name ?? spotId;
+  // Canonical Spot only has a single `region` field (e.g. "Oahu") —
+  // surface it as the card's region line. No coast/subregion in this
+  // dataset yet.
+  const region = canonical ? canonical.region.toUpperCase() : '';
+  const props = buildSpotCardProps(report, { name, region, fallbackTier: 'good' });
+
+  return (
+    <Pressable
+      style={{ flex: 1 }}
+      onPress={() => onNavigate?.('spot-detail', { spotId })}
+    >
+      <SpotCard {...props} />
+      {loading && !report ? (
+        <Text style={styles.favCardLoading}>Loading…</Text>
+      ) : null}
+    </Pressable>
+  );
+}
+
+const M_TO_FT = (m: number) => Math.round(m * 3.28084);
+const C_TO_F = (c: number) => Math.round(c * 1.8 + 32);
+
+function buildSpotCardProps(
+  report: BackendReport | null,
+  defaults: { name: string; region: string; fallbackTier: ConditionTier },
+): {
+  name: string;
+  region: string;
+  rating: ConditionTier;
+  visibilityFt: number;
+  waterTempF: number;
+  swellFt: number;
+  bestWindow: string;
+} {
+  const visFt = (report?.now?.visibility as { estimatedVisibilityFeet?: number } | undefined)
+    ?.estimatedVisibilityFeet ?? 0;
+  const waterC = report?.now?.metrics?.waterTempC;
+  const waveM = report?.now?.metrics?.waveHeightM;
+  const rating = report ? tierFromRating(report.now?.rating) : defaults.fallbackTier;
+  const bestWin = bestWindowLabel(report?.windows) ?? '—';
+  return {
+    name: defaults.name,
+    region: defaults.region,
+    rating,
+    visibilityFt: Math.round(visFt),
+    waterTempF: typeof waterC === 'number' ? C_TO_F(waterC) : 0,
+    swellFt: typeof waveM === 'number' ? M_TO_FT(waveM) : 0,
+    bestWindow: bestWin,
+  };
 }
 
 function HeatmapSection({ onNavigate }: { onNavigate?: NavigateFn }) {
@@ -882,6 +945,14 @@ const styles = StyleSheet.create({
   favCardsRow: {
     flexDirection: 'row',
     gap: 12,
+  },
+  favCardLoading: {
+    fontFamily: fonts.mono,
+    fontSize: 9,
+    color: colors.text4,
+    letterSpacing: 0.6,
+    marginTop: 4,
+    paddingLeft: 4,
   },
 
   // Heatmap
