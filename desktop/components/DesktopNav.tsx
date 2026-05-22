@@ -6,6 +6,7 @@ import { logos } from '../assets/figma/logos';
 import { flags } from '../assets/figma/flags';
 import { useBreakpoint, pick } from '../hooks/useBreakpoint';
 import { initialsFromUser, useAuth } from '../hooks/useAuth';
+import { useUserProfile } from '../hooks/useUserProfile';
 
 /**
  * Shared top nav, appears on all six desktop screens.
@@ -24,7 +25,7 @@ export type NavKey = 'dashboard' | 'forecast' | 'spots' | 'log';
  * because Conditions sits under the Forecast group. */
 const NAV_TO_ROUTE: Record<NavKey, RouteKey> = {
   dashboard: 'dashboard',
-  forecast:  'spot-detail',
+  forecast:  'conditions',
   spots:     'spots-map',
   log:       'log-dive',
 };
@@ -53,10 +54,15 @@ export function DesktopNav({
 }: DesktopNavProps) {
   const bp = useBreakpoint();
   const auth = useAuth();
+  // Prefer the canonical /users/{uid} photoURL (custom upload, kept in
+  // sync with mobile) and fall back to the Firebase Auth photo
+  // (typically populated for Google sign-in).
+  const { profile } = useUserProfile(auth.user?.uid);
   const sidePad = pick(bp, 28, 16);
   const searchWidth = pick(bp, 240, 180);
   const signedIn = auth.user != null;
   const resolvedInitials = userInitials ?? initialsFromUser(auth.user, 'KC');
+  const resolvedPhotoURL = profile?.photoURL ?? auth.user?.photoURL ?? null;
   return (
     <View style={styles.root}>
       {showUtilBar ? (
@@ -113,7 +119,15 @@ export function DesktopNav({
                 <Text style={styles.bellIcon}>◔</Text>
               </Pressable>
               <Pressable style={styles.avatar} onPress={() => onNavigate?.('profile')}>
-                <Text style={styles.avatarText}>{resolvedInitials}</Text>
+                {resolvedPhotoURL ? (
+                  <Image
+                    source={{ uri: resolvedPhotoURL }}
+                    style={styles.avatarImage}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <Text style={styles.avatarText}>{resolvedInitials}</Text>
+                )}
               </Pressable>
             </>
           ) : (
@@ -279,6 +293,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: colors.hairlineStrong,
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: radius.sm,
   },
   avatarText: {
     fontFamily: fonts.mono,
