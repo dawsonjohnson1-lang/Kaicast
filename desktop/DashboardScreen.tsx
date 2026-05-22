@@ -57,6 +57,7 @@ import { findSpot as findCanonicalSpot } from './data/spots';
 import { useSpotRatings, useSpotReport, tierFromRating, bestWindowLabel, type BackendReport } from './data/getReport';
 import { useFavorites } from './hooks/useFavorites';
 import { useAuth } from './hooks/useAuth';
+import { useUserLocation, distanceMiles } from './hooks/useUserLocation';
 const FAVORITE_IDS: ReadonlyArray<string> = [];
 
 // Default favorite spots shown on the dashboard only when the user
@@ -460,9 +461,36 @@ function FavoriteSpotsRow({
 }) {
   const hasFavorites = favoriteSpotIds.length > 0;
   // When the user has no favorites yet, surface the three popular
-  // starter spots so the row isn't an empty rectangle — and mark the
-  // section accordingly so they know to click the heart on one.
-  const idsToShow = hasFavorites ? favoriteSpotIds.slice(0, 6) : DEFAULT_FAVORITE_SPOT_IDS;
+  // starter spots so the row isn't an empty rectangle.
+  const baseIds = hasFavorites ? favoriteSpotIds : DEFAULT_FAVORITE_SPOT_IDS;
+
+  // Sort by distance from the user (closest first). Falls back to
+  // Honolulu when geolocation is denied/unavailable so the order is
+  // still deterministic + reasonable.
+  const loc = useUserLocation();
+  const idsToShow = React.useMemo(() => {
+    const withDistance = baseIds.map((id) => {
+      const spot = findCanonicalSpot(id);
+      const dist = spot ? distanceMiles(loc.lat, loc.lon, spot.lat, spot.lon) : Number.POSITIVE_INFINITY;
+      return { id, dist };
+    });
+    withDistance.sort((a, b) => a.dist - b.dist);
+    return withDistance.map((x) => x.id);
+  }, [baseIds, loc.lat, loc.lon]);
+
+  // Layout: each card is exactly 1/3 of the row width with a 12px gap
+  // between cards. When there are ≤3 favorites the row fills exactly;
+  // with more, the row horizontal-scrolls so the user can swipe to
+  // additional cards while the 3-up grid feel stays consistent.
+  // We measure the visible row width via onLayout so per-card widths
+  // can be computed precisely; before first measure we render at flex:1
+  // (no scroll until we know the width).
+  const [rowWidth, setRowWidth] = React.useState(0);
+  const cardGap = 12;
+  const cardWidth = rowWidth > 0
+    ? Math.floor((rowWidth - cardGap * 2) / 3)
+    : null;
+  const scrollable = idsToShow.length > 3 && cardWidth != null;
 
   return (
     <View style={styles.sectionBlock}>
@@ -480,12 +508,31 @@ function FavoriteSpotsRow({
         <Text style={styles.favCardsHint}>
           Tap the heart on any spot to pin it here.
         </Text>
-      ) : null}
-      <View style={styles.favCardsRow}>
+      ) : loc.isFallback ? (
+        <Text style={styles.favCardsHint}>
+          Showing nearest first · (using Honolulu as default — enable location for accurate distances)
+        </Text>
+      ) : (
+        <Text style={styles.favCardsHint}>
+          Sorted by distance from you · closest first
+        </Text>
+      )}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={scrollable}
+        scrollEnabled={scrollable}
+        contentContainerStyle={{ gap: cardGap }}
+        onLayout={(e) => setRowWidth(e.nativeEvent.layout.width)}
+      >
         {idsToShow.map((spotId) => (
-          <LiveFavoriteCard key={spotId} spotId={spotId} onNavigate={onNavigate} />
+          <View
+            key={spotId}
+            style={cardWidth != null ? { width: cardWidth } : { flex: 1, minWidth: 240 }}
+          >
+            <LiveFavoriteCard spotId={spotId} onNavigate={onNavigate} userLocation={loc} />
+          </View>
         ))}
-      </View>
+      </ScrollView>
     </View>
   );
 }
@@ -496,17 +543,25 @@ function FavoriteSpotsRow({
 function LiveFavoriteCard({
   spotId,
   onNavigate,
+  userLocation,
 }: {
   spotId: string;
   onNavigate?: NavigateFn;
+  userLocation?: { lat: number; lon: number; isFallback: boolean };
 }) {
   const { data: report, loading } = useSpotReport(spotId);
   const canonical = findCanonicalSpot(spotId);
   const name = canonical?.name ?? spotId;
   // Canonical Spot only has a single `region` field (e.g. "Oahu") —
-  // surface it as the card's region line. No coast/subregion in this
-  // dataset yet.
-  const region = canonical ? canonical.region.toUpperCase() : '';
+  // append the rounded distance when we have a user location, so the
+  // card reflects "Oahu · 4 mi" instead of just "OAHU".
+  const baseRegion = canonical ? canonical.region.toUpperCase() : '';
+  const distMi = userLocation && canonical
+    ? Math.round(distanceMiles(userLocation.lat, userLocation.lon, canonical.lat, canonical.lon))
+    : null;
+  const region = distMi != null
+    ? `${baseRegion} · ${distMi} MI${userLocation?.isFallback ? ' (approx)' : ''}`
+    : baseRegion;
   const props = buildSpotCardProps(report, { name, region, fallbackTier: 'good' });
 
   return (
