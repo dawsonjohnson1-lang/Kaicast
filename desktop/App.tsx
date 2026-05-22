@@ -215,6 +215,13 @@ function computeEffectiveFrame(
     return { route: 'dashboard' };
   }
 
+  // Signed-in + marketing landing ('/') → punt straight to dashboard.
+  // The landing page is the unauthenticated marketing surface; a
+  // logged-in user hitting "/" wants their dashboard, not the pitch.
+  if (signedIn && current.route === 'landing') {
+    return { route: 'dashboard' };
+  }
+
   return current;
 }
 
