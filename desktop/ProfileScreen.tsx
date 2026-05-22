@@ -930,13 +930,6 @@ const DEFAULT_SETTINGS: SettingsState = {
   shareTrips: true,
 };
 
-const CONNECTED_ACCOUNTS = [
-  { id: 'strava',  name: 'Strava',          status: 'connected'  as const, note: 'Last sync 12m ago · 147 activities' },
-  { id: 'garmin',  name: 'Garmin Connect',  status: 'connected'  as const, note: 'Last sync 1h ago · 89 activities' },
-  { id: 'apple',   name: 'Apple Health',    status: 'available'  as const, note: 'Pull dive depths from Apple Watch' },
-  { id: 'shearwater', name: 'Shearwater Cloud', status: 'available'  as const, note: 'Import detailed dive computer logs' },
-];
-
 function SettingsTabBody({
   profile,
   setProfile,
@@ -1086,87 +1079,6 @@ function SettingsTabBody({
             onToggle={(v) => set('shareTrips', v)}
             isLast
           />
-        </SettingsSection>
-
-        <SettingsSection title="Connected accounts" subtitle="Pull dive data from other platforms">
-          {CONNECTED_ACCOUNTS.map((a, i) => (
-            <View
-              key={a.id}
-              style={[styles.connectedRow, i < CONNECTED_ACCOUNTS.length - 1 && styles.connectedRowDivider]}
-            >
-              <View style={styles.connectedIcon}>
-                <Text style={styles.connectedIconText}>{a.name[0]}</Text>
-              </View>
-              <View style={styles.connectedTextWrap}>
-                <Text style={styles.connectedName}>{a.name}</Text>
-                <Text style={styles.connectedNote}>{a.note}</Text>
-              </View>
-              {a.status === 'connected' ? (
-                <View style={styles.connectedStatusRow}>
-                  <View style={[styles.connectedStatusDot, { backgroundColor: colors.great }]} />
-                  <Text style={[styles.connectedStatusText, { color: colors.great }]}>CONNECTED</Text>
-                  <Pressable style={styles.connectedDisconnectBtn}>
-                    <Text style={styles.connectedDisconnectText}>Disconnect</Text>
-                  </Pressable>
-                </View>
-              ) : (
-                <Pressable style={styles.connectedConnectBtn}>
-                  <Text style={styles.connectedConnectText}>Connect</Text>
-                </Pressable>
-              )}
-            </View>
-          ))}
-        </SettingsSection>
-
-        <SettingsSection title="Subscription" subtitle="Your KaiCast Pro plan">
-          <View style={styles.subscriptionHero}>
-            <View style={styles.subscriptionBadge}>
-              <Text style={styles.subscriptionBadgeIcon}>⬡</Text>
-              <Text style={styles.subscriptionBadgeText}>PRO MEMBER</Text>
-            </View>
-            <Text style={styles.subscriptionPlan}>$8 / month · Annual</Text>
-            <Text style={styles.subscriptionRenew}>Renews Nov 14, 2024 · Next charge $96</Text>
-          </View>
-          <View style={styles.subscriptionActionsRow}>
-            <Pressable style={styles.subscriptionActionBtn}>
-              <Text style={styles.subscriptionActionText}>Manage billing</Text>
-            </Pressable>
-            <Pressable style={styles.subscriptionActionBtn}>
-              <Text style={styles.subscriptionActionText}>View invoices</Text>
-            </Pressable>
-            <Pressable style={[styles.subscriptionActionBtn, styles.subscriptionActionBtnDanger]}>
-              <Text style={[styles.subscriptionActionText, { color: colors.fair }]}>Cancel plan</Text>
-            </Pressable>
-          </View>
-        </SettingsSection>
-
-        <SettingsSection title="Data & export" subtitle="Download or remove your data">
-          <SettingsRow
-            label="Download dive log"
-            value="ZIP archive · all 147 dives + photos"
-            actionLabel="Request"
-          />
-          <SettingsRow
-            label="Export to UDDF"
-            value="Dive Computer XML format"
-            actionLabel="Export"
-          />
-          <SettingsRow
-            label="Archive my profile"
-            value="Hide from search & feeds — recoverable for 30 days"
-            actionLabel="Archive"
-          />
-          <View style={[styles.connectedRow, styles.dangerRow]}>
-            <View style={styles.connectedTextWrap}>
-              <Text style={styles.dangerLabel}>Delete account</Text>
-              <Text style={styles.dangerNote}>
-                Permanently remove your profile, dive log, photos, and community contributions. Cannot be undone.
-              </Text>
-            </View>
-            <Pressable style={styles.dangerBtn}>
-              <Text style={styles.dangerBtnText}>Delete</Text>
-            </Pressable>
-          </View>
         </SettingsSection>
 
         <SettingsSection title="About">
