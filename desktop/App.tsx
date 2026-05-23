@@ -26,6 +26,7 @@ import { MyDivesScreen } from './MyDivesScreen';
 import { CommunityScreen } from './CommunityScreen';
 import { LandingScreen } from './LandingScreen';
 import { ManageFavoritesScreen } from './ManageFavoritesScreen';
+import { AboutScreen } from './AboutScreen';
 import { AuthScreen } from './AuthScreen';
 import { LegalScreen, type LegalDoc } from './LegalScreen';
 
@@ -57,6 +58,7 @@ const SCREENS: Record<RouteKey, React.ComponentType<any>> = {
   'my-dives':     MyDivesScreen,
   'community':    CommunityScreen,
   'manage-favorites': ManageFavoritesScreen,
+  'about':        AboutScreen,
   'terms':        (p: any) => <LegalScreen doc="terms" {...p} />,
   'privacy':      (p: any) => <LegalScreen doc="privacy" {...p} />,
   'cookies':      (p: any) => <LegalScreen doc="cookies" {...p} />,
@@ -70,11 +72,10 @@ function NotFoundScreen({ onNavigate }: { onNavigate?: NavigateFn }) {
   // though Firebase Hosting can't return a real 404 status given the
   // SPA fallback config.
   React.useEffect(() => {
-    if (typeof document !== 'undefined') {
-      const prev = document.title;
-      document.title = 'Not found · KaiCast';
-      return () => { document.title = prev; };
-    }
+    if (typeof document === 'undefined') return undefined;
+    const prev = document.title;
+    document.title = 'Not found · KaiCast';
+    return () => { document.title = prev; };
   }, []);
   return (
     <View style={notFoundStyles.wrap}>

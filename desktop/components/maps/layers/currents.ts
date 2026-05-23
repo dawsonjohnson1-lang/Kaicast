@@ -25,6 +25,10 @@ export const CURRENTS_LAYER_ID = 'kc-currents-lyr';
 const WMS_BASE =
   'https://pae-paha.pacioos.hawaii.edu/thredds/wms/roms_hiig/ROMS_Hawaii_Regional_Ocean_Model_best.ncd';
 
+// 2× pixel density per tile so vector arrows render sharper at all
+// zooms (especially Retina). Each tile is still one logical 256×256
+// map tile; ncWMS just rasterizes its arrow field into twice as many
+// pixels, which the GPU downsamples cleanly.
 const TILE_URL =
   `${WMS_BASE}` +
   '?REQUEST=GetMap' +
@@ -33,8 +37,8 @@ const TILE_URL =
   '&LAYERS=sea_water_velocity' +
   '&CRS=EPSG:3857' +
   '&BBOX={bbox-epsg-3857}' +
-  '&WIDTH=256' +
-  '&HEIGHT=256' +
+  '&WIDTH=512' +
+  '&HEIGHT=512' +
   '&FORMAT=image/png' +
   '&TRANSPARENT=TRUE' +
   '&STYLES=vector/rdylbu';
@@ -46,10 +50,15 @@ export function addCurrents(map: mapboxgl.Map): void {
   map.addSource(CURRENTS_SOURCE_ID, {
     type: 'raster',
     tiles: [TILE_URL],
-    tileSize: 256,
-    // ROMS native res ~4 km — past z11 the WMS just upsamples its
-    // own grid, no extra detail.
-    maxzoom: 11,
+    // 512px tile so the hi-res WMS rasterization stays crisp without
+    // Mapbox having to downsample. Matches the WIDTH/HEIGHT bump above.
+    tileSize: 512,
+    // ROMS native res is still ~4 km; bumping maxzoom from 11 → 14 means
+    // Mapbox keeps requesting fresh tiles instead of stretching the z11
+    // image, so as you zoom into a single island you get tighter bboxes
+    // and arrows positioned with finer granularity (one arrow per 4 km
+    // ocean grid cell instead of one per ~10 stretched pixels).
+    maxzoom: 14,
     // Restrict to the Main Hawaiian Islands bbox so Mapbox doesn't
     // hammer the WMS with global tile requests at low zoom.
     bounds: [-161, 18, -154, 23],

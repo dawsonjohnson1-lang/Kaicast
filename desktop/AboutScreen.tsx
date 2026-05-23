@@ -65,11 +65,10 @@ export function AboutScreen({ onNavigate }: AboutScreenProps) {
   const layerCols = pick(bp, 3, 2);
 
   React.useEffect(() => {
-    if (typeof document !== 'undefined') {
-      const prev = document.title;
-      document.title = 'About · KaiCast';
-      return () => { document.title = prev; };
-    }
+    if (typeof document === 'undefined') return undefined;
+    const prev = document.title;
+    document.title = 'About · KaiCast';
+    return () => { document.title = prev; };
   }, []);
 
   return (

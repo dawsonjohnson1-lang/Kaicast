@@ -197,3 +197,12 @@ app/assets/wind.svg
 
 # Repo-root tsconfig — accidental; real one lives at app/tsconfig.json
 /tsconfig.json
+
+# Vestigial root project files (pre app/+functions/+desktop/ split)
+# The real packages live in each app's own directory.
+/package.json
+/package-lock.json
+/node_modules/
+/tsconfig.json
+/App.tsx
+/KaiCast.tsx

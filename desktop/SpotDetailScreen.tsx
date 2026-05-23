@@ -18,6 +18,7 @@ import { KaiCastMap } from './components/maps/KaiCastMap';
 import { useBreakpoint, pick } from './hooks/useBreakpoint';
 import type { NavigateFn, RouteParams } from './router';
 import { findSpot, mapboxSatelliteUrl, SPOTS } from './data/spots';
+import { getSpotBio } from './data/spotBios';
 import {
   useSpotReport,
   tierFromRating,
@@ -406,12 +407,19 @@ function ForecastDayCard({ day, isFirst }: { day: ForecastDay; isFirst: boolean 
 
       <Stars n={day.rating === 'excellent' ? 5 : day.rating === 'great' ? 4 : day.rating === 'good' ? 3 : day.rating === 'fair' ? 2 : 1} size={11} />
 
+      {/* Primary metric is visibility — divers care about how far they
+          can see more than wave height. The `day.vis` shape from
+          backendDayToDesktopDay is already "35–55FT"; strip the unit
+          so it renders in the existing big-number / small-unit layout.
+          The "VIS" prefix reuses the small mono unit style so the
+          label is balanced visually with the "FT" suffix. */}
       <View style={styles.forecastWaveRow}>
-        <Text style={styles.forecastWaveNum}>{day.waveLo}–{day.waveHi}</Text>
+        <Text style={styles.forecastWaveUnit}>VIS</Text>
+        <Text style={styles.forecastWaveNum}>{day.vis.replace(/\s*FT\s*$/i, '')}</Text>
         <Text style={styles.forecastWaveUnit}>FT</Text>
       </View>
 
-      <Text style={styles.forecastVis}>VIS {day.vis}</Text>
+      <Text style={styles.forecastVis}>WAVES {day.waveLo}–{day.waveHi} FT</Text>
 
       <View style={styles.forecastBars}>
         {day.bars.map((tier, idx) => (
@@ -553,13 +561,15 @@ const HISTORY_FACTS = [
 
 function SpotInfoTabBody() {
   const spot = useSpotCtx();
+  const bio = getSpotBio(spot);
   return (
     <View style={styles.mainGrid}>
       <View style={styles.mainLeft}>
         <InfoSection title="About this spot">
-          {ABOUT_PARAGRAPHS.map((p, i) => (
+          {bio.paragraphs.map((p, i) => (
             <Text key={i} style={styles.infoBodyText}>{p}</Text>
           ))}
+          <Text style={styles.infoBodyDisclaimer}>{bio.disclaimer}</Text>
         </InfoSection>
 
         <InfoSection title="Location">
@@ -3844,6 +3854,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 22,
     color: colors.text2,
+  },
+  infoBodyDisclaimer: {
+    fontFamily: fonts.mono,
+    fontSize: 11,
+    lineHeight: 16,
+    color: colors.text3,
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: colors.hairline,
+    fontStyle: 'italic',
   },
 
   factRow: {

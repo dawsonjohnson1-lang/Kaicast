@@ -1,9 +1,16 @@
 export const colors = {
-  // Backgrounds
-  bg: '#161616',
-  bgElevated: '#1f1f1f',
-  card: '#1C1C1C',
-  cardAlt: '#1a1a1c',
+  // Backgrounds — `bg` matches desktop's `colors.bg` in tokens.ts so
+  // the two surfaces share the same page canvas. Elevated/card surfaces
+  // are black at 20% opacity rather than a lighter gray, so they
+  // compose to a subtle inset against `bg` rather than popping above
+  // it. The effect: cards feel carved into the canvas, not floating
+  // above it. The same alpha composes correctly when stacked (a card
+  // inside a modal sits ~20% darker than the modal, which sits ~20%
+  // darker than the page).
+  bg: '#0C1015',
+  bgElevated: 'rgba(0,0,0,0.20)',
+  card: 'rgba(0,0,0,0.20)',
+  cardAlt: 'rgba(0,0,0,0.20)',
   border: '#262626',
   divider: '#1f2937',
 

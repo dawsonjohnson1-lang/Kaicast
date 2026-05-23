@@ -16,6 +16,7 @@ import {
   MARKER_STROKE_COLOR,
   HALO_RADIUS,
   HALO_OPACITY,
+  MAP_LAYER_OVERRIDES,
   spotsToGeoJSON,
 } from '@/theme/mapStyle';
 import type { Spot } from '@/types';
@@ -41,12 +42,27 @@ let MapView: any = null;
 let Camera: any = null;
 let ShapeSource: any = null;
 let CircleLayer: any = null;
+let FillLayer: any = null;
+let LineLayer: any = null;
+let SymbolLayer: any = null;
+let BackgroundLayer: any = null;
 try {
   if (Platform.OS !== 'web') {
     const mod = require('@rnmapbox/maps');
     Mapbox = mod.default;
     MapView = mod.MapView;
     Camera = mod.Camera;
+    // FillLayer / LineLayer / SymbolLayer / BackgroundLayer with
+    // `existing` lets us repaint dark-v11's existing layers in place
+    // (water, roads, labels, land). Desktop achieves the same via
+    // `map.setPaintProperty(...)`; rnmapbox v10 doesn't expose that
+    // cleanly, but `existing={true}` patches the loaded style's
+    // matching layer. See MAP_LAYER_OVERRIDES in theme/mapStyle.ts
+    // for the full list — mirrors desktop's STYLE_OVERRIDES.
+    FillLayer = mod.FillLayer;
+    LineLayer = mod.LineLayer;
+    SymbolLayer = mod.SymbolLayer;
+    BackgroundLayer = mod.BackgroundLayer;
     // ShapeSource + CircleLayer is the GeoJSON-driven rendering path —
     // way more reliable than PointAnnotation, which has known re-render
     // bugs when child styling (selected state) changes. Style expressions
@@ -144,6 +160,61 @@ export function SpotMap({
           animationMode="easeTo"
           animationDuration={600}
         />
+
+        {/* Dark-v11 layer recoloring — repaints land / roads / labels
+            to the KaiCast surface palette so the map blends seamlessly
+            into the surrounding UI. Mirrors desktop's STYLE_OVERRIDES
+            applied in KaiCastMap.tsx via setPaintProperty. `existing`
+            tells rnmapbox to patch the loaded style layer in place
+            rather than creating a new one. Missing layers (Mapbox
+            occasionally renames things between style versions) are
+            silently no-ops, matching desktop's try/catch. */}
+        {FillLayer ? (
+          <FillLayer id="water" existing style={{ fillColor: colors.bg }} />
+        ) : null}
+        {MAP_LAYER_OVERRIDES.map((o) => {
+          if (o.kind === 'background' && BackgroundLayer) {
+            return (
+              <BackgroundLayer
+                key={o.id}
+                id={o.id}
+                existing
+                style={{ backgroundColor: o.color }}
+              />
+            );
+          }
+          if (o.kind === 'fill' && FillLayer) {
+            return (
+              <FillLayer
+                key={o.id}
+                id={o.id}
+                existing
+                style={{ fillColor: o.color }}
+              />
+            );
+          }
+          if (o.kind === 'line' && LineLayer) {
+            return (
+              <LineLayer
+                key={o.id}
+                id={o.id}
+                existing
+                style={{ lineColor: o.color }}
+              />
+            );
+          }
+          if (o.kind === 'symbol' && SymbolLayer) {
+            return (
+              <SymbolLayer
+                key={o.id}
+                id={o.id}
+                existing
+                style={{ textColor: o.color }}
+              />
+            );
+          }
+          return null;
+        })}
 
         <ShapeSource id="kaicast-spots" shape={geojson} onPress={onShapePress}>
           {/* Halo: rendered first so the marker circle sits on top.

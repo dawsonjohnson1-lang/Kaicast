@@ -39,7 +39,7 @@ module.exports = () => ({
     splash: {
       image: './assets/splash.png',
       resizeMode: 'contain',
-      backgroundColor: '#161616',
+      backgroundColor: '#0C1015',
     },
     ios: {
       supportsTablet: false,
@@ -58,7 +58,7 @@ module.exports = () => ({
       package: 'com.kaicast.app',
       adaptiveIcon: {
         foregroundImage: './assets/adaptive-icon.png',
-        backgroundColor: '#161616',
+        backgroundColor: '#0C1015',
       },
     },
     web: {

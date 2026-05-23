@@ -39,6 +39,13 @@ export function DayStrip({ days, selectedId, onSelect }: DayStripProps) {
       >
         {days.map((d) => {
           const active = d.id === selectedId;
+          // Primary metric is visibility — divers care about how far
+          // they can see more than wave height. Derive a daily range
+          // from the 24 hourly points; the type doesn't carry a
+          // top-level vis range like desktop's ForecastDay does.
+          const visValues = d.hourly.map((h) => h.visibilityFt);
+          const visLo = Math.min(...visValues);
+          const visHi = Math.max(...visValues);
           return (
             <Pressable
               key={d.id}
@@ -47,7 +54,7 @@ export function DayStrip({ days, selectedId, onSelect }: DayStripProps) {
             >
               <Text style={[dayStyles.label, active && dayStyles.labelActive]}>{d.label}</Text>
               <Text style={[dayStyles.date, active && dayStyles.dateActive]}>{d.date}</Text>
-              <Text style={dayStyles.swell}>{d.swellRangeFt}</Text>
+              <Text style={dayStyles.swell}>VIS {visLo}–{visHi} ft</Text>
               <View style={dayStyles.dotRow}>
                 <View style={[dayStyles.dot, { backgroundColor: FORECAST_COLOR[d.amRating] }]} />
                 <View style={[dayStyles.dot, { backgroundColor: FORECAST_COLOR[d.midRating] }]} />

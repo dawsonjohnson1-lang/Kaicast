@@ -24,7 +24,7 @@ const COLUMNS: ReadonlyArray<{ title: string; links: ReadonlyArray<FooterLink> }
   {
     title: 'Company',
     links: [
-      { label: 'About',         href: 'mailto:hello@kaicast.com' },
+      { label: 'About',         route: 'about' },
       { label: 'Contact',       href: 'mailto:hello@kaicast.com' },
       { label: 'Press',         href: 'mailto:press@kaicast.com' },
     ],

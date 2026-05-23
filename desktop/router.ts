@@ -24,6 +24,7 @@ export type RouteKey =
   | 'my-dives'
   | 'community'
   | 'manage-favorites'
+  | 'about'
   | 'terms'
   | 'privacy'
   | 'cookies'
@@ -89,6 +90,7 @@ const STATIC_ROUTES: Record<RouteKey, string> = {
   'my-dives':    '/my-dives',
   community:     '/community',
   'manage-favorites': '/favorites',
+  about:         '/about',
   terms:         '/terms',
   privacy:       '/privacy',
   cookies:       '/cookies',

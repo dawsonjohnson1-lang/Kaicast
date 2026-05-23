@@ -5,6 +5,8 @@ import {
   fonts,
   radius,
   DESKTOP_MAX_WIDTH,
+  NAV_HEIGHT,
+  UTIL_BAR_HEIGHT,
   TIER_COLORS,
   TIER_LABELS,
   type ConditionTier,
@@ -200,11 +202,29 @@ export function SpotsMapScreen({ activeNav = 'spots', onNavigate }: SpotsMapScre
 
   return (
     <View style={[styles.page, styles.pageFixed]}>
-      <DesktopNav active={activeNav} onNavigate={onNavigate} />
-      <AlertBanner />
+      {/* Map sits on its own layer, position: fixed to the viewport, so
+          the side columns can scroll freely without dragging it with
+          them. Rendered first; the chrome stack below paints over its
+          top edge via z-index. */}
+      <MapColumn
+        markers={mapMarkers}
+        selectedName={selectedName}
+        hoveredName={hoveredName}
+        onSelect={setSelectedName}
+        sidebarW={sidebarW}
+        panelW={panelW}
+      />
 
-      {/* Body fills the rest of the viewport. Left + right columns
-          scroll independently; the map column is fixed (no scroll). */}
+      {/* Nav + alert sit above the map via z-index so the map can run
+          edge-to-edge from top:0 without being hidden under them. */}
+      <View style={styles.chromeStack}>
+        <DesktopNav active={activeNav} onNavigate={onNavigate} />
+        <AlertBanner />
+      </View>
+
+      {/* Side columns flank the (now-fixed) map. justifyContent
+          space-between anchors them to their respective edges since
+          the middle column is no longer in flow. */}
       <View style={styles.bodyFixed}>
         <View style={{ width: sidebarW, height: '100%' }}>
           <Sidebar
@@ -219,12 +239,6 @@ export function SpotsMapScreen({ activeNav = 'spots', onNavigate }: SpotsMapScre
             ratings={liveRatings}
           />
         </View>
-        <MapColumn
-          markers={mapMarkers}
-          selectedName={selectedName}
-          hoveredName={hoveredName}
-          onSelect={setSelectedName}
-        />
         <View style={{ width: panelW, height: '100%' }}>
           <ScrollView
             style={styles.panelScroll}
@@ -453,11 +467,15 @@ function MapColumn({
   selectedName,
   hoveredName,
   onSelect,
+  sidebarW,
+  panelW,
 }: {
   markers: MapMarker[];
   selectedName: string;
   hoveredName?: string;
   onSelect: (name: string) => void;
+  sidebarW: number;
+  panelW: number;
 }) {
   // When the user clicks a sidebar spot, re-center the map on it. We
   // intentionally keep zoom modest so the surrounding archipelago stays
@@ -469,7 +487,7 @@ function MapColumn({
   const zoom = selectedMarker ? 9.5 : HAWAII_ZOOM;
 
   return (
-    <View style={styles.mapColumn}>
+    <View style={[styles.mapColumn, { left: sidebarW, right: panelW }]}>
       <KaiCastMap
         markers={markers}
         center={center}
@@ -928,13 +946,24 @@ const styles = StyleSheet.create({
   },
   // Body row inside pageFixed — fills the remaining viewport so the
   // left + right columns scroll within their own bounds while the
-  // map column stays fixed. overflow:hidden lets the inner column
-  // ScrollViews own their scrolling without bleeding out of the row.
+  // map column stays fixed. justifyContent:space-between pins the
+  // side columns to their edges now that the (fixed) map column is
+  // out of flow.
   bodyFixed: {
     flex: 1,
     flexDirection: 'row',
+    justifyContent: 'space-between',
     minHeight: 0, // critical for flex children that scroll on web
     overflow: 'hidden' as unknown as 'visible',
+    position: 'relative',
+    zIndex: 1,
+  },
+  // Wraps the top nav + alert banner. Lifted above the (position:fixed)
+  // map so it visually covers the map's top edge instead of being
+  // painted underneath.
+  chromeStack: {
+    position: 'relative',
+    zIndex: 2,
   },
   panelScroll: {
     flex: 1,
@@ -1096,11 +1125,18 @@ const styles = StyleSheet.create({
   },
 
   // ── Map (center) ──
+  // Pinned to the viewport — full screen height, slotted between the
+  // side columns via `left: sidebarW` / `right: panelW` (set inline by
+  // MapColumn). The chrome stack above sits at a higher z-index so its
+  // bg covers the map's top edge.
   mapColumn: {
-    flex: 1,
+    position: 'fixed' as unknown as 'absolute',
+    top: 0,
+    bottom: 0,
+    // left + right set inline based on responsive side-column widths
     backgroundColor: '#04111e',
-    position: 'relative',
     overflow: 'hidden',
+    zIndex: 0,
   },
   // Status bar
   mapStatusBar: {
