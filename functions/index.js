@@ -9,8 +9,106 @@ const logger = require('firebase-functions/logger');
 const admin  = require('firebase-admin');
 
 const analysis        = require('./analysis');
-const { fetchBuoyHourly } = require('./buoy_Version2');
+const { fetchBuoyHourly, fetchMultiBuoy } = require('./buoy_Version2');
 const { fetchMarineForecast } = require('./marineForecast');
+const { fetchPacioosWaveForecast } = require('./pacioosWaveModel');
+
+// ─── Wave accuracy helpers (A2 multi-buoy + A3 exposure) ─────────────────
+
+// Default buoy clusters per Hawaiian coast — used when a spot doesn't
+// declare `nearbyBuoys` explicitly. Buoys are the working NDBC Hawaii
+// stations as of 2026:
+//   51201 — Waimea Bay (north Oahu)
+//   51202 — Mokapu Point (east Oahu)
+//   51205 — Pauwela (NE Maui)
+//   51206 — Hilo (east Big Island)
+//   51208 — Hanalei (north Kauai)
+//   51212 — Barbers Point (south Oahu — leeward)
+const COAST_DEFAULT_BUOYS = {
+  north: ['51201', '51208', '51202'],
+  east:  ['51202', '51205'],
+  south: ['51212', '51202'],
+  west:  ['51212', '51205'],
+};
+
+function defaultBuoysForSpot(spot) {
+  if (Array.isArray(spot.nearbyBuoys) && spot.nearbyBuoys.length > 0) {
+    return spot.nearbyBuoys;
+  }
+  const fromCoast = COAST_DEFAULT_BUOYS[spot.coast];
+  if (Array.isArray(fromCoast) && fromCoast.length > 0) {
+    // Always include the spot's explicit buoyStation first so we don't
+    // accidentally drop the closest reading by falling back to coast
+    // defaults that may not list it.
+    const set = new Set(fromCoast);
+    if (spot.buoyStation) set.add(spot.buoyStation);
+    return [...set];
+  }
+  return spot.buoyStation ? [spot.buoyStation] : [];
+}
+
+// Per-coast swell windows — compass arcs (from..to, degrees, clockwise)
+// of swell direction that can actually reach the coast. Used to scale
+// down model wave heights when the swell is coming from a direction
+// the spot is shadowed from (e.g., a 6 ft south swell barely reaches
+// north-shore spots).
+const COAST_SWELL_WINDOWS = {
+  // North-facing coast: open to W → N → NE swell.
+  north: [{ from: 270, to: 90 }],
+  // East-facing: open from NNE through SSE.
+  east:  [{ from: 0,   to: 180 }],
+  // South-facing: open from E through W (through south).
+  south: [{ from: 90,  to: 270 }],
+  // West-facing: open from S through N (through west).
+  west:  [{ from: 180, to: 0 }],
+};
+
+function isAngleInWindow(deg, win) {
+  const a = ((win.from % 360) + 360) % 360;
+  const b = ((win.to   % 360) + 360) % 360;
+  const x = ((deg     % 360) + 360) % 360;
+  // Arc spans from a→b clockwise. If a < b the arc is [a, b];
+  // if a > b the arc wraps around 360 (e.g., 270 → 90).
+  return a <= b ? (x >= a && x <= b) : (x >= a || x <= b);
+}
+
+/**
+ * Exposure multiplier 0..1 for a swell coming from `dirDegFrom` at
+ * the given spot. Returns 1.0 when the swell direction sits in any of
+ * the spot's exposure windows, and a small residual (0.25) when it's
+ * coming from a shadowed direction — wraparound + diffraction still
+ * deliver some energy even to fully blocked spots.
+ */
+function exposureFactor(spot, dirDegFrom) {
+  if (!Number.isFinite(dirDegFrom)) return 1; // unknown direction → no correction
+  const windows = Array.isArray(spot.swellWindowDeg) && spot.swellWindowDeg.length > 0
+    ? spot.swellWindowDeg
+    : COAST_SWELL_WINDOWS[spot.coast];
+  if (!Array.isArray(windows) || windows.length === 0) return 1;
+  for (const w of windows) {
+    if (isAngleInWindow(dirDegFrom, w)) return 1.0;
+  }
+  return 0.25;
+}
+
+/**
+ * Apply per-spot exposure correction to wave-height maps in place.
+ * For each hour with a known wave direction, multiplies the height
+ * by the spot's exposure factor for that direction. Heights for
+ * hours with no direction are left untouched.
+ */
+function applyExposureToMaps(spot, maps) {
+  if (!maps || !maps.waveHMap || !maps.waveDirMap) return maps;
+  for (const [iso, h] of maps.waveHMap.entries()) {
+    const dir = maps.waveDirMap.get(iso);
+    if (!Number.isFinite(dir)) continue;
+    const factor = exposureFactor(spot, dir);
+    if (factor < 1) {
+      maps.waveHMap.set(iso, Math.round(h * factor * 100) / 100);
+    }
+  }
+  return maps;
+}
 const { pushAllReportsToWebflow } = require('./webflow');
 const { estimateVisibilityAbyss } = require('./abyss/abyss');
 const { fetchOceanColor } = require('./abyss/kd490');
@@ -1560,11 +1658,28 @@ async function runPipeline({ apiKey, publish = false }) {
   for (const spot of SPOTS) {
     try {
       const owHourly = await fetchOpenWeatherHourly({ lat: spot.lat, lon: spot.lon, apiKey });
-      const buoyData = spot.buoyStation
-        ? await fetchBuoyHourly({ station: spot.buoyStation }).catch(() => null)
+      // A2: multi-buoy fusion — averages readings across 2-3 nearby
+      // Hawaii NDBC stations rather than relying on a single buoy that
+      // may sit on the wrong side of the island from the spot.
+      const buoys = defaultBuoysForSpot(spot);
+      const buoyData = buoys.length > 0
+        ? await fetchMultiBuoy({ stations: buoys }).catch(() => null)
         : null;
-      const marineForecast = await fetchMarineForecast({ lat: spot.lat, lon: spot.lon, days: 7 })
+      // A1: PacIOOS WW3 (5 km Hawaii-regional) preferred over global
+      // Open-Meteo (~25 km grid) for swell forecast. Open-Meteo stays
+      // as the second-tier fallback when PacIOOS is empty/down.
+      const pacioosForecast = await fetchPacioosWaveForecast({ lat: spot.lat, lon: spot.lon, days: 7 })
         .catch(() => null);
+      const openMeteoForecast = await fetchMarineForecast({ lat: spot.lat, lon: spot.lon, days: 7 })
+        .catch(() => null);
+      const marineForecast = (pacioosForecast && pacioosForecast.waveHMap?.size > 0)
+        ? pacioosForecast
+        : openMeteoForecast;
+
+      // A3: apply per-spot swell-window exposure correction. A 6 ft
+      // south swell shows ~1.5 ft at a north-shore spot, not 6 ft.
+      applyExposureToMaps(spot, buoyData);
+      applyExposureToMaps(spot, marineForecast);
 
       const report = await buildSpotReport({ spot, owHourly, buoyData, marineForecast, nowMs });
       reports.push(report);
@@ -1674,11 +1789,28 @@ exports.getReport = onRequest(
         return;
       }
       const owHourly = await fetchOpenWeatherHourly({ lat: spot.lat, lon: spot.lon, apiKey });
-      const buoyData = spot.buoyStation
-        ? await fetchBuoyHourly({ station: spot.buoyStation }).catch(() => null)
+      // A2: multi-buoy fusion — averages readings across 2-3 nearby
+      // Hawaii NDBC stations rather than relying on a single buoy that
+      // may sit on the wrong side of the island from the spot.
+      const buoys = defaultBuoysForSpot(spot);
+      const buoyData = buoys.length > 0
+        ? await fetchMultiBuoy({ stations: buoys }).catch(() => null)
         : null;
-      const marineForecast = await fetchMarineForecast({ lat: spot.lat, lon: spot.lon, days: 7 })
+      // A1: PacIOOS WW3 (5 km Hawaii-regional) preferred over global
+      // Open-Meteo (~25 km grid) for swell forecast. Open-Meteo stays
+      // as the second-tier fallback when PacIOOS is empty/down.
+      const pacioosForecast = await fetchPacioosWaveForecast({ lat: spot.lat, lon: spot.lon, days: 7 })
         .catch(() => null);
+      const openMeteoForecast = await fetchMarineForecast({ lat: spot.lat, lon: spot.lon, days: 7 })
+        .catch(() => null);
+      const marineForecast = (pacioosForecast && pacioosForecast.waveHMap?.size > 0)
+        ? pacioosForecast
+        : openMeteoForecast;
+
+      // A3: apply per-spot swell-window exposure correction. A 6 ft
+      // south swell shows ~1.5 ft at a north-shore spot, not 6 ft.
+      applyExposureToMaps(spot, buoyData);
+      applyExposureToMaps(spot, marineForecast);
       const report = await buildSpotReport({ spot, owHourly, buoyData, marineForecast, nowMs });
 
       // Cache the freshly-computed report so the next request is fast.

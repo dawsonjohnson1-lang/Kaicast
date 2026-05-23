@@ -248,6 +248,83 @@ async function fetchBuoyHourly({ station, cacheTtlMs = DEFAULT_CACHE_TTL_MS } = 
   }
 }
 
+/**
+ * Multi-buoy fusion. Given a list of NDBC station ids, fetch each in
+ * parallel and merge their readings: for each ISO hour, the merged
+ * wave height / period / direction is the average across the buoys
+ * that have a value. Used by buildSpotReport when a spot has a
+ * `nearbyBuoys` array so noisy single-buoy readings get smoothed out
+ * by the consensus of the surrounding stations.
+ *
+ * Returns the same { waveHMap, wavePMap, waveDirMap, sstMap } shape
+ * as fetchBuoyHourly, so the rest of the pipeline doesn't need to
+ * know whether it's reading from one station or several.
+ *
+ * Note: direction averaging is naive vector-mean (works fine for
+ * tightly-clustered Hawaii buoys but would break for spreads >180°).
+ * We dedupe single-station calls so fetchMultiBuoy([X]) === fetchBuoyHourly(X).
+ */
+async function fetchMultiBuoy({ stations, cacheTtlMs = DEFAULT_CACHE_TTL_MS } = {}) {
+  const empty = () => ({
+    waveHMap: new Map(),
+    wavePMap: new Map(),
+    waveDirMap: new Map(),
+    sstMap: new Map(),
+  });
+  if (!Array.isArray(stations) || stations.length === 0) return empty();
+
+  const results = await Promise.all(
+    stations.map((s) => fetchBuoyHourly({ station: s, cacheTtlMs })),
+  );
+
+  // Single station — return as-is to preserve exact values.
+  if (results.length === 1) return results[0];
+
+  const out = empty();
+  const merge = (key, values) => {
+    const nums = values.filter((v) => Number.isFinite(v));
+    if (nums.length === 0) return null;
+    return nums.reduce((a, b) => a + b, 0) / nums.length;
+  };
+  const mergeDir = (values) => {
+    // Vector mean of compass bearings — sin/cos average then atan2,
+    // converted back to 0..360. Handles wrap-around at north.
+    const valid = values.filter((v) => Number.isFinite(v));
+    if (valid.length === 0) return null;
+    let sx = 0, sy = 0;
+    for (const deg of valid) {
+      const rad = (deg * Math.PI) / 180;
+      sx += Math.cos(rad);
+      sy += Math.sin(rad);
+    }
+    const mean = Math.atan2(sy, sx) * 180 / Math.PI;
+    return Math.round((mean + 360) % 360);
+  };
+
+  // Collect all unique ISO hour keys across all buoys.
+  const allKeys = new Set();
+  for (const r of results) {
+    for (const k of r.waveHMap.keys()) allKeys.add(k);
+    for (const k of r.wavePMap.keys()) allKeys.add(k);
+    for (const k of r.waveDirMap.keys()) allKeys.add(k);
+    for (const k of r.sstMap.keys()) allKeys.add(k);
+  }
+
+  for (const k of allKeys) {
+    const wH = merge('waveH', results.map((r) => r.waveHMap.get(k)));
+    if (wH != null) out.waveHMap.set(k, Math.round(wH * 100) / 100);
+    const wP = merge('waveP', results.map((r) => r.wavePMap.get(k)));
+    if (wP != null) out.wavePMap.set(k, Math.round(wP * 10) / 10);
+    const wD = mergeDir(results.map((r) => r.waveDirMap.get(k)));
+    if (wD != null) out.waveDirMap.set(k, wD);
+    const sst = merge('sst', results.map((r) => r.sstMap.get(k)));
+    if (sst != null) out.sstMap.set(k, Math.round(sst * 10) / 10);
+  }
+
+  return out;
+}
+
 module.exports = {
   fetchBuoyHourly,
+  fetchMultiBuoy,
 };
