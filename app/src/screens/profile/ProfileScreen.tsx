@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, Pressable, ScrollView, StyleSheet, Linking } from 'react-native';
+import { View, Text, Pressable, ScrollView, StyleSheet, Linking, Share } from 'react-native';
 import { useNavigation, CompositeNavigationProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
@@ -203,6 +203,23 @@ export function ProfileScreen() {
             iconLeft="search"
             fullWidth
             onPress={() => nav.navigate('DiscoverUsers')}
+          />
+          <Button
+            label="Invite friends to KaiCast"
+            variant="secondary"
+            iconLeft="share"
+            fullWidth
+            onPress={async () => {
+              try {
+                await Share.share({
+                  message: 'Track Hawaii dive conditions on KaiCast — water temp, visibility, currents, swell. Join me: https://kaicast.app/',
+                  url: 'https://kaicast.app/',
+                  title: 'KaiCast',
+                });
+              } catch {
+                // user cancelled — silent (matches DiveReportDetailScreen)
+              }
+            }}
           />
           {followingList.length === 0 ? (
             <Card>
