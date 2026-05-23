@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
-import { colors, fonts, radius, DESKTOP_MAX_WIDTH } from './tokens';
+import { colors, fonts, radius } from './tokens';
 import { DesktopNav } from './components/DesktopNav';
 import { useBreakpoint, pick } from './hooks/useBreakpoint';
 import type { NavigateFn } from './router';

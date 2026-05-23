@@ -28,7 +28,7 @@ import { LandingScreen } from './LandingScreen';
 import { ManageFavoritesScreen } from './ManageFavoritesScreen';
 import { AboutScreen } from './AboutScreen';
 import { AuthScreen } from './AuthScreen';
-import { LegalScreen, type LegalDoc } from './LegalScreen';
+import { LegalScreen } from './LegalScreen';
 
 /**
  * Desktop app shell.
