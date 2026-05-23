@@ -52,9 +52,77 @@ export const SPOTS: Spot[] = [
 
 const SPOTS_BY_ID = new Map(SPOTS.map((s) => [s.id, s]));
 
+function slugifyName(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/'/g, '')              // "Shark's" → "sharks", "Brennecke's" → "brenneckes"
+    .replace(/\([^)]*\)/g, '')      // strip parentheticals: "(Kaanapali)", "(the Mokes)"
+    .replace(/[/]/g, ' ')           // "Tunnels/Mākua" → "tunnels makua"
+    .replace(/[^a-z0-9]+/g, '-')    // every non-alphanum run → "-"
+    .replace(/^-+|-+$/g, '');       // trim leading/trailing
+}
+
+// Build slug→spot indexes so screens calling slugify(name) hit the
+// canonical entry even when the slug doesn't match the id directly
+// (e.g. "Tunnels Beach" → slug "tunnels-beach" → resolves to the
+// "tunnels-reef" canonical spot).
+const SPOTS_BY_NAME_SLUG = new Map<string, Spot>();
+const SPOTS_BY_PARTIAL = new Map<string, Spot>();
+for (const s of SPOTS) {
+  SPOTS_BY_NAME_SLUG.set(slugifyName(s.name), s);
+  // First word of the name acts as a partial fallback so common short
+  // forms ("black-rock" → "Black Rock (Kaanapali)") still resolve.
+  const firstWord = slugifyName(s.name.split(/\s+/)[0]);
+  if (firstWord && !SPOTS_BY_PARTIAL.has(firstWord)) {
+    SPOTS_BY_PARTIAL.set(firstWord, s);
+  }
+}
+
+// Hand-curated aliases for spots commonly referenced by an alternate
+// name in mock data (Conditions/Community lists, dive history rows,
+// etc.). Each alias maps an arbitrary slug to a canonical spot id.
+const SPOT_ALIASES: Record<string, string> = {
+  // Renamed display labels
+  'tunnels-beach': 'tunnels-reef',
+  'three-tables': 'sharks-cove',         // clustered with Shark's Cove
+  'waimea-bay': 'sharks-cove',           // ditto
+  'pupukea-beach': 'sharks-cove',        // ditto
+  'koko-crater': 'china-walls',          // east-shore neighbor
+  'magic-island': 'china-walls',         // south-shore neighbor for routing
+  'sandy-beach': 'china-walls',          // east-shore neighbor
+  'two-step': 'kealakekua-bay',          // Big Island Kona neighbor
+  'kahaluu-beach': 'kealakekua-bay',     // ditto
+  'richardson-beach': 'kaiwi-point',     // Big Island east-shore fallback
+  'garden-eel-cove': 'manta-heaven',     // Manta night-dive area
+  'ulua-beach': 'wailea-point-ulua-beach',
+  'la-perouse': 'makena-landing',
+  'pearl-harbor': 'electric-beach',      // leeward neighbor
+  'makaha': 'makua',                     // adjacent west-shore
+  'nukumoi-point': 'koloa-landing',      // south-Kauai neighbor
+  'moomomi': 'mokuleia',                 // remote north-shore fallback
+};
+
 export function findSpot(spotId: string | undefined): Spot | null {
   if (!spotId) return null;
-  return SPOTS_BY_ID.get(spotId) ?? null;
+  // 1. exact id
+  const direct = SPOTS_BY_ID.get(spotId);
+  if (direct) return direct;
+  // 2. curated alias map
+  const aliased = SPOT_ALIASES[spotId];
+  if (aliased) {
+    const hit = SPOTS_BY_ID.get(aliased);
+    if (hit) return hit;
+  }
+  // 3. slugified name match (catches "tunnels-reef" requested but
+  //    canonical id is "tunnels-reef" already — and "shark-s-cove"
+  //    style apostrophe-splits)
+  const bySlug = SPOTS_BY_NAME_SLUG.get(spotId);
+  if (bySlug) return bySlug;
+  // 4. first-word partial (only when nothing else matched)
+  const firstWord = spotId.split('-')[0];
+  const byPartial = SPOTS_BY_PARTIAL.get(firstWord);
+  if (byPartial) return byPartial;
+  return null;
 }
 
 /**
