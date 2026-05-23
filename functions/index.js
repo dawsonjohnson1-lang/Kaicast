@@ -326,26 +326,10 @@ const SPOTS = [
     sedimentType: 'sand',
     sedimentSensitivity: 'high',
   },
-  {
-    id: 'makua-beach',
-    name: "Makua Beach",
-    lat: 21.527379,
-    lon: -158.229536,
-    tz: 'Pacific/Honolulu',
-    coast: 'west',
-    island: "Oahu",
-    buoyStation: '51201',
-    runoffSensitivity: 'medium',
-    nearStreamMouth: false,
-    nearDrainage: true,
-    maxCleanSwellFt: 4,
-    hardNoGoSwellFt: 7,
-    siteType: 'reef',
-    maxDepthM: 18,
-    typicalDiveDepthM: 10,
-    sedimentType: 'sand',
-    sedimentSensitivity: 'high',
-  },
+  // 'makua-beach' duplicate dropped — `makua` above (21.531, -158.240) is
+  // the canonical entry that matches desktop/data/spots.ts and the mobile
+  // /users-facing spot list. Both old entries described the same dive
+  // site; we keep the one with the on-water coordinate.
   {
     id: 'manta-heaven',
     name: "Manta Heaven",

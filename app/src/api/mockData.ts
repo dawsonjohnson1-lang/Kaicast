@@ -1,65 +1,57 @@
+// Mock/demo data + the canonical spots fallback for useSpots().
+//
+// The spot list itself now lives in src/data/spots.ts so it stays in
+// sync with desktop/data/spots.ts and functions/index.js's SPOTS array.
+// This module re-exports a few view-specific selections plus the dive-
+// report / condition-alert mocks the home screen still uses in demo
+// mode.
+
 import type { ConditionAlert, DiveReport, Spot, SpotReport, TidePoint } from '@/types';
+import { SPOTS, SPOTS_BY_ID } from '@/data/spots';
 
-// Spot covers ship as bundled placeholders today. When the backend lands,
-// set imageUrl to a remote satellite-tile URL keyed off lat/lon — it takes
-// precedence over imageSource at render time.
-const ELECTRIC_BEACH_DESCRIPTION =
-  'A warm-water outflow channel from the Kahe power plant attracts pelagic species year-round. Calm water inside the cove makes for friendly free-dive entries; visibility opens up dramatically once the trade winds drop in the morning.';
-const ELECTRIC_BEACH_ENTRY =
-  'Sandy beach with a rocky shoreline. Enter on either side of the outfall — the south side is gentler. Watch for surge near the rocks at higher tides.';
-const ELECTRIC_BEACH_LIFE = ['Spinner Dolphins', 'Green Sea Turtles', 'Reef Sharks', 'Manta Rays', 'Eagle Rays'];
+const findOrFallback = (id: string): Spot => {
+  const s = SPOTS_BY_ID.get(id);
+  if (s) return s;
+  // Defensive — should be impossible since we control the canonical list.
+  // eslint-disable-next-line no-console
+  console.warn(`[mockData] missing canonical spot "${id}", falling back to first spot`);
+  return SPOTS[0];
+};
 
-export const featuredSpot: Spot & { airTempF?: number; windMph?: number; current?: string; progress?: number } = {
-  id: 'electric-beach',
-  name: 'Electric Beach',
+// Featured spot = Electric Beach, with extra live-style fields for the
+// home hero card. Coordinates come from the canonical list.
+export const featuredSpot: Spot & {
+  airTempF?: number;
+  windMph?: number;
+  current?: string;
+  progress?: number;
+} = {
+  ...findOrFallback('electric-beach'),
   region: 'Oahu · 4.2 mi away',
-  lat: 21.355,
-  lon: -158.122,
   visibilityFt: 56,
   rating: 'excellent',
-  coverColor: '#0a3a4d',
-  description: ELECTRIC_BEACH_DESCRIPTION,
-  entryExit: ELECTRIC_BEACH_ENTRY,
-  marineLife: ELECTRIC_BEACH_LIFE,
   airTempF: 79,
   windMph: 1,
   current: 'STRONG',
   progress: 0.7,
 };
 
+// The 4 default favorites shown on the home screen. These are the spots
+// that already had hand-written descriptions / marine-life lists in the
+// original mockData — keeping that rich data while pulling canonical
+// coords from src/data/spots.ts.
 export const favoriteSpots: Spot[] = [
-  {
-    id: 'electric-beach', name: 'Electric Beach', region: 'Oahu', visibilityFt: 56, rating: 'excellent',
-    coverColor: '#0c4a5c', lat: 21.355, lon: -158.122,
-    description: ELECTRIC_BEACH_DESCRIPTION,
-    entryExit: ELECTRIC_BEACH_ENTRY,
-    marineLife: ELECTRIC_BEACH_LIFE,
-  },
-  {
-    id: 'sharks-cove', name: "Shark's Cove", region: 'Oahu', visibilityFt: 48, rating: 'good',
-    coverColor: '#0a3a4d', lat: 21.6417, lon: -158.0617,
-    description:
-      "A protected lava-rock cove on the North Shore that's a Marine Life Conservation District. Best in the summer when the surf is flat — winter brings huge swells that close it out.",
-    entryExit: 'Rock entry off the parking-lot side; Three Tables to the left is gentler. Strong currents on big-swell days — don\'t enter in winter unless the surf is under 3 ft.',
-    marineLife: ['Reef Fish', 'Green Sea Turtles', 'Octopus', 'Moray Eels'],
-  },
-  {
-    id: 'molokini', name: 'Molokini', region: 'Maui', visibilityFt: 80, rating: 'excellent',
-    coverColor: '#0a4a3a', lat: 20.633, lon: -156.495,
-    description:
-      'A crescent-shaped volcanic crater off the south coast of Maui with some of the clearest water in Hawaii. Boat-only access through tour operators; the back wall drops to ~250 ft.',
-    entryExit: 'Boat-access only. Most operators run from Maalaea Harbor. Backside dive is advanced — open ocean exposure and strong currents.',
-    marineLife: ['Reef Sharks', 'Eagle Rays', 'Schooling Fish', 'Trumpetfish', 'Frogfish'],
-  },
-  {
-    id: 'three-tables', name: 'Three Tables', region: 'Oahu', visibilityFt: 42, rating: 'good',
-    coverColor: '#0c2a4d', lat: 21.6367, lon: -158.0633,
-    description:
-      'Three flat coral plateaus that surface at low tide, sheltered between Shark\'s Cove and Pupukea Beach. Mellow free-diving in summer, dangerous in winter.',
-    entryExit: 'Easy sand-and-rock entry directly from the beach. The tables are within 50 yards of shore — don\'t cross over them at low tide.',
-    marineLife: ['Green Sea Turtles', 'Reef Fish', 'Octopus'],
-  },
+  { ...findOrFallback('electric-beach'),  visibilityFt: 56, rating: 'excellent' },
+  { ...findOrFallback('sharks-cove'),     visibilityFt: 48, rating: 'good' },
+  { ...findOrFallback('molokini-crater'), visibilityFt: 80, rating: 'excellent' },
+  { ...findOrFallback('three-tables'),    visibilityFt: 42, rating: 'good' },
 ];
+
+// Explore-screen list. Used as the offline/demo fallback in useSpots().
+// We hand back the full canonical 37 spots so the explore screen — and
+// any other code path that hits the fallback — sees the same set the
+// desktop and backend already use.
+export const exploreSpots: Spot[] = SPOTS;
 
 export const conditionAlerts: ConditionAlert[] = [
   { id: 'a1', spotName: 'Molokini Crater', message: 'Visibility improved to 80 ft — best in 2 weeks', severity: 'info' },
@@ -135,10 +127,3 @@ export const electricBeachReport: SpotReport = {
   tide: { trend: 'rising', nowFt: 1.1, nextFt: 1.5, nextLabel: 'High in 2h', series: tideSeries },
   moon: { phase: 'WANING CRESCENT', illumination: 1, daysSinceFullMoon: 14 },
 };
-
-export const exploreSpots: Spot[] = [
-  ...favoriteSpots,
-  { id: 'hanauma-bay', name: 'Hanauma Bay', region: 'Oahu', visibilityFt: 35, rating: 'fair', coverColor: '#3a2a4d', lat: 21.2694, lon: -157.6939 },
-  { id: 'makua', name: 'Makua Beach', region: 'Oahu West', visibilityFt: 28, rating: 'fair', coverColor: '#4d2a2a', lat: 21.5274, lon: -158.2295 },
-  { id: 'mokuleia', name: 'Mokuleia', region: 'Oahu North', visibilityFt: 22, rating: 'no-go', coverColor: '#4d1a1a', lat: 21.5783, lon: -158.1553 },
-];
