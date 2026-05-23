@@ -13,25 +13,54 @@
 
 import type { Spot } from '@/types';
 
-// Rich per-spot copy for the spots that already had descriptions in the
-// original 7-spot mockData list. Newly-added spots fall back to the
-// shared CONDITIONAL_PLACEHOLDER_DESCRIPTION below until we write proper
-// blurbs (tracked separately — most divers expect spot bios for the top
-// destinations first, which is where the rich data already lives).
+// Rich per-spot copy. Bios mirror desktop/data/spotBios.ts so the spot
+// detail screen reads the same paragraphs on mobile and desktop —
+// description = first paragraph (what the spot IS), entryExit = second
+// paragraph (how to access + when to dive it). marineLife is mobile-
+// only metadata kept for the spots that have curated lists.
 const RICH_DATA: Record<string, Pick<Spot, 'description' | 'entryExit' | 'marineLife' | 'coverColor'>> = {
+  // ── Oahu ────────────────────────────────────────────────────────────
   'electric-beach': {
     description:
-      'A warm-water outflow channel from the Kahe power plant attracts pelagic species year-round. Calm water inside the cove makes for friendly free-dive entries; visibility opens up dramatically once the trade winds drop in the morning.',
+      "Electric Beach (Kahe Point) sits on Oahu's leeward coast where the AES power plant's warm-water outflow draws in pelagics year-round — spinner dolphins, monk seals, eagle rays, the occasional manta.",
     entryExit:
-      'Sandy beach with a rocky shoreline. Enter on either side of the outfall — the south side is gentler. Watch for surge near the rocks at higher tides.',
+      'Shore-entry over boulders to a mostly sandy bottom with scattered lava patches and concrete pipes at ~35-45ft. Best in summer when the leeward swell drops; afternoons can stir up chop.',
     marineLife: ['Spinner Dolphins', 'Green Sea Turtles', 'Reef Sharks', 'Manta Rays', 'Eagle Rays'],
+    coverColor: '#0a3a4d',
+  },
+  'hanauma-bay': {
+    description:
+      "Hanauma Bay is a sheltered volcanic crater on Oahu's east end — protected as a Marine Life Conservation District since 1967.",
+    entryExit:
+      'Easy shore entry over a shallow reef flat then a sand channel out to the keyhole at ~10ft. Closed Mondays and Tuesdays; reservations required for non-residents. Wind chop builds in afternoon trades.',
+    coverColor: '#0a3a4d',
+  },
+  'china-walls': {
+    description:
+      "China Walls is a dramatic lava cliff dive on Oahu's southeast shore at Portlock — vertical walls drop into 30-50ft visibility most days.",
+    entryExit:
+      'Advanced shore entry off the rocks; surf and surge can be serious here even on small days. Best for confident freedivers and experienced scuba teams.',
+    coverColor: '#0a3a4d',
+  },
+  'turtle-canyon': {
+    description:
+      'Turtle Canyon is the classic Waikiki boat-tour dive site — a sand channel between two reef ridges where green sea turtles gather to be cleaned.',
+    entryExit:
+      'Charter access only. Calm protected water year-round on the south shore; viz is best when south swell is small and trades are light.',
+    coverColor: '#0a3a4d',
+  },
+  'mokulua': {
+    description:
+      "The Mokulua Islands — known locally as the Mokes — are a pair of small offshore islands off Lanikai on Oahu's windward side.",
+    entryExit:
+      'Kayak access from Kailua Beach is the standard. Leeward side of Moku Nui has a reef shelf at 10-30ft good for snorkel and freedive when trades are light.',
     coverColor: '#0a3a4d',
   },
   'sharks-cove': {
     description:
-      "A protected lava-rock cove on the North Shore that's a Marine Life Conservation District. Best in the summer when the surf is flat — winter brings huge swells that close it out.",
+      "Shark's Cove sits on Oahu's north shore at Pupukea — a tide-pool-fringed cove with caves and arches once the winter swell drops.",
     entryExit:
-      "Rock entry off the parking-lot side; Three Tables to the left is gentler. Strong currents on big-swell days — don't enter in winter unless the surf is under 3 ft.",
+      'Summer only. Shore entry over slick lava; pick a calm-tide window. Marine Life Conservation District — no fishing, no collecting.',
     marineLife: ['Reef Fish', 'Green Sea Turtles', 'Octopus', 'Moray Eels'],
     coverColor: '#0a3a4d',
   },
@@ -43,13 +72,138 @@ const RICH_DATA: Record<string, Pick<Spot, 'description' | 'entryExit' | 'marine
     marineLife: ['Green Sea Turtles', 'Reef Fish', 'Octopus'],
     coverColor: '#0c2a4d',
   },
+  'turtle-reef-turtle-bay': {
+    description:
+      "Turtle Reef sits off Kuilima Point at Turtle Bay — Oahu's northeast tip — a wide reef plateau with frequent honu (green sea turtle) sightings.",
+    entryExit:
+      'Shore or short boat access depending on swell. North-facing, so winter swell shuts it down; spring-to-fall is the window.',
+    coverColor: '#0a3a4d',
+  },
+  'mokuleia': {
+    description:
+      "Mokuleia Beach Park runs along Oahu's north-shore strand between Waialua and Kaena Point — long shallow reef shelf with sandy patches.",
+    entryExit:
+      'Calm summer mornings only; the reef ledge drops into deeper water about 100yds offshore. Watch for current near the Mokuleia stream mouth after rain.',
+    coverColor: '#0a3a4d',
+  },
+  'makua': {
+    description:
+      'Makua (Pray For Sex Beach) is a remote west-shore beach with offshore reef and the occasional pod of spinner dolphins on calm mornings.',
+    entryExit:
+      'Long sandy entry; deep water comes up fast about 50yds out. Strong currents on the outer reef — local knowledge or a buddy who knows the bottom is essential.',
+    coverColor: '#0a3a4d',
+  },
+
+  // ── Maui ────────────────────────────────────────────────────────────
+  'airport-beach': {
+    description:
+      'Airport Beach (Kaanapali North) is the shore-entry sister to nearby Black Rock — long flat reef just offshore with regular turtle sightings.',
+    entryExit:
+      'Sandy walk-in, no surge entry. Best in mornings before the afternoon Maalaea breeze fills in across the channel.',
+    coverColor: '#0a4a3a',
+  },
+  'ala-wharf': {
+    description:
+      'Ala Wharf (Mala Pier) in Lahaina is the wreck of a 1992 pier — the storm-shattered concrete pilings are now a reef of their own with eels, schools of taape, and resident turtles.',
+    entryExit:
+      'Easy beach entry next to the wharf; the wreck starts about 25yds out at 15-25ft. Surge picks up when south swell is running.',
+    coverColor: '#0a4a3a',
+  },
+  'black-rock-kaanapali': {
+    description:
+      'Black Rock (Puu Kekaa) is the lava promontory at the north end of Kaanapali Beach — a classic shore dive over reef ledges and sand channels.',
+    entryExit:
+      'Walk-in from the Sheraton beach, work your way around the point. Watch for current on the outside; viz is best in the morning before chop builds.',
+    coverColor: '#0a4a3a',
+  },
+  'honolua-bay': {
+    description:
+      "Honolua Bay is a protected marine reserve on Maui's northwest tip — a deep V-shaped bay with rock walls and a healthy reef community.",
+    entryExit:
+      'Shore entry through a forest trail and a short cobble walk; the south side of the bay tends to be clearer. Closed to swimming/snorkeling when winter swell hits.',
+    coverColor: '#0a4a3a',
+  },
+  'makena-landing': {
+    description:
+      "Makena Landing on Maui's south shore is an old loading-cove turned shore dive — turtle cleaning stations on the south side and an outer reef out toward Five Caves.",
+    entryExit:
+      'Calm protected entry off the boat ramp. Best in the morning before the south-shore breeze picks up.',
+    coverColor: '#0a4a3a',
+  },
   'molokini-crater': {
     description:
-      'A crescent-shaped volcanic crater off the south coast of Maui with some of the clearest water in Hawaii. Boat-only access through tour operators; the back wall drops to ~250 ft.',
+      "Molokini is a partially submerged volcanic crater 2.5 miles off Maui's south coast — one of Hawaii's most reliable visibility sites at 100+ft most days.",
     entryExit:
-      'Boat-access only. Most operators run from Maalaea Harbor. Backside dive is advanced — open ocean exposure and strong currents.',
+      'Charter access only. Inner crater is shallow reef for snorkel; back wall drops to 250ft+ for advanced divers. Best in summer.',
     marineLife: ['Reef Sharks', 'Eagle Rays', 'Schooling Fish', 'Trumpetfish', 'Frogfish'],
     coverColor: '#0a4a3a',
+  },
+  'wailea-point-ulua-beach': {
+    description:
+      "Ulua Beach and the Wailea Point reef system anchor south-Maui's resort-coast shore diving — gentle reef shelf with consistent turtle traffic.",
+    entryExit:
+      'Sandy walk-in entry, swim out to either the Wailea Point ledges or the Ulua arches. Wind is usually offshore in the morning here.',
+    coverColor: '#0a4a3a',
+  },
+
+  // ── Kauai ───────────────────────────────────────────────────────────
+  'brenneckes-ledge': {
+    description:
+      "Brennecke's Ledge sits offshore from Poipu Beach on Kauai's sunny south shore — a long underwater shelf that drops from 30 to 60ft.",
+    entryExit:
+      'Boat access. South swell can shut it down quickly in summer; calm winter mornings are the best window.',
+    coverColor: '#3a0a4d',
+  },
+  'koloa-landing': {
+    description:
+      "Koloa Landing is Kauai's most reliable south-shore shore dive — a protected cove with two short walls and the resident Lehua the green sea turtle.",
+    entryExit:
+      'Easy boat-ramp entry. Diveable year-round but best when south swell is below 2ft and trades are light.',
+    coverColor: '#3a0a4d',
+  },
+  'niihau': {
+    description:
+      "The waters off Ni'ihau and Lehua Rock are Hawaii's most remote dive destination — pristine reef, regular monk seal sightings, frequent oceanic shark encounters.",
+    entryExit:
+      'Liveaboard or long-charter day-trip from Kauai only. Summer charter season; the channel crossing requires a flat-trade-wind window.',
+    coverColor: '#3a0a4d',
+  },
+  'sheraton-caverns': {
+    description:
+      'Sheraton Caverns is the signature Poipu charter dive — three large lava-tube arches with resident turtles inside the dome and on the surrounding sand shelf.',
+    entryExit:
+      'Boat access. Calm year-round when the south swell is small; tight summer charter rotation, book ahead.',
+    coverColor: '#3a0a4d',
+  },
+  'tunnels-reef': {
+    description:
+      "Tunnels Reef on Kauai's north shore is one of the islands' most photographed snorkels — a maze of caverns and arches in 10-30ft over a wide reef shelf.",
+    entryExit:
+      'Summer only — winter swell shuts the whole north shore down. Calm mornings before the trades fill in is the window.',
+    coverColor: '#3a0a4d',
+  },
+
+  // ── Big Island ──────────────────────────────────────────────────────
+  'kaiwi-point': {
+    description:
+      "Kaiwi Point sits just outside Kailua-Kona on Big Island's calm leeward coast — a lava-point dive with deep ledges, the occasional spinner pod, and the famous Kaiwi pinnacle.",
+    entryExit:
+      'Charter boat access. Year-round diveable; afternoons get bumpy when the wind picks up around the point.',
+    coverColor: '#4a3a0a',
+  },
+  'kealakekua-bay': {
+    description:
+      'Kealakekua Bay is a State Marine Life Conservation District — vertical wall, healthy reef, and the spinner dolphins that rest in the bay daily.',
+    entryExit:
+      'Kayak across from Napoopoo or charter access. Protected bay, calm year-round. Permits required for kayak landing at Captain Cook monument.',
+    coverColor: '#4a3a0a',
+  },
+  'manta-heaven': {
+    description:
+      'Manta Heaven is the daytime sister of the famous Manta Village night dive — same reef plate off Keauhou where giant Pacific mantas come to feed on the plankton drawn by lights.',
+    entryExit:
+      'Charter night-dive operation. Best from January through April when manta activity peaks. Bring patience; the wait under the lights is part of the experience.',
+    coverColor: '#4a3a0a',
   },
 };
 
