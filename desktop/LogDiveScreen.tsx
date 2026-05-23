@@ -71,6 +71,13 @@ export type BuddyCertLevel = 'OW' | 'AOW' | 'Rescue' | 'DM' | 'Instructor' | 'Ot
 interface FormState {
   diveType: string;
   spot: string;
+  /** Optional GPS coords — set when the user picks a custom location via
+   *  manual entry or by dropping a pin on the map. Null for spots picked
+   *  from the canonical SPOTS list (the lat/lon there is the source of
+   *  truth). Stored as strings so half-typed values like "-158." don't
+   *  fight a numeric type during entry. */
+  latitude: string | null;
+  longitude: string | null;
   date: string;
   entryTime: string;
   exitTime: string;
@@ -179,6 +186,8 @@ function todayString(): string {
 const INITIAL_FORM: FormState = {
   diveType: 'Scuba',
   spot: '',
+  latitude: null,
+  longitude: null,
   date: todayString(),
   entryTime: '',
   exitTime: '',
@@ -805,18 +814,21 @@ function RightForm({ form, update }: { form: FormState; update: Update }) {
         </View>
       ) : null}
       <Section step="01" title="Where & When" subtitle="— spot, date, and time">
-        <ComboField
-          label="Dive spot"
-          placeholder="Search 47 dive spots across Hawaii…"
-          hint="↵ to select"
-          value={form.spot}
-          onChange={(v) => update('spot', v)}
+        <SpotPicker
+          spotValue={form.spot}
+          latitude={form.latitude}
+          longitude={form.longitude}
+          onChange={(spot, lat, lon) => {
+            update('spot', spot);
+            update('latitude', lat);
+            update('longitude', lon);
+          }}
         />
         <SpotMapPicker value={form.spot} onPick={(name) => update('spot', name)} />
         <Row3>
           <NumericField label="Date"       value={form.date}      onChange={(v) => update('date', v)} />
-          <NumericField label="Entry time" value={form.entryTime} onChange={(v) => update('entryTime', v)} />
-          <NumericField label="Exit time"  value={form.exitTime}  onChange={(v) => update('exitTime', v)} />
+          <TimeField    label="Entry time" value={form.entryTime} onChange={(v) => update('entryTime', v)} />
+          <TimeField    label="Exit time"  value={form.exitTime}  onChange={(v) => update('exitTime', v)} />
         </Row3>
         <BuddyChipsField
           value={form.taggedBuddies}
@@ -903,7 +915,7 @@ function RightForm({ form, update }: { form: FormState; update: Update }) {
             </Row3>
             <Row2>
               <SelectField  label="Wetsuit thickness" value={form.wetsuitThickness} options={WETSUIT_OPTIONS} onChange={(v) => update('wetsuitThickness', v)} />
-              <StepperField label="Weight used"       value={form.weightUsed} unit="lbs" onChange={(v) => update('weightUsed', v)} min={0} />
+              <StepperField label="Weight used"       value={form.weightUsed} unit="lbs" onChange={(v) => update('weightUsed', v)} min={0} typeable={false} />
             </Row2>
           </SubSection>
         ) : (
@@ -912,7 +924,7 @@ function RightForm({ form, update }: { form: FormState; update: Update }) {
           <SubSection title="Exposure">
             <Row2>
               <SelectField  label="Wetsuit thickness" value={form.wetsuitThickness} options={WETSUIT_OPTIONS} onChange={(v) => update('wetsuitThickness', v)} />
-              <StepperField label="Weight used"       value={form.weightUsed} unit="lbs" onChange={(v) => update('weightUsed', v)} min={0} />
+              <StepperField label="Weight used"       value={form.weightUsed} unit="lbs" onChange={(v) => update('weightUsed', v)} min={0} typeable={false} />
             </Row2>
           </SubSection>
         )}
@@ -1681,6 +1693,246 @@ function NumericField({
   );
 }
 
+// ─── Spot picker ─────────────────────────────────────────────────────────
+//
+// Three ways to set a dive location, in order of typical use:
+//   1. Type to search the existing SPOTS list (canonical Hawaii spots)
+//   2. Enter custom latitude + longitude manually
+//   3. Drop a pin on a small Mapbox map
+//
+// Modes (2) and (3) set form.latitude + form.longitude and overwrite
+// form.spot with a coords-derived label like "21.3540°N, 158.1180°W".
+// Mode (1) leaves lat/lon null because the canonical SPOTS lookup
+// already has those — submitDiveLog can resolve them server-side.
+
+function formatCoord(lat: string | null, lon: string | null): string {
+  const la = Number(lat);
+  const lo = Number(lon);
+  if (!Number.isFinite(la) || !Number.isFinite(lo) || lat === null || lon === null) return '';
+  const latPart = `${Math.abs(la).toFixed(4)}°${la >= 0 ? 'N' : 'S'}`;
+  const lonPart = `${Math.abs(lo).toFixed(4)}°${lo >= 0 ? 'E' : 'W'}`;
+  return `${latPart}, ${lonPart}`;
+}
+
+function sanitizeCoord(s: string): string {
+  // Allow digits, a single leading minus, and at most one decimal point.
+  // Strip the rest so pasting "lat: 21.354°N" yields "21.354".
+  let cleaned = s.replace(/[^0-9.\-]/g, '');
+  // Only the first char can be a minus.
+  if (cleaned.length > 0) {
+    const first = cleaned[0] === '-' ? '-' : '';
+    cleaned = first + cleaned.slice(first.length).replace(/-/g, '');
+  }
+  const dot = cleaned.indexOf('.');
+  if (dot !== -1) {
+    cleaned = cleaned.slice(0, dot + 1) + cleaned.slice(dot + 1).replace(/\./g, '');
+  }
+  return cleaned;
+}
+
+function SpotPicker({
+  spotValue,
+  latitude,
+  longitude,
+  onChange,
+}: {
+  spotValue: string;
+  latitude: string | null;
+  longitude: string | null;
+  onChange: (spot: string, lat: string | null, lon: string | null) => void;
+}) {
+  type Mode = 'search' | 'coords' | 'map';
+  const [mode, setMode] = React.useState<Mode>('search');
+  const hasCoords = latitude !== null && longitude !== null
+    && Number.isFinite(Number(latitude)) && Number.isFinite(Number(longitude));
+
+  const toggleMode = (next: Mode) => {
+    setMode((cur) => (cur === next ? 'search' : next));
+  };
+
+  const setLat = (v: string) => {
+    const s = sanitizeCoord(v);
+    const newSpot = formatCoord(s, longitude);
+    onChange(newSpot || spotValue, s || null, longitude);
+  };
+  const setLon = (v: string) => {
+    const s = sanitizeCoord(v);
+    const newSpot = formatCoord(latitude, s);
+    onChange(newSpot || spotValue, latitude, s || null);
+  };
+  const setFromMap = (lng: number, lat: number) => {
+    const latS = lat.toFixed(6);
+    const lonS = lng.toFixed(6);
+    onChange(formatCoord(latS, lonS), latS, lonS);
+  };
+
+  const mapMarker: MapMarker[] = hasCoords
+    ? [{ id: 'picked', lat: Number(latitude), lng: Number(longitude), tier: 'excellent' }]
+    : [];
+
+  return (
+    <View style={styles.fieldWrap}>
+      <FieldLabel>Dive spot</FieldLabel>
+      <View style={styles.fieldRow}>
+        <Text style={styles.fieldSearchIcon}>⌕</Text>
+        <TextInput
+          style={[styles.fieldInput, { outlineStyle: 'none' } as object]}
+          placeholder="Search 47 dive spots across Hawaii…"
+          placeholderTextColor={colors.text4}
+          value={spotValue}
+          onChangeText={(v) => onChange(v, null, null)}
+        />
+        <Text style={styles.fieldHint}>↵ to select</Text>
+      </View>
+
+      <View style={styles.spotPickerActions}>
+        <Pressable
+          onPress={() => toggleMode('coords')}
+          style={[styles.spotPickerActionBtn, mode === 'coords' && styles.spotPickerActionBtnActive]}
+        >
+          <Text style={[styles.spotPickerActionText, mode === 'coords' && styles.spotPickerActionTextActive]}>
+            ⌖ Enter coordinates
+          </Text>
+        </Pressable>
+        <Pressable
+          onPress={() => toggleMode('map')}
+          style={[styles.spotPickerActionBtn, mode === 'map' && styles.spotPickerActionBtnActive]}
+        >
+          <Text style={[styles.spotPickerActionText, mode === 'map' && styles.spotPickerActionTextActive]}>
+            ◇ Drop a pin
+          </Text>
+        </Pressable>
+      </View>
+
+      {mode === 'coords' ? (
+        <View style={styles.spotPickerCoordsRow}>
+          <View style={styles.spotPickerCoordField}>
+            <Text style={styles.spotPickerCoordLabel}>LATITUDE</Text>
+            <TextInput
+              style={[styles.spotPickerCoordInput, { outlineStyle: 'none' } as object]}
+              placeholder="21.3540"
+              placeholderTextColor={colors.text4}
+              value={latitude ?? ''}
+              onChangeText={setLat}
+              keyboardType="decimal-pad"
+              inputMode="decimal"
+            />
+          </View>
+          <View style={styles.spotPickerCoordField}>
+            <Text style={styles.spotPickerCoordLabel}>LONGITUDE</Text>
+            <TextInput
+              style={[styles.spotPickerCoordInput, { outlineStyle: 'none' } as object]}
+              placeholder="-158.1400"
+              placeholderTextColor={colors.text4}
+              value={longitude ?? ''}
+              onChangeText={setLon}
+              keyboardType="decimal-pad"
+              inputMode="decimal"
+            />
+          </View>
+        </View>
+      ) : null}
+
+      {mode === 'map' ? (
+        <View style={styles.spotPickerMapWrap}>
+          <KaiCastMap
+            markers={mapMarker}
+            center={hasCoords ? [Number(longitude), Number(latitude)] : HAWAII_CENTER}
+            zoom={hasCoords ? 11 : HAWAII_ZOOM}
+            onMapClick={setFromMap}
+            interactive
+            showZoomControls
+            style={{ width: '100%', height: 320, borderRadius: radius.md }}
+          />
+          <Text style={styles.spotPickerMapHint}>
+            {hasCoords
+              ? `Pin at ${formatCoord(latitude, longitude)} — click anywhere to move it`
+              : 'Click on the map to drop a pin'}
+          </Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+// Military-time dropdown that's also typeable. Dropdown options run
+// from 0100 → 2400 in 30-minute intervals (47 options total) per the
+// product spec; users wanting finer minutes (e.g. 1234, 1245) just
+// keep typing after they select. Input is digits-only, capped at 4
+// characters since military time fits in HHMM.
+const MILITARY_TIME_OPTIONS: readonly string[] = (() => {
+  const out: string[] = [];
+  for (let i = 2; i <= 48; i++) {
+    const minutes = i * 30;
+    const hh = Math.floor(minutes / 60);
+    const mm = minutes % 60;
+    out.push(`${String(hh).padStart(2, '0')}${String(mm).padStart(2, '0')}`);
+  }
+  return out;
+})();
+
+function TimeField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (next: string) => void;
+}) {
+  const [open, setOpen] = React.useState(false);
+
+  // Digits only, max 4. Doesn't validate ranges (so 9999 will parse)
+  // — that's intentional so half-typed states like "12" don't snap
+  // back. Users only see invalid values if they actually type them.
+  const handleType = (s: string) => {
+    onChange(s.replace(/[^0-9]/g, '').slice(0, 4));
+  };
+
+  const pick = (opt: string) => {
+    onChange(opt);
+    setOpen(false);
+  };
+
+  return (
+    <View style={styles.fieldWrap}>
+      <FieldLabel>{label}</FieldLabel>
+      <View style={styles.fieldRow}>
+        <TextInput
+          style={[styles.fieldNumericInput, { outlineStyle: 'none' } as object]}
+          value={value}
+          onChangeText={handleType}
+          placeholder="HHMM"
+          placeholderTextColor={colors.text4}
+          keyboardType="number-pad"
+          inputMode="numeric"
+          maxLength={4}
+        />
+        <Pressable onPress={() => setOpen((o) => !o)} hitSlop={6}>
+          <Text style={styles.fieldCaret}>▾</Text>
+        </Pressable>
+      </View>
+      {open ? (
+        <View style={styles.timeDropdown}>
+          <ScrollView style={styles.timeDropdownScroll} nestedScrollEnabled>
+            {MILITARY_TIME_OPTIONS.map((opt) => (
+              <Pressable
+                key={opt}
+                onPress={() => pick(opt)}
+                style={[styles.timeDropdownRow, opt === value && styles.timeDropdownRowActive]}
+              >
+                <Text style={[styles.timeDropdownText, opt === value && styles.timeDropdownTextActive]}>
+                  {opt}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
 function SelectField({
   label,
   value,
@@ -1828,6 +2080,8 @@ function StepperField({
   step = 1,
   min,
   max,
+  typeable = true,
+  allowDecimal = false,
 }: {
   label: string;
   value: number;
@@ -1836,18 +2090,75 @@ function StepperField({
   step?: number;
   min?: number;
   max?: number;
+  /** false → render the value as plain text; +/- only (e.g. Weight Used). */
+  typeable?: boolean;
+  /** allow a single decimal point (e.g. swell ft 2.5). */
+  allowDecimal?: boolean;
 }) {
   const clamp = (n: number) => {
     if (min !== undefined && n < min) return min;
     if (max !== undefined && n > max) return max;
     return n;
   };
+
+  // Local string state lets the user transiently type things like "" or
+  // "5." that are mid-edit and don't parse to a finished number. We
+  // commit a clamped numeric value upstream on every keystroke that
+  // produces a valid number, plus on blur as a safety net.
+  const [draft, setDraft] = React.useState<string>(value ? String(value) : '');
+  // Resync when the parent pushes a different value (+/- buttons, form reset).
+  React.useEffect(() => {
+    setDraft(value ? String(value) : '');
+  }, [value]);
+
+  const sanitize = (s: string) => {
+    // Numeric only. Optionally one decimal point. Strip everything else
+    // so pasted "abc-12.3ft" becomes "12.3".
+    if (allowDecimal) {
+      const cleaned = s.replace(/[^0-9.]/g, '');
+      const dot = cleaned.indexOf('.');
+      if (dot === -1) return cleaned;
+      return cleaned.slice(0, dot + 1) + cleaned.slice(dot + 1).replace(/\./g, '');
+    }
+    return s.replace(/[^0-9]/g, '');
+  };
+
+  const onChangeText = (next: string) => {
+    const s = sanitize(next);
+    setDraft(s);
+    if (s === '' || s === '.') {
+      onChange(clamp(0));
+      return;
+    }
+    const n = Number(s);
+    if (Number.isFinite(n)) onChange(clamp(n));
+  };
+
+  const onBlur = () => {
+    // Snap back to the numeric value the parent holds. Catches half-typed
+    // "5." that we left in the draft.
+    setDraft(value ? String(value) : '');
+  };
+
   return (
     <View style={styles.fieldWrap}>
       <FieldLabel>{label}</FieldLabel>
       <View style={styles.stepperRow}>
         <View style={styles.stepperValueWrap}>
-          <Text style={styles.stepperValue}>{value || '—'}</Text>
+          {typeable ? (
+            <TextInput
+              style={[styles.stepperValueInput, { outlineStyle: 'none' } as object]}
+              value={draft}
+              onChangeText={onChangeText}
+              onBlur={onBlur}
+              keyboardType="decimal-pad"
+              inputMode={allowDecimal ? 'decimal' : 'numeric'}
+              placeholder="—"
+              placeholderTextColor={colors.text4}
+            />
+          ) : (
+            <Text style={styles.stepperValue}>{value || '—'}</Text>
+          )}
           <Text style={styles.stepperUnit}>{unit}</Text>
         </View>
         <View style={styles.stepperBtns}>
@@ -1953,10 +2264,14 @@ function VisibilitySlider({
   // The range input gives free drag, keyboard arrow control, and
   // accessibility out of the box. Styled via inline CSS to match the
   // KaiCast palette.
+  // Slider max raised from 100 → 200 ft. The fill-percentage in the
+  // linear-gradient is the value's share of 200, not a literal pct.
+  const VIS_MAX = 200;
+  const fillPct = (value / VIS_MAX) * 100;
   const rangeInput = React.createElement('input', {
     type: 'range',
     min: 0,
-    max: 100,
+    max: VIS_MAX,
     step: 1,
     value: String(value),
     onChange: (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1969,7 +2284,7 @@ function VisibilitySlider({
       borderRadius: 3,
       appearance: 'none',
       WebkitAppearance: 'none',
-      background: `linear-gradient(to right, ${colors.accent} 0%, ${colors.accent} ${value}%, ${colors.surface2} ${value}%, ${colors.surface2} 100%)`,
+      background: `linear-gradient(to right, ${colors.accent} 0%, ${colors.accent} ${fillPct}%, ${colors.surface2} ${fillPct}%, ${colors.surface2} 100%)`,
       outline: 'none',
       cursor: 'pointer',
     },
@@ -1989,7 +2304,7 @@ function VisibilitySlider({
       </View>
       <View style={styles.sliderTickRow}>
         <Text style={styles.sliderTick}>0</Text>
-        <Text style={styles.sliderTick}>100 FT</Text>
+        <Text style={styles.sliderTick}>200 FT</Text>
       </View>
       <View style={styles.sliderDescriptorRow}>
         <View style={[styles.sliderDescriptorDot, { backgroundColor: descriptorColor }]} />
@@ -2734,6 +3049,111 @@ const styles = StyleSheet.create({
     color: colors.text3,
   },
 
+  // ── SpotPicker ──
+  spotPickerActions: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 8,
+  },
+  spotPickerActionBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: radius.sm,
+    backgroundColor: colors.surface1,
+    borderWidth: 1,
+    borderColor: colors.hairlineStrong,
+  },
+  spotPickerActionBtnActive: {
+    backgroundColor: colors.accentDim,
+    borderColor: 'rgba(9,161,251,0.40)',
+  },
+  spotPickerActionText: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    fontWeight: '500',
+    color: colors.text2,
+  },
+  spotPickerActionTextActive: {
+    color: colors.accent,
+    fontWeight: '600',
+  },
+  spotPickerCoordsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 12,
+  },
+  spotPickerCoordField: {
+    flex: 1,
+    gap: 4,
+  },
+  spotPickerCoordLabel: {
+    fontFamily: fonts.mono,
+    fontSize: 10,
+    letterSpacing: 0.8,
+    color: colors.text3,
+  },
+  spotPickerCoordInput: {
+    height: 36,
+    paddingHorizontal: 12,
+    fontFamily: fonts.body,
+    fontSize: 14,
+    color: colors.text1,
+    backgroundColor: colors.surface1,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.hairlineStrong,
+  },
+  spotPickerMapWrap: {
+    marginTop: 12,
+    gap: 8,
+  },
+  spotPickerMapHint: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.text3,
+  },
+
+  // ── TimeField dropdown ──
+  // Sits absolutely below the field's input row so the input itself
+  // doesn't reflow when it opens. Caps at 240px tall (≈ 8 rows visible)
+  // and scrolls — the 47-option list is taller than any reasonable
+  // dropdown.
+  timeDropdown: {
+    position: 'absolute',
+    top: 64,
+    left: 0,
+    right: 0,
+    maxHeight: 240,
+    backgroundColor: colors.surface1,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.hairlineStrong,
+    zIndex: 50,
+    // RN-Web honors `box-shadow` via inline style only; this would be
+    // ignored if specified here. Drop shadow lives on the open render
+    // path inline instead (acceptable; lifts the dropdown above peers).
+  },
+  timeDropdownScroll: {
+    maxHeight: 240,
+  },
+  timeDropdownRow: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+  },
+  timeDropdownRowActive: {
+    backgroundColor: colors.accentDim,
+  },
+  timeDropdownText: {
+    fontFamily: fonts.mono,
+    fontSize: 13,
+    color: colors.text2,
+    letterSpacing: 0.6,
+  },
+  timeDropdownTextActive: {
+    color: colors.accent,
+    fontWeight: '600',
+  },
+
   // Stepper
   stepperRow: {
     height: 64,
@@ -2758,6 +3178,18 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.text1,
     letterSpacing: -0.3,
+  },
+  // Same typography as stepperValue but TextInput-shaped so typing
+  // matches the static look (no native border, transparent bg).
+  stepperValueInput: {
+    minWidth: 60,
+    paddingVertical: 0,
+    fontFamily: fonts.display,
+    fontSize: 28,
+    fontWeight: '700',
+    color: colors.text1,
+    letterSpacing: -0.3,
+    backgroundColor: 'transparent',
   },
   stepperUnit: {
     fontFamily: fonts.mono,
