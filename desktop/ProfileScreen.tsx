@@ -16,6 +16,7 @@ import { DiveReportCard, type DiveReportCardProps } from './components/DiveRepor
 import { initialsFromUser, useAuth } from './hooks/useAuth';
 import { useUserProfile } from './hooks/useUserProfile';
 import { useUserStats, type UserStats } from './hooks/useUserStats';
+import { searchUsersByHandle, type UserSearchResult } from './api/searchUsers';
 import { useUserSettings } from './hooks/useUserSettings';
 import { updateUserSetting, reauthWithPassword, pathRequiresReauth } from './api/updateUserSetting';
 import {
@@ -329,6 +330,12 @@ function ProfileHeader({
   onEditProfile?: () => void;
 }) {
   const auth = useAuth();
+  // Avatar photo URL comes from the same source the top nav uses so
+  // they never diverge: prefer the canonical users/{uid}.photoURL
+  // (custom upload kept in sync with mobile), fall back to Firebase
+  // Auth's photoURL (typically populated by Google sign-in).
+  const { profile: liveProfile } = useUserProfile(auth.user?.uid);
+  const resolvedPhotoURL = liveProfile?.photoURL ?? auth.user?.photoURL ?? null;
   // Display values now flow from the lifted `profile` state — edits in
   // Settings update here live. Initials still derive from auth so they
   // track when the user signs out/in.
@@ -378,8 +385,8 @@ function ProfileHeader({
       <View style={styles.headerContent}>
         <View style={styles.headerLeft}>
           <View style={styles.avatarOuter}>
-            {auth.user?.photoURL ? (
-              <Image source={{ uri: auth.user.photoURL }} style={styles.avatar as object} resizeMode="cover" />
+            {resolvedPhotoURL ? (
+              <Image source={{ uri: resolvedPhotoURL }} style={styles.avatar as object} resizeMode="cover" />
             ) : (
               <View style={styles.avatar}>
                 <Text style={styles.avatarText}>{displayInitials}</Text>
@@ -719,6 +726,32 @@ const FRIEND_VIEWS = ['All friends', 'Pending', 'Discover'] as const;
 function FriendsTabBody({ onNavigate }: { onNavigate?: NavigateFn }) {
   const [view, setView] = React.useState<(typeof FRIEND_VIEWS)[number]>('All friends');
 
+  // Live handle-prefix search against Firestore /users. Mirrors mobile's
+  // DiscoverUsersScreen. We debounce by 250ms so we don't fire a query
+  // on every keystroke, and short-circuit until 2 chars are typed.
+  const [searchInput, setSearchInput] = React.useState('');
+  const [searchResults, setSearchResults] = React.useState<UserSearchResult[]>([]);
+  const [searchLoading, setSearchLoading] = React.useState(false);
+
+  React.useEffect(() => {
+    const q = searchInput.trim();
+    if (q.length < 2) {
+      setSearchResults([]);
+      setSearchLoading(false);
+      return;
+    }
+    setSearchLoading(true);
+    let cancelled = false;
+    const t = setTimeout(() => {
+      searchUsersByHandle(q)
+        .then((r) => { if (!cancelled) { setSearchResults(r); setSearchLoading(false); } })
+        .catch(() => { if (!cancelled) { setSearchResults([]); setSearchLoading(false); } });
+    }, 250);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [searchInput]);
+
+  const showSearchResults = searchInput.trim().length >= 2;
+
   return (
     <View style={styles.body}>
       <View style={styles.bodyMain}>
@@ -745,14 +778,31 @@ function FriendsTabBody({ onNavigate }: { onNavigate?: NavigateFn }) {
           <View style={styles.friendsSearchWrap}>
             <Text style={styles.friendsSearchIcon}>⌕</Text>
             <TextInput
-              placeholder="Find a diver…"
+              value={searchInput}
+              onChangeText={setSearchInput}
+              placeholder="Find a diver by @handle…"
               placeholderTextColor={colors.text4}
+              autoCapitalize="none"
+              autoCorrect={false}
               style={[styles.friendsSearchInput, { outlineStyle: 'none' } as object]}
             />
           </View>
+          <InviteFriendsButton />
         </View>
 
-        {view === 'All friends' ? (
+        {showSearchResults ? (
+          <View style={styles.friendCardsGrid}>
+            {searchLoading ? (
+              <Text style={styles.searchHint}>Searching…</Text>
+            ) : searchResults.length === 0 ? (
+              <Text style={styles.searchHint}>No divers match "{searchInput.trim()}"</Text>
+            ) : (
+              searchResults.map((r) => <SearchResultCard key={r.uid} result={r} />)
+            )}
+          </View>
+        ) : null}
+
+        {!showSearchResults && view === 'All friends' ? (
           <View style={styles.friendCardsGrid}>
             {FRIENDS_LIST.map((f) => (
               <FriendCard key={f.handle} friend={f} onNavigate={onNavigate} />
@@ -760,7 +810,7 @@ function FriendsTabBody({ onNavigate }: { onNavigate?: NavigateFn }) {
           </View>
         ) : null}
 
-        {view === 'Pending' ? (
+        {!showSearchResults && view === 'Pending' ? (
           <View style={styles.pendingList}>
             {PENDING_REQUESTS.map((p, i) => (
               <View
@@ -807,7 +857,7 @@ function FriendsTabBody({ onNavigate }: { onNavigate?: NavigateFn }) {
           </View>
         ) : null}
 
-        {view === 'Discover' ? (
+        {!showSearchResults && view === 'Discover' ? (
           <View>
             <Text style={styles.discoverHint}>
               Suggestions are based on shared spots, mutual friends, and forecaster accuracy.
@@ -847,6 +897,74 @@ function FriendsTabBody({ onNavigate }: { onNavigate?: NavigateFn }) {
         <ImportFriendsCard />
       </View>
     </View>
+  );
+}
+
+// Search result card — shown in the Friends grid when there's an
+// active handle-prefix query. Uses the same visual frame as FriendCard
+// so the grid stays consistent. Follow wiring lives in a follow-up
+// (desktop follow infrastructure isn't built out yet).
+function SearchResultCard({ result }: { result: UserSearchResult }) {
+  const initials = (result.name || result.handle || 'D')
+    .split(' ').map((s) => s[0]).filter(Boolean).join('').slice(0, 2).toUpperCase();
+  const handle = result.handle ? `@${result.handle.replace(/^@/, '')}` : '';
+  return (
+    <View style={styles.friendCard}>
+      <View style={styles.friendCardTop}>
+        <View style={styles.friendAvatarWrap}>
+          <View style={styles.friendAvatar}>
+            {result.photoUrl ? (
+              <Image source={{ uri: result.photoUrl }} style={styles.friendAvatar as object} resizeMode="cover" />
+            ) : (
+              <Text style={styles.friendAvatarText}>{initials}</Text>
+            )}
+          </View>
+        </View>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={styles.friendName} numberOfLines={1}>{result.name || 'Diver'}</Text>
+          <Text style={styles.friendHandle} numberOfLines={1}>{handle}</Text>
+          {result.homeSpot ? (
+            <Text style={styles.friendLocation} numberOfLines={1}>{result.homeSpot.toUpperCase()}</Text>
+          ) : null}
+        </View>
+      </View>
+    </View>
+  );
+}
+
+// Invite friends — opens a share sheet (mobile browsers via the Web
+// Share API) or copies the link to clipboard (desktop browsers). One
+// button, two paths, no extra UI to maintain.
+function InviteFriendsButton() {
+  const [copied, setCopied] = React.useState(false);
+  const inviteUrl = 'https://kaicast.app/';
+  const message = 'Track Hawaii dive conditions on KaiCast — water temp, visibility, currents, swell. Join me:';
+
+  const onShare = async () => {
+    if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+      try {
+        await navigator.share({ title: 'KaiCast', text: message, url: inviteUrl });
+        return;
+      } catch {
+        // Cancelled or unsupported in this context — fall through to copy.
+      }
+    }
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(`${message} ${inviteUrl}`);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } catch {
+        // last-resort fallback handled by the browser address bar
+      }
+    }
+  };
+
+  return (
+    <Pressable onPress={onShare} style={styles.inviteBtn}>
+      <Text style={styles.inviteBtnIcon}>↗</Text>
+      <Text style={styles.inviteBtnText}>{copied ? 'Link copied' : 'Invite friends'}</Text>
+    </Pressable>
   );
 }
 
@@ -2644,6 +2762,38 @@ const styles = StyleSheet.create({
   friendsSegmentCountActive: {
     color: colors.accent,
     fontWeight: '700',
+  },
+  // Inline hint shown in the friends grid (e.g. "Searching…" or
+  // "No divers match …"). Lives in the same column as the grid so the
+  // empty-state and the populated-state share the same width.
+  searchHint: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: colors.text3,
+    paddingVertical: 12,
+  },
+  // Invite-friends button — small primary-tinted pill in the friends
+  // header row, next to the search input. Swaps to "Link copied" for
+  // 2s on clipboard fallback.
+  inviteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    height: 36,
+    paddingHorizontal: 14,
+    backgroundColor: colors.accent,
+    borderRadius: radius.sm,
+  },
+  inviteBtnIcon: {
+    fontSize: 14,
+    color: colors.bg,
+    fontWeight: '700',
+  },
+  inviteBtnText: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.bg,
   },
   friendsSearchWrap: {
     flex: 1,
