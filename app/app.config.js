@@ -81,6 +81,14 @@ module.exports = () => ({
           android: {
             compileSdkVersion: 34,
             targetSdkVersion: 34,
+            // Play Console prefers minSdk ≥ 24 (Aug 2024 policy);
+            // bumping is invisible to anyone on Android 7.0+ which is
+            // every device on the market.
+            minSdkVersion: 24,
+            // Shrink + minify release builds so the AAB isn't bloated
+            // with unused code/resources. Debug builds unaffected.
+            enableProguardInReleaseBuilds: true,
+            enableShrinkResourcesInReleaseBuilds: true,
           },
         },
       ],
