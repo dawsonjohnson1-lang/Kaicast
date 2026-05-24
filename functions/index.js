@@ -91,18 +91,61 @@ function exposureFactor(spot, dirDegFrom) {
   return 0.25;
 }
 
+// Per-spot local shelter multipliers — applied AFTER directional
+// exposure correction. These spots have geographic features (closed
+// bays, harbor channels, crater rims, fringing reefs) that knock
+// down the open-coast Hs reading to what divers actually see inside
+// the dive site. Add new entries when a spot consistently reads
+// "too big" relative to what's actually divable on calm days.
+//
+// Multiplier semantics:
+//   0.3 — heavily enclosed (Hanauma cove, Pearl Harbor channel)
+//   0.5 — partial bay shelter (Kealakekua, Molokini crater)
+//   0.7 — leeward/reef-protected (Magic Island, Garden Eel Cove)
+//   1.0 — open coast (default for unlisted spots)
+const LOCAL_SHELTER_MULT = {
+  // Oahu
+  'hanauma-bay':     0.3,
+  'pearl-harbor':    0.4,
+  'magic-island':    0.7,
+  'mokulua':         0.7,
+  // Maui
+  'molokini-crater': 0.5,
+  'ala-wharf':       0.4,
+  'airport-beach':   0.7,
+  // Kauai
+  'sheraton-caverns': 0.5,
+  'niihau':           0.7,
+  // Big Island
+  'kealakekua-bay':  0.4,
+  'two-step':        0.6,
+  'kahaluu-beach':   0.4,
+  'garden-eel-cove': 0.7,
+  'richardson-beach': 0.5,
+};
+
+function localShelterFactor(spot) {
+  if (Number.isFinite(spot.localShelter)) return spot.localShelter;
+  return LOCAL_SHELTER_MULT[spot.id] ?? 1;
+}
+
 /**
  * Apply per-spot exposure correction to wave-height maps in place.
- * For each hour with a known wave direction, multiplies the height
- * by the spot's exposure factor for that direction. Heights for
- * hours with no direction are left untouched.
+ * Two factors combine multiplicatively:
+ *   1. Directional exposure (does the swell's compass bearing reach
+ *      the spot, or is it shadowed by an island/headland?)
+ *   2. Local shelter (is the spot inside a bay/cove/harbor that
+ *      knocks down the open-coast reading regardless of direction?)
+ * Heights for hours with no direction get only the local-shelter
+ * factor applied (no directional correction possible without dir).
  */
 function applyExposureToMaps(spot, maps) {
-  if (!maps || !maps.waveHMap || !maps.waveDirMap) return maps;
+  if (!maps || !maps.waveHMap) return maps;
+  const shelter = localShelterFactor(spot);
   for (const [iso, h] of maps.waveHMap.entries()) {
-    const dir = maps.waveDirMap.get(iso);
-    if (!Number.isFinite(dir)) continue;
-    const factor = exposureFactor(spot, dir);
+    const dir = maps.waveDirMap?.get(iso);
+    const dirFactor = Number.isFinite(dir) ? exposureFactor(spot, dir) : 1;
+    const factor = dirFactor * shelter;
     if (factor < 1) {
       maps.waveHMap.set(iso, Math.round(h * factor * 100) / 100);
     }
