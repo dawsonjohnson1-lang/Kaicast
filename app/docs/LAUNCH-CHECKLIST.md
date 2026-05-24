@@ -85,7 +85,26 @@ eas secret:create --scope project --name EXPO_PUBLIC_FIREBASE_API_KEY --value ..
 it at `app/secrets/play-service-account.json`. Add `app/secrets/` to
 `.gitignore` if it isn't already.
 
-### 4. Google OAuth Android client (release SHA-1)
+### 4. Domain `kaicast.app` — point at Firebase Hosting
+
+The invite-friends share button (mobile + desktop) hands recipients a
+link to `https://kaicast.app/`, and the dive-report share already
+assumes the same domain. Right now the domain doesn't resolve.
+
+In Firebase Console → Hosting → desktop site → "Add custom domain":
+
+1. Add `kaicast.app` and `www.kaicast.app`.
+2. Firebase gives you A + TXT records — paste those into your
+   registrar's DNS.
+3. Wait for SSL provisioning (~15 min once DNS propagates).
+
+While you're in DNS, also register the domain in Firebase Auth →
+Settings → Authorized domains so Google/Apple OAuth callbacks accept
+it. And update `extra.kaicastApiBase` in `app.config.js` if you
+later want a vanity `api.kaicast.app` instead of the current
+`us-central1-kaicast-207dc.cloudfunctions.net`.
+
+### 5. Google OAuth Android client (release SHA-1)
 
 `expo-apple-authentication` is wired but Google Sign-In on Android needs
 the release keystore's SHA-1 registered in Google Cloud Console →
@@ -104,7 +123,7 @@ this, Google Sign-In silently fails on production Android builds.
 
 ## 🟡 Required for a polished launch
 
-### 5. Crash reporting
+### 6. Crash reporting
 
 `src/util/sentry.ts` is currently a no-op (Sentry's iOS pod doesn't
 build under Xcode 26 — documented inline). Two options:
@@ -117,7 +136,7 @@ Either way, set this up before the first public release. Play Console
 pre-launch reports will surface crashes; without a reporter you have
 no visibility.
 
-### 6. API key restrictions
+### 7. API key restrictions
 
 `app/.env` ships these keys. Once they're in a Play Store release the
 strings are extractable from the AAB, so restrict them server-side:
@@ -129,7 +148,7 @@ strings are extractable from the AAB, so restrict them server-side:
 - **Firebase web API key** — restrict to your authorized domains in
   Firebase Console → Auth → Settings → Authorized domains.
 
-### 7. Privacy policy / Terms of service URLs
+### 8. Privacy policy / Terms of service URLs
 
 You already have legal docs (`Kaicast Legal/` at the repo root, served
 under `desktop/` hosting). Make sure the public URLs are:
@@ -141,7 +160,7 @@ and enter them in Play Console → App content → App details when
 filling out the listing. The `Kaicast Legal/` docs need to be
 published as web pages first — they're currently markdown.
 
-### 8. Play Console data-safety form
+### 9. Play Console data-safety form
 
 The app collects:
 

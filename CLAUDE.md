@@ -119,6 +119,30 @@ After path-B switch:
 - **Delete repo-root duplicate files** (`/analysis.js`, `/index.js`,
   etc.) once everyone confirms nothing local references them.
 
+## Spot list — four canonical mirrors, keep in sync
+
+There is no shared `spots/` module (mobile / desktop / functions are
+three different bundlers, three different runtimes). Instead, four
+files hold the same list and must agree:
+
+| Where                                | Purpose                                              |
+|--------------------------------------|------------------------------------------------------|
+| `app/src/data/spots.ts`              | Mobile fallback for `useSpots()` + rich per-spot copy |
+| `desktop/data/spots.ts`              | Desktop canonical, used by SpotsMapScreen, etc.       |
+| `functions/index.js` `SPOTS` const   | Backend — has richer per-spot metadata (buoyStation, coast, runoff sensitivity). The scheduler iterates this list. |
+| `app/scripts/seedSpots.mjs`          | One-shot Firestore seed (runs against admin SDK)      |
+
+When adding/renaming a spot, change all four. The first line of each
+file calls this out. Coordinate convention: lat/lon points at the
+on-water dive entry / boat anchorage so satellite hero tiles + map
+markers land in water, not on parking lots.
+
+Mobile additionally maintains `RICH_DATA` inside `app/src/data/spots.ts`
+for description + entryExit + marineLife per spot — those mirror the
+two-paragraph bios in `desktop/data/spotBios.ts`. Only the first 24
+spots have curated bios; the rest fall back to canonical name + region
+until copy is written.
+
 ## Operational
 
 - Cold-storage bucket needs to exist before `archiveHourly` runs:
