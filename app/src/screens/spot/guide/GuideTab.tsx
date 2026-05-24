@@ -111,6 +111,28 @@ export function GuideTab({ spot }: Props) {
         <Text style={styles.guideBody}>{description}</Text>
       </View>
 
+      {spot.entryExit ? (
+        <View>
+          <Text style={typography.caption}>ENTRY & ACCESS</Text>
+          <View style={{ height: spacing.md }} />
+          <Text style={styles.guideBody}>{spot.entryExit}</Text>
+        </View>
+      ) : null}
+
+      {spot.marineLife && spot.marineLife.length > 0 ? (
+        <View>
+          <Text style={typography.caption}>COMMON MARINE LIFE</Text>
+          <View style={{ height: spacing.md }} />
+          <View style={styles.marineLifeRow}>
+            {spot.marineLife.map((m) => (
+              <View key={m} style={styles.marineLifeChip}>
+                <Text style={styles.marineLifeChipText}>{m}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      ) : null}
+
       <View>
         <Text style={typography.caption}>SPOT STATS</Text>
         <View style={{ height: spacing.md }} />
@@ -255,6 +277,23 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, rowGap: spacing.lg },
+  marineLifeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  marineLifeChip: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.cardAlt,
+  },
+  marineLifeChipText: {
+    ...typography.bodySm,
+    color: colors.textPrimary,
+  },
 });
 
 const mapStyles = StyleSheet.create({
