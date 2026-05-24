@@ -40,10 +40,11 @@ export function SpotDetailScreen() {
   const route = useRoute<RouteProp<RootStackParamList, 'SpotDetail'>>();
   const [tab, setTab] = useState<SpotTab>('Overview');
 
-  // Resolve the spot from Firestore first; the legacy `exploreSpots`
-  // mock list is kept only as a final fallback so we don't crash on
-  // an unknown id mid-network-load (Firebase rules already permit
-  // public reads of all 26 canonical spots).
+  // Resolve the spot from Firestore first; the `exploreSpots`
+  // fallback (now the full canonical 39 — see app/src/data/spots.ts)
+  // covers the offline / pre-Firestore-fetch render so we don't crash
+  // on an unknown id mid-network-load. Firebase rules permit public
+  // reads on every canonical spot.
   const { spots: liveSpots } = useSpots();
   const spot =
     liveSpots.find((s) => s.id === route.params.spotId) ??

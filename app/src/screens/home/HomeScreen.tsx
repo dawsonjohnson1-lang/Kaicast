@@ -25,10 +25,20 @@ export function HomeScreen() {
   const { user } = useAuth();
   const { spots } = useSpots();
   const { favorites } = useFavorites(user?.id);
-  // Show user's favorites first; fall back to top 4 spots when they
-  // haven't favorited anything yet so the carousel never goes empty.
+  // Show user's favorites first; fall back to a curated set of 4
+  // popular shore-entry Oahu dives when they haven't favorited
+  // anything yet so the carousel never goes empty (and isn't 4 random
+  // alphabetically-first charter-only spots).
   const userFavorites = spots.filter((s) => favorites.has(s.id));
-  const favoriteSpots = userFavorites.length ? userFavorites : spots.slice(0, 4);
+  const DEFAULT_FAVORITE_IDS = ['electric-beach', 'sharks-cove', 'three-tables', 'hanauma-bay'];
+  const defaultFavorites = DEFAULT_FAVORITE_IDS
+    .map((id) => spots.find((s) => s.id === id))
+    .filter((s): s is NonNullable<typeof s> => !!s);
+  const favoriteSpots = userFavorites.length
+    ? userFavorites
+    : defaultFavorites.length === DEFAULT_FAVORITE_IDS.length
+      ? defaultFavorites
+      : spots.slice(0, 4);
   // Featured spot prefers the user's first favorite when they have
   // one — otherwise rotates through the canonical list by week of
   // year so the home hero isn't the same spot every day forever.
