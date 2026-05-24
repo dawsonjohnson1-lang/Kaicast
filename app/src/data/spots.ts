@@ -205,6 +205,112 @@ const RICH_DATA: Record<string, Pick<Spot, 'description' | 'entryExit' | 'marine
       'Charter night-dive operation. Best from January through April when manta activity peaks. Bring patience; the wait under the lights is part of the experience.',
     coverColor: '#4a3a0a',
   },
+  'two-step': {
+    description:
+      "Two Step (Honaunau Bay / Pu'uhonua) is the classic Big Island shore-entry snorkel and dive — a lava-shelf step-down into 30-50ft of clear water inside the bay.",
+    entryExit:
+      'Park at the City of Refuge lot or the boat ramp next door. Step entry can be slippery; wait for a lull and time the swell. Spinner dolphins often visit in the morning.',
+    coverColor: '#4a3a0a',
+  },
+  'kahaluu-beach': {
+    description:
+      "Kahaluu Beach Park is the most accessible snorkel and freedive spot on the Big Island's Kona coast — a protected reef enclosure with calm shallows and abundant fish.",
+    entryExit:
+      'Walk-in sand entry from the beach. Watch the channel cut through the breakwater on south swell days. Excellent for beginners; crowded mid-day in summer.',
+    coverColor: '#4a3a0a',
+  },
+  'garden-eel-cove': {
+    description:
+      'Garden Eel Cove is a Kona charter favorite — a sand flat at 40-60ft north of Kailua Pier where colonies of spotted garden eels sway in the current.',
+    entryExit:
+      'Boat access only. Best in summer when leeward seas are flat. Manta Village runs the night charter from the same anchorage; expect that traffic.',
+    coverColor: '#4a3a0a',
+  },
+  'richardson-beach': {
+    description:
+      "Richardson Beach is Hilo's black-sand snorkel spot on the Big Island's east shore — protected tide pools and reef pockets in 5-20ft.",
+    entryExit:
+      'Walk-in entry; east-shore visibility runs murkier than Kona, so plan for 10-30ft viz and morning sessions before trades pick up. Sea turtles bask on the sand here.',
+    coverColor: '#4a3a0a',
+  },
+
+  // ── Oahu additions ──────────────────────────────────────────────────
+  'pupukea-beach': {
+    description:
+      "Pupukea Beach Park stretches from Shark's Cove to Three Tables on Oahu's north shore — a Marine Life Conservation District protecting the reef and tide pools.",
+    entryExit:
+      'Multiple entry points along the park; the south end (toward Sharks Cove) has the best shore-dive structure. Summer only — winter\'s NS swell closes the whole zone out.',
+    coverColor: '#0a3a4d',
+  },
+  'waimea-bay': {
+    description:
+      "Waimea Bay is Oahu's iconic big-wave winter venue — but in summer it's a calm sand-bottom cove ideal for shallow shore dives and the famous Waimea jump rock.",
+    entryExit:
+      "Park in the small lot or walk in from Sharks Cove. Surf can build fast on north-swell forecasts; don't enter when waves are over 3ft, the shorebreak is brutal.",
+    coverColor: '#0a3a4d',
+  },
+  'magic-island': {
+    description:
+      'Magic Island is the artificial peninsula at the east end of Ala Moana Beach Park — a sheltered lagoon and reef shelf protected by an outer breakwater.',
+    entryExit:
+      'Walk-in entry from the beach. The reef ledge runs the length of the peninsula at 8-25ft. Best at slack tide; the lagoon current can pull when the tide is changing fast.',
+    coverColor: '#0a3a4d',
+  },
+  'sandy-beach': {
+    description:
+      "Sandy Beach on Oahu's east end is a body-surfing landmark — heavy shorebreak and rip current most of the year. Dive access is reserved for the calmest summer days.",
+    entryExit:
+      'Shore entry only when surf is below 2ft and trades are light. Outer reef holds tako and the occasional monk seal; treat the inner shorebreak as a no-go zone.',
+    coverColor: '#0a3a4d',
+  },
+  'koko-crater': {
+    description:
+      "Koko Crater is the offshore reef ridge just east of Hanauma Bay on Oahu's southeast tip — a deeper boat-access dive with lava arches and pelagic visitors.",
+    entryExit:
+      'Charter access only. Strong current is common on the outside of the point; book with a Hanauma-area operator who knows the slack-tide window.',
+    coverColor: '#0a3a4d',
+  },
+  'pearl-harbor': {
+    description:
+      'Pearl Harbor is a national historic landmark and an active military base — recreational diving is restricted to specific permitted tour operators.',
+    entryExit:
+      'No casual shore or boat access. The Arizona Memorial and surrounding waters are monitored. Use a registered tour for any in-water activity; otherwise the harbor is closed to divers.',
+    coverColor: '#0a3a4d',
+  },
+  'makaha': {
+    description:
+      "Makaha is on Oahu's west shore — a winter big-wave break, a summer reef dive, with the famous Makaha Caverns offshore.",
+    entryExit:
+      'Shore-entry off the beach or boat to the caverns. Summer is the diveable window when leeward swell drops; afternoon brings the same offshore trade chop as the rest of the west side.',
+    coverColor: '#0a3a4d',
+  },
+
+  // ── Maui additions ──────────────────────────────────────────────────
+  'la-perouse': {
+    description:
+      "La Perouse Bay is Maui's southernmost dive zone — black lava-rock entries into reef channels formed by the 1790 Haleakala eruption.",
+    entryExit:
+      '4WD or long hike from the Makena pavement end. Spinner dolphins, monk seals, and the occasional manta in summer. Wind builds early — dive before 9am.',
+    coverColor: '#0a4a3a',
+  },
+
+  // ── Kauai additions ─────────────────────────────────────────────────
+  'nukumoi-point': {
+    description:
+      "Nukumoi Point sits just off Poipu on Kauai's south shore — a reef ledge at 25-40ft that links Brennecke's Ledge to Koloa Landing.",
+    entryExit:
+      'Boat or long-swim shore access from Poipu Beach. Diveable year-round when south swell is small. Sea turtles are regulars; watch for current at the point.',
+    coverColor: '#3a0a4d',
+  },
+
+  // ── Molokai additions ──────────────────────────────────────────────
+  'moomomi': {
+    description:
+      "Mo'omomi Preserve is Molokai's remote north-coast dive zone — protected dunes, fossil reef, and one of the few uncrowded dive sites in the main Hawaiian Islands.",
+    entryExit:
+      '4WD road access from Hoolehua. Exposed north-facing coast — diveable only on flat summer days. No services; pack water and call a Molokai shop before going.',
+    coverColor: '#0a3a4d',
+  },
 };
 
 const DEFAULT_COVER = '#0c2438';
