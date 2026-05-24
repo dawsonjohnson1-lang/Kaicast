@@ -79,14 +79,34 @@ function slugifyName(s: string): string {
     .replace(/^-+|-+$/g, '');       // trim leading/trailing
 }
 
+/**
+ * Alternate slug used by every per-screen `slugify` helper across the
+ * app — the apostrophe becomes a HYPHEN because the per-screen
+ * slugify just runs `replace(/[^a-z0-9]+/g, '-')` without stripping
+ * apostrophes first. That produces "shark-s-cove", "brennecke-s-ledge",
+ * "ni-ihau", etc.  When a user (or the share-link generator) hits
+ * /spot/shark-s-cove we need to resolve it back to the canonical
+ * "sharks-cove" id, so we index both forms.
+ */
+function slugifyAltApostropheAsHyphen(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/\([^)]*\)/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
 // Build slug→spot indexes so screens calling slugify(name) hit the
 // canonical entry even when the slug doesn't match the id directly
 // (e.g. "Tunnels Beach" → slug "tunnels-beach" → resolves to the
-// "tunnels-reef" canonical spot).
+// "tunnels-reef" canonical spot, "Shark's Cove" → slug
+// "shark-s-cove" → resolves to "sharks-cove").
 const SPOTS_BY_NAME_SLUG = new Map<string, Spot>();
 const SPOTS_BY_PARTIAL = new Map<string, Spot>();
 for (const s of SPOTS) {
+  // Register both slug conventions per name so either lookup hits.
   SPOTS_BY_NAME_SLUG.set(slugifyName(s.name), s);
+  SPOTS_BY_NAME_SLUG.set(slugifyAltApostropheAsHyphen(s.name), s);
   // First word of the name acts as a partial fallback so common short
   // forms ("black-rock" → "Black Rock (Kaanapali)") still resolve.
   const firstWord = slugifyName(s.name.split(/\s+/)[0]);

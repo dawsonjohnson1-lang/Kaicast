@@ -1,16 +1,6 @@
 import React from 'react';
-import { View, Text, Pressable, TextInput, ScrollView, StyleSheet } from 'react-native';
-import {
-  colors,
-  fonts,
-  radius,
-  DESKTOP_MAX_WIDTH,
-  NAV_HEIGHT,
-  UTIL_BAR_HEIGHT,
-  TIER_COLORS,
-  TIER_LABELS,
-  type ConditionTier,
-} from './tokens';
+import { View, Text, Pressable, TextInput, ScrollView, StyleSheet, useWindowDimensions } from 'react-native';
+import { colors, fonts, radius, DESKTOP_MAX_WIDTH, TIER_COLORS, TIER_LABELS, type ConditionTier } from './tokens';
 import { DesktopNav } from './components/DesktopNav';
 import { ConditionPill } from './components/ConditionPill';
 import { KaiCastMap, HAWAII_CENTER, HAWAII_ZOOM, type MapMarker } from './components/maps/KaiCastMap';
@@ -19,7 +9,6 @@ import { useFavorites } from './hooks/useFavorites';
 import { FavoriteButton } from './components/FavoriteButton';
 import { SPOTS as CANONICAL_SPOTS } from './data/spots';
 import { useSpotRatings, useSpotReport, tierFromRating, type BackendReport } from './data/getReport';
-import type mapboxgl from 'mapbox-gl';
 import type { NavigateFn } from './router';
 
 /**
@@ -147,24 +136,30 @@ export function SpotsMapScreen({ activeNav = 'spots', onNavigate }: SpotsMapScre
   const bp = useBreakpoint();
   const sidebarW = pick(bp, 300, 260);
   const panelW = pick(bp, 320, 280);
+  // Track viewport width so we can pick between viewport-locked layout
+  // (≥1080px — sidebar + fixed-height map + right panel all on screen
+  // at once) and a scrolling stacked layout (<1080px — map gets a
+  // bounded fixed height; page scroll below it works normally).
+  const { width: vpWidth } = useWindowDimensions();
+  const wideLayout = vpWidth >= 1080;
   const [tab, setTab] = React.useState<'All' | 'Favorites' | 'Nearby'>('All');
   const [search, setSearch] = React.useState('');
   // Selection is keyed by spot name (the data has no stable id field).
   const [selectedName, setSelectedName] = React.useState<string>('Electric Beach');
   const [hoveredName, setHoveredName] = React.useState<string | undefined>(undefined);
 
-  // Pin the document scroll to the top while this screen is mounted.
-  // Setting body overflow:hidden killed wheel events on the inner
-  // ScrollViews, so instead we just clamp the html height to 100vh
-  // and rely on pageFixed's overflow:hidden + the hidden footer to
-  // keep total content at exactly one viewport.
+  // Wide layout only: lock the document scroll so the 3-col grid
+  // (sidebar · map · panel) fits in exactly one viewport. Below
+  // 1080px we let the page scroll normally and the map column
+  // takes a bounded fixed height — see styles.mapColumnNarrow.
   React.useEffect(() => {
     if (typeof document === 'undefined') return;
+    if (!wideLayout) return;
     const html = document.documentElement;
-    const prev = html.style.height;
+    const prevHeight = html.style.height;
     html.style.height = '100vh';
-    return () => { html.style.height = prev; };
-  }, []);
+    return () => { html.style.height = prevHeight; };
+  }, [wideLayout]);
 
   // Flat list of every spot — used by the map (always shows all pins,
   // sidebar filtering only affects the list panel).
@@ -201,32 +196,21 @@ export function SpotsMapScreen({ activeNav = 'spots', onNavigate }: SpotsMapScre
   );
 
   return (
-    <View style={[styles.page, styles.pageFixed]}>
-      {/* Map sits on its own layer, position: fixed to the viewport, so
-          the side columns can scroll freely without dragging it with
-          them. Rendered first; the chrome stack below paints over its
-          top edge via z-index. */}
-      <MapColumn
-        markers={mapMarkers}
-        selectedName={selectedName}
-        hoveredName={hoveredName}
-        onSelect={setSelectedName}
-        sidebarW={sidebarW}
-        panelW={panelW}
-      />
-
-      {/* Nav + alert sit above the map via z-index so the map can run
-          edge-to-edge from top:0 without being hidden under them. */}
+    <View style={[styles.page, wideLayout && styles.pageFixed]}>
+      {/* Chrome (nav + alert) renders first as a normal in-flow column —
+          its height becomes whatever it needs. */}
       <View style={styles.chromeStack}>
         <DesktopNav active={activeNav} onNavigate={onNavigate} />
         <AlertBanner />
       </View>
 
-      {/* Side columns flank the (now-fixed) map. justifyContent
-          space-between anchors them to their respective edges since
-          the middle column is no longer in flow. */}
-      <View style={styles.bodyFixed}>
-        <View style={{ width: sidebarW, height: '100%' }}>
+      {/* Wide layout (≥1080px): viewport-locked grid where MapColumn
+          fills the visible area inside bodyFixed. Narrow: body laid
+          out vertically with bounded map height + ScrollView, so the
+          whole page scrolls naturally and the map doesn't grow past
+          a few hundred pixels. */}
+      <View style={wideLayout ? styles.bodyFixed : styles.bodyNarrow}>
+        <View style={wideLayout ? { width: sidebarW, height: '100%' } : { width: '100%' }}>
           <Sidebar
             tab={tab}
             onTab={setTab}
@@ -239,11 +223,38 @@ export function SpotsMapScreen({ activeNav = 'spots', onNavigate }: SpotsMapScre
             ratings={liveRatings}
           />
         </View>
-        <View style={{ width: panelW, height: '100%' }}>
+        {wideLayout ? (
+          <MapColumn
+            markers={mapMarkers}
+            selectedName={selectedName}
+            hoveredName={hoveredName}
+            onSelect={setSelectedName}
+            sidebarW={sidebarW}
+            panelW={panelW}
+          />
+        ) : (
+          // Narrow viewport: render the map as a normal in-flow
+          // block with a bounded height so it doesn't dominate the
+          // page. The MapColumn variants that fit absolutely into
+          // bodyFixed don't work here, so wrap KaiCastMap directly.
+          <View style={styles.mapColumnNarrow}>
+            <MapColumn
+              markers={mapMarkers}
+              selectedName={selectedName}
+              hoveredName={hoveredName}
+              onSelect={setSelectedName}
+              sidebarW={0}
+              panelW={0}
+              narrow
+            />
+          </View>
+        )}
+        <View style={wideLayout ? { width: panelW, height: '100%' } : { width: '100%' }}>
           <ScrollView
-            style={styles.panelScroll}
-            contentContainerStyle={styles.panelScrollContent}
+            style={wideLayout ? styles.panelScroll : undefined}
+            contentContainerStyle={wideLayout ? styles.panelScrollContent : undefined}
             showsVerticalScrollIndicator={false}
+            scrollEnabled={wideLayout}
           >
             <SelectedSpotPanel spot={selectedSpot} onNavigate={onNavigate} />
           </ScrollView>
@@ -255,7 +266,7 @@ export function SpotsMapScreen({ activeNav = 'spots', onNavigate }: SpotsMapScre
 
 // ─── Alert banner ─────────────────────────────────────────────────────────
 
-function AlertBanner() {
+function AlertBanner({ onDismiss }: { onDismiss?: () => void }) {
   return (
     <View style={styles.alertBanner}>
       <View style={styles.alertDot} />
@@ -268,7 +279,9 @@ function AlertBanner() {
         <Text style={styles.alertLink}>Learn more</Text>
       </Text>
       <View style={styles.alertSpacer} />
-      <Text style={styles.alertDismiss}>DISMISS ×</Text>
+      <Pressable onPress={onDismiss} hitSlop={6}>
+        <Text style={styles.alertDismiss}>DISMISS ×</Text>
+      </Pressable>
     </View>
   );
 }
@@ -469,6 +482,7 @@ function MapColumn({
   onSelect,
   sidebarW,
   panelW,
+  narrow = false,
 }: {
   markers: MapMarker[];
   selectedName: string;
@@ -476,6 +490,9 @@ function MapColumn({
   onSelect: (name: string) => void;
   sidebarW: number;
   panelW: number;
+  /** Render in-flow with the narrow-viewport bounded-height style
+   *  instead of the absolute-positioned viewport-locked variant. */
+  narrow?: boolean;
 }) {
   // When the user clicks a sidebar spot, re-center the map on it. We
   // intentionally keep zoom modest so the surrounding archipelago stays
@@ -487,7 +504,7 @@ function MapColumn({
   const zoom = selectedMarker ? 9.5 : HAWAII_ZOOM;
 
   return (
-    <View style={[styles.mapColumn, { left: sidebarW, right: panelW }]}>
+    <View style={narrow ? { flex: 1, position: 'relative' } : [styles.mapColumn, { left: sidebarW, right: panelW }]}>
       <KaiCastMap
         markers={markers}
         center={center}
@@ -938,6 +955,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     height: 1067,
   },
+  // Narrow viewport (<1080px): stack sidebar → map → panel vertically.
+  // The page scrolls normally; the map gets a bounded fixed height
+  // (see mapColumnNarrow) so it doesn't dominate the screen.
+  bodyNarrow: {
+    flexDirection: 'column',
+    width: '100%',
+    gap: 12,
+  },
+  mapColumnNarrow: {
+    width: '100%',
+    height: 480,
+    position: 'relative',
+    overflow: 'hidden',
+    borderRadius: radius.md,
+  },
   // Page wrapper that takes full viewport height so the body row can
   // flex: 1 inside it (replaces the old scrolling page approach).
   pageFixed: {
@@ -1125,12 +1157,14 @@ const styles = StyleSheet.create({
   },
 
   // ── Map (center) ──
-  // Pinned to the viewport — full screen height, slotted between the
-  // side columns via `left: sidebarW` / `right: panelW` (set inline by
-  // MapColumn). The chrome stack above sits at a higher z-index so its
-  // bg covers the map's top edge.
+  // Absolutely positioned inside bodyFixed so it fills only the area
+  // between the side columns AND below the chrome — Hawaii ends up
+  // centered in the visible map instead of pushed down by an overlay.
+  // The page wrapper has overflow:hidden + height:100vh so nothing on
+  // this screen ever scrolls the document — only the side columns
+  // scroll internally.
   mapColumn: {
-    position: 'fixed' as unknown as 'absolute',
+    position: 'absolute',
     top: 0,
     bottom: 0,
     // left + right set inline based on responsive side-column widths
