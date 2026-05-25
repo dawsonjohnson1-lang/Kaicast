@@ -185,27 +185,78 @@ export function aggregateDayScore(day: BackendDay): number {
 }
 
 /**
- * 8 × 3h bar tiers for a single day's segment row in the strip. The
- * day's base score is modulated by time-of-day (sun + trade-wind
- * pattern) so each bar visibly varies rather than rendering as a
- * solid color. Mirrors the mobile RatingBar layout.
+ * Bucket the report's windows by 3-hour slot for a single day. Index
+ * 0 = 00-03, 1 = 03-06, ..., 7 = 21-24. Returns undefined for slots
+ * the backend didn't return a window for (e.g. truncated reports).
+ *
+ * `dayOffset` is days from today (0 today, 1 tomorrow, ...).
+ *
+ * This is the SAME slicing logic the hourly card uses, so the day
+ * card's bars and the hourly badges literally read the same scores.
  */
-export function dayBars(day: BackendDay): Array<'excellent' | 'great' | 'good' | 'fair' | 'no-go'> {
-  const score = aggregateDayScore(day);
-  const amScore = clampScore(score + 8);
-  const midScore = clampScore(score + 2);
-  const pmScore = clampScore(score - 8);
-  const segs = [
-    score - 30, // 00-03 night
-    score - 25, // 03-06 pre-dawn
-    amScore, // 06-09 morning
-    amScore + 2, // 09-12 peak
-    midScore, // 12-15 midday
-    pmScore + 4, // 15-18 late afternoon
-    pmScore, // 18-21 evening
-    score - 30, // 21-24 night
-  ].map(clampScore);
-  return segs.map(TIER_FROM_SCORE);
+export function windowsForDayOffset(
+  allWindows: BackendWindow[] | undefined,
+  dayOffset: number,
+): Array<BackendWindow | undefined> {
+  const out = new Array<BackendWindow | undefined>(8);
+  if (!Array.isArray(allWindows) || allWindows.length === 0) return out;
+  const target = new Date();
+  target.setHours(0, 0, 0, 0);
+  target.setDate(target.getDate() + dayOffset);
+  const yyyy = target.getFullYear();
+  const mm = String(target.getMonth() + 1).padStart(2, '0');
+  const dd = String(target.getDate()).padStart(2, '0');
+  const datePrefix = `${yyyy}-${mm}-${dd}`;
+  for (const w of allWindows) {
+    if (!w.startIso?.startsWith(datePrefix)) continue;
+    const ms = Date.parse(w.startIso);
+    if (!Number.isFinite(ms)) continue;
+    const idx = Math.floor(new Date(ms).getHours() / 3);
+    if (idx >= 0 && idx < 8) out[idx] = w;
+  }
+  return out;
+}
+
+/**
+ * 8 × 3h bar tiers for the day card. Source of truth: the hourly
+ * window's own `rating.score` from the backend. The hourly table
+ * badges read from the exact same scores via `TIER_FROM_SCORE`, so
+ * the two views can no longer disagree.
+ *
+ * Slots without a window (truncated report, off-hour) fall back to
+ * the day-level aggregate so the strip stays visually complete.
+ */
+export function dayBars(
+  day: BackendDay,
+  buckets?: Array<BackendWindow | undefined>,
+): Array<'excellent' | 'great' | 'good' | 'fair' | 'no-go'> {
+  const fallback = aggregateDayScore(day);
+  if (!buckets) return [0, 0, 0, 0, 0, 0, 0, 0].map(() => TIER_FROM_SCORE(fallback));
+  return buckets.map((w) => {
+    const s = w?.rating?.score;
+    return TIER_FROM_SCORE(typeof s === 'number' ? s : fallback);
+  });
+}
+
+/**
+ * Day's overall score = average of its window scores. Falls back to
+ * the day-level aggregate when no windows exist. Used to derive the
+ * top accent color AND the star count so all three day-card visual
+ * elements (accent / stars / bars) tell the same story.
+ */
+export function dayOverallScore(
+  day: BackendDay,
+  buckets?: Array<BackendWindow | undefined>,
+): number {
+  const fallback = aggregateDayScore(day);
+  if (!buckets) return fallback;
+  const scores: number[] = [];
+  for (const w of buckets) {
+    const s = w?.rating?.score;
+    if (typeof s === 'number' && Number.isFinite(s)) scores.push(s);
+  }
+  if (scores.length === 0) return fallback;
+  return clampScore(scores.reduce((a, b) => a + b, 0) / scores.length);
 }
 
 /**
@@ -385,7 +436,10 @@ export function backendReportToHours(
   });
 }
 
-export function backendDayToDesktopDay(day: BackendDay): DesktopForecastDay {
+export function backendDayToDesktopDay(
+  day: BackendDay,
+  buckets?: Array<BackendWindow | undefined>,
+): DesktopForecastDay {
   // `date` from backend is `YYYY-MM-DD`; treat as local midday so the
   // weekday formatter doesn't slip a day from UTC offset issues.
   const d = day.date ? new Date(day.date + 'T12:00:00') : new Date();
@@ -400,7 +454,10 @@ export function backendDayToDesktopDay(day: BackendDay): DesktopForecastDay {
   const base = Math.max(8, Math.min(80, Math.round(60 - swellAvgM * 10 - rain * 0.8)));
   const visLo = Math.max(5, base - 10);
   const visHi = Math.min(80, base + 10);
-  const score = aggregateDayScore(day);
+  // One score drives all three day-card visuals (top accent, stars in
+  // ForecastDayCard, and the bars) — derived from the same windows
+  // the hourly card renders.
+  const score = dayOverallScore(day, buckets);
   return {
     label,
     date: dateLabel,
@@ -408,8 +465,23 @@ export function backendDayToDesktopDay(day: BackendDay): DesktopForecastDay {
     waveLo: lo,
     waveHi: hi,
     vis: `${visLo}–${visHi}FT`,
-    bars: dayBars(day),
+    bars: dayBars(day, buckets),
   };
+}
+
+/**
+ * Map a full backend report → 7 day cards using the report's windows
+ * as the source of truth. Use this instead of mapping
+ * backendDayToDesktopDay directly when you have access to
+ * report.windows — it ensures the strip and the hourly table can't
+ * tell different stories about the same day.
+ */
+export function backendReportToDesktopDays(report: BackendReport): DesktopForecastDay[] {
+  const days = report.days ?? [];
+  return days.slice(0, 7).map((day, i) => {
+    const buckets = windowsForDayOffset(report.windows, i);
+    return backendDayToDesktopDay(day, buckets);
+  });
 }
 
 /**

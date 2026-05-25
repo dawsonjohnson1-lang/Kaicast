@@ -17,6 +17,7 @@ import {
   bestWindowLabel,
   relativeTime,
   backendDayToDesktopDay,
+  backendReportToDesktopDays,
   backendReportToHours,
   type BackendReport,
   type DesktopHourRow,
@@ -369,9 +370,12 @@ function ForecastStrip() {
   // Fall back to the static FORECAST_DAYS mock only while we're waiting
   // for the first report (or if the endpoint is down).
   const days: ForecastDay[] = React.useMemo(() => {
-    const src = report?.days;
-    if (Array.isArray(src) && src.length > 0) {
-      return src.slice(0, 7).map(backendDayToDesktopDay) as ForecastDay[];
+    if (report) {
+      // Pass the full report (not just report.days) so each day's
+      // bars + overall rating roll up from the actual report.windows
+      // for that calendar day — same source the hourly card reads.
+      const live = backendReportToDesktopDays(report);
+      if (live.length > 0) return live as ForecastDay[];
     }
     return FORECAST_DAYS;
   }, [report]);
