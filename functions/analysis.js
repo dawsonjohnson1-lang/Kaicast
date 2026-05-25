@@ -1211,12 +1211,18 @@ function humanizeReason({
       phrases.push(visTxt);
     }
   } else {
-    // Lead with the strongest negative factor
+    // Lead with the strongest negative factor. Suffixes are bucket-
+    // aware so the adjective and the verdict don't contradict —
+    // "decent ~23 ft" can't be "killing it", and "blown out winds"
+    // is already conclusive without "chopping the surface" tacked on.
     if (headlineHurt === 'vis') {
-      phrases.push(`${_describeVisibility(visibilityFeet)} is killing it`);
+      const visTxt = _describeVisibility(visibilityFeet);
+      const isMurky = visibilityFeet != null && visibilityFeet < 15;
+      phrases.push(isMurky ? `${visTxt} is killing it` : `${visTxt} isn't helping`);
     } else if (headlineHurt === 'wind') {
       const w = _describeWind(windKnots, windDirDeg);
-      if (w) phrases.push(`${w} is chopping the surface`);
+      const alreadyBlown = windKnots != null && windKnots >= 18;
+      if (w) phrases.push(alreadyBlown ? w : `${w} is chopping the surface`);
     } else if (headlineHurt === 'swell' || headlineHurt === 'swellSpot' || headlineHurt === 'swellSpotHard') {
       const s = _describeSwell(swellFeet, swellPeriodSec, swellDirDeg);
       if (s) phrases.push(`${s}${details.swellSpotHard ? ' — way over what this spot handles cleanly' : ''}`);
