@@ -1334,8 +1334,10 @@ async function buildSpotReport({ spot, owHourly, buoyData, marineForecast, nowMs
   const nowRating = generateSnorkelRating({
     visibilityMeters: nowVisibility.estimatedVisibilityMeters,
     windKnots:        nowMetrics.windSpeedKts,
+    windDirDeg:       nowMetrics.windDeg,
     swellFeet:        nowEffectiveSwellFt,
     swellPeriodSec:   nowMetrics.wavePeriodS,
+    swellDirDeg:      nowMetrics.waveDirectionDegFrom,
     currentKnots:     estimateCurrentFromWind(nowMetrics.windSpeedKts),
     waterTempC:       nowMetrics.waterTempC,
     rainLast24hMM:    rainRollups.rain24hMM,
@@ -1440,8 +1442,10 @@ async function buildSpotReport({ spot, owHourly, buoyData, marineForecast, nowMs
     const winRating = generateSnorkelRating({
       visibilityMeters: winVisibility.estimatedVisibilityMeters,
       windKnots:        w.avg.windSpeedKts,
+      windDirDeg:       w.avg.windDeg,
       swellFeet:        winEffectiveSwellFt,
       swellPeriodSec:   w.avg.wavePeriodS,
+      swellDirDeg:      w.avg.waveDirectionDegFrom,
       currentKnots:     estimateCurrentFromWind(w.avg.windSpeedKts),
       waterTempC:       w.avg.waterTempC,
       rainLast24hMM:    winRainRollups.rain24hMM,

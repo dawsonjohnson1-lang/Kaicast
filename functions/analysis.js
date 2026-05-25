@@ -1108,11 +1108,165 @@ function assessRunoffRisk({
  *   falling → -5, -5 extra when runoff is high/extreme (modest negative, stronger with runoff)
  *   low     → -2                                   (neutral to slight negative)
  */
+// ─── Human-readable conditions summary ───────────────────────────────────
+//
+// Replaces the prior "Score: 69 — adjustments from visibility (-16),
+// wind (-22), period (-3)..." formula-style string with a 2-3 sentence
+// summary in the voice of someone who actually dives the spot.
+//
+// Inputs are everything `generateSnorkelRating` already has in scope
+// plus optional wind/swell direction degrees so we can name compass
+// points ("stiff 16-kt trades from the ENE"). Numeric score + the
+// per-factor `details` map stay on the response unchanged — only the
+// user-facing `reason` string changes.
+
+const _COMPASS_16 = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+function _compass(deg) {
+  if (deg == null || !Number.isFinite(deg)) return null;
+  return _COMPASS_16[Math.round((((deg % 360) + 360) % 360) / 22.5) % 16];
+}
+
+function _describeVisibility(visFt) {
+  if (visFt == null) return 'visibility hard to read';
+  if (visFt >= 50) return `gin-clear ~${visFt} ft`;
+  if (visFt >= 30) return `clean ~${visFt} ft`;
+  if (visFt >= 15) return `decent ~${visFt} ft`;
+  return `murky — only ${visFt} ft`;
+}
+
+function _describeWind(windKt, windDirDeg) {
+  const dir = _compass(windDirDeg);
+  if (windKt == null) return null;
+  const kt = Math.round(windKt);
+  if (windKt < 6)  return dir ? `light ${dir} winds (${kt} kts)` : 'barely any wind';
+  if (windKt < 12) return dir ? `moderate ${dir} trades around ${kt} kts` : `moderate trades around ${kt} kts`;
+  if (windKt < 18) return dir ? `stiff ${kt}-kt trades from the ${dir}` : `stiff ${kt}-kt trades`;
+  return dir ? `blown out — ${kt}-kt winds out of the ${dir}` : `blown out at ${kt} kts`;
+}
+
+function _describeSwell(swellFt, periodS, swellDirDeg) {
+  if (swellFt == null) return null;
+  const dir = _compass(swellDirDeg);
+  const fromTxt = dir ? ` out of the ${dir}` : '';
+  const periodTxt = periodS ? `${Math.round(periodS)}s ` : '';
+  if (swellFt < 1)     return `barely any swell (sub-foot${fromTxt})`;
+  if (swellFt < 3)     return `mellow ${swellFt.toFixed(1)}-ft ${periodTxt}swell${fromTxt}`;
+  if (swellFt < 5)     return `${swellFt.toFixed(1)}-ft ${periodTxt}swell${fromTxt}`;
+  if (swellFt < 8)     return `solid ${swellFt.toFixed(1)}-ft ${periodTxt}swell pushing in${fromTxt}`;
+  return `big ${swellFt.toFixed(1)}-ft ${periodTxt}swell pounding the coast${fromTxt}`;
+}
+
+function _pickStrongestHurts(details) {
+  return Object.entries(details || {})
+    .filter(([, v]) => Number.isFinite(v) && v < 0)
+    .sort((a, b) => a[1] - b[1]);
+}
+
+function humanizeReason({
+  rating,
+  details = {},
+  windKnots,
+  windDirDeg,
+  swellFeet,
+  swellPeriodSec,
+  swellDirDeg,
+  visibilityFeet,
+  tide,
+  runoff,
+}) {
+  const tier = String(rating || '').toLowerCase();
+  const hurts = _pickStrongestHurts(details);
+  const headlineHurt = hurts[0] && hurts[0][0];
+  const secondHurt = hurts[1] && hurts[1][0];
+
+  // 1. Verdict — tone matches the underlying ground truth (a GREAT
+  //    day with stiff wind isn't "drop everything", it's "workable").
+  let verdict;
+  if (tier === 'excellent') {
+    verdict = 'Prime day — about as good as it gets here.';
+  } else if (tier === 'great') {
+    verdict = (windKnots != null && windKnots >= 15) || (swellFeet != null && swellFeet >= 5)
+      ? 'Workable if you know the spot.'
+      : 'Solid window today.';
+  } else if (tier === 'good') {
+    verdict = 'Diveable but pick your moment.';
+  } else if (tier === 'fair') {
+    verdict = 'Marginal — only worth it if you know this spot well.';
+  } else if (tier === 'no-go') {
+    verdict = 'Skip it today.';
+  } else {
+    verdict = 'Conditions update.';
+  }
+
+  // 2. What's helping or what's hurting, in normal language.
+  const phrases = [];
+  if (tier === 'excellent' || tier === 'great') {
+    // Lead with the conditions that make it dive-worthy
+    const swellTxt = _describeSwell(swellFeet, swellPeriodSec, swellDirDeg);
+    const windTxt = _describeWind(windKnots, windDirDeg);
+    const visTxt = _describeVisibility(visibilityFeet);
+    if (swellTxt) phrases.push(swellTxt);
+    if (windTxt)  phrases.push(windTxt);
+    if (phrases.length === 0 || (windKnots != null && windKnots < 12 && swellFeet != null && swellFeet < 3)) {
+      phrases.push(visTxt);
+    }
+  } else {
+    // Lead with the strongest negative factor
+    if (headlineHurt === 'vis') {
+      phrases.push(`${_describeVisibility(visibilityFeet)} is killing it`);
+    } else if (headlineHurt === 'wind') {
+      const w = _describeWind(windKnots, windDirDeg);
+      if (w) phrases.push(`${w} is chopping the surface`);
+    } else if (headlineHurt === 'swell' || headlineHurt === 'swellSpot' || headlineHurt === 'swellSpotHard') {
+      const s = _describeSwell(swellFeet, swellPeriodSec, swellDirDeg);
+      if (s) phrases.push(`${s}${details.swellSpotHard ? ' — way over what this spot handles cleanly' : ''}`);
+    } else if (headlineHurt === 'rain' || headlineHurt === 'runoff') {
+      phrases.push('runoff from recent rain has muddied things up');
+    } else if (headlineHurt === 'current') {
+      phrases.push("current's strong enough to push you around");
+    } else if (headlineHurt === 'period') {
+      phrases.push('short-period chop is making the surface messy');
+    }
+    // Second-most-significant factor, if it's also material
+    if (secondHurt && details[secondHurt] <= -10 && secondHurt !== headlineHurt) {
+      if (secondHurt === 'wind' && !phrases.some((p) => /wind|trades|kts/.test(p))) {
+        const w = _describeWind(windKnots, windDirDeg);
+        if (w) phrases.push(`and ${w}`);
+      } else if (secondHurt === 'vis' && !phrases.some((p) => /viz|visibility|murky|clean|gin/i.test(p))) {
+        if (visibilityFeet != null) phrases.push(`viz is only around ${visibilityFeet} ft`);
+      } else if ((secondHurt === 'swell' || secondHurt === 'swellSpot') && !phrases.some((p) => /swell|ft/.test(p))) {
+        const s = _describeSwell(swellFeet, swellPeriodSec, swellDirDeg);
+        if (s) phrases.push(`plus ${s}`);
+      }
+    }
+  }
+  let sentence2 = phrases.join(', ');
+  if (sentence2) sentence2 = sentence2.charAt(0).toUpperCase() + sentence2.slice(1) + '.';
+
+  // 3. Tide — only when load-bearing. Skip the formulaic "rising tide +
+  //    clean water" bonus that previously fired on almost every report.
+  let sentence3 = '';
+  if (tide) {
+    const state = tide.currentTideState;
+    if (state === 'slack') {
+      sentence3 = 'Tide near slack — minimal current, good for photography.';
+    } else if ((state === 'high' || state === 'low') && (tier === 'excellent' || tier === 'great' || tier === 'good')) {
+      sentence3 = `Near ${state} tide — expect a bit more water movement.`;
+    } else if (runoff && runoff.severity && runoff.severity !== 'none' && state === 'rising') {
+      sentence3 = 'Rising tide is flushing recent runoff back out, which is the main reason it reads as workable.';
+    }
+  }
+
+  return [verdict, sentence2, sentence3].filter(Boolean).join(' ');
+}
+
 function generateSnorkelRating({
   visibilityMeters = 15,
   windKnots = 8,
+  windDirDeg = null,           // from buoy/met data, optional — drives compass words in reason
   swellFeet = null,
   swellPeriodSec = 10,
+  swellDirDeg = null,          // from buoy/marine forecast, optional — same
   currentKnots = 0.5,
   tidePhase = 'unknown',
   tide = null,
@@ -1223,11 +1377,26 @@ function generateSnorkelRating({
     details.swellSpotHard = (details.swellSpotHard || 0) - 20;
   }
 
-  // Period
-  if (swellPeriodSec < 8) { score -= 10; details.period = -10; }
-  else if (swellPeriodSec > 13 && swellFeet >= 3) {
-    score -= 10; details.period = -10;
-  } else details.period = 0;
+  // Period — graduated penalty. Sub-5s is pure wind chop (very rough
+  // surface, low underwater clarity from agitation). 5-7s is windswell
+  // that still kicks up sand. 7-9s is normal Hawaiian trade swell —
+  // expected, not penal. 9-13s is clean groundswell (best for diving).
+  // 13+ only penalises if it's also a meaningful size (long-period
+  // groundswell creates orbital surge that stirs the bottom on shallow
+  // reefs).
+  let periodPenalty = 0;
+  if (swellPeriodSec != null) {
+    if (swellPeriodSec < 5)        periodPenalty = 15;
+    else if (swellPeriodSec < 7)   periodPenalty = 8;
+    else if (swellPeriodSec < 9)   periodPenalty = 3;
+    else if (swellPeriodSec >= 13 && swellFeet >= 3) periodPenalty = 10;
+  }
+  if (periodPenalty > 0) {
+    score -= periodPenalty;
+    details.period = -periodPenalty;
+  } else {
+    details.period = 0;
+  }
 
   // Currents
   if (currentKnots > 2.5) { score -= 30; details.current = -30; }
@@ -1411,34 +1580,25 @@ function generateSnorkelRating({
     }
   }
 
-  const reasons = [];
-  const add = (k, text) => { if (details[k]) reasons.push(`${text} (${details[k]})`); };
-  add('vis', 'visibility');
-  add('wind', 'wind');
-  add('swell', 'swell');
-  add('swellMissing', 'missing swell data');
-  add('swellSpot', 'spot swell limits');
-  add('swellSpotHard', 'dangerously large swell');
-  add('period', 'period');
-  add('current', 'current');
-  add('rain', 'rain/runoff');
-  add('runoff', 'runoff');
-  add('tide', 'tide');
-  add('tideFallingRunoff', 'falling tide + runoff');
-  add('tideRisingClean', 'rising tide, clean water');
-  add('temp', 'water temp');
-  add('tempMissing', 'missing water temperature');
-  add('jellyfish', 'jellyfish risk');
-  add('confidence', 'low data confidence');
-  add('northCoastLongSwell', 'north-coast long swell');
-  add('northCoastCurrent', 'north-coast current sensitivity');
-  add('southCoastSurge', 'south-coast surge');
-  add('westCoastWindChop', 'west-coast wind chop');
-  if (details.runoffUnsafe) reasons.push('unsafe runoff');
-  if (details.runoffHealthHigh) reasons.push('high contamination risk');
-  if (details.lightning) reasons.push('thunderstorms');
-
-  const reason = `Score: ${score} — adjustments from ${reasons.length ? reasons.join(', ') : 'benign conditions'}.`;
+  // Plain-English summary in the voice of a friend who dives this spot.
+  // Score + per-factor details stay on the response (sort/filter,
+  // future explainability view) but the user-facing string is the
+  // human read. See humanizeReason() below.
+  const visibilityFeet = visibilityMeters != null
+    ? Math.round(visibilityMeters * 3.28084)
+    : null;
+  const reason = humanizeReason({
+    rating,
+    details,
+    windKnots,
+    windDirDeg,
+    swellFeet,
+    swellPeriodSec,
+    swellDirDeg,
+    visibilityFeet,
+    tide,
+    runoff,
+  });
 
   const caution = [];
   if (lightningRisk) caution.push('Thunderstorms – avoid the water.');
