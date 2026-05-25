@@ -223,6 +223,168 @@ export type DesktopForecastDay = {
   bars: Array<'excellent' | 'great' | 'good' | 'fair' | 'no-go'>;
 };
 
+export type DesktopHourRow = {
+  time: string;
+  rating: 'excellent' | 'great' | 'good' | 'fair' | 'no-go';
+  stars: number;
+  wave: string;
+  vis: string;
+  wind: string;
+  current: string;
+  tide: string;
+  swell: string;
+};
+
+const KT_TO_MPH = 1.15078;
+const DIRS_8 = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+
+function degToCompass(deg: number | null | undefined): string {
+  if (deg == null || !Number.isFinite(deg)) return '';
+  const idx = Math.round((((deg % 360) + 360) % 360) / 45) % 8;
+  return DIRS_8[idx];
+}
+
+function hourLabelSpaced(h: number): string {
+  if (h === 0) return '12 AM';
+  if (h === 12) return '12 PM';
+  return h < 12 ? `${h} AM` : `${h - 12} PM`;
+}
+
+function starsFromScore(score: number | undefined | null): number {
+  if (score == null) return 3;
+  if (score >= 80) return 5;
+  if (score >= 60) return 4;
+  if (score >= 40) return 3;
+  if (score >= 20) return 2;
+  return 1;
+}
+
+// Linear interp tide height at `atMs` from the named tide events the
+// backend ships under report.tide. Same shape SpotsMapScreen's
+// "now" tide chip uses — five labeled events across a half-cycle.
+function tideAt(tide: Record<string, unknown> | undefined, atMs: number): { heightFt: number; rising: boolean } | null {
+  if (!tide) return null;
+  const pairs: Array<[string, string]> = [
+    ['lowTide1Time', 'lowTide1Height'],
+    ['risingTideTime', 'risingTideHeight'],
+    ['highTideTime', 'highTideHeight'],
+    ['fallingTideTime', 'fallingTideHeight'],
+    ['lowTide2Time', 'lowTide2Height'],
+  ];
+  const events: Array<{ t: number; h: number }> = [];
+  for (const [tk, hk] of pairs) {
+    const iso = tide[tk];
+    const h = tide[hk];
+    if (typeof iso === 'string' && typeof h === 'number') {
+      const t = Date.parse(iso);
+      if (Number.isFinite(t)) events.push({ t, h });
+    }
+  }
+  events.sort((a, b) => a.t - b.t);
+  if (events.length < 2) return null;
+  for (let i = 0; i < events.length - 1; i++) {
+    const a = events[i];
+    const b = events[i + 1];
+    if (atMs >= a.t && atMs <= b.t) {
+      const frac = (atMs - a.t) / Math.max(1, b.t - a.t);
+      return { heightFt: a.h + (b.h - a.h) * frac, rising: b.h > a.h };
+    }
+  }
+  if (atMs < events[0].t) return { heightFt: events[0].h, rising: events[1].h > events[0].h };
+  const last = events[events.length - 1];
+  const prev = events[events.length - 2];
+  return { heightFt: last.h, rising: last.h > prev.h };
+}
+
+/**
+ * Per-row hourly forecast derived from the same `report.windows` the
+ * day aggregates roll up from — keeps the "Hourly forecast · today"
+ * table in sync with the "7-day forecast" strip above it. Windows are
+ * 3-hour slots (backend granularity), so each row covers 3 hours
+ * starting at `window.startIso`.
+ *
+ * Per-window fields:
+ *   - wave / vis / wind / rating / stars come from `window.avg` and
+ *     `window.rating` directly
+ *   - current is the standard wind-driven surface-current proxy
+ *     (≈3% of wind speed) used elsewhere in the desktop UI
+ *   - tide is interpolated at the window's start time against the
+ *     report-level tide events
+ *
+ * Static-per-report fields (windows don't carry these):
+ *   - swell direction from `now.metrics.waveDirectionDegFrom`
+ *   - wind direction from `now.metrics.windDeg`
+ */
+// `dayOffset` filters the report's windows down to the calendar date
+// `dayOffset` days from today (0 = today, 1 = tomorrow, ...). Lets the
+// hourly card pivot between days when the user clicks a card in the
+// 7-day strip. Falls back to the full window list when no windows
+// match (cold report, late-night edge cases) so the card never goes
+// blank.
+export function backendReportToHours(
+  report: BackendReport,
+  count = 8,
+  dayOffset = 0,
+): DesktopHourRow[] {
+  let windows = report.windows ?? [];
+  if (windows.length === 0) return [];
+  if (dayOffset !== 0) {
+    const target = new Date();
+    target.setHours(0, 0, 0, 0);
+    target.setDate(target.getDate() + dayOffset);
+    const yyyy = target.getFullYear();
+    const mm = String(target.getMonth() + 1).padStart(2, '0');
+    const dd = String(target.getDate()).padStart(2, '0');
+    const targetDate = `${yyyy}-${mm}-${dd}`;
+    const filtered = windows.filter((w) => (w.startIso ?? '').startsWith(targetDate));
+    // If the report doesn't carry windows for the requested day, fall
+    // through to the full list — better than rendering an empty table.
+    windows = filtered.length > 0 ? filtered : windows;
+  }
+  const nowMetrics = (report.now?.metrics ?? {}) as Record<string, number | null | undefined>;
+  const swellDir = nowMetrics.waveDirectionDegFrom;
+  const swellLabel = swellDir != null && Number.isFinite(swellDir)
+    ? `${Math.round(swellDir)}° ${degToCompass(swellDir)}`
+    : '—';
+  const windDirCompass = degToCompass(nowMetrics.windDeg);
+  const tideObj = (report.tide ?? (report.now as { tide?: Record<string, unknown> } | undefined)?.tide) as Record<string, unknown> | undefined;
+
+  return windows.slice(0, count).map((w): DesktopHourRow => {
+    const startMs = Date.parse(w.startIso ?? '');
+    const hasStart = Number.isFinite(startMs);
+    const time = hasStart ? hourLabelSpaced(new Date(startMs).getHours()) : '—';
+
+    const waveHM = w.avg?.waveHeightM;
+    const waveFt = waveHM == null ? null : Math.round(waveHM * M_TO_FT * 10) / 10;
+    const period = w.avg?.wavePeriodS;
+    const wave = waveFt != null
+      ? (period != null ? `${waveFt.toFixed(1)} FT @ ${Math.round(period)}s` : `${waveFt.toFixed(1)} FT`)
+      : '—';
+
+    const visM = w.visibility?.estimatedVisibilityMeters;
+    const vis = visM != null ? `${Math.round(visM * M_TO_FT)} FT` : '—';
+
+    const windKt = w.avg?.windSpeedKts;
+    const wind = windKt != null
+      ? `${Math.round(windKt)} KT${windDirCompass ? ' ' + windDirCompass : ''}`
+      : '—';
+
+    const currentKt = windKt == null ? null : Math.max(0.1, Math.round(windKt * 0.03 * 10) / 10);
+    const current = currentKt != null ? `${currentKt.toFixed(1)} KT` : '—';
+
+    const rating = TIER_FROM_SCORE(w.rating?.score);
+    const stars = starsFromScore(w.rating?.score);
+
+    let tide = '—';
+    if (hasStart) {
+      const t = tideAt(tideObj, startMs);
+      if (t) tide = `${t.heightFt >= 0 ? '+' : ''}${t.heightFt.toFixed(1)} FT`;
+    }
+
+    return { time, rating, stars, wave, vis, wind, current, tide, swell: swellLabel };
+  });
+}
+
 export function backendDayToDesktopDay(day: BackendDay): DesktopForecastDay {
   // `date` from backend is `YYYY-MM-DD`; treat as local midday so the
   // weekday formatter doesn't slip a day from UTC offset issues.

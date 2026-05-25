@@ -1,15 +1,7 @@
 import React from 'react';
 import { View, Text, Pressable, ScrollView, Image, StyleSheet } from 'react-native';
 import forecastHeroBg from './assets/figma/backgrounds/forecast-hero.png';
-import {
-  colors,
-  fonts,
-  radius,
-  spacing,
-  DESKTOP_MAX_WIDTH,
-  TIER_COLORS,
-  type ConditionTier,
-} from './tokens';
+import { colors, fonts, radius, DESKTOP_MAX_WIDTH, TIER_COLORS, type ConditionTier } from './tokens';
 import { DesktopNav } from './components/DesktopNav';
 import { ConditionPill } from './components/ConditionPill';
 import { FavoriteButton } from './components/FavoriteButton';
@@ -17,7 +9,7 @@ import { DiveReportCard, type DiveReportCardProps } from './components/DiveRepor
 import { KaiCastMap } from './components/maps/KaiCastMap';
 import { useBreakpoint, pick } from './hooks/useBreakpoint';
 import type { NavigateFn, RouteParams } from './router';
-import { findSpot, mapboxSatelliteUrl, SPOTS } from './data/spots';
+import { findSpot, mapboxSatelliteUrl } from './data/spots';
 import { getSpotBio } from './data/spotBios';
 import {
   useSpotReport,
@@ -25,7 +17,9 @@ import {
   bestWindowLabel,
   relativeTime,
   backendDayToDesktopDay,
+  backendReportToHours,
   type BackendReport,
+  type DesktopHourRow,
 } from './data/getReport';
 
 /**
@@ -77,6 +71,16 @@ function useReportCtx(): LiveReport {
   return React.useContext(ReportCtx);
 }
 
+// Selected day in the 7-day forecast strip. ForecastDayCard writes,
+// HourlyCard reads. Lifting to a tiny context (rather than threading
+// the prop through ForecastTabBody / mainGrid) keeps the wiring
+// minimal — only the two interested components subscribe.
+type SelectedDayCtxValue = { index: number; setIndex: (n: number) => void };
+const SelectedDayCtx = React.createContext<SelectedDayCtxValue>({ index: 0, setIndex: () => {} });
+function useSelectedDay(): SelectedDayCtxValue {
+  return React.useContext(SelectedDayCtx);
+}
+
 function coordsLabel(lat: number, lon: number): string {
   const ns = lat >= 0 ? 'N' : 'S';
   const ew = lon >= 0 ? 'E' : 'W';
@@ -124,17 +128,7 @@ const FORECAST_DAYS: ForecastDay[] = [
     bars: ['good', 'great', 'great', 'great', 'great', 'great', 'great', 'good'] },
 ];
 
-type HourRow = {
-  time: string;
-  rating: ConditionTier;
-  stars: number; // 0–5
-  wave: string;
-  vis: string;
-  wind: string;
-  current: string;
-  tide: string;
-  swell: string;
-};
+type HourRow = DesktopHourRow;
 
 const HOURLY: HourRow[] = [
   { time: '2 PM', rating: 'excellent', stars: 5, wave: '3.1 FT @ 9s', vis: '58 FT', wind: '7 KT NE',  current: '0.4 MPH SE', tide: '+1.4 FT', swell: '295° WNW' },
@@ -172,6 +166,7 @@ export interface SpotDetailScreenProps {
 
 export function SpotDetailScreen({ activeNav = 'forecast', onNavigate, params }: SpotDetailScreenProps) {
   const [tab, setTab] = React.useState('Forecast');
+  const [selectedDay, setSelectedDay] = React.useState(0);
   const bp = useBreakpoint();
   const sidePad = pick(bp, 28, 16);
 
@@ -182,13 +177,23 @@ export function SpotDetailScreen({ activeNav = 'forecast', onNavigate, params }:
     return hit ?? DEFAULT_SPOT;
   }, [params?.spotId]);
 
+  // Reset the selected day to today whenever the spot changes — old
+  // selection ("Friday") shouldn't carry across spots.
+  React.useEffect(() => { setSelectedDay(0); }, [resolved.id]);
+
   // Live `getReport` for the resolved spot. Drives rating tier,
   // best-window, current, runoff, and freshness on the hero.
   const report = useSpotReport(resolved.id);
 
+  const selectedDayCtx = React.useMemo<SelectedDayCtxValue>(
+    () => ({ index: selectedDay, setIndex: setSelectedDay }),
+    [selectedDay],
+  );
+
   return (
     <SpotCtx.Provider value={resolved}>
     <ReportCtx.Provider value={report}>
+    <SelectedDayCtx.Provider value={selectedDayCtx}>
     <ScrollView style={styles.page} contentContainerStyle={styles.pageContent}>
       <DesktopNav active={activeNav} onNavigate={onNavigate} />
 
@@ -206,6 +211,7 @@ export function SpotDetailScreen({ activeNav = 'forecast', onNavigate, params }:
         {tab === 'Conditions' ? <ConditionsTabBody /> : null}
       </View>
     </ScrollView>
+    </SelectedDayCtx.Provider>
     </ReportCtx.Provider>
     </SpotCtx.Provider>
   );
@@ -358,6 +364,7 @@ function InlineFact({ label, value }: { label: string; value: string }) {
 
 function ForecastStrip() {
   const { data: report } = useReportCtx();
+  const { index: selectedIndex, setIndex: setSelectedIndex } = useSelectedDay();
   // Map the backend's daily aggregates to the desktop ForecastDay shape.
   // Fall back to the static FORECAST_DAYS mock only while we're waiting
   // for the first report (or if the endpoint is down).
@@ -388,16 +395,39 @@ function ForecastStrip() {
 
       <View style={styles.forecastRow}>
         {days.map((d, i) => (
-          <ForecastDayCard key={`${d.label}-${i}`} day={d} isFirst={i === 0} />
+          <ForecastDayCard
+            key={`${d.label}-${i}`}
+            day={d}
+            isFirst={i === 0}
+            isSelected={i === selectedIndex}
+            onPress={() => setSelectedIndex(i)}
+          />
         ))}
       </View>
     </View>
   );
 }
 
-function ForecastDayCard({ day, isFirst }: { day: ForecastDay; isFirst: boolean }) {
+function ForecastDayCard({
+  day,
+  isFirst,
+  isSelected,
+  onPress,
+}: {
+  day: ForecastDay;
+  isFirst: boolean;
+  isSelected?: boolean;
+  onPress?: () => void;
+}) {
   return (
-    <View style={[styles.forecastCell, isFirst && styles.forecastCellFirst]}>
+    <Pressable
+      onPress={onPress}
+      style={[
+        styles.forecastCell,
+        isFirst && styles.forecastCellFirst,
+        isSelected && styles.forecastCellSelected,
+      ]}
+    >
       <View style={[styles.forecastTopAccent, { backgroundColor: TIER_COLORS[day.rating] }]} />
 
       <View style={styles.forecastRowTop}>
@@ -432,7 +462,7 @@ function ForecastDayCard({ day, isFirst }: { day: ForecastDay; isFirst: boolean 
         <Text style={styles.forecastTimeLabel}>PM</Text>
         <Text style={styles.forecastTimeLabel}>EVE</Text>
       </View>
-    </View>
+    </Pressable>
   );
 }
 
@@ -2523,12 +2553,70 @@ function BuoySourcesCard() {
 
 // ─── Hourly table ─────────────────────────────────────────────────────────
 
+// Advance a "2 PM"-style label by N hours, wrapping at the 24-hour
+// boundary. Used to compute the end of the last window shown in the
+// hourly table subtitle.
+function addHourLabel(label: string, hours: number): string {
+  const m = label.match(/^(\d{1,2})\s+(AM|PM)$/i);
+  if (!m) return label;
+  let h = parseInt(m[1], 10);
+  const isPM = m[2].toUpperCase() === 'PM';
+  if (h === 12) h = 0;
+  if (isPM) h += 12;
+  const next = (h + hours) % 24;
+  if (next === 0) return '12 AM';
+  if (next === 12) return '12 PM';
+  return next < 12 ? `${next} AM` : `${next - 12} PM`;
+}
+
 function HourlyCard() {
+  const { data: report } = useReportCtx();
+  const { index: selectedDay } = useSelectedDay();
+  // Derive rows from the same `report.windows` the 7-day strip aggregates
+  // up from, so the two tables can't disagree on wave height (or any
+  // other per-window field). selectedDay filters to that calendar day's
+  // windows. Falls back to the static HOURLY mock only while the report
+  // is in-flight or the endpoint is down.
+  const rows: HourRow[] = React.useMemo(() => {
+    if (report) {
+      const live = backendReportToHours(report, 8, selectedDay);
+      if (live.length > 0) return live;
+    }
+    return HOURLY;
+  }, [report, selectedDay]);
+
+  // Card title: "today" for offset 0, otherwise the matching day label
+  // from the 7-day strip (Mon, Tue, ...). Pulled from report.days so
+  // the spelling matches what the user just clicked on.
+  const dayLabel = React.useMemo(() => {
+    if (selectedDay === 0) return 'today';
+    const src = report?.days;
+    if (Array.isArray(src) && src[selectedDay]) {
+      return backendDayToDesktopDay(src[selectedDay]).label;
+    }
+    // Fallback when no report: compute weekday from offset.
+    const d = new Date();
+    d.setDate(d.getDate() + selectedDay);
+    return d.toLocaleDateString(undefined, { weekday: 'long' });
+  }, [report, selectedDay]);
+
+  // Subtitle reflects the actual range of windows being shown rather
+  // than the old hardcoded "2P → 2A". Each window covers 3 hours, so
+  // the total span is `rows.length * 3`.
+  const subtitle = React.useMemo(() => {
+    if (rows.length === 0) return 'SHOWING 12 HRS · 2P → 2A';
+    const short = (label: string) => label.replace(' AM', 'A').replace(' PM', 'P');
+    const start = short(rows[0].time);
+    const lastStart = rows[rows.length - 1].time;
+    const end = short(addHourLabel(lastStart, 3));
+    return `SHOWING ${rows.length * 3} HRS · ${start} → ${end}`;
+  }, [rows]);
+
   return (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
-        <Text style={styles.cardHeaderTitle}>Hourly forecast · today</Text>
-        <Text style={styles.cardHeaderMono}>SHOWING 12 HRS · 2P → 2A</Text>
+        <Text style={styles.cardHeaderTitle}>Hourly forecast · {dayLabel}</Text>
+        <Text style={styles.cardHeaderMono}>{subtitle}</Text>
       </View>
 
       <View style={styles.hourlyTable}>
@@ -2544,8 +2632,8 @@ function HourlyCard() {
           <HourlyCell text="Swell" header flex />
         </View>
 
-        {HOURLY.map((row, i) => (
-          <View key={i} style={[styles.hourlyRow, i === HOURLY.length - 1 && styles.hourlyRowLast]}>
+        {rows.map((row, i) => (
+          <View key={i} style={[styles.hourlyRow, i === rows.length - 1 && styles.hourlyRowLast]}>
             <HourlyCell text={row.time} width={80} />
             <View style={[styles.hourlyCell, { width: 110 }]}>
               <ConditionPill tier={row.rating} size="sm" />
@@ -3253,6 +3341,13 @@ const styles = StyleSheet.create({
   },
   forecastCellFirst: {
     borderLeftWidth: 0,
+  },
+  // Highlight the day the user has clicked — subtle accent tint + a
+  // brighter top accent bar (the colored bar at the very top of the
+  // cell already shows the condition tier, this overlay adds the
+  // "you are looking at this day" visual cue).
+  forecastCellSelected: {
+    backgroundColor: 'rgba(9,161,251,0.08)',
   },
   forecastTopAccent: {
     position: 'absolute',
