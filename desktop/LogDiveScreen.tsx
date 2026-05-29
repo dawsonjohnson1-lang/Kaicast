@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, Pressable, TextInput, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, Pressable, TextInput, ScrollView, StyleSheet, Modal } from 'react-native';
+import { SPECIES_CATEGORIES, SPECIES_BY_ID, type SpeciesCategory } from './data/marineLife';
 import {
   colors,
   fonts,
@@ -98,7 +99,10 @@ interface FormState {
   wetsuitThickness: string;
   weightUsed: number;
   thermoclinePresent: boolean;
-  marineLifeSelected: string[];
+  /** Kebab-case species ids from desktop/data/marineLife.ts. Mirrors
+   *  the mobile log dive — same ids land on the same diveLogs doc so
+   *  the report-detail page renders identically on both surfaces. */
+  speciesSeen: string[];
   sightingNotes: string;
   notes: string;
   ratingStars: number;
@@ -208,7 +212,7 @@ const INITIAL_FORM: FormState = {
   wetsuitThickness: '3mm full',
   weightUsed: 0,
   thermoclinePresent: false,
-  marineLifeSelected: [],
+  speciesSeen: [],
   sightingNotes: '',
   notes: '',
   ratingStars: 0,
@@ -342,23 +346,10 @@ function diveTypeWithEmoji(t: string): string {
   return `${DIVE_TYPE_EMOJI[t] ?? '🤿'} ${t}`;
 }
 
-const MARINE_LIFE_OPTIONS = [
-  { emoji: '🐢', name: 'Green Turtle' },
-  { emoji: '🦈', name: 'Reef Shark' },
-  { emoji: '🐠', name: 'Reef Fish' },
-  { emoji: '🦭', name: 'Monk Seal' },
-  { emoji: '🐬', name: 'Dolphin' },
-  { emoji: '🌊', name: 'Eagle Ray' },
-  { emoji: '🐙', name: 'Octopus' },
-  { emoji: '🐋', name: 'Humpback' },
-  { emoji: '🦑', name: 'Squid' },
-  { emoji: '🐍', name: 'Moray Eel' },
-  { emoji: '🐡', name: 'Pufferfish' },
-  { emoji: '🦞', name: 'Lobster' },
-  { emoji: '🦀', name: 'Crab' },
-  { emoji: '🐳', name: 'Whale' },
-  { emoji: '🐟', name: 'Other' },
-];
+// MARINE_LIFE_OPTIONS removed — the flat 15-tile grid was replaced with
+// the category → species drill-down picker (SPECIES_CATEGORIES from
+// ./data/marineLife.ts) so the same dive log doc renders identically
+// on mobile and desktop.
 
 const CURRENT_CHIPS    = ['None', 'Mild', 'Moderate', 'Strong', 'Ripping'];
 const SURFACE_CHIPS    = ['Calm', 'Light chop', 'Choppy', 'Rough'];
@@ -668,7 +659,16 @@ function LeftPreview({
           <PreviewRow label="Current"  value={form.currentStrength === 'None' ? 'Non-existent' : form.currentStrength} />
           <PreviewRow label="Surface"  value={form.surfaceConditions} />
           <PreviewRow label="Temp"     value={`${form.waterTemp}°F`} />
-          <PreviewRow label="Wildlife" value={form.marineLifeSelected.length > 0 ? form.marineLifeSelected.join(' · ') : '—'} />
+          <PreviewRow
+            label="Wildlife"
+            value={
+              form.speciesSeen.length > 0
+                ? form.speciesSeen
+                    .map((id) => SPECIES_BY_ID.get(id)?.label ?? id)
+                    .join(' · ')
+                : '—'
+            }
+          />
         </View>
 
         <View style={styles.previewFooter}>
@@ -795,17 +795,71 @@ function PreviewRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+// Modal-style multi-select for species within one category. Renders
+// nothing when `category` is null (modal closed). Selections in other
+// categories are preserved; we only mutate this category's slice.
+function DesktopSpeciesPickerModal({
+  category,
+  selected,
+  onChange,
+  onClose,
+}: {
+  category: SpeciesCategory | null;
+  selected: string[];
+  onChange: (next: string[]) => void;
+  onClose: () => void;
+}) {
+  const visible = !!category;
+  const toggle = (id: string) => {
+    if (selected.includes(id)) onChange(selected.filter((x) => x !== id));
+    else onChange([...selected, id]);
+  };
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={styles.speciesModalBackdrop} onPress={onClose}>
+        <Pressable style={styles.speciesModalCard} onPress={(e) => e.stopPropagation()}>
+          <View style={styles.speciesModalHeader}>
+            <Text style={styles.speciesModalTitle}>
+              {category?.emoji}  {category?.label}
+            </Text>
+            <Pressable onPress={onClose} style={styles.speciesModalCloseBtn}>
+              <Text style={styles.speciesModalCloseText}>Done</Text>
+            </Pressable>
+          </View>
+          <ScrollView style={styles.speciesModalScroll} contentContainerStyle={styles.speciesModalContent}>
+            {category?.species.map((s) => {
+              const isSelected = selected.includes(s.id);
+              return (
+                <Pressable
+                  key={s.id}
+                  onPress={() => toggle(s.id)}
+                  style={[styles.speciesModalRow, isSelected && styles.speciesModalRowSelected]}
+                >
+                  <View style={[styles.speciesModalCheckbox, isSelected && styles.speciesModalCheckboxOn]}>
+                    {isSelected ? <Text style={styles.speciesModalCheckmark}>✓</Text> : null}
+                  </View>
+                  <Text style={styles.speciesModalLabel}>{s.label}</Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
 // ─── Right: 7-step form ───────────────────────────────────────────────────
 
 type Update = <K extends keyof FormState>(key: K, value: FormState[K]) => void;
 
 function RightForm({ form, update }: { form: FormState; update: Update }) {
-  const toggleMarine = (name: string) => {
-    const next = form.marineLifeSelected.includes(name)
-      ? form.marineLifeSelected.filter((n) => n !== name)
-      : [...form.marineLifeSelected, name];
-    update('marineLifeSelected', next);
-  };
+  // Picker UI: tap a category chip to open a modal of species checkboxes
+  // for that category. Selections persist across modal opens; the chip
+  // shows a count badge so users see what they've already picked.
+  const [speciesPickerCategory, setSpeciesPickerCategory] = React.useState<SpeciesCategory | null>(null);
+  const setSpeciesSeen = (next: string[]) => update('speciesSeen', next);
+  const removeSpecies = (id: string) => setSpeciesSeen(form.speciesSeen.filter((s) => s !== id));
 
   const ratingCaption =
     form.ratingStars >= 5 ? 'Personal best dive'
@@ -1174,21 +1228,51 @@ function RightForm({ form, update }: { form: FormState; update: Update }) {
       ) : null}
 
       <Section step="05" title="Marine Life" subtitle="— what did you see?">
-        <View style={styles.marineGrid}>
-          {MARINE_LIFE_OPTIONS.map((m) => {
-            const selected = form.marineLifeSelected.includes(m.name);
+        <Text style={styles.speciesHelper}>Tap a category to pick the species you saw.</Text>
+        <View style={styles.speciesCategoryRow}>
+          {SPECIES_CATEGORIES.map((c) => {
+            const count = c.species.filter((s) => form.speciesSeen.includes(s.id)).length;
             return (
               <Pressable
-                key={m.name}
-                onPress={() => toggleMarine(m.name)}
-                style={[styles.marineTile, selected && styles.marineTileSelected]}
+                key={c.id}
+                onPress={() => setSpeciesPickerCategory(c)}
+                style={[styles.speciesCategoryChip, count > 0 && styles.speciesCategoryChipActive]}
               >
-                <Text style={styles.marineEmoji}>{m.emoji}</Text>
-                <Text style={[styles.marineName, selected && styles.marineNameSelected]}>{m.name}</Text>
+                <Text style={styles.speciesCategoryEmoji}>{c.emoji}</Text>
+                <Text style={[styles.speciesCategoryText, count > 0 && styles.speciesCategoryTextActive]}>
+                  {c.label}
+                </Text>
+                {count > 0 ? (
+                  <View style={styles.speciesCategoryBadge}>
+                    <Text style={styles.speciesCategoryBadgeText}>{count}</Text>
+                  </View>
+                ) : null}
               </Pressable>
             );
           })}
         </View>
+
+        {form.speciesSeen.length > 0 ? (
+          <View style={styles.selectedSpeciesRow}>
+            {form.speciesSeen.map((id) => {
+              const meta = SPECIES_BY_ID.get(id);
+              if (!meta) return null;
+              return (
+                <Pressable key={id} onPress={() => removeSpecies(id)} style={styles.selectedSpeciesChip}>
+                  <Text style={styles.selectedSpeciesText}>{meta.label}</Text>
+                  <Text style={styles.selectedSpeciesX}>×</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        ) : null}
+
+        <DesktopSpeciesPickerModal
+          category={speciesPickerCategory}
+          selected={form.speciesSeen}
+          onChange={setSpeciesSeen}
+          onClose={() => setSpeciesPickerCategory(null)}
+        />
 
         <TextAreaField
           label="Sighting notes"
@@ -3431,38 +3515,162 @@ const styles = StyleSheet.create({
     color: colors.text2,
   },
 
-  // Marine grid
-  marineGrid: {
+  // Species picker — category chip row + selected pills + modal
+  speciesHelper: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.text3,
+    marginBottom: 8,
+  },
+  speciesCategoryRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
   },
-  marineTile: {
-    width: 'calc(20% - 7px)' as unknown as number,
-    height: 75,
-    padding: 8,
-    gap: 4,
-    backgroundColor: colors.surface0,
+  speciesCategoryChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
     borderWidth: 1,
     borderColor: colors.hairlineStrong,
-    borderRadius: radius.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: colors.surface0,
   },
-  marineTileSelected: {
+  speciesCategoryChipActive: {
     borderColor: colors.accent,
     backgroundColor: colors.accentDim,
   },
-  marineEmoji: { fontSize: 22 },
-  marineName: {
+  speciesCategoryEmoji: { fontSize: 14 },
+  speciesCategoryText: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.text2,
+  },
+  speciesCategoryTextActive: { color: colors.text1 },
+  speciesCategoryBadge: {
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 5,
+    borderRadius: 9,
+    backgroundColor: colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  speciesCategoryBadgeText: {
     fontFamily: fonts.body,
     fontSize: 10,
-    color: colors.text2,
-    textAlign: 'center',
+    fontWeight: '800',
+    color: colors.bg,
   },
-  marineNameSelected: {
-    color: colors.text1,
+  selectedSpeciesRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 12,
+  },
+  selectedSpeciesChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    backgroundColor: colors.accent,
+  },
+  selectedSpeciesText: {
+    fontFamily: fonts.body,
+    fontSize: 12,
     fontWeight: '600',
+    color: colors.bg,
+  },
+  selectedSpeciesX: {
+    fontFamily: fonts.body,
+    fontSize: 14,
+    fontWeight: '800',
+    color: colors.bg,
+    lineHeight: 14,
+  },
+
+  // Species picker modal
+  speciesModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  speciesModalCard: {
+    width: '100%',
+    maxWidth: 520,
+    maxHeight: '80%',
+    backgroundColor: colors.surface1,
+    borderWidth: 1,
+    borderColor: colors.hairlineStrong,
+    borderRadius: radius.md,
+    overflow: 'hidden',
+  },
+  speciesModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.hairline,
+  },
+  speciesModalTitle: {
+    fontFamily: fonts.display,
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.text1,
+  },
+  speciesModalCloseBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: radius.sm,
+  },
+  speciesModalCloseText: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.accent,
+  },
+  speciesModalScroll: { flex: 1 },
+  speciesModalContent: { padding: 8 },
+  speciesModalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 12,
+    borderRadius: radius.sm,
+  },
+  speciesModalRowSelected: { backgroundColor: colors.surface0 },
+  speciesModalCheckbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    borderWidth: 1.5,
+    borderColor: colors.hairlineStrong,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  speciesModalCheckboxOn: {
+    borderColor: colors.accent,
+    backgroundColor: colors.accent,
+  },
+  speciesModalCheckmark: {
+    color: colors.bg,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  speciesModalLabel: {
+    flex: 1,
+    fontFamily: fonts.body,
+    fontSize: 14,
+    color: colors.text1,
   },
 
   // Textarea
