@@ -1985,7 +1985,39 @@ function TimeField({
   value: string;
   onChange: (next: string) => void;
 }) {
+  // Viewport-anchored fixed popover, same pattern as SelectField.
+  // The dropdown was previously `position: absolute` inside fieldWrap,
+  // which meant any ancestor stacking context (and Section cards
+  // make new ones) capped its z-index — so the panel painted behind
+  // subsequent form sections. Measuring the field's rect and
+  // rendering the menu as a `position: fixed` overlay escapes every
+  // ancestor stacking context and floats it above the page.
   const [open, setOpen] = React.useState(false);
+  const [rect, setRect] = React.useState<{ top: number; left: number; width: number } | null>(null);
+  const rowRef = React.useRef<View>(null);
+
+  const measure = React.useCallback(() => {
+    const node = rowRef.current as unknown as HTMLElement | null;
+    if (!node || typeof node.getBoundingClientRect !== 'function') return;
+    const r = node.getBoundingClientRect();
+    setRect({ top: r.bottom + 4, left: r.left, width: r.width });
+  }, []);
+
+  const openMenu = () => {
+    measure();
+    setOpen(true);
+  };
+
+  // Reposition on scroll/resize so the menu tracks the field.
+  React.useEffect(() => {
+    if (!open) return;
+    window.addEventListener('scroll', measure, true);
+    window.addEventListener('resize', measure);
+    return () => {
+      window.removeEventListener('scroll', measure, true);
+      window.removeEventListener('resize', measure);
+    };
+  }, [open, measure]);
 
   // Digits only, max 4. Doesn't validate ranges (so 9999 will parse)
   // — that's intentional so half-typed states like "12" don't snap
@@ -2002,7 +2034,7 @@ function TimeField({
   return (
     <View style={styles.fieldWrap}>
       <FieldLabel>{label}</FieldLabel>
-      <View style={styles.fieldRow}>
+      <View ref={rowRef} style={styles.fieldRow}>
         <TextInput
           style={[styles.fieldNumericInput, { outlineStyle: 'none' } as object]}
           value={value}
@@ -2013,19 +2045,23 @@ function TimeField({
           inputMode="numeric"
           maxLength={4}
         />
-        <Pressable onPress={() => setOpen((o) => !o)} hitSlop={6}>
+        <Pressable onPress={() => (open ? setOpen(false) : openMenu())} hitSlop={6}>
           <Text style={styles.fieldCaret}>▾</Text>
         </Pressable>
       </View>
-      {open ? (
+      {open && rect ? (
         <>
-          {/* Full-viewport backdrop catches clicks outside the dropdown
-              so the user can dismiss by clicking anywhere else on the
-              page. Mirrors the SelectField pattern. Without this the
-              dropdown sticks open and obscures the form fields below. */}
-          <Pressable onPress={() => setOpen(false)} style={styles.timeDropdownBackdrop} />
-          <View style={styles.timeDropdown}>
-            <ScrollView style={styles.timeDropdownScroll} nestedScrollEnabled>
+          {/* Full-viewport backdrop catches clicks outside the dropdown.
+              Reuses selectStyles.backdrop so the z-index layering matches
+              what SelectField uses (9998 backdrop, 9999 menu). */}
+          <Pressable onPress={() => setOpen(false)} style={selectStyles.backdrop} />
+          <View
+            style={[
+              selectStyles.menu,
+              { top: rect.top, left: rect.left, width: rect.width },
+            ]}
+          >
+            <ScrollView style={selectStyles.menuScroll} keyboardShouldPersistTaps="handled">
               {MILITARY_TIME_OPTIONS.map((opt) => (
                 <Pressable
                   key={opt}
