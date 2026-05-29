@@ -94,6 +94,11 @@ export type DiveLogInput = {
     particulate?: 'clean' | 'some' | 'heavy';
     surgeAtDepth?: 'none' | 'mild' | 'strong';
     marineLifeActivity?: 'low' | 'normal' | 'high';
+    /** Specific species sighted on this dive. Ids from
+     *  app/src/data/marineLife.ts (e.g. 'whitetip-reef-shark',
+     *  'green-sea-turtle'). Persisted as a string array so the
+     *  taxonomy can grow without schema migrations. */
+    speciesSeen?: string[];
     overallRating?: 'poor' | 'fair' | 'good' | 'excellent';
     forecastAccuracy?: 'much_worse' | 'worse' | 'as_predicted' | 'better' | 'much_better';
     notes?: string;
@@ -210,6 +215,7 @@ function toCallablePayload(input: DiveLogInput): Record<string, unknown> {
     particulate:          c.particulate ?? null,
     surge_at_depth:       c.surgeAtDepth ?? null,
     marine_life_activity: c.marineLifeActivity ?? null,
+    species_seen:         c.speciesSeen ?? [],
     overall_rating:       c.overallRating ?? null,
     water_temp_surface_f: s.waterTempSurfaceF ?? input.waterTempF ?? null,
     water_temp_bottom_f:  s.waterTempBottomF ?? null,

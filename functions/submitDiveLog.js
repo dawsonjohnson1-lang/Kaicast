@@ -71,6 +71,12 @@ const ObservedSchema = z.object({
   particulate:          z.enum(['clean', 'some', 'heavy']).nullable().optional(),
   surge_at_depth:       z.enum(['none', 'mild', 'strong']).nullable().optional(),
   marine_life_activity: z.enum(['low', 'normal', 'high']).nullable().optional(),
+  // Stable species ids from app/src/data/marineLife.ts. Cap at 64 ids
+  // per log — that's >2x the most species you'd realistically see on
+  // a single dive, but bounded so a buggy client can't write a 10MB doc.
+  // Stored as a flat array so the taxonomy can grow without a schema
+  // migration; the client-side map provides the human label.
+  species_seen:         z.array(z.string().min(1).max(64)).max(64).optional(),
   overall_rating:       z.enum(['poor', 'fair', 'good', 'excellent']).nullable().optional(),
   water_temp_surface_f: z.number().min(20).max(110).nullable().optional(),
   water_temp_bottom_f:  z.number().min(20).max(110).nullable().optional(),

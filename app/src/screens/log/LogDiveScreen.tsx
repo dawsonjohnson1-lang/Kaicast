@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TextInput, Pressable, LayoutAnimation, Platform, UIManager } from 'react-native';
+import { View, Text, StyleSheet, TextInput, Pressable, LayoutAnimation, Platform, UIManager, Modal, ScrollView } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 
 import { Screen } from '@/components/Screen';
@@ -35,6 +35,11 @@ import {
 } from '@/utils/diveCalculations';
 import type { DiveType } from '@/types';
 import type { RootNav } from '@/navigation/types';
+import {
+  SPECIES_CATEGORIES,
+  SPECIES_BY_ID,
+  type SpeciesCategory,
+} from '@/data/marineLife';
 
 // Enable LayoutAnimation on Android (no-op on iOS).
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -258,6 +263,12 @@ export function LogDiveScreen() {
   const [particulate, setParticulate] = useState<Particulate | undefined>(undefined);
   const [surgeAtDepth, setSurgeAtDepth] = useState<SurgeAtDepth | undefined>(undefined);
   const [marineLifeActivity, setMarineLifeActivity] = useState<MarineLifeActivity | undefined>(undefined);
+  // Species sighting log — flat list of species ids (see data/marineLife.ts
+  // for the taxonomy). The picker UI is a row of category chips that
+  // open a modal of species checkboxes for that category; selections
+  // persist across modal opens.
+  const [speciesSeen, setSpeciesSeen] = useState<string[]>([]);
+  const [speciesPickerCategory, setSpeciesPickerCategory] = useState<SpeciesCategory | null>(null);
   const [overallRating, setOverallRating] = useState<OverallRating | undefined>(undefined);
   const [forecastAccuracy, setForecastAccuracy] = useState<ForecastAccuracy | undefined>(undefined);
   const [conditionsNotes, setConditionsNotes] = useState('');
@@ -403,6 +414,7 @@ export function LogDiveScreen() {
           particulate,
           surgeAtDepth,
           marineLifeActivity,
+          speciesSeen: speciesSeen.length > 0 ? speciesSeen : undefined,
           overallRating,
           forecastAccuracy,
           notes: conditionsNotes.trim() || undefined,
@@ -756,6 +768,49 @@ export function LogDiveScreen() {
             ))}
           </View>
 
+          <Text style={[styles.label, { marginTop: spacing.xl }]}>Species seen</Text>
+          <Text style={styles.helper}>Tap a category to pick the species you saw.</Text>
+          <View style={styles.chipRow}>
+            {SPECIES_CATEGORIES.map((c) => {
+              const countSelected = c.species.filter((s) => speciesSeen.includes(s.id)).length;
+              return (
+                <Pressable
+                  key={c.id}
+                  onPress={() => setSpeciesPickerCategory(c)}
+                  style={[styles.categoryChip, countSelected > 0 && styles.categoryChipActive]}
+                >
+                  <Text style={styles.categoryChipEmoji}>{c.emoji}</Text>
+                  <Text style={[styles.categoryChipText, countSelected > 0 && styles.categoryChipTextActive]}>
+                    {c.label}
+                  </Text>
+                  {countSelected > 0 ? (
+                    <View style={styles.categoryChipBadge}>
+                      <Text style={styles.categoryChipBadgeText}>{countSelected}</Text>
+                    </View>
+                  ) : null}
+                </Pressable>
+              );
+            })}
+          </View>
+          {speciesSeen.length > 0 ? (
+            <View style={[styles.chipRow, { marginTop: spacing.md }]}>
+              {speciesSeen.map((sid) => {
+                const meta = SPECIES_BY_ID.get(sid);
+                if (!meta) return null;
+                return (
+                  <Pressable
+                    key={sid}
+                    onPress={() => setSpeciesSeen((prev) => prev.filter((x) => x !== sid))}
+                    style={styles.selectedSpeciesChip}
+                  >
+                    <Text style={styles.selectedSpeciesText}>{meta.label}</Text>
+                    <Text style={styles.selectedSpeciesX}>×</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : null}
+
           <Text style={[styles.label, { marginTop: spacing.xl }]}>Overall rating</Text>
           <View style={styles.chipRow}>
             {OVERALL_RATINGS.map((r) => (
@@ -902,7 +957,71 @@ export function LogDiveScreen() {
           setSpotPickerOpen(false);
         }}
       />
+
+      <SpeciesPickerModal
+        category={speciesPickerCategory}
+        selected={speciesSeen}
+        onChange={setSpeciesSeen}
+        onClose={() => setSpeciesPickerCategory(null)}
+      />
     </Screen>
+  );
+}
+
+// Modal multi-select for species within one category. Selections in
+// other categories are preserved — we only mutate this category's
+// slice of the species id list.
+function SpeciesPickerModal({
+  category,
+  selected,
+  onChange,
+  onClose,
+}: {
+  category: SpeciesCategory | null;
+  selected: string[];
+  onChange: (next: string[]) => void;
+  onClose: () => void;
+}) {
+  const visible = !!category;
+  const toggle = (speciesId: string) => {
+    if (selected.includes(speciesId)) {
+      onChange(selected.filter((id) => id !== speciesId));
+    } else {
+      onChange([...selected, speciesId]);
+    }
+  };
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <View style={styles.modalBackdrop}>
+        <View style={styles.modalSheet}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>
+              {category?.emoji} {category?.label}
+            </Text>
+            <Pressable onPress={onClose} hitSlop={12} style={styles.modalCloseBtn}>
+              <Text style={styles.modalCloseText}>Done</Text>
+            </Pressable>
+          </View>
+          <ScrollView contentContainerStyle={{ padding: spacing.md, gap: spacing.sm }}>
+            {category?.species.map((s) => {
+              const isSelected = selected.includes(s.id);
+              return (
+                <Pressable
+                  key={s.id}
+                  onPress={() => toggle(s.id)}
+                  style={[styles.speciesRow, isSelected && styles.speciesRowSelected]}
+                >
+                  <View style={[styles.speciesCheckbox, isSelected && styles.speciesCheckboxOn]}>
+                    {isSelected ? <Text style={styles.speciesCheckmark}>✓</Text> : null}
+                  </View>
+                  <Text style={styles.speciesLabel}>{s.label}</Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -1022,7 +1141,98 @@ const styles = StyleSheet.create({
   },
   sub: { ...typography.body, color: colors.textSecondary, marginTop: spacing.sm },
   label: { ...typography.bodySm, color: colors.textSecondary, fontWeight: '600' },
+  helper: { ...typography.caption, color: colors.textMuted, marginTop: 4 },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.sm },
+
+  // Species picker — category chips + selected chips + modal.
+  categoryChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.cardAlt,
+  },
+  categoryChipActive: {
+    borderColor: colors.accent,
+    backgroundColor: colors.card,
+  },
+  categoryChipEmoji: { fontSize: 16 },
+  categoryChipText: { ...typography.bodySm, color: colors.textSecondary, fontWeight: '600' },
+  categoryChipTextActive: { color: colors.textPrimary },
+  categoryChipBadge: {
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 5,
+    borderRadius: 9,
+    backgroundColor: colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  categoryChipBadgeText: { fontSize: 10, fontWeight: '800', color: colors.bg },
+  selectedSpeciesChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+    borderRadius: radius.pill,
+    backgroundColor: colors.accent,
+  },
+  selectedSpeciesText: { ...typography.bodySm, color: colors.bg, fontWeight: '600' },
+  selectedSpeciesX: { ...typography.bodySm, color: colors.bg, fontWeight: '800', fontSize: 16, lineHeight: 16 },
+
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'flex-end',
+  },
+  modalSheet: {
+    backgroundColor: colors.card,
+    borderTopLeftRadius: radius.lg,
+    borderTopRightRadius: radius.lg,
+    maxHeight: '80%',
+    paddingBottom: spacing.xl,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  modalTitle: { ...typography.h3, color: colors.textPrimary },
+  modalCloseBtn: { paddingHorizontal: spacing.md, paddingVertical: 6 },
+  modalCloseText: { ...typography.body, color: colors.accent, fontWeight: '700' },
+  speciesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    borderRadius: radius.md,
+  },
+  speciesRowSelected: { backgroundColor: colors.cardAlt },
+  speciesCheckbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  speciesCheckboxOn: {
+    borderColor: colors.accent,
+    backgroundColor: colors.accent,
+  },
+  speciesCheckmark: { color: colors.bg, fontSize: 14, fontWeight: '800' },
+  speciesLabel: { ...typography.body, color: colors.textPrimary, flex: 1 },
   row2: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.sm },
   actions: { flexDirection: 'row', justifyContent: 'space-between' },
   textarea: {

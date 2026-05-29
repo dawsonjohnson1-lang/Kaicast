@@ -28,6 +28,7 @@ import { useFollowing } from '@/hooks/useFollowing';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { useSpots } from '@/hooks/useSpots';
 import { deleteDiveLog as deleteDiveLogApi } from '@/api/diveLogs';
+import { SPECIES_BY_ID } from '@/data/marineLife';
 import type { RootNav, RootStackParamList } from '@/navigation/types';
 
 type DiveReportRoute = RouteProp<RootStackParamList, 'DiveReportDetail'>;
@@ -49,6 +50,9 @@ type LoadedLog = {
   waterTempF?: number | null;
   notes?: string;
   conditionsSnapshot?: Record<string, unknown> | null;
+  /** Species ids from app/src/data/marineLife.ts; rendered as labeled
+   *  chips in the "Species Spotted" section when present. */
+  speciesSeen?: string[];
 };
 
 export function DiveReportDetailScreen() {
@@ -93,6 +97,9 @@ export function DiveReportDetailScreen() {
           waterTempF: (data.waterTempF as number | null) ?? null,
           notes: (data.notes as string | undefined) ?? '',
           conditionsSnapshot: (data.conditionsSnapshot as Record<string, unknown>) ?? null,
+          speciesSeen: Array.isArray((data.observed as { species_seen?: unknown })?.species_seen)
+            ? ((data.observed as { species_seen?: unknown }).species_seen as string[])
+            : undefined,
         });
       } catch (err) {
         if (!cancelled) setError((err as Error).message || 'Could not load report.');
@@ -322,6 +329,22 @@ export function DiveReportDetailScreen() {
         />
       </Section>
 
+      {log.speciesSeen && log.speciesSeen.length > 0 && (
+        <Section title="SPECIES SPOTTED">
+          <View style={styles.speciesRow}>
+            {log.speciesSeen.map((sid) => {
+              const meta = SPECIES_BY_ID.get(sid);
+              if (!meta) return null;
+              return (
+                <View key={sid} style={styles.speciesChip}>
+                  <Text style={styles.speciesChipText}>{meta.label}</Text>
+                </View>
+              );
+            })}
+          </View>
+        </Section>
+      )}
+
       {!!log.notes && (
         <Section title="NOTES">
           <Text style={[typography.body, { color: colors.textPrimary, lineHeight: 22 }]}>{log.notes}</Text>
@@ -406,6 +429,16 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   handle: { ...typography.bodySm, color: colors.textSecondary, marginTop: 2 },
   statsRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  speciesRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  speciesChip: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.cardAlt,
+  },
+  speciesChipText: { ...typography.bodySm, color: colors.textPrimary, fontWeight: '600' },
 });
 
 const detailStyles = StyleSheet.create({
