@@ -8,7 +8,7 @@ import {
 } from './tokens';
 import { DesktopNav } from './components/DesktopNav';
 import { KaiCastMap, HAWAII_CENTER, HAWAII_ZOOM, type MapMarker } from './components/maps/KaiCastMap';
-import { CertEligibilityBadge, evaluateEligibility, type DiveForBadge } from './components/CertEligibilityBadge';
+import { CertEligibilityBadge } from './components/CertEligibilityBadge';
 import { useBreakpoint, pick } from './hooks/useBreakpoint';
 import type { NavigateFn } from './router';
 
@@ -725,13 +725,34 @@ function LeftPreview({
         </View>
       ) : null}
 
-      {/* Primary CTA — label flips to "Sign and publish" when official. */}
-      <Pressable style={styles.publishBtn} onPress={onPublish}>
-        <Text style={styles.publishBtnIcon}>↑</Text>
-        <Text style={styles.publishBtnText}>
-          {form.diveType === 'Scuba' && form.isOfficial ? 'Sign and publish' : 'Publish dive log'}
-        </Text>
-      </Pressable>
+      {/* Primary CTA — label flips to "Sign and publish" when official.
+          Gate publishing on a minimum-viable dive log: spot is required
+          for every dive, no exceptions. Without this the form silently
+          accepts empty publishes that render as "—" everywhere in the
+          PublishedView. Official-scuba has stricter validation handled
+          separately by computeMissingOfficialFields. */}
+      {(() => {
+        const missingSpot = form.spot.trim() === '';
+        return (
+          <>
+            <Pressable
+              style={[styles.publishBtn, missingSpot && styles.publishBtnDisabled]}
+              onPress={missingSpot ? undefined : onPublish}
+              disabled={missingSpot}
+            >
+              <Text style={styles.publishBtnIcon}>↑</Text>
+              <Text style={styles.publishBtnText}>
+                {form.diveType === 'Scuba' && form.isOfficial ? 'Sign and publish' : 'Publish dive log'}
+              </Text>
+            </Pressable>
+            {missingSpot ? (
+              <Text style={styles.publishHint}>
+                Pick a dive spot (or drop a pin) before publishing.
+              </Text>
+            ) : null}
+          </>
+        );
+      })()}
       <Pressable style={styles.draftBtn} onPress={onSaveDraft}>
         <Text style={styles.draftBtnText}>
           {draftSavedAt ? 'Draft saved ✓' : 'Save as draft'}
@@ -1913,21 +1934,28 @@ function TimeField({
         </Pressable>
       </View>
       {open ? (
-        <View style={styles.timeDropdown}>
-          <ScrollView style={styles.timeDropdownScroll} nestedScrollEnabled>
-            {MILITARY_TIME_OPTIONS.map((opt) => (
-              <Pressable
-                key={opt}
-                onPress={() => pick(opt)}
-                style={[styles.timeDropdownRow, opt === value && styles.timeDropdownRowActive]}
-              >
-                <Text style={[styles.timeDropdownText, opt === value && styles.timeDropdownTextActive]}>
-                  {opt}
-                </Text>
-              </Pressable>
-            ))}
-          </ScrollView>
-        </View>
+        <>
+          {/* Full-viewport backdrop catches clicks outside the dropdown
+              so the user can dismiss by clicking anywhere else on the
+              page. Mirrors the SelectField pattern. Without this the
+              dropdown sticks open and obscures the form fields below. */}
+          <Pressable onPress={() => setOpen(false)} style={styles.timeDropdownBackdrop} />
+          <View style={styles.timeDropdown}>
+            <ScrollView style={styles.timeDropdownScroll} nestedScrollEnabled>
+              {MILITARY_TIME_OPTIONS.map((opt) => (
+                <Pressable
+                  key={opt}
+                  onPress={() => pick(opt)}
+                  style={[styles.timeDropdownRow, opt === value && styles.timeDropdownRowActive]}
+                >
+                  <Text style={[styles.timeDropdownText, opt === value && styles.timeDropdownTextActive]}>
+                    {opt}
+                  </Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        </>
       ) : null}
     </View>
   );
@@ -2105,10 +2133,10 @@ function StepperField({
   // "5." that are mid-edit and don't parse to a finished number. We
   // commit a clamped numeric value upstream on every keystroke that
   // produces a valid number, plus on blur as a safety net.
-  const [draft, setDraft] = React.useState<string>(value ? String(value) : '');
+  const [draft, setDraft] = React.useState<string>(Number.isFinite(value) ? String(value) : '');
   // Resync when the parent pushes a different value (+/- buttons, form reset).
   React.useEffect(() => {
-    setDraft(value ? String(value) : '');
+    setDraft(Number.isFinite(value) ? String(value) : '');
   }, [value]);
 
   const sanitize = (s: string) => {
@@ -2137,7 +2165,7 @@ function StepperField({
   const onBlur = () => {
     // Snap back to the numeric value the parent holds. Catches half-typed
     // "5." that we left in the draft.
-    setDraft(value ? String(value) : '');
+    setDraft(Number.isFinite(value) ? String(value) : '');
   };
 
   return (
@@ -2245,14 +2273,21 @@ function VisibilitySlider({
   value: number;
   onChange: (next: number) => void;
 }) {
+  // Thresholds use absolute Hawaii benchmarks (a 50ft viz IS excellent
+  // regardless of how wide the slider is). Slider max was raised to
+  // 200ft to allow recording rare gin-clear days — added an
+  // "Exceptional" tier at ≥100 ft so those readings get their own
+  // descriptor instead of just maxing out at "Excellent".
   const descriptor =
-    value >= 50 ? 'Excellent visibility — 50+ ft is exceptional for Hawaii waters'
+    value >= 100 ? 'Exceptional — gin-clear, rare even for Hawaii'
+    : value >= 50 ? 'Excellent visibility — 50+ ft is exceptional for Hawaii waters'
     : value >= 30 ? 'Clean — typical good Hawaii conditions'
     : value >= 15 ? 'Decent — some particulate'
     : value > 0 ? 'Murky — limited sight'
     : 'Not set';
   const descriptorColor =
-    value >= 50 ? colors.excellent
+    value >= 100 ? colors.accent
+    : value >= 50 ? colors.excellent
     : value >= 30 ? colors.great
     : value >= 15 ? colors.good
     : value > 0 ? colors.fair
@@ -2892,6 +2927,16 @@ const styles = StyleSheet.create({
     backgroundColor: colors.accent,
     borderRadius: radius.sm,
   },
+  publishBtnDisabled: {
+    opacity: 0.4,
+  },
+  publishHint: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.text3,
+    textAlign: 'center',
+    marginTop: -4,
+  },
   publishBtnIcon: {
     fontSize: 16,
     color: colors.bg,
@@ -3128,10 +3173,17 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: colors.hairlineStrong,
-    zIndex: 50,
-    // RN-Web honors `box-shadow` via inline style only; this would be
-    // ignored if specified here. Drop shadow lives on the open render
-    // path inline instead (acceptable; lifts the dropdown above peers).
+    // Raised above SelectField backdrop (9998) so a TimeField opened
+    // while a SelectField is also open still floats on top.
+    zIndex: 9999,
+  },
+  // Sibling of timeDropdown: a full-viewport invisible Pressable that
+  // catches outside clicks and closes the dropdown. position:fixed so
+  // it covers the screen regardless of where the TimeField scrolled to.
+  timeDropdownBackdrop: {
+    position: 'fixed' as unknown as 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
+    zIndex: 9998,
   },
   timeDropdownScroll: {
     maxHeight: 240,
