@@ -50,5 +50,13 @@
       ]
     }
   ],
-  "fieldOverrides": []
+  "fieldOverrides": [
+    {
+      "collectionGroup": "trips",
+      "fieldPath": "briefingShareToken",
+      "indexes": [
+        { "queryScope": "COLLECTION_GROUP", "order": "ASCENDING" }
+      ]
+    }
+  ]
 }
