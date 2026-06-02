@@ -252,6 +252,7 @@ function AppInner() {
     auth.loading || charterAcctLoading,
     auth.accountType === 'charter',
     setupComplete,
+    auth.activeContext,
   );
 
   // After sign-in, route based on history:
@@ -336,6 +337,10 @@ function computeEffectiveFrame(
    *  false = onboarding not finished (bounce to /charter/setup);
    *  true = good to go. */
   setupComplete: boolean | null,
+  /** Persisted last-used context. 'consumer' means the user has
+   *  explicitly Personal mode (via the switcher in Profile/Settings),
+   *  so charter admins should NOT be bounced off /dashboard etc. */
+  activeContext: 'consumer' | `crew:${string}`,
 ): Frame {
   if (loading) return current;
 
@@ -379,11 +384,20 @@ function computeEffectiveFrame(
 
   // ── Charter / consumer surface enforcement ──
   // The two halves of the product are completely separate UX-wise.
-  // Charter accounts have no business on the consumer dashboard
-  // (nothing there is relevant to operating a boat) and consumer
-  // accounts have no business in the charter section (they aren't
-  // authorized to read any of the charter_accounts data anyway).
-  if (signedIn && isCharter && CONSUMER_HOME_ROUTES.has(current.route)) {
+  // Consumer accounts have no business in the charter section (they
+  // aren't authorized to read any of the charter_accounts data anyway).
+  //
+  // Charter accounts CAN visit consumer routes when their activeContext
+  // is 'consumer' — that's the Personal mode reached via the account
+  // switcher in Profile/Settings. We still bounce them off consumer
+  // routes when activeContext is anything else (i.e. they're actively
+  // operating as a charter admin) so the surface they're in matches
+  // the context they picked.
+  if (
+    signedIn && isCharter
+    && activeContext !== 'consumer'
+    && CONSUMER_HOME_ROUTES.has(current.route)
+  ) {
     return { route: 'charter-home' };
   }
   if (signedIn && !isCharter && CHARTER_ROUTES.has(current.route)) {

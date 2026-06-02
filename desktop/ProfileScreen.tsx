@@ -13,11 +13,12 @@ import { DesktopNav } from './components/DesktopNav';
 import { ConditionPill } from './components/ConditionPill';
 import { SpotConditionMap } from './components/SpotConditionMap';
 import { DiveReportCard, type DiveReportCardProps } from './components/DiveReportCard';
-import { initialsFromUser, useAuth } from './hooks/useAuth';
+import { initialsFromUser, useAuth, type ActiveContext, type OrgRole } from './hooks/useAuth';
 import { useUserProfile } from './hooks/useUserProfile';
 import { useUserStats, type UserStats } from './hooks/useUserStats';
 import { searchUsersByHandle, type UserSearchResult } from './api/searchUsers';
 import { useUserSettings } from './hooks/useUserSettings';
+import { useTheme } from './hooks/useTheme';
 import { updateUserSetting, reauthWithPassword, pathRequiresReauth } from './api/updateUserSetting';
 import {
   CERTIFICATION_LABELS,
@@ -277,7 +278,7 @@ export function ProfileScreen({ activeNav = 'dashboard', onNavigate }: ProfileSc
         {tab === 'Dashboard'    ? <DashboardTabBody    onNavigate={onNavigate} stats={stats} /> : null}
         {tab === 'Dive Reports' ? <DiveReportsTabBody  onNavigate={onNavigate} /> : null}
         {tab === 'Friends'      ? <FriendsTabBody onNavigate={onNavigate} /> : null}
-        {tab === 'Settings'     ? <SettingsTabBody profile={profile} setProfile={setProfile} /> : null}
+        {tab === 'Settings'     ? <SettingsTabBody profile={profile} setProfile={setProfile} onNavigate={onNavigate} /> : null}
       </View>
     </ScrollView>
   );
@@ -1128,9 +1129,11 @@ function SettingsTabBody({
   profile,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   setProfile,
+  onNavigate,
 }: {
   profile: EditableProfile;
   setProfile: React.Dispatch<React.SetStateAction<EditableProfile>>;
+  onNavigate?: NavigateFn;
 }) {
   const auth = useAuth();
   const { settings, loading } = useUserSettings(auth.user?.uid ?? null);
@@ -1229,6 +1232,8 @@ function SettingsTabBody({
           />
         </SettingsSection>
 
+        <AccountSwitcherSection onNavigate={onNavigate} />
+
         <SettingsSection title="Diver profile">
           <SettingsRow
             label="Certification"
@@ -1265,6 +1270,8 @@ function SettingsTabBody({
             isLast
           />
         </SettingsSection>
+
+        <AppearanceSection />
 
         <SettingsSection title="Preferences">
           <ToggleRow
@@ -1595,6 +1602,93 @@ const overlayStyles = StyleSheet.create({
   optCheck: { color: colors.accent, fontFamily: fonts.body, fontWeight: '700' },
 });
 
+// ─── Account switcher ─────────────────────────────────────────────────
+//
+// Lets a user with multiple authenticated contexts (Personal + crew
+// memberships + Charter Admin) hop between them. Persists the choice
+// to users/{uid}.activeContext so it survives across devices.
+//
+// Hidden entirely when the user only has a Personal context — keeps the
+// section out of the way for the 99% of users who'll never become crew
+// or charter. Reveals itself the moment a crew invite is accepted or
+// the user is provisioned as a charter admin.
+//
+// Charter Admin is an asymmetric entry per the addendum spec: it
+// navigates to /charter as a hop, but does NOT flip activeContext.
+// Personal and Crew entries DO flip activeContext (consumer vs
+// crew:{orgId}) so the post-signin landing logic can honor the last
+// used context in a later slice.
+
+const ROLE_LABELS: Record<OrgRole, string> = {
+  captain: 'Captain',
+  divemaster: 'Divemaster',
+  deckhand: 'Deckhand',
+};
+
+function AccountSwitcherSection({ onNavigate }: { onNavigate?: NavigateFn }) {
+  const auth = useAuth();
+  const activeMemberships = auth.orgMemberships.filter((m) => m.status === 'active');
+  const isCharterAdmin = auth.accountType === 'charter';
+  const hasOtherContexts = activeMemberships.length > 0 || isCharterAdmin;
+
+  // Hide entirely when only Personal context exists.
+  if (!hasOtherContexts) return null;
+
+  const isPersonalCurrent = auth.activeContext === 'consumer';
+
+  const switchToPersonal = async () => {
+    await auth.setActiveContext('consumer');
+    onNavigate?.('dashboard');
+  };
+
+  const switchToCrew = async (orgId: string) => {
+    const ctx: ActiveContext = `crew:${orgId}`;
+    await auth.setActiveContext(ctx);
+    // /crew shell ships in the next slice. For now land them on the
+    // consumer dashboard so they're not stranded on Profile after
+    // toggling — the activeContext is persisted regardless.
+    onNavigate?.('dashboard');
+  };
+
+  return (
+    <SettingsSection
+      title="Switch context"
+      subtitle="You have access to more than one account here. Your choice persists across devices."
+    >
+      <SettingsRow
+        label={isPersonalCurrent ? 'Personal · current' : 'Personal'}
+        value={auth.proAccess ? 'Pro' : undefined}
+        actionLabel={isPersonalCurrent ? undefined : 'Switch'}
+        onAction={isPersonalCurrent ? undefined : switchToPersonal}
+      />
+      {activeMemberships.map((m, i) => {
+        const ctxKey: ActiveContext = `crew:${m.orgId}`;
+        const isCurrent = auth.activeContext === ctxKey;
+        const isLast = i === activeMemberships.length - 1 && !isCharterAdmin;
+        return (
+          <SettingsRow
+            key={m.orgId}
+            label={isCurrent ? `${m.orgName} · current` : m.orgName}
+            value={ROLE_LABELS[m.role]}
+            actionLabel={isCurrent ? undefined : 'Switch'}
+            onAction={isCurrent ? undefined : () => switchToCrew(m.orgId)}
+            isLast={isLast}
+          />
+        );
+      })}
+      {isCharterAdmin ? (
+        <SettingsRow
+          label="Charter Admin"
+          value={auth.orgId ?? undefined}
+          actionLabel="Open"
+          onAction={() => onNavigate?.('charter-home')}
+          isLast
+        />
+      ) : null}
+    </SettingsSection>
+  );
+}
+
 function SettingsSection({
   title,
   subtitle,
@@ -1732,6 +1826,28 @@ function SegmentedRow({
         })}
       </View>
     </View>
+  );
+}
+
+// Light/Dark palette toggle. Lives in its own section so the
+// preference is discoverable. Reads through useTheme which is the
+// runtime authority — localStorage persistence happens inside the
+// hook.
+function AppearanceSection() {
+  const { theme, setTheme } = useTheme();
+  return (
+    <SettingsSection title="Appearance">
+      <SegmentedRow
+        label="Theme"
+        value={theme}
+        options={[
+          { key: 'dark',  label: 'Dark'  },
+          { key: 'light', label: 'Light' },
+        ]}
+        onChange={(v) => setTheme(v === 'light' ? 'light' : 'dark')}
+        isLast
+      />
+    </SettingsSection>
   );
 }
 

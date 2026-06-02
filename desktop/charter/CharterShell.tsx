@@ -84,6 +84,18 @@ export function CharterShell({
                 <Text style={styles.emergencySub}>USCG + dive medicine + GPS</Text>
               </View>
             </Pressable>
+
+            {/* Personal-mode escape hatch — opens the consumer Profile
+                page where the account switcher lives. Single-link, low
+                visual weight (this is a charter operator's tool first;
+                the personal side is secondary). */}
+            <Pressable
+              onPress={() => onNavigate?.('profile', { tab: 'Settings' })}
+              style={styles.personalLink}
+            >
+              <Text style={styles.personalLinkText}>Personal mode →</Text>
+              <Text style={styles.personalLinkSub}>Your KaiCast account</Text>
+            </Pressable>
           </View>
 
           {/* ── Main content column ── */}
@@ -216,6 +228,31 @@ const styles = StyleSheet.create({
     color: '#F73726',
   },
   emergencySub: {
+    fontFamily: fonts.mono,
+    fontSize: 10,
+    color: colors.text3,
+    marginTop: 2,
+    letterSpacing: 0.5,
+  },
+
+  // Subtle link below Emergency that opens the consumer Profile so
+  // charter admins can reach the account switcher (Personal mode).
+  personalLink: {
+    marginTop: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.hairline,
+    backgroundColor: 'transparent',
+  },
+  personalLinkText: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.text2,
+  },
+  personalLinkSub: {
     fontFamily: fonts.mono,
     fontSize: 10,
     color: colors.text3,
