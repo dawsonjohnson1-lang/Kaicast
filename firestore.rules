@@ -222,5 +222,30 @@ service cloud.firestore {
         allow create, delete: if false;
       }
     }
+
+    // ── Crew invitations ───────────────────────────────────────────────
+    //
+    // A pending pointer from a charter admin to a future crew member.
+    // Writes are server-only (the createCrewInvitation callable creates
+    // them; acceptCrewInvitation flips status to 'accepted' and patches
+    // the invitee's orgMemberships). Reads are allowed for:
+    //   - charter admins of the matching orgId — so they can see the
+    //     pending invites they've sent on the Crew screen
+    //   - the invitee themselves, matched by auth-token email — so they
+    //     can hit the public /invite/:inviteId page and see the org
+    //     name, role, and expiry without first becoming a member
+    //
+    // Email match is case-sensitive at the rule level. The callable
+    // lowercases invitedEmail on write, and Firebase Auth lowercases
+    // tokens, so equality holds in practice. If a future signup flow
+    // bypasses Auth's normalization, switch to .lower() on both sides.
+    match /crew_invitations/{inviteId} {
+      allow read: if request.auth != null && (
+        isCharterMember(resource.data.orgId)
+        || (request.auth.token.email != null
+            && request.auth.token.email == resource.data.invitedEmail)
+      );
+      allow create, update, delete: if false;
+    }
   }
 }

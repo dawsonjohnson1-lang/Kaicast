@@ -2167,6 +2167,11 @@ exports.charterGoodWindowAlerter = require('./charter/goodWindowAlerter').charte
 // the file when the real onboarding flow lands.
 exports.provisionCharterOperator = require('./charter/provisionOperator').provisionCharterOperator;
 
+// Charter admin invites a person (by email) to join the org as crew.
+// Persists a /crew_invitations/{id} doc with a 7-day expiry. The
+// acceptCrewInvitation callable (Slice C2) consumes it.
+exports.createCrewInvitation = require('./charter/createCrewInvitation').createCrewInvitation;
+
 // Legacy onDiveLogCreated trigger removed — its responsibilities
 // (ingesting reported_vis vs predicted_vis into abyss_diver_reports)
 // are now part of the submitDiveLog callable, with the same data
