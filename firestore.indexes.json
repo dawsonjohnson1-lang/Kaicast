@@ -48,14 +48,6 @@
         { "fieldPath": "spot", "order": "ASCENDING" },
         { "fieldPath": "savedAt", "order": "DESCENDING" }
       ]
-    },
-    {
-      "collectionGroup": "trips",
-      "queryScope": "COLLECTION_GROUP",
-      "fields": [
-        { "fieldPath": "briefingShareToken", "order": "ASCENDING" },
-        { "fieldPath": "__name__", "order": "ASCENDING" }
-      ]
     }
   ],
   "fieldOverrides": []
