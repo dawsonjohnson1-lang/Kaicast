@@ -85,25 +85,60 @@ export function NumberStepper({
     if (typeof max === 'number') out = Math.min(max, out);
     return out;
   };
+
+  // Local text state so the input can hold transient values that don't
+  // yet satisfy min/max — without this, typing "1" while min=10 instant-
+  // clamps back to "10" and the user can never reach "15". We commit
+  // unclamped numbers to onChange during typing (the surrounding form
+  // validates at submit time) and clamp only on blur + on +/- buttons.
+  const [text, setText] = React.useState<string>(value == null ? '' : String(value));
+  // Tracks whether the displayed text is being driven by typing. When
+  // true, the effect below DOESN'T sync from `value` — that would clobber
+  // a partial input like "0." or "" with a re-stringified parent number.
+  const editingRef = React.useRef(false);
+  React.useEffect(() => {
+    if (editingRef.current) return;
+    setText(value == null ? '' : String(value));
+  }, [value]);
+
+  const commitTyping = (v: string) => {
+    editingRef.current = true;
+    const cleaned = v.replace(/[^0-9.\-]/g, '');
+    setText(cleaned);
+    if (cleaned === '' || cleaned === '-' || cleaned === '.' || cleaned === '-.') {
+      onChange(null);
+      return;
+    }
+    const n = parseFloat(cleaned);
+    if (Number.isFinite(n)) onChange(n);
+  };
+
+  const onBlur = () => {
+    editingRef.current = false;
+    if (value == null) {
+      setText('');
+      return;
+    }
+    const clamped = clamp(value);
+    if (clamped !== value) onChange(clamped);
+    setText(String(clamped));
+  };
+
   return (
     <View style={styles.stepperWrap}>
       <Text style={styles.fieldLabel}>{label}</Text>
       <View style={styles.stepperRow}>
         <Pressable
           style={styles.stepBtn}
-          onPress={() => onChange(clamp((value ?? 0) - step))}
+          onPress={() => { editingRef.current = false; onChange(clamp((value ?? 0) - step)); }}
         >
           <Text style={styles.stepBtnText}>−</Text>
         </Pressable>
         <View style={styles.stepInputWrap}>
           <TextInput
-            value={value == null ? '' : String(value)}
-            onChangeText={(v) => {
-              const cleaned = v.replace(/[^0-9.\-]/g, '');
-              if (cleaned === '' || cleaned === '-' || cleaned === '.') { onChange(null); return; }
-              const n = parseFloat(cleaned);
-              if (Number.isFinite(n)) onChange(clamp(n));
-            }}
+            value={text}
+            onChangeText={commitTyping}
+            onBlur={onBlur}
             keyboardType="numeric"
             placeholder="—"
             placeholderTextColor={colors.text4}
@@ -113,7 +148,7 @@ export function NumberStepper({
         </View>
         <Pressable
           style={styles.stepBtn}
-          onPress={() => onChange(clamp((value ?? 0) + step))}
+          onPress={() => { editingRef.current = false; onChange(clamp((value ?? 0) + step)); }}
         >
           <Text style={styles.stepBtnText}>+</Text>
         </Pressable>
