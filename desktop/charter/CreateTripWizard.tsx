@@ -23,7 +23,26 @@ import { colors, fonts, radius } from '../tokens';
 import { useSpotReport, tierFromRating } from '../data/getReport';
 import { saveTrip, type NewTripInput } from './saveTrip';
 import { useCharterSpots, useCharterCrew, certWarning } from './useCharterData';
-import type { CharterAccount, CharterSpot, CrewMember, ManifestEntry, TripType } from './types';
+import type {
+  CharterAccount, CharterSpot, CrewMember, ManifestEntry, TripType,
+  OperationsProfile, OperationsTripType,
+} from './types';
+
+/** Human-readable label for an OperationsTripType — mirrors the chip
+ *  labels in the onboarding wizard's Step 4. Kept local instead of
+ *  exported because it's only useful next to a profile preview. */
+function labelForOpsType(t: OperationsTripType): string {
+  switch (t) {
+    case 'dive_charter':    return 'Dive Charter';
+    case 'snorkel':         return 'Snorkel';
+    case 'sunset_cruise':   return 'Sunset Cruise';
+    case 'spearfishing':    return 'Spearfishing';
+    case 'freedive':        return 'Freedive';
+    case 'private_charter': return 'Private Charter';
+    case 'whale_watch':     return 'Whale Watch';
+    case 'other':           return 'Custom';
+  }
+}
 
 const STEPS = ['Basics', 'Route', 'Crew', 'Manifest', 'Review'] as const;
 type Step = (typeof STEPS)[number];
@@ -183,6 +202,39 @@ function Stepper({ current, onJump, skipManifest }: { current: Step; onJump: (s:
 
 // ─── Step 1: Basics ──────────────────────────────────────────────────
 
+/** Map a trip's TripType to the matching OperationsTripType enum the
+ *  operations profile uses. Charter-side scuba/freedive/snorkel/spear
+ *  → the 4-of-8 ops options that line up; the other 4 (sunset_cruise,
+ *  whale_watch, private_charter, other) don't have a trip-side
+ *  equivalent in v1 and just don't match anything. */
+function opsKeyForTripType(t: TripType): OperationsTripType | null {
+  switch (t) {
+    case 'dive':         return 'dive_charter';
+    case 'snorkel':      return 'snorkel';
+    case 'freedive':     return 'freedive';
+    case 'spearfishing': return 'spearfishing';
+  }
+}
+
+function findMatchingProfile(org: CharterAccount | null, t: TripType): OperationsProfile | null {
+  if (!org) return null;
+  const key = opsKeyForTripType(t);
+  if (!key) return null;
+  return org.operationsProfile.find((p) => p.tripType === key) ?? null;
+}
+
+/** Add `hours` (may be fractional) to a 'HH:mm' clock-time string,
+ *  rolling at midnight. Used to compute a trip's return time from
+ *  departure + the operations profile's typicalDurationHrs. */
+function addHoursToHHmm(hhmm: string, hours: number): string {
+  const m = hhmm.match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return hhmm;
+  const minsTotal = (parseInt(m[1], 10) * 60 + parseInt(m[2], 10) + Math.round(hours * 60)) % (24 * 60);
+  const h = Math.floor(minsTotal / 60);
+  const mm = minsTotal % 60;
+  return `${String(h).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+}
+
 function BasicsStep({ draft, setDraft, org }: { draft: DraftTrip; setDraft: React.Dispatch<React.SetStateAction<DraftTrip>>; org: CharterAccount | null }) {
   const useOrgHarbor = () => {
     if (!org?.homeHarbor) return;
@@ -195,6 +247,57 @@ function BasicsStep({ draft, setDraft, org }: { draft: DraftTrip; setDraft: Reac
       },
     }));
   };
+
+  /** Apply the operations-profile defaults for the given trip type.
+   *  Always replaces the current values — the captain can edit after.
+   *  Pulled out so it fires both on chip-tap AND as an automatic
+   *  one-shot when the wizard mounts on a brand-new draft. */
+  const applyProfile = React.useCallback((tripType: TripType, profile: OperationsProfile | null) => {
+    if (!profile || !org) return;
+    const harbor = org.harbors.find((h) => h.harborId === profile.defaultDepartureHarborId);
+    const departureTime = profile.typicalDepartureTimes[0] ?? draft.departureTime;
+    const returnTime = profile.typicalDurationHrs > 0
+      ? addHoursToHHmm(departureTime, profile.typicalDurationHrs)
+      : draft.departureTime;
+    setDraft((d) => ({
+      ...d,
+      tripType,
+      departureTime,
+      returnTime,
+      departureHarbor: harbor
+        ? { name: harbor.name, lat: String(harbor.lat), lng: String(harbor.lng) }
+        : d.departureHarbor,
+    }));
+  }, [org, draft.departureTime, setDraft]);
+
+  const onPickTripType = (t: TripType) => {
+    const matchingProfile = findMatchingProfile(org, t);
+    if (matchingProfile) {
+      applyProfile(t, matchingProfile);
+    } else {
+      setDraft((d) => ({ ...d, tripType: t }));
+    }
+  };
+
+  const matchingProfile = findMatchingProfile(org, draft.tripType);
+  const profileSummary = React.useMemo(() => {
+    if (!matchingProfile || !org) return null;
+    const harbor = org.harbors.find((h) => h.harborId === matchingProfile.defaultDepartureHarborId);
+    const vessel = org.fleet.find((v) => v.vesselId === matchingProfile.defaultVesselId);
+    return { harbor, vessel, profile: matchingProfile };
+  }, [matchingProfile, org]);
+
+  const pickTypicalTime = (t: string) => {
+    if (!matchingProfile) return;
+    setDraft((d) => ({
+      ...d,
+      departureTime: t,
+      returnTime: matchingProfile.typicalDurationHrs > 0
+        ? addHoursToHHmm(t, matchingProfile.typicalDurationHrs)
+        : d.returnTime,
+    }));
+  };
+
   return (
     <View style={{ gap: 18 }}>
       <Field label="Date">
@@ -214,7 +317,7 @@ function BasicsStep({ draft, setDraft, org }: { draft: DraftTrip; setDraft: Reac
             return (
               <Pressable
                 key={t.id}
-                onPress={() => setDraft((d) => ({ ...d, tripType: t.id }))}
+                onPress={() => onPickTripType(t.id)}
                 style={[styles.choiceChip, active && styles.choiceChipActive]}
               >
                 <Text style={styles.choiceEmoji}>{t.emoji}</Text>
@@ -224,6 +327,56 @@ function BasicsStep({ draft, setDraft, org }: { draft: DraftTrip; setDraft: Reac
           })}
         </View>
       </Field>
+
+      {/* Operations-profile pre-fill summary. Only renders when a
+          matching profile exists; otherwise hidden so the form stays
+          tight for orgs that haven't filled in their operations
+          profile yet. */}
+      {profileSummary ? (
+        <View style={styles.profileBanner}>
+          <Text style={styles.profileBannerKicker}>FROM YOUR OPERATIONS PROFILE</Text>
+          <Text style={styles.profileBannerLine}>
+            Pre-filled from your <Text style={styles.profileBannerEm}>{labelForOpsType(profileSummary.profile.tripType)}</Text> defaults
+            {profileSummary.vessel ? ` · vessel ${profileSummary.vessel.name}` : ''}
+            {profileSummary.harbor ? ` · departs ${profileSummary.harbor.name}` : ''}
+            {profileSummary.profile.typicalDurationHrs > 0 ? ` · ${profileSummary.profile.typicalDurationHrs}-hour trip` : ''}.
+          </Text>
+          {profileSummary.profile.destinationAreas.length > 0 ? (
+            <Text style={styles.profileBannerArea}>
+              Typically heads to: {profileSummary.profile.destinationAreas.map((a) => a.label).join(' · ')}
+            </Text>
+          ) : null}
+        </View>
+      ) : org && org.operationsProfile.length === 0 ? (
+        <View style={styles.profileEmptyBanner}>
+          <Text style={styles.profileEmptyText}>
+            No operations profile yet — add trip-type defaults in{' '}
+            <Text style={styles.profileEmptyEm}>Settings → Operations</Text> so the wizard
+            pre-fills harbor, vessel, and departure times next time.
+          </Text>
+        </View>
+      ) : null}
+
+      {/* Typical-time quick-select chips. Show only when the matching
+          profile defines them — otherwise the captain types directly. */}
+      {matchingProfile && matchingProfile.typicalDepartureTimes.length > 0 ? (
+        <Field label="Typical departure times for this trip type">
+          <View style={styles.chipRow}>
+            {matchingProfile.typicalDepartureTimes.map((t) => {
+              const active = draft.departureTime === t;
+              return (
+                <Pressable
+                  key={t}
+                  onPress={() => pickTypicalTime(t)}
+                  style={[styles.choiceChip, active && styles.choiceChipActive]}
+                >
+                  <Text style={[styles.choiceText, active && styles.choiceTextActive]}>{t}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </Field>
+      ) : null}
 
       <View style={styles.row2}>
         <Field label="Departure time">
@@ -859,6 +1012,41 @@ const styles = StyleSheet.create({
   choiceEmoji: { fontSize: 14 },
   choiceText: { fontFamily: fonts.body, fontSize: 12, fontWeight: '600', color: colors.text2 },
   choiceTextActive: { color: colors.text1 },
+
+  // Operations-profile pre-fill banner (Phase 8c)
+  profileBanner: {
+    padding: 14,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.accent,
+    backgroundColor: 'rgba(9,161,251,0.06)',
+    gap: 6,
+  },
+  profileBannerKicker: {
+    fontFamily: fonts.mono,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1.5,
+    color: colors.accent,
+  },
+  profileBannerLine: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: colors.text1,
+    lineHeight: 19,
+  },
+  profileBannerEm: { fontFamily: fonts.body, fontWeight: '700', color: colors.text1 },
+  profileBannerArea: { fontFamily: fonts.body, fontSize: 12, color: colors.text3 },
+
+  profileEmptyBanner: {
+    padding: 12,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.hairlineStrong,
+    backgroundColor: colors.surface1,
+  },
+  profileEmptyText: { fontFamily: fonts.body, fontSize: 12, color: colors.text3, lineHeight: 18 },
+  profileEmptyEm: { fontFamily: fonts.mono, color: colors.accent },
 
   smallBtn: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.hairlineStrong, backgroundColor: colors.surface1, alignSelf: 'flex-start' },
   smallBtnText: { fontFamily: fonts.body, fontSize: 11, fontWeight: '600', color: colors.text2 },
