@@ -3,6 +3,8 @@ import { View, Text, Pressable, ActivityIndicator, StyleSheet } from 'react-nati
 import { colors, fonts } from './tokens';
 import {
   AUTH_ROUTES,
+  CHARTER_ROUTES,
+  CONSUMER_HOME_ROUTES,
   HIDE_FOOTER_ROUTES,
   PRIVATE_ROUTES,
   parseLocation,
@@ -29,6 +31,17 @@ import { ManageFavoritesScreen } from './ManageFavoritesScreen';
 import { AboutScreen } from './AboutScreen';
 import { AuthScreen } from './AuthScreen';
 import { LegalScreen } from './LegalScreen';
+
+// Charter dashboard — completely separate surface gated by
+// users/{uid}.accountType === 'charter'. See charter/CharterShell.tsx
+// for the layout and charter/types.ts for the Firestore schema.
+import { CharterHomeScreen }      from './charter/CharterHomeScreen';
+import { CharterTripsScreen }     from './charter/CharterTripsScreen';
+import { CharterSpotsScreen }     from './charter/CharterSpotsScreen';
+import { CharterLogScreen }       from './charter/CharterLogScreen';
+import { CharterCrewScreen }      from './charter/CharterCrewScreen';
+import { CharterEmergencyScreen } from './charter/CharterEmergencyScreen';
+import { CharterBriefScreen }     from './charter/CharterBriefScreen';
 
 /**
  * Desktop app shell.
@@ -65,6 +78,16 @@ const SCREENS: Record<RouteKey, React.ComponentType<any>> = {
   'refund':       (p: any) => <LegalScreen doc="refund" {...p} />,
   'aup':          (p: any) => <LegalScreen doc="aup" {...p} />,
   'not-found':    NotFoundScreen,
+  // Charter dashboard — see route gating logic in computeEffectiveFrame
+  // below, which redirects non-charter users hitting these routes back
+  // to /dashboard and charter users hitting consumer routes to /charter.
+  'charter-home':      CharterHomeScreen,
+  'charter-trips':     CharterTripsScreen,
+  'charter-spots':     CharterSpotsScreen,
+  'charter-log':       CharterLogScreen,
+  'charter-crew':      CharterCrewScreen,
+  'charter-emergency': CharterEmergencyScreen,
+  'charter-brief':     CharterBriefScreen,
 };
 
 function NotFoundScreen({ onNavigate }: { onNavigate?: NavigateFn }) {
@@ -209,23 +232,45 @@ function AppInner() {
   // We don't mutate the URL here — we just swap the screen. This means
   // after sign-in, the user lands on whatever they originally asked for
   // (via params.returnTo on the signin frame, if it was set).
-  const effective = computeEffectiveFrame(current, auth.user != null, auth.loading);
+  const effective = computeEffectiveFrame(
+    current,
+    auth.user != null,
+    auth.loading,
+    auth.accountType === 'charter',
+  );
 
   // After sign-in, route based on history:
   //   - signin had a returnTo → honor it (user was bounced from a
-  //     private route)
-  //   - first-ever login on this browser → land on the spots map so
-  //     they can explore before getting the dashboard firehose
-  //   - returning user → straight to dashboard
-  // We set a localStorage flag on the first successful sign-in so the
-  // "first vs returning" distinction survives refreshes.
+  //     private route) — but only if the destination is allowed for
+  //     their account type
+  //   - charter account → always /charter (the consumer dashboard /
+  //     spots-map have nothing useful for them)
+  //   - first-ever consumer login on this browser → land on the
+  //     spots map so they can explore before getting the dashboard
+  //     firehose
+  //   - returning consumer → straight to dashboard
+  // We set a localStorage flag on the first successful sign-in so
+  // the "first vs returning" distinction survives refreshes.
   React.useEffect(() => {
     if (auth.loading) return;
     if (!auth.user) return;
     if (current.route !== 'signin' && current.route !== 'signup') return;
+    const isCharter = auth.accountType === 'charter';
     const returnTo = current.params?.returnTo;
     if (returnTo) {
-      navigate(returnTo);
+      // Honor returnTo only when the destination is reachable for
+      // this account type — otherwise the gate would bounce them
+      // again immediately. computeEffectiveFrame handles the bounce
+      // on its own, but a clean post-sign-in nav is nicer UX.
+      const blockedForCharter = isCharter && CONSUMER_HOME_ROUTES.has(returnTo);
+      const blockedForConsumer = !isCharter && CHARTER_ROUTES.has(returnTo);
+      if (!blockedForCharter && !blockedForConsumer) {
+        navigate(returnTo);
+        return;
+      }
+    }
+    if (isCharter) {
+      navigate('charter-home');
       return;
     }
     const isReturning = typeof window !== 'undefined'
@@ -236,7 +281,7 @@ function AppInner() {
     }
     navigate(isReturning ? 'dashboard' : 'spots-map');
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [auth.loading, auth.user]);
+  }, [auth.loading, auth.user, auth.accountType]);
 
   if (auth.loading) {
     return (
@@ -271,8 +316,14 @@ function computeEffectiveFrame(
   current: Frame,
   signedIn: boolean,
   loading: boolean,
+  isCharter: boolean,
 ): Frame {
   if (loading) return current;
+
+  // /charter/brief/:tripId is intentionally public — it's the
+  // read-only crew share. Skip every gate; the screen itself enforces
+  // that a valid token is present before rendering trip data.
+  if (current.route === 'charter-brief') return current;
 
   // Signed-out + private route → bounce to signin with returnTo.
   if (!signedIn && PRIVATE_ROUTES.has(current.route)) {
@@ -285,13 +336,27 @@ function computeEffectiveFrame(
   // Signed-in + auth route → no need; punt to dashboard. (The post-signin
   // effect in AppInner will navigate to returnTo if one was carried.)
   if (signedIn && AUTH_ROUTES.has(current.route)) {
-    return { route: 'dashboard' };
+    return { route: isCharter ? 'charter-home' : 'dashboard' };
   }
 
-  // Signed-in + marketing landing ('/') → punt straight to dashboard.
-  // The landing page is the unauthenticated marketing surface; a
-  // logged-in user hitting "/" wants their dashboard, not the pitch.
+  // Signed-in + marketing landing ('/') → punt to whichever home the
+  // user belongs on (charter operators see their ops screen; consumers
+  // see the dashboard). The landing page is the unauthenticated
+  // marketing surface; a logged-in user hitting "/" wants their home.
   if (signedIn && current.route === 'landing') {
+    return { route: isCharter ? 'charter-home' : 'dashboard' };
+  }
+
+  // ── Charter / consumer surface enforcement ──
+  // The two halves of the product are completely separate UX-wise.
+  // Charter accounts have no business on the consumer dashboard
+  // (nothing there is relevant to operating a boat) and consumer
+  // accounts have no business in the charter section (they aren't
+  // authorized to read any of the charter_accounts data anyway).
+  if (signedIn && isCharter && CONSUMER_HOME_ROUTES.has(current.route)) {
+    return { route: 'charter-home' };
+  }
+  if (signedIn && !isCharter && CHARTER_ROUTES.has(current.route)) {
     return { route: 'dashboard' };
   }
 

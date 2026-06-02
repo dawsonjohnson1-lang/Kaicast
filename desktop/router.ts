@@ -30,7 +30,19 @@ export type RouteKey =
   | 'cookies'
   | 'refund'
   | 'aup'
-  | 'not-found';
+  | 'not-found'
+  // ── Charter dashboard (a different product on the same hosting) ─────
+  // Gated to users whose Firestore doc has accountType === 'charter'.
+  // Consumer routes redirect charter users to /charter; charter routes
+  // redirect non-charter users to /dashboard. The brief route is the
+  // one exception — public, no auth, token-gated read-only share.
+  | 'charter-home'
+  | 'charter-trips'
+  | 'charter-spots'
+  | 'charter-log'
+  | 'charter-crew'
+  | 'charter-emergency'
+  | 'charter-brief';
 
 export type RouteParams = {
   spotId?: string;
@@ -38,6 +50,12 @@ export type RouteParams = {
   tab?: string;
   /** Where to return after successful sign-in (signin → returnTo). */
   returnTo?: RouteKey;
+  /** Trip id — used by /charter/brief/:tripId and the charter log detail. */
+  tripId?: string;
+  /** Read-only share token — required by /charter/brief/:tripId so the
+   *  trip's briefingShareToken must match the URL token before it
+   *  renders anything. */
+  briefToken?: string;
 };
 
 export type NavigateFn = (route: RouteKey, params?: RouteParams) => void;
@@ -51,6 +69,44 @@ export const PRIVATE_ROUTES: ReadonlySet<RouteKey> = new Set([
   'profile',
   'my-dives',
   'log-dive',
+  'manage-favorites',
+  // Charter routes require both authentication AND accountType === 'charter'.
+  // The non-charter half of that check is enforced in App.tsx; the auth
+  // half flows through this PRIVATE_ROUTES gate. charter-brief is
+  // intentionally absent — it's a public token-gated share page.
+  'charter-home',
+  'charter-trips',
+  'charter-spots',
+  'charter-log',
+  'charter-crew',
+  'charter-emergency',
+]);
+
+/** Routes that require `accountType === 'charter'` in addition to auth.
+ *  Non-charter users hitting these get bounced to /dashboard. The brief
+ *  route is intentionally out — it's a public read-only share. */
+export const CHARTER_ROUTES: ReadonlySet<RouteKey> = new Set([
+  'charter-home',
+  'charter-trips',
+  'charter-spots',
+  'charter-log',
+  'charter-crew',
+  'charter-emergency',
+]);
+
+/** Routes that should redirect a CHARTER user back to /charter (the
+ *  consumer surface is hidden from charter accounts entirely). The
+ *  legal / public-marketing routes are NOT in this set — charters can
+ *  still read /privacy, /terms, etc. */
+export const CONSUMER_HOME_ROUTES: ReadonlySet<RouteKey> = new Set([
+  'landing',
+  'dashboard',
+  'spots-map',
+  'spot-detail',
+  'conditions',
+  'community',
+  'log-dive',
+  'my-dives',
   'manage-favorites',
 ]);
 
@@ -68,6 +124,15 @@ export const HIDE_FOOTER_ROUTES: ReadonlySet<RouteKey> = new Set([
   'signin',
   'signup',
   'spots-map',
+  // Charter shell has its own chrome (CharterNav + Emergency button);
+  // the consumer footer would just be marketing noise inside a pro tool.
+  'charter-home',
+  'charter-trips',
+  'charter-spots',
+  'charter-log',
+  'charter-crew',
+  'charter-emergency',
+  'charter-brief',
 ]);
 
 // ── URL ↔ route mapping ──────────────────────────────────────────────
@@ -97,6 +162,16 @@ const STATIC_ROUTES: Record<RouteKey, string> = {
   refund:        '/refund',
   aup:           '/aup',
   'not-found':   '/not-found',
+  // Charter routes. charter-brief is dynamic — pathFor() embeds the
+  // tripId in the path (`/charter/brief/${tripId}`); the placeholder
+  // value here keeps the Record type exhaustive over RouteKey.
+  'charter-home':      '/charter',
+  'charter-trips':     '/charter/trips',
+  'charter-spots':     '/charter/spots',
+  'charter-log':       '/charter/log',
+  'charter-crew':      '/charter/crew',
+  'charter-emergency': '/charter/emergency',
+  'charter-brief':     '/charter/brief',
 };
 
 const ALL_ROUTE_KEYS: ReadonlySet<string> = new Set(Object.keys(STATIC_ROUTES));
@@ -106,6 +181,11 @@ export function pathFor(route: RouteKey, params?: RouteParams): string {
   let path: string;
   if (route === 'spot-detail') {
     path = `/spot/${encodeURIComponent(params?.spotId ?? '')}`;
+  } else if (route === 'charter-brief') {
+    // /charter/brief/:tripId — tripId is required to render anything.
+    // The briefToken (used to authorize access on the rendering screen)
+    // rides along as a query string so the share link is one URL.
+    path = `/charter/brief/${encodeURIComponent(params?.tripId ?? '')}`;
   } else {
     path = STATIC_ROUTES[route];
   }
@@ -114,6 +194,7 @@ export function pathFor(route: RouteKey, params?: RouteParams): string {
   const qs = new URLSearchParams();
   if (params?.tab) qs.set('tab', params.tab);
   if (params?.returnTo) qs.set('returnTo', params.returnTo);
+  if (params?.briefToken) qs.set('t', params.briefToken);
   const qsStr = qs.toString();
   return qsStr ? `${path}?${qsStr}` : path;
 }
@@ -141,9 +222,19 @@ export function parseLocation(loc: { pathname: string; search: string }): {
     return { route: 'spot-detail', params };
   }
 
+  // Dynamic: /charter/brief/:tripId — public share, token in `?t=`
+  const briefMatch = pathname.match(/^\/charter\/brief\/([^/]+)$/);
+  if (briefMatch) {
+    const params: RouteParams = { tripId: decodeURIComponent(briefMatch[1]) };
+    const briefToken = qs.get('t') ?? undefined;
+    if (briefToken) params.briefToken = briefToken;
+    return { route: 'charter-brief', params };
+  }
+
   // Static routes: reverse-lookup by path.
   for (const [route, staticPath] of Object.entries(STATIC_ROUTES) as Array<[RouteKey, string]>) {
     if (route === 'spot-detail') continue;
+    if (route === 'charter-brief') continue; // dynamic, handled above
     if (staticPath === pathname) {
       const params: RouteParams = {};
       if (tab) params.tab = tab;

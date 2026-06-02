@@ -24,12 +24,26 @@ import {
   updateProfile,
   type User,
 } from 'firebase/auth';
-import { auth, firebaseConfigured } from '../firebase';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { auth, db, firebaseConfigured } from '../firebase';
+
+/** Account type. `consumer` is the default for any user who has signed
+ *  up through the consumer flow; `charter` is provisioned manually by
+ *  setting `accountType: 'charter'` + `orgId` on users/{uid}. The
+ *  route gate in App.tsx uses this to redirect each kind of user away
+ *  from the other's surface. */
+export type AccountType = 'consumer' | 'charter';
 
 interface AuthCtx {
   user: User | null;
   loading: boolean;
   configured: boolean;
+  /** `consumer` unless users/{uid}.accountType === 'charter' is set. */
+  accountType: AccountType;
+  /** Org id from users/{uid}.orgId. Required for charter accounts to
+   *  resolve which charter_accounts/{orgId} doc + subcollections they
+   *  can read. `null` for consumer accounts. */
+  orgId: string | null;
   signInEmail: (email: string, password: string) => Promise<void>;
   signUpEmail: (email: string, password: string, displayName?: string) => Promise<void>;
   signInGoogle: () => Promise<void>;
@@ -41,35 +55,78 @@ const Ctx = React.createContext<AuthCtx | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = React.useState<User | null>(null);
-  const [loading, setLoading] = React.useState(firebaseConfigured);
+  const [authLoading, setAuthLoading] = React.useState(firebaseConfigured);
+  // Role + org are populated from users/{uid} via onSnapshot. We track
+  // their loading state separately so the combined `loading` flag below
+  // covers BOTH Firebase Auth's loading AND the role lookup — otherwise
+  // a charter user would briefly see the consumer dashboard render
+  // before the role doc arrives and the gate kicks in.
+  const [accountType, setAccountType] = React.useState<AccountType>('consumer');
+  const [orgId, setOrgId] = React.useState<string | null>(null);
+  const [roleLoading, setRoleLoading] = React.useState(false);
 
   React.useEffect(() => {
     if (!auth) {
-      setLoading(false);
+      setAuthLoading(false);
       return;
     }
-    // Complete any pending redirect-based Google sign-in. When popup
-    // is blocked we fall back to signInWithRedirect; this consumes the
-    // result on the next page load. Silent on no-op.
     getRedirectResult(auth).catch((err) => {
       // eslint-disable-next-line no-console
       console.warn('[auth] redirect result error', err);
     });
     return onAuthStateChanged(auth, (u) => {
       setUser(u);
-      setLoading(false);
+      setAuthLoading(false);
     });
   }, []);
+
+  // Subscribe to users/{uid} so a role upgrade (consumer → charter) or
+  // org reassignment takes effect without a sign-out/in cycle. Defaults
+  // to consumer / null when the doc doesn't exist OR the field is
+  // missing, so the gate fails closed against the more-permissive side
+  // (consumer routes are public-ish; charter is the privileged section).
+  React.useEffect(() => {
+    if (!user || !db || !firebaseConfigured) {
+      setAccountType('consumer');
+      setOrgId(null);
+      setRoleLoading(false);
+      return;
+    }
+    setRoleLoading(true);
+    const unsub = onSnapshot(
+      doc(db, 'users', user.uid),
+      (snap) => {
+        const data = snap.exists() ? (snap.data() as Record<string, unknown>) : null;
+        const at = data?.accountType === 'charter' ? 'charter' : 'consumer';
+        const oid = typeof data?.orgId === 'string' && data.orgId.length > 0 ? data.orgId : null;
+        setAccountType(at);
+        setOrgId(oid);
+        setRoleLoading(false);
+      },
+      () => {
+        // Doc read denied or network error — fall back to consumer so
+        // we don't strand the user behind a closed charter gate.
+        setAccountType('consumer');
+        setOrgId(null);
+        setRoleLoading(false);
+      },
+    );
+    return unsub;
+  }, [user]);
 
   const requireAuth = () => {
     if (!auth) throw new Error('Auth not configured. Set VITE_FIREBASE_* env vars.');
     return auth;
   };
 
+  const loading = authLoading || roleLoading;
+
   const value: AuthCtx = {
     user,
     loading,
     configured: firebaseConfigured,
+    accountType,
+    orgId,
     signInEmail: async (email, password) => {
       await signInWithEmailAndPassword(requireAuth(), email, password);
     },

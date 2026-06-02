@@ -93,6 +93,16 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Live alert feed surfaced in the SpotAlerts panel (per-spot) and
+    // the dashboard ConditionAlerts card. Writes are server-only,
+    // produced by the notification engine in functions/notifications/.
+    // Public read so the unauthenticated marketing site can render
+    // alerts alongside conditions — matches kaicast_reports pattern.
+    match /spot_alerts/{alertId} {
+      allow read:  if true;
+      allow write: if false;
+    }
+
     // Rolling community-observed conditions overlay per spot.
     // Updated transactionally by submitDiveLog. Public read.
     match /community_overlays/{spotId} {
@@ -126,6 +136,60 @@ service cloud.firestore {
     match /spots/{spotId} {
       allow read: if true;
       allow write: if false;
+    }
+
+    // ── Charter dashboard (a separate product on the same Firestore) ──
+    //
+    // The charter dashboard is gated to users whose users/{uid} doc has
+    // accountType == 'charter' AND orgId set to the matching org. The
+    // org doc + its three subcollections (crew, spots, trips) are
+    // readable only by users from the same org; writes are likewise
+    // owner-scoped. Consumer accounts have no path into any charter
+    // data — the rules + the route guard in App.tsx are independent
+    // defenses for the same invariant.
+    //
+    // The trip share link route (/charter/brief/:tripId?t=<token>)
+    // intentionally needs no auth — but the rule still denies blind
+    // reads. The Phase 6 implementation routes the public brief
+    // through a Cloud Function that validates the token server-side
+    // and returns just the brief subset; the trip doc itself stays
+    // owner-scoped.
+
+    function isCharterMember(orgId) {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.accountType == 'charter'
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.orgId == orgId;
+    }
+
+    match /charter_accounts/{orgId} {
+      // Org doc — read by any member of the org. Writes (rename, harbor
+      // change) restricted to the owner; the seed flow that creates the
+      // doc happens via a Cloud Function with Admin SDK.
+      allow read:   if isCharterMember(orgId);
+      allow update: if isCharterMember(orgId);
+      // Create + delete are intentionally denied — orgs are provisioned
+      // server-side so a single uid can't fork a fresh org for itself.
+      allow create, delete: if false;
+
+      match /crew/{crewId} {
+        // Roster is org-scoped: readable + writable by any member of
+        // the org. Cert expiry warnings on the home screen need the
+        // read; the Crew screen needs the write.
+        allow read, write: if isCharterMember(orgId);
+      }
+
+      match /spots/{spotId} {
+        // Private spot library. Same scoping as crew.
+        allow read, write: if isCharterMember(orgId);
+      }
+
+      match /trips/{tripId} {
+        // Trip docs. Readable + writable by org members. The public
+        // brief share is served via a Cloud Function that validates the
+        // briefingShareToken — the doc itself is NOT publicly readable.
+        allow read, write: if isCharterMember(orgId);
+      }
     }
   }
 }
