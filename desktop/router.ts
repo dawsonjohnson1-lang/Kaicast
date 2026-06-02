@@ -42,7 +42,11 @@ export type RouteKey =
   | 'charter-log'
   | 'charter-crew'
   | 'charter-emergency'
-  | 'charter-brief';
+  | 'charter-brief'
+  // Self-service provisioning page — signed-in but NOT charter-gated.
+  // Calls the provisionCharterOperator callable. Temporary; remove
+  // when the real onboarding flow lands.
+  | 'charter-setup';
 
 export type RouteParams = {
   spotId?: string;
@@ -74,12 +78,15 @@ export const PRIVATE_ROUTES: ReadonlySet<RouteKey> = new Set([
   // The non-charter half of that check is enforced in App.tsx; the auth
   // half flows through this PRIVATE_ROUTES gate. charter-brief is
   // intentionally absent — it's a public token-gated share page.
+  // charter-setup IS in PRIVATE_ROUTES but NOT in CHARTER_ROUTES so a
+  // consumer-account caller can reach it to provision themselves.
   'charter-home',
   'charter-trips',
   'charter-spots',
   'charter-log',
   'charter-crew',
   'charter-emergency',
+  'charter-setup',
 ]);
 
 /** Routes that require `accountType === 'charter'` in addition to auth.
@@ -172,6 +179,7 @@ const STATIC_ROUTES: Record<RouteKey, string> = {
   'charter-crew':      '/charter/crew',
   'charter-emergency': '/charter/emergency',
   'charter-brief':     '/charter/brief',
+  'charter-setup':     '/charter/setup',
 };
 
 const ALL_ROUTE_KEYS: ReadonlySet<string> = new Set(Object.keys(STATIC_ROUTES));

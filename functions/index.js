@@ -2161,6 +2161,12 @@ exports.getCharterBrief = require('./charter/getBrief').getCharterBrief;
 // dashboard banner reads from charter_accounts/{orgId}/alerts/.
 exports.charterGoodWindowAlerter = require('./charter/goodWindowAlerter').charterGoodWindowAlerter;
 
+// One-shot self-service callable for flipping the caller's user doc to
+// a charter account + seeding a fresh org with demo content. Email-
+// allowlisted (see ALLOWED_EMAILS in the file). Delete this export and
+// the file when the real onboarding flow lands.
+exports.provisionCharterOperator = require('./charter/provisionOperator').provisionCharterOperator;
+
 // Legacy onDiveLogCreated trigger removed — its responsibilities
 // (ingesting reported_vis vs predicted_vis into abyss_diver_reports)
 // are now part of the submitDiveLog callable, with the same data

@@ -42,6 +42,7 @@ import { CharterLogScreen }       from './charter/CharterLogScreen';
 import { CharterCrewScreen }      from './charter/CharterCrewScreen';
 import { CharterEmergencyScreen } from './charter/CharterEmergencyScreen';
 import { CharterBriefScreen }     from './charter/CharterBriefScreen';
+import { CharterSetupScreen }     from './charter/CharterSetupScreen';
 
 /**
  * Desktop app shell.
@@ -88,6 +89,7 @@ const SCREENS: Record<RouteKey, React.ComponentType<any>> = {
   'charter-crew':      CharterCrewScreen,
   'charter-emergency': CharterEmergencyScreen,
   'charter-brief':     CharterBriefScreen,
+  'charter-setup':     CharterSetupScreen,
 };
 
 function NotFoundScreen({ onNavigate }: { onNavigate?: NavigateFn }) {
@@ -324,6 +326,17 @@ function computeEffectiveFrame(
   // read-only crew share. Skip every gate; the screen itself enforces
   // that a valid token is present before rendering trip data.
   if (current.route === 'charter-brief') return current;
+
+  // /charter/setup is intentionally NOT charter-gated — it's the
+  // one-shot provisioning page that flips a consumer account to a
+  // charter account. Signed-in required (handled by PRIVATE_ROUTES
+  // above), but accountType check is skipped so a consumer can
+  // reach it. Once provisioned, the screen redirects them to
+  // /charter.
+  if (current.route === 'charter-setup') {
+    if (!signedIn) return { route: 'signin', params: { returnTo: 'charter-setup' } };
+    return current;
+  }
 
   // Signed-out + private route → bounce to signin with returnTo.
   if (!signedIn && PRIVATE_ROUTES.has(current.route)) {
