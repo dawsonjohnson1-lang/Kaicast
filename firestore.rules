@@ -21,10 +21,25 @@ service cloud.firestore {
       // bio, photoURL, the mobile onboarding fields) remain owner-
       // writeable here so onboarding + edit-profile keep working
       // without round-tripping through a callable for every field.
+      //
+      // Role + entitlement fields are also server-only:
+      //   accountType, orgId  — set by provisionCharterOperator + the
+      //                          crew invite-accept callable. A client
+      //                          cannot self-promote to 'charter' / 'crew'.
+      //   orgMemberships      — written by the invite-accept callable.
+      //   proAccess, proSource — written by the entitlement Function
+      //                          on membership / subscription change.
+      // `activeContext` IS client-writable — it's the per-user
+      // last-used context toggle from the global account switcher and
+      // can be flipped on every navigation.
       allow create: if request.auth != null && request.auth.uid == uid;
       allow update: if request.auth != null && request.auth.uid == uid
                     && !request.resource.data.diff(resource.data).affectedKeys()
-                         .hasAny(['profile', 'prefs', 'meta', 'phone']);
+                         .hasAny([
+                           'profile', 'prefs', 'meta', 'phone',
+                           'accountType', 'orgId', 'orgMemberships',
+                           'proAccess', 'proSource',
+                         ]);
       allow delete: if request.auth != null && request.auth.uid == uid;
 
       // Per-user favorites subcollection: users/{uid}/favorites/{spotId}
