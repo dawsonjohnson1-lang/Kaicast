@@ -14,6 +14,7 @@ import React from 'react';
 import { View, Text, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
 import { colors, fonts, radius } from '../tokens';
 import { CharterShell } from './CharterShell';
+import { AlertsBanner } from './AlertsBanner';
 import { HazardStrip } from './HazardStrip';
 import { TripCard } from './TripCard';
 import { useTodayTrips } from './useTodayTrips';
@@ -41,6 +42,10 @@ export function CharterHomeScreen({ onNavigate }: { onNavigate?: NavigateFn }) {
           <QuickAction label="Captain's Log" onPress={() => onNavigate?.('charter-log')} emphasis />
         </View>
       </View>
+
+      {/* Good Window alerts banner — appears only when a spot just
+          crossed back into Good or better. Otherwise renders null. */}
+      <AlertsBanner orgId={orgId} onNavigate={onNavigate} />
 
       {/* Hazard strip — composes moon-phase + NWS marine alerts. */}
       <HazardStrip />

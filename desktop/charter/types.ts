@@ -176,3 +176,26 @@ export interface HazardChip {
   detail: string;
   severity: 'info' | 'warn' | 'danger';
 }
+
+// ─── Good Window alerts ──────────────────────────────────────────────
+
+/** Single alert under charter_accounts/{orgId}/alerts/{alertId}. Only
+ *  written by the charterGoodWindowAlerter Cloud Function; clients
+ *  can read + flip the `read` field but cannot create or delete. */
+export interface CharterAlert {
+  id: string;
+  kind: 'good-window';
+  /** Charter-private spot id (charter_accounts/{orgId}/spots/{spotId}). */
+  charterSpotId: string;
+  /** Denormalized spot name at alert-creation time. */
+  charterSpotName: string;
+  /** Canonical KaiCast public spot id this charter spot was linked to. */
+  publicSpotId: string;
+  /** Tier the spot was at BEFORE the transition. */
+  previousTier: 'fair' | 'no-go' | 'unknown';
+  /** Tier the spot crossed UP to. */
+  newTier: 'excellent' | 'great' | 'good';
+  createdAt: Date | null;
+  read: boolean;
+  readAt: Date | null;
+}

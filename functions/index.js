@@ -2155,6 +2155,12 @@ exports.updateUserSetting = require('./userSettings').updateUserSetting;
 // the field allowlist + collectionGroup query.
 exports.getCharterBrief = require('./charter/getBrief').getCharterBrief;
 
+// Good Window alerts — Firestore trigger on kaicast_reports writes.
+// Detects spots crossing from Fair/Poor → Good+ and fires one alert
+// per subscribed charter org (cooldown: 24h per charter spot). The
+// dashboard banner reads from charter_accounts/{orgId}/alerts/.
+exports.charterGoodWindowAlerter = require('./charter/goodWindowAlerter').charterGoodWindowAlerter;
+
 // Legacy onDiveLogCreated trigger removed — its responsibilities
 // (ingesting reported_vis vs predicted_vis into abyss_diver_reports)
 // are now part of the submitDiveLog callable, with the same data

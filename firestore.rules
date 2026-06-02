@@ -190,6 +190,22 @@ service cloud.firestore {
         // briefingShareToken — the doc itself is NOT publicly readable.
         allow read, write: if isCharterMember(orgId);
       }
+
+      match /alerts/{alertId} {
+        // Good Window alerts — readable by any member of the org so
+        // the dashboard banner surfaces them; writes restricted to
+        // (1) the charterGoodWindowAlerter Cloud Function (Admin SDK
+        // bypasses rules) which CREATES alerts, and (2) any org
+        // member toggling read/unread state from the dashboard.
+        // Direct create from a client is denied so a bad actor can't
+        // synthesize fake alerts; the rule below only allows updates
+        // to specific harmless fields.
+        allow read:   if isCharterMember(orgId);
+        allow update: if isCharterMember(orgId)
+                      && request.resource.data.diff(resource.data).affectedKeys()
+                           .hasOnly(['read', 'readAt']);
+        allow create, delete: if false;
+      }
     }
   }
 }
