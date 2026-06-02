@@ -99,3 +99,78 @@ function shortId(prefix: string): string {
 export const newVesselId  = (): string => shortId('vsl');
 export const newHarborId  = (): string => shortId('hrb');
 export const newProfileId = (): string => shortId('prf');
+
+// ─── Per-section partial save helpers ───────────────────────────────
+//
+// Used by the /charter/settings tabbed editor — each tab's Save
+// button persists ONLY its slice of charter_accounts/{orgId} via
+// setDoc({merge:true}). setupComplete is intentionally NOT touched
+// here (the wizard's "Launch" is the only thing that flips that).
+// Every helper updates the same `updatedAt` server timestamp so the
+// settings screen can show "saved 5s ago".
+
+export interface OrgBasicsPatch {
+  name: string;
+  contactEmail: string;
+  contactPhone: string;
+  description: string | null;
+}
+
+export async function updateOrgBasics(orgId: string, patch: OrgBasicsPatch): Promise<void> {
+  if (!db || !firebaseConfigured) throw new Error('Firebase not configured');
+  await setDoc(
+    doc(db, 'charter_accounts', orgId),
+    { ...patch, updatedAt: serverTimestamp() },
+    { merge: true },
+  );
+}
+
+export async function updateOrgFleet(orgId: string, fleet: Vessel[]): Promise<void> {
+  if (!db || !firebaseConfigured) throw new Error('Firebase not configured');
+  await setDoc(
+    doc(db, 'charter_accounts', orgId),
+    { fleet, updatedAt: serverTimestamp() },
+    { merge: true },
+  );
+}
+
+export async function updateOrgHarbors(orgId: string, harbors: OrgHarbor[]): Promise<void> {
+  if (!db || !firebaseConfigured) throw new Error('Firebase not configured');
+  // Keep the legacy single-field homeHarbor in sync — the trip-create
+  // wizard still reads it for its "Use org home harbor" one-tap fill.
+  const homeCandidate = harbors.find((h) => h.role === 'home' || h.role === 'both') ?? harbors[0];
+  const legacy = homeCandidate
+    ? { name: homeCandidate.name, lat: homeCandidate.lat, lng: homeCandidate.lng }
+    : { name: '', lat: 0, lng: 0 };
+  await setDoc(
+    doc(db, 'charter_accounts', orgId),
+    { harbors, homeHarbor: legacy, updatedAt: serverTimestamp() },
+    { merge: true },
+  );
+}
+
+export async function updateOrgOperations(orgId: string, operationsProfile: OperationsProfile[]): Promise<void> {
+  if (!db || !firebaseConfigured) throw new Error('Firebase not configured');
+  // Mirror operationsProfile.tripType[] into the legacy tripTypes
+  // string array so any code still reading that field gets the same
+  // set the operationsProfile expresses.
+  const legacyTripTypesSet = new Set<string>();
+  for (const p of operationsProfile) {
+    legacyTripTypesSet.add(
+      p.tripType === 'dive_charter' ? 'dive' :
+      p.tripType === 'freedive'    ? 'freedive' :
+      p.tripType === 'snorkel'     ? 'snorkel' :
+      p.tripType === 'spearfishing' ? 'spearfishing' :
+      'dive',
+    );
+  }
+  await setDoc(
+    doc(db, 'charter_accounts', orgId),
+    {
+      operationsProfile,
+      tripTypes: Array.from(legacyTripTypesSet),
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true },
+  );
+}

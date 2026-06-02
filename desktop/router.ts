@@ -46,7 +46,11 @@ export type RouteKey =
   // Self-service provisioning page — signed-in but NOT charter-gated.
   // Calls the provisionCharterOperator callable. Temporary; remove
   // when the real onboarding flow lands.
-  | 'charter-setup';
+  | 'charter-setup'
+  // Tabbed editor (Organization / Fleet / Harbors / Operations /
+  // Account). Charter-gated. Reuses the wizard's sub-components but
+  // saves per-tab instead of all-at-once.
+  | 'charter-settings';
 
 export type RouteParams = {
   spotId?: string;
@@ -87,6 +91,7 @@ export const PRIVATE_ROUTES: ReadonlySet<RouteKey> = new Set([
   'charter-crew',
   'charter-emergency',
   'charter-setup',
+  'charter-settings',
 ]);
 
 /** Routes that require `accountType === 'charter'` in addition to auth.
@@ -99,6 +104,7 @@ export const CHARTER_ROUTES: ReadonlySet<RouteKey> = new Set([
   'charter-log',
   'charter-crew',
   'charter-emergency',
+  'charter-settings',
 ]);
 
 /** Routes that should redirect a CHARTER user back to /charter (the
@@ -140,6 +146,7 @@ export const HIDE_FOOTER_ROUTES: ReadonlySet<RouteKey> = new Set([
   'charter-crew',
   'charter-emergency',
   'charter-brief',
+  'charter-settings',
 ]);
 
 // ── URL ↔ route mapping ──────────────────────────────────────────────
@@ -180,6 +187,7 @@ const STATIC_ROUTES: Record<RouteKey, string> = {
   'charter-emergency': '/charter/emergency',
   'charter-brief':     '/charter/brief',
   'charter-setup':     '/charter/setup',
+  'charter-settings':  '/charter/settings',
 };
 
 const ALL_ROUTE_KEYS: ReadonlySet<string> = new Set(Object.keys(STATIC_ROUTES));

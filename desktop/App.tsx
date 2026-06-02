@@ -44,6 +44,7 @@ import { CharterCrewScreen }      from './charter/CharterCrewScreen';
 import { CharterEmergencyScreen } from './charter/CharterEmergencyScreen';
 import { CharterBriefScreen }     from './charter/CharterBriefScreen';
 import { CharterSetupScreen }     from './charter/CharterSetupScreen';
+import { CharterSettingsScreen }  from './charter/CharterSettingsScreen';
 
 /**
  * Desktop app shell.
@@ -91,6 +92,7 @@ const SCREENS: Record<RouteKey, React.ComponentType<any>> = {
   'charter-emergency': CharterEmergencyScreen,
   'charter-brief':     CharterBriefScreen,
   'charter-setup':     CharterSetupScreen,
+  'charter-settings':  CharterSettingsScreen,
 };
 
 function NotFoundScreen({ onNavigate }: { onNavigate?: NavigateFn }) {

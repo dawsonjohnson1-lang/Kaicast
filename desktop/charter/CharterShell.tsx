@@ -16,18 +16,15 @@ type CharterNavKey =
   | 'charter-spots'
   | 'charter-log'
   | 'charter-crew'
-  | 'charter-setup';
+  | 'charter-settings';
 
 const NAV_ITEMS: Array<{ key: CharterNavKey; label: string; sub: string; icon: string }> = [
-  { key: 'charter-home',  label: 'Today',          sub: 'Operations',          icon: '◐' },
-  { key: 'charter-trips', label: 'Trips',          sub: 'Planner + archive',   icon: '✈' },
-  { key: 'charter-spots', label: 'Spots',          sub: 'Library + calendar',  icon: '◉' },
-  { key: 'charter-log',   label: "Captain's Log",  sub: 'File + archive',      icon: '✎' },
-  { key: 'charter-crew',  label: 'Crew',           sub: 'Roster + certs',      icon: '★' },
-  // Settings reuses the onboarding wizard until the tabbed editor at
-  // /charter/settings lands in Phase 8b. The wizard's title flips to
-  // "Edit org settings" when setupComplete is already true.
-  { key: 'charter-setup', label: 'Settings',       sub: 'Org + fleet + harbors', icon: '◆' },
+  { key: 'charter-home',     label: 'Today',          sub: 'Operations',           icon: '◐' },
+  { key: 'charter-trips',    label: 'Trips',          sub: 'Planner + archive',    icon: '✈' },
+  { key: 'charter-spots',    label: 'Spots',          sub: 'Library + calendar',   icon: '◉' },
+  { key: 'charter-log',      label: "Captain's Log",  sub: 'File + archive',       icon: '✎' },
+  { key: 'charter-crew',     label: 'Crew',           sub: 'Roster + certs',       icon: '★' },
+  { key: 'charter-settings', label: 'Settings',       sub: 'Org / fleet / billing',icon: '◆' },
 ];
 
 export function CharterShell({
@@ -35,7 +32,7 @@ export function CharterShell({
   onNavigate,
   children,
 }: {
-  active: CharterNavKey | 'charter-emergency';
+  active: CharterNavKey | 'charter-emergency' | 'charter-setup';
   onNavigate?: NavigateFn;
   children: React.ReactNode;
 }) {

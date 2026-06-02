@@ -309,7 +309,7 @@ function FleetStep({ draft, setDraft }: { draft: Draft; setDraft: React.Dispatch
   );
 }
 
-function VesselCard({
+export function VesselCard({
   vessel, index, canRemove, onPatch, onRemove,
 }: {
   vessel: Vessel;
@@ -407,7 +407,7 @@ function HarborsStep({ draft, setDraft }: { draft: Draft; setDraft: React.Dispat
   );
 }
 
-function HarborCard({
+export function HarborCard({
   harbor, index, fleet, canRemove, onPatch, onRemove,
 }: {
   harbor: OrgHarbor;
@@ -540,7 +540,7 @@ function OperationsStep({ draft, setDraft }: { draft: Draft; setDraft: React.Dis
   );
 }
 
-function ProfileCard({
+export function ProfileCard({
   profile, index, harbors, fleet, canRemove, onPatch, onRemove,
 }: {
   profile: OperationsProfile;
@@ -746,7 +746,7 @@ function emptyDraft(): Draft {
   };
 }
 
-function emptyVessel(): Vessel {
+export function emptyVessel(): Vessel {
   return {
     vesselId: newVesselId(),
     name: '',
@@ -761,7 +761,7 @@ function emptyVessel(): Vessel {
   };
 }
 
-function emptyHarbor(): OrgHarbor {
+export function emptyHarbor(): OrgHarbor {
   return {
     harborId: newHarborId(),
     name: '',
@@ -773,7 +773,7 @@ function emptyHarbor(): OrgHarbor {
   };
 }
 
-function emptyProfile(defaultHarborId: string, defaultVesselId: string): OperationsProfile {
+export function emptyProfile(defaultHarborId: string, defaultVesselId: string): OperationsProfile {
   return {
     profileId: newProfileId(),
     tripType: 'dive_charter',
@@ -793,27 +793,27 @@ function basicsValid(d: Draft): boolean {
     && d.contactPhone.trim().length > 0;
 }
 
-function vesselValid(v: Vessel): boolean {
+export function vesselValid(v: Vessel): boolean {
   return v.name.trim().length > 0
     && v.lengthFt > 0
     && v.passengerCapacity > 0
     && (v.type !== 'other' || (v.typeFreeText ?? '').trim().length > 0);
 }
 
-function harborValid(h: OrgHarbor): boolean {
+export function harborValid(h: OrgHarbor): boolean {
   return h.name.trim().length > 0
     && h.lat >= -90 && h.lat <= 90 && h.lat !== 0
     && h.lng >= -180 && h.lng <= 180 && h.lng !== 0;
 }
 
-function profileValid(p: OperationsProfile): boolean {
+export function profileValid(p: OperationsProfile): boolean {
   return !!p.defaultDepartureHarborId
     && !!p.defaultVesselId
     && p.typicalDurationHrs > 0
     && (p.tripType !== 'other' || (p.tripTypeFreeText ?? '').trim().length > 0);
 }
 
-function sanitizeCoord(s: string): string {
+export function sanitizeCoord(s: string): string {
   let out = s.replace(/[^0-9.\-]/g, '');
   if (out.length > 0) {
     const first = out[0] === '-' ? '-' : '';
