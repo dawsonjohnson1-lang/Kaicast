@@ -1,4 +1,5 @@
 import React from 'react';
+import ReactDOM from 'react-dom';
 import { View, Text, Pressable, TextInput, ScrollView, StyleSheet, Modal } from 'react-native';
 import { SPECIES_CATEGORIES, SPECIES_BY_ID, type SpeciesCategory } from './data/marineLife';
 import {
@@ -10,6 +11,7 @@ import {
 import { DesktopNav } from './components/DesktopNav';
 import { KaiCastMap, HAWAII_CENTER, HAWAII_ZOOM, type MapMarker } from './components/maps/KaiCastMap';
 import { CertEligibilityBadge } from './components/CertEligibilityBadge';
+import { PhotoUpload } from './components/PhotoUpload';
 import { useBreakpoint, pick } from './hooks/useBreakpoint';
 import type { NavigateFn } from './router';
 
@@ -105,6 +107,10 @@ interface FormState {
   speciesSeen: string[];
   sightingNotes: string;
   notes: string;
+  /** Firebase Storage paths for photos uploaded against this draft.
+   *  Populated by the PhotoUpload component during step 06 and passed
+   *  through to submitDiveLog's `photos: string[]` payload. */
+  photos: string[];
   ratingStars: number;
   recommend: string;
   reefHealth: string;
@@ -215,6 +221,7 @@ const INITIAL_FORM: FormState = {
   speciesSeen: [],
   sightingNotes: '',
   notes: '',
+  photos: [],
   ratingStars: 0,
   recommend: 'Definitely',
   reefHealth: 'Healthy',
@@ -1290,11 +1297,10 @@ function RightForm({ form, update }: { form: FormState; update: Update }) {
           rows={6}
         />
 
-        <View style={styles.photoDropzone}>
-          <Text style={styles.photoDropIcon}>⬆</Text>
-          <Text style={styles.photoDropTitle}>Drop photos here</Text>
-          <Text style={styles.photoDropSub}>or click to browse · JPG / PNG / HEIC · up to 10MB each</Text>
-        </View>
+        <PhotoUpload
+          initialPaths={form.photos}
+          onPathsChange={(paths) => update('photos', paths)}
+        />
       </Section>
 
       <Section step="07" title="Rate the Dive">
@@ -2049,34 +2055,42 @@ function TimeField({
           <Text style={styles.fieldCaret}>▾</Text>
         </Pressable>
       </View>
-      {open && rect ? (
-        <>
-          {/* Full-viewport backdrop catches clicks outside the dropdown.
-              Reuses selectStyles.backdrop so the z-index layering matches
-              what SelectField uses (9998 backdrop, 9999 menu). */}
-          <Pressable onPress={() => setOpen(false)} style={selectStyles.backdrop} />
-          <View
-            style={[
-              selectStyles.menu,
-              { top: rect.top, left: rect.left, width: rect.width },
-            ]}
-          >
-            <ScrollView style={selectStyles.menuScroll} keyboardShouldPersistTaps="handled">
-              {MILITARY_TIME_OPTIONS.map((opt) => (
-                <Pressable
-                  key={opt}
-                  onPress={() => pick(opt)}
-                  style={[styles.timeDropdownRow, opt === value && styles.timeDropdownRowActive]}
-                >
-                  <Text style={[styles.timeDropdownText, opt === value && styles.timeDropdownTextActive]}>
-                    {opt}
-                  </Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-          </View>
-        </>
-      ) : null}
+      {open && rect && typeof document !== 'undefined'
+        ? ReactDOM.createPortal(
+            <>
+              {/* Backdrop + menu render into document.body via portal so
+                  they participate in the GLOBAL stacking context. The
+                  earlier `position: fixed` + zIndex:9999 was insufficient
+                  because any ancestor with z-index set (even 0) creates
+                  a stacking context that traps descendants — a sibling
+                  later in DOM order (Dive Site Type select, Section 02)
+                  would still capture clicks at the same z-level. Portal
+                  is the only real escape. */}
+              <Pressable onPress={() => setOpen(false)} style={selectStyles.backdrop} />
+              <View
+                style={[
+                  selectStyles.menu,
+                  { top: rect.top, left: rect.left, width: rect.width },
+                ]}
+              >
+                <ScrollView style={selectStyles.menuScroll} keyboardShouldPersistTaps="handled">
+                  {MILITARY_TIME_OPTIONS.map((opt) => (
+                    <Pressable
+                      key={opt}
+                      onPress={() => pick(opt)}
+                      style={[styles.timeDropdownRow, opt === value && styles.timeDropdownRowActive]}
+                    >
+                      <Text style={[styles.timeDropdownText, opt === value && styles.timeDropdownTextActive]}>
+                        {opt}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              </View>
+            </>,
+            document.body,
+          )
+        : null}
     </View>
   );
 }
@@ -2137,38 +2151,46 @@ function SelectField({
         <Text style={styles.fieldSelectValue}>{value}</Text>
         <Text style={styles.fieldCaret}>{open ? '▴' : '▾'}</Text>
       </Pressable>
-      {open && rect ? (
-        <>
-          <Pressable
-            onPress={() => setOpen(false)}
-            style={selectStyles.backdrop}
-          />
-          <View
-            style={[
-              selectStyles.menu,
-              { top: rect.top, left: rect.left, width: rect.width },
-            ]}
-          >
-            <ScrollView style={selectStyles.menuScroll} keyboardShouldPersistTaps="handled">
-              {options.map((opt) => {
-                const isSelected = opt === value;
-                return (
-                  <Pressable
-                    key={opt}
-                    onPress={() => { onChange(opt); setOpen(false); }}
-                    style={[selectStyles.menuItem, isSelected && selectStyles.menuItemSelected]}
-                  >
-                    <Text style={[selectStyles.menuItemText, isSelected && selectStyles.menuItemTextSelected]}>
-                      {opt}
-                    </Text>
-                    {isSelected ? <Text style={selectStyles.menuItemCheck}>✓</Text> : null}
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-          </View>
-        </>
-      ) : null}
+      {open && rect && typeof document !== 'undefined'
+        ? ReactDOM.createPortal(
+            <>
+              {/* Portal-rendered for the same reason as TimeField:
+                  position:fixed + high z-index doesn't escape ancestor
+                  stacking contexts. Mounting at document.body puts the
+                  backdrop and menu in the global stacking context where
+                  zIndex:9998/9999 actually wins. */}
+              <Pressable
+                onPress={() => setOpen(false)}
+                style={selectStyles.backdrop}
+              />
+              <View
+                style={[
+                  selectStyles.menu,
+                  { top: rect.top, left: rect.left, width: rect.width },
+                ]}
+              >
+                <ScrollView style={selectStyles.menuScroll} keyboardShouldPersistTaps="handled">
+                  {options.map((opt) => {
+                    const isSelected = opt === value;
+                    return (
+                      <Pressable
+                        key={opt}
+                        onPress={() => { onChange(opt); setOpen(false); }}
+                        style={[selectStyles.menuItem, isSelected && selectStyles.menuItemSelected]}
+                      >
+                        <Text style={[selectStyles.menuItemText, isSelected && selectStyles.menuItemTextSelected]}>
+                          {opt}
+                        </Text>
+                        {isSelected ? <Text style={selectStyles.menuItemCheck}>✓</Text> : null}
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+            </>,
+            document.body,
+          )
+        : null}
     </View>
   );
 }
