@@ -231,3 +231,88 @@ export function crewWorstCertTier(member: CrewMember): CertWarningTier {
   }
   return worst;
 }
+
+// ─── Log-filing pools ────────────────────────────────────────────────
+//
+// useTripsAwaitingLog — trips that need a captain's log filed: any
+// trip whose status is 'active' or 'planned-and-past' (departed but
+// no log yet) OR 'completed' but captainsLog is still null. The
+// filer UI picks from this pool.
+//
+// useTripsWithLog — the archive: trips with a captainsLog. Returned
+// sorted by date desc so the most-recently-filed trip leads.
+
+export function useTripsAwaitingLog(orgId: string | null | undefined): AllTripsState {
+  const [state, setState] = React.useState<AllTripsState>({
+    trips: [], loading: !!orgId, error: null,
+  });
+  React.useEffect(() => {
+    if (!orgId || !db || !firebaseConfigured) {
+      setState({ trips: [], loading: false, error: null });
+      return;
+    }
+    setState((s) => ({ ...s, loading: true, error: null }));
+    // Server-side: pull everything that isn't cancelled and doesn't
+    // yet have a captainsLog. Status filters can't be combined with
+    // "captainsLog == null" in a single Firestore query without a
+    // composite index, so we filter client-side after the read.
+    const unsub = onSnapshot(
+      query(
+        collection(db, 'charter_accounts', orgId, 'trips'),
+        where('status', 'in', ['planned', 'active', 'completed']),
+        orderBy('date', 'desc'),
+      ),
+      (snap) => {
+        const all = snap.docs.map((d) => tripFromDoc(d.id, d.data() as Record<string, unknown>));
+        const filtered = all.filter((t) => t.captainsLog == null && tripHasDeparted(t));
+        setState({ trips: filtered, loading: false, error: null });
+      },
+      (err) => setState({ trips: [], loading: false, error: err.message }),
+    );
+    return unsub;
+  }, [orgId]);
+  return state;
+}
+
+export function useTripsWithLog(orgId: string | null | undefined): AllTripsState {
+  const [state, setState] = React.useState<AllTripsState>({
+    trips: [], loading: !!orgId, error: null,
+  });
+  React.useEffect(() => {
+    if (!orgId || !db || !firebaseConfigured) {
+      setState({ trips: [], loading: false, error: null });
+      return;
+    }
+    setState((s) => ({ ...s, loading: true, error: null }));
+    // Firestore can't directly `where('captainsLog', '!=', null)` — we
+    // read completed trips and filter client-side. For a year of trips
+    // (~365 max) this is fine; pagination lands when an org crosses
+    // that threshold.
+    const unsub = onSnapshot(
+      query(
+        collection(db, 'charter_accounts', orgId, 'trips'),
+        where('status', '==', 'completed'),
+        orderBy('date', 'desc'),
+      ),
+      (snap) => {
+        const trips = snap.docs
+          .map((d) => tripFromDoc(d.id, d.data() as Record<string, unknown>))
+          .filter((t) => t.captainsLog != null);
+        setState({ trips, loading: false, error: null });
+      },
+      (err) => setState({ trips: [], loading: false, error: err.message }),
+    );
+    return unsub;
+  }, [orgId]);
+  return state;
+}
+
+/** A trip "has departed" when its departure datetime is in the past.
+ *  Drives the awaiting-log pool — there's no point offering to log a
+ *  trip the captain hasn't gone on yet. */
+function tripHasDeparted(t: Trip): boolean {
+  const [h, m] = t.departureTime.split(':').map((s) => parseInt(s, 10));
+  const dep = new Date(t.date);
+  dep.setHours(Number.isFinite(h) ? h : 0, Number.isFinite(m) ? m : 0, 0, 0);
+  return dep.getTime() <= Date.now();
+}
