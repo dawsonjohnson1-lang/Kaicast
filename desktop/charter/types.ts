@@ -24,19 +24,149 @@ export interface Cert {
   expiresAt: Date;
 }
 
+/** Lightweight harbor — used inline on trips for the recorded
+ *  departure (a snapshot, not a ref). The richer fleet-managed
+ *  Harbor type lives in charter_accounts and is a separate shape. */
 export interface Harbor {
   name: string;
   lat: number;
   lng: number;
 }
 
-/** charter_accounts/{orgId} */
+// ─── Onboarding-driven shapes ────────────────────────────────────────
+
+export type VesselType =
+  | 'catamaran'
+  | 'mono_sail'
+  | 'center_console'
+  | 'rib_inflatable'
+  | 'pontoon'
+  | 'cabin_cruiser'
+  | 'other';
+
+export type EngineConfig =
+  | 'single_outboard'
+  | 'twin_outboard'
+  | 'inboard'
+  | 'sail'
+  | 'other';
+
+/** Per-vessel safety-gear checklist captured in onboarding. Surfaces
+ *  on the trip planner (pre-departure check) and the briefing share. */
+export interface SafetyGear {
+  o2Kit: boolean;
+  aed: boolean;
+  firstAidKit: boolean;
+  epirb: boolean;
+  lifeRafts: boolean;
+  vhfRadio: boolean;
+}
+
+/** Vessel under charter_accounts/{orgId}.fleet. The vesselId is the
+ *  join key referenced by harbors and operationsProfile entries. */
+export interface Vessel {
+  vesselId: string;
+  name: string;
+  type: VesselType;
+  /** Populated only when type === 'other'. Otherwise null. */
+  typeFreeText: string | null;
+  lengthFt: number;
+  passengerCapacity: number;
+  /** Often less than passengerCapacity for dive ops; null for non-dive boats. */
+  diveCapacity: number | null;
+  engineConfig: EngineConfig;
+  safetyGear: SafetyGear;
+  notes: string | null;
+}
+
+export type HarborRole =
+  | 'home'    // boat is stored / docked here
+  | 'loading' // guests board here
+  | 'both';   // same location
+
+/** Org-owned harbor — distinct from the lightweight inline `Harbor`
+ *  type above. Home vs Loading distinction matters: the route
+ *  intelligence calculates crossing conditions from the LOADING
+ *  harbor, not the storage harbor. */
+export interface OrgHarbor {
+  harborId: string;
+  name: string;
+  lat: number;
+  lng: number;
+  role: HarborRole;
+  /** Which vessels operate from this harbor. */
+  vesselIds: string[];
+  notes: string | null;
+}
+
+export type OperationsTripType =
+  | 'dive_charter'
+  | 'snorkel'
+  | 'sunset_cruise'
+  | 'spearfishing'
+  | 'freedive'
+  | 'private_charter'
+  | 'whale_watch'
+  | 'other';
+
+/** Loose geographic area used as a route-planner seed. Not a specific
+ *  spot — a labeled radius like "North Shore reef system". */
+export interface DestinationArea {
+  label: string;
+  lat: number;
+  lng: number;
+  radiusMiles: number;
+}
+
+/** One entry per trip type the org runs. The trip planner reads this
+ *  to pre-fill harbor / vessel / duration / departure times when the
+ *  captain picks a trip type from the wizard. */
+export interface OperationsProfile {
+  profileId: string;
+  tripType: OperationsTripType;
+  /** Populated only when tripType === 'other'. Otherwise null. */
+  tripTypeFreeText: string | null;
+  defaultDepartureHarborId: string;
+  defaultVesselId: string;
+  typicalDurationHrs: number;
+  /** 'HH:mm' local. Quick-select chips in the trip planner. */
+  typicalDepartureTimes: string[];
+  destinationAreas: DestinationArea[];
+  notes: string | null;
+}
+
+/** charter_accounts/{orgId}. Extends the simple v1 shape with the
+ *  full operations profile gathered during onboarding. Existing v1
+ *  fields (name, homeHarbor, tripTypes) are kept for backwards-compat
+ *  with the trip-create wizard until that's rewritten to read from
+ *  operationsProfile. */
 export interface CharterAccount {
   orgId: string;
   name: string;
+
+  // Contact info — captured in onboarding step 1.
+  contactEmail: string;
+  contactPhone: string;
+  description: string | null;
+
+  // Gates access to /charter/*; false means redirect to /charter/setup.
+  setupComplete: boolean;
+
+  // Fleet, harbors, operations profile — onboarding steps 2-4.
+  fleet: Vessel[];
+  harbors: OrgHarbor[];
+  operationsProfile: OperationsProfile[];
+
+  // ── Legacy v1 fields, retained for back-compat ──
+  /** Deprecated: derive from the first home harbor in harbors[].
+   *  Kept so the trip-create wizard's "Use org home harbor" button
+   *  still works against pre-onboarding org docs. */
   homeHarbor: Harbor;
+  /** Deprecated: derive from operationsProfile[].tripType. */
   tripTypes: TripType[];
+
   createdAt: Date | null;
+  updatedAt: Date | null;
 }
 
 /** charter_accounts/{orgId}/crew/{crewId} */

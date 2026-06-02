@@ -21,16 +21,18 @@ const ALLOWED_EMAILS = new Set([
   'dawson@immersion.design',
 ]);
 
+// Minimal org seed — the rest of the operations profile (fleet,
+// harbors, operationsProfile, contact info) is gathered by the 5-step
+// onboarding wizard at /charter/setup, which runs as the user's first
+// view after provisioning. We seed setupComplete=false explicitly so
+// the gate routes them straight into onboarding.
 const ORG_DEFAULTS = {
-  name: 'Immersion Design Charter',
-  homeHarbor: {
-    // Haleiwa Small Boat Harbor — same default the original
-    // task prompt mentioned for the create-trip wizard.
-    name: 'Haleiwa Small Boat Harbor',
-    lat: 21.5915,
-    lng: -158.1098,
-  },
-  tripTypes: ['dive', 'snorkel', 'freedive', 'spearfishing'],
+  name: 'New Charter Org',
+  setupComplete: false,
+  // v1 legacy fields kept so any code still reading them doesn't crash;
+  // the wizard overwrites these on Launch.
+  homeHarbor: { name: '', lat: 0, lng: 0 },
+  tripTypes: [],
 };
 
 exports.provisionCharterOperator = onCall(
@@ -85,13 +87,10 @@ exports.provisionCharterOperator = onCall(
       }, { merge: true });
     }
 
-    // 3. Optional starter content — seed a couple of demo spots and a
-    // sample crew member so the dashboard doesn't render every screen
-    // with an empty state. Idempotent: only adds if not already present.
-    if (data.seedDemoContent !== false) {
-      await seedDemoSpots(db, orgId);
-      await seedDemoCrew(db, orgId);
-    }
+    // Demo content seeding was removed — the 5-step onboarding wizard
+    // at /charter/setup now captures the real operations profile
+    // (fleet, harbors, trip-type defaults) and the captain populates
+    // their own spot library + crew roster afterwards.
 
     logger.info('[provision] charter operator provisioned', { uid, email, orgId });
 
@@ -104,7 +103,8 @@ exports.provisionCharterOperator = onCall(
   },
 );
 
-async function seedDemoSpots(db, orgId) {
+// eslint-disable-next-line no-unused-vars
+async function _legacySeedDemoSpots(db, orgId) {
   const spotsRef = db.collection('charter_accounts').doc(orgId).collection('spots');
   const existing = await spotsRef.limit(1).get();
   if (!existing.empty) return; // Don't re-seed an existing library.
@@ -154,7 +154,8 @@ async function seedDemoSpots(db, orgId) {
   await Promise.all(demoSpots.map((s) => spotsRef.add({ ...s, createdAt: now, updatedAt: now })));
 }
 
-async function seedDemoCrew(db, orgId) {
+// eslint-disable-next-line no-unused-vars
+async function _legacySeedDemoCrew(db, orgId) {
   const crewRef = db.collection('charter_accounts').doc(orgId).collection('crew');
   const existing = await crewRef.limit(1).get();
   if (!existing.empty) return;

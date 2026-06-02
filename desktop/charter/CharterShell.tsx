@@ -15,7 +15,8 @@ type CharterNavKey =
   | 'charter-trips'
   | 'charter-spots'
   | 'charter-log'
-  | 'charter-crew';
+  | 'charter-crew'
+  | 'charter-setup';
 
 const NAV_ITEMS: Array<{ key: CharterNavKey; label: string; sub: string; icon: string }> = [
   { key: 'charter-home',  label: 'Today',          sub: 'Operations',          icon: '◐' },
@@ -23,6 +24,10 @@ const NAV_ITEMS: Array<{ key: CharterNavKey; label: string; sub: string; icon: s
   { key: 'charter-spots', label: 'Spots',          sub: 'Library + calendar',  icon: '◉' },
   { key: 'charter-log',   label: "Captain's Log",  sub: 'File + archive',      icon: '✎' },
   { key: 'charter-crew',  label: 'Crew',           sub: 'Roster + certs',      icon: '★' },
+  // Settings reuses the onboarding wizard until the tabbed editor at
+  // /charter/settings lands in Phase 8b. The wizard's title flips to
+  // "Edit org settings" when setupComplete is already true.
+  { key: 'charter-setup', label: 'Settings',       sub: 'Org + fleet + harbors', icon: '◆' },
 ];
 
 export function CharterShell({

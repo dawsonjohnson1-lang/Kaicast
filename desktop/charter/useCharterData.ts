@@ -316,3 +316,64 @@ function tripHasDeparted(t: Trip): boolean {
   dep.setHours(Number.isFinite(h) ? h : 0, Number.isFinite(m) ? m : 0, 0, 0);
   return dep.getTime() <= Date.now();
 }
+
+// ─── Charter account doc ────────────────────────────────────────────
+
+import { doc as fbDoc } from 'firebase/firestore';
+import type {
+  CharterAccount, OperationsProfile, OrgHarbor, Vessel,
+} from './types';
+
+export type CharterAccountState = {
+  account: CharterAccount | null;
+  loading: boolean;
+  error: string | null;
+};
+
+/** Live subscription to charter_accounts/{orgId}. Returns null while
+ *  the doc doesn't exist yet (e.g. brand-new orgs mid-setup). Used by
+ *  the onboarding gate (setupComplete check), the settings screen,
+ *  and the trip-create wizard's home-harbor default. */
+export function useCharterAccount(orgId: string | null | undefined): CharterAccountState {
+  const [state, setState] = React.useState<CharterAccountState>({
+    account: null, loading: !!orgId, error: null,
+  });
+  React.useEffect(() => {
+    if (!orgId || !db || !firebaseConfigured) {
+      setState({ account: null, loading: false, error: null });
+      return;
+    }
+    setState((s) => ({ ...s, loading: true, error: null }));
+    const unsub = onSnapshot(
+      fbDoc(db, 'charter_accounts', orgId),
+      (snap) => {
+        if (!snap.exists()) {
+          setState({ account: null, loading: false, error: null });
+          return;
+        }
+        const data = snap.data() as Record<string, unknown>;
+        const createdRaw = data.createdAt as { toDate?: () => Date } | undefined;
+        const updatedRaw = data.updatedAt as { toDate?: () => Date } | undefined;
+        const acct: CharterAccount = {
+          orgId,
+          name:          String(data.name ?? '—'),
+          contactEmail:  String(data.contactEmail ?? ''),
+          contactPhone:  String(data.contactPhone ?? ''),
+          description:   typeof data.description === 'string' ? data.description : null,
+          setupComplete: data.setupComplete === true,
+          fleet:         Array.isArray(data.fleet)             ? (data.fleet as Vessel[])               : [],
+          harbors:       Array.isArray(data.harbors)           ? (data.harbors as OrgHarbor[])          : [],
+          operationsProfile: Array.isArray(data.operationsProfile) ? (data.operationsProfile as OperationsProfile[]) : [],
+          homeHarbor:    (data.homeHarbor as CharterAccount['homeHarbor']) ?? { name: '', lat: 0, lng: 0 },
+          tripTypes:     Array.isArray(data.tripTypes)         ? (data.tripTypes as CharterAccount['tripTypes']) : [],
+          createdAt:     createdRaw?.toDate?.() ?? null,
+          updatedAt:     updatedRaw?.toDate?.() ?? null,
+        };
+        setState({ account: acct, loading: false, error: null });
+      },
+      (err) => setState({ account: null, loading: false, error: err.message }),
+    );
+    return unsub;
+  }, [orgId]);
+  return state;
+}

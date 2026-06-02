@@ -15,6 +15,7 @@ import {
 } from './router';
 
 import { AuthProvider, useAuth } from './hooks/useAuth';
+import { useCharterAccount } from './charter/useCharterData';
 import { Footer } from './components/Footer';
 import { CookieBanner } from './components/CookieBanner';
 
@@ -234,11 +235,21 @@ function AppInner() {
   // We don't mutate the URL here — we just swap the screen. This means
   // after sign-in, the user lands on whatever they originally asked for
   // (via params.returnTo on the signin frame, if it was set).
+  // Read charter_accounts/{orgId} so we know whether the user has
+  // finished onboarding. Charter users with setupComplete=false get
+  // routed to /charter/setup before they can reach any other
+  // /charter/* route. While the doc is loading we hold off the bounce
+  // so the user doesn't flash the wizard.
+  const { account: charterAcct, loading: charterAcctLoading } =
+    useCharterAccount(auth.accountType === 'charter' ? auth.orgId : null);
+  const setupComplete = charterAcct ? charterAcct.setupComplete : null;
+
   const effective = computeEffectiveFrame(
     current,
     auth.user != null,
-    auth.loading,
+    auth.loading || charterAcctLoading,
     auth.accountType === 'charter',
+    setupComplete,
   );
 
   // After sign-in, route based on history:
@@ -319,6 +330,10 @@ function computeEffectiveFrame(
   signedIn: boolean,
   loading: boolean,
   isCharter: boolean,
+  /** null = haven't read charter_accounts/{orgId} yet (don't bounce);
+   *  false = onboarding not finished (bounce to /charter/setup);
+   *  true = good to go. */
+  setupComplete: boolean | null,
 ): Frame {
   if (loading) return current;
 
@@ -371,6 +386,21 @@ function computeEffectiveFrame(
   }
   if (signedIn && !isCharter && CHARTER_ROUTES.has(current.route)) {
     return { route: 'dashboard' };
+  }
+
+  // ── setupComplete gate ──
+  // A charter user with setupComplete === false gets bounced to
+  // /charter/setup before any other charter route renders. We DON'T
+  // bounce when setupComplete is null (still loading) — that would
+  // briefly flash the wizard. The setup screen itself is exempt
+  // from the bounce so the user can actually finish onboarding.
+  if (
+    signedIn
+    && isCharter
+    && setupComplete === false
+    && CHARTER_ROUTES.has(current.route)
+  ) {
+    return { route: 'charter-setup' };
   }
 
   return current;
