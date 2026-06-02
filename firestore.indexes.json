@@ -16,6 +16,46 @@
         { "fieldPath": "privacy", "order": "ASCENDING" },
         { "fieldPath": "loggedAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "spot_alerts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "affectedSpotIds", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "endMs", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "spot_alerts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "category", "order": "ASCENDING" },
+        { "fieldPath": "endMs", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "spot_alerts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "dedupeKey", "order": "ASCENDING" },
+        { "fieldPath": "endMs", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "kaicast_reports",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "spot", "order": "ASCENDING" },
+        { "fieldPath": "savedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "trips",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "briefingShareToken", "order": "ASCENDING" },
+        { "fieldPath": "__name__", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

@@ -1106,9 +1106,13 @@ function computeConfidenceScore({ nowMetrics, buoyData, closestHour }) {
 const OWM_BASE = 'https://api.openweathermap.org/data/3.0/onecall';
 
 async function fetchOpenWeatherHourly({ lat, lon, apiKey }) {
+  // Include `daily` (~8 days) so windows beyond OW's 48h hourly horizon
+  // can still populate wind / cloud / rain via the day's aggregate.
+  // Without this, days 3-7 of the per-3hr windows would render blank
+  // for those fields (waves still populate from Open-Meteo Marine).
   const url =
     `${OWM_BASE}?lat=${lat}&lon=${lon}` +
-    `&exclude=minutely,daily,alerts&units=metric&appid=${apiKey}`;
+    `&exclude=minutely,alerts&units=metric&appid=${apiKey}`;
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 12000);
@@ -1148,12 +1152,91 @@ async function fetchOpenWeatherHourly({ lat, lon, apiKey }) {
     };
   }
 
+  // Normalize OW daily entries into the same kts/°C/% scale used for
+  // hourly so the horizon-hourly fallback can swap one for the other
+  // without unit conversion. `dateKey` is UTC YYYY-MM-DD so it matches
+  // the slice off `isoHour` used by the lookup.
+  function normalizeDaily(d) {
+    if (!d) return null;
+    const dt = (d.dt || 0) * 1000;
+    const date = new Date(dt);
+    const yyyy = date.getUTCFullYear();
+    const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
+    const dd = String(date.getUTCDate()).padStart(2, '0');
+    const windMps = Number(d.wind_speed);
+    const gustMps = Number(d.wind_gust ?? d.wind_speed);
+    const windKts = Number.isFinite(windMps) ? Math.min(windMps * 1.94384, 80) : null;
+    const gustKts = Number.isFinite(gustMps) ? Math.min(gustMps * 1.94384, 80) : null;
+    return {
+      dateKey:           `${yyyy}-${mm}-${dd}`,
+      airTempC:          Number.isFinite(Number(d.temp?.day)) ? Math.round(Number(d.temp.day) * 10) / 10 : null,
+      windSpeedKts:      Number.isFinite(windKts)             ? Math.round(windKts * 10) / 10 : null,
+      windGustKts:       Number.isFinite(gustKts)             ? Math.round(gustKts * 10) / 10 : null,
+      windDeg:           Number.isFinite(Number(d.wind_deg))  ? Number(d.wind_deg) : null,
+      cloudCoverPercent: Number.isFinite(Number(d.clouds))    ? Number(d.clouds) : null,
+      // OW returns daily rain as total mm; average it across 24h so
+      // per-hour rollups still produce sensible numbers when the
+      // hourly value is unavailable.
+      rainLast1hMM:      Number.isFinite(Number(d.rain))      ? Number(d.rain) / 24 : 0,
+    };
+  }
+
   const hourly  = (Array.isArray(j.hourly) ? j.hourly : []).map(normalizeItem).filter(Boolean);
+  const daily   = (Array.isArray(j.daily)  ? j.daily  : []).map(normalizeDaily).filter(Boolean);
   const current = normalizeItem(j.current ?? (j.hourly?.[0] ?? null));
-  return { current, hourly };
+  return { current, hourly, daily };
 }
 
 // ─── Window builder ───────────────────────────────────────────────────────────
+
+/**
+ * Build a synthetic per-hour timeline that spans `horizonHours` from
+ * `nowMs`. OpenWeather One Call hourly only covers ~48h; beyond that
+ * we fall back to OW daily aggregates for the day. Open-Meteo Marine
+ * (or PacIOOS) covers the full 7 days for wave height / period and
+ * gets joined per-hour. Buoy realtime obs cover past hours and win
+ * over the forecast when both are present.
+ *
+ * Pass the result to `buildWindows` to get N × 3hr windows extending
+ * across the full horizon (the previous setup capped at 24h forward
+ * because the input timeline was OW hourly only).
+ */
+function buildHorizonHourly({ owHourly, buoyData, marineForecast, nowMs, horizonHours = 7 * 24 + 6 }) {
+  const owHourlyMap = new Map((owHourly?.hourly ?? []).map((h) => [h.isoHour, h]));
+  const owDailyMap  = new Map((owHourly?.daily  ?? []).map((d) => [d.dateKey, d]));
+  // Anchor the timeline to the top of the current UTC hour so the
+  // lookup keys (toHourKey rounds to the hour) line up cleanly.
+  const startMs = Math.floor(nowMs / 3600000) * 3600000;
+  const horizon = [];
+  for (let h = 0; h < horizonHours; h++) {
+    const tsMs    = startMs + h * 3600000;
+    const date    = new Date(tsMs);
+    const isoHour = toHourKey(date);
+    const dateKey = isoHour.slice(0, 10);
+    const owH     = owHourlyMap.get(isoHour);
+    const owD     = owDailyMap.get(dateKey);
+    horizon.push({
+      tsMs,
+      isoHour,
+      airTempC:          owH?.airTempC          ?? owD?.airTempC          ?? null,
+      windSpeedKts:      owH?.windSpeedKts      ?? owD?.windSpeedKts      ?? null,
+      windGustKts:       owH?.windGustKts       ?? owD?.windGustKts       ?? null,
+      windDeg:           owH?.windDeg           ?? owD?.windDeg           ?? null,
+      cloudCoverPercent: owH?.cloudCoverPercent ?? owD?.cloudCoverPercent ?? null,
+      rainLast1hMM:      owH?.rainLast1hMM     ?? owD?.rainLast1hMM      ?? 0,
+      waveHeightM:
+        buoyData?.waveHMap?.get(isoHour) ??
+        marineForecast?.waveHMap?.get(isoHour) ??
+        null,
+      wavePeriodS:
+        buoyData?.wavePMap?.get(isoHour) ??
+        marineForecast?.wavePMap?.get(isoHour) ??
+        null,
+      waterTempC: buoyData?.sstMap?.get(isoHour) ?? null,
+    });
+  }
+  return horizon;
+}
 
 function buildWindows(hourlyItems, nowMs, count = 8) {
   const WINDOW_MS = 3 * 3600000;
@@ -1356,25 +1439,17 @@ async function buildSpotReport({ spot, owHourly, buoyData, marineForecast, nowMs
     },
   });
 
-  // Merge buoy + marine forecast into hourly for window calculations.
-  // Buoy data covers PAST hours (NDBC realtime obs); marine forecast
-  // covers FUTURE hours (Open-Meteo Marine). Past hours fall through
-  // to forecast as a fallback. Water temp comes from buoy only —
-  // Open-Meteo Marine doesn't expose SST.
-  const hourlyWithBuoy = owHourly.hourly.map((h) => ({
-    ...h,
-    waveHeightM:
-      buoyData?.waveHMap?.get(h.isoHour) ??
-      marineForecast?.waveHMap?.get(h.isoHour) ??
-      null,
-    wavePeriodS:
-      buoyData?.wavePMap?.get(h.isoHour) ??
-      marineForecast?.wavePMap?.get(h.isoHour) ??
-      null,
-    waterTempC:  buoyData?.sstMap?.get(h.isoHour) ?? null,
-  }));
+  // Build a 7-day synthetic hourly timeline (OW hourly for first ~48h
+  // + OW daily for the rest, joined with buoy/marine waves). This is
+  // what lets `buildWindows` extend per-3hr granularity from 24h to
+  // 168h forward — without it, the windows builder runs out of hourly
+  // source data and stops at ~hour 48.
+  const horizonHourly = buildHorizonHourly({ owHourly, buoyData, marineForecast, nowMs });
 
-  const rawWindows = buildWindows(hourlyWithBuoy, nowMs, 8);
+  // 56 windows = 7 days × 8 windows/day at 3hr granularity. The
+  // frontend (desktop SpotDetail / mobile equivalents) slices what it
+  // needs per day.
+  const rawWindows = buildWindows(horizonHourly, nowMs, 56);
   const windows = await Promise.all(rawWindows.map(async (w) => {
     const winStartMs = new Date(w.startIso).getTime();
     const winMidMs   = winStartMs + 1.5 * 3600000;
@@ -1737,6 +1812,19 @@ async function runPipeline({ apiKey, publish = false }) {
         savedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
       logger.info('Saved report', { spotId: spot.id, docId });
+
+      // Notification engine — Tier 1 detectors. Pure derivations from
+      // the report we just wrote + history. Failures here MUST NOT
+      // block the pipeline (catch-and-log), since condition reports
+      // are the primary product.
+      try {
+        const notif = require('./notifications');
+        await notif.runTier1ForSpot({ spot, currentReport: report });
+      } catch (notifErr) {
+        logger.warn('notifications: Tier 1 detectors failed', {
+          spotId: spot.id, error: notifErr.message,
+        });
+      }
     } catch (spotErr) {
       logger.error('Error processing spot', { spotId: spot.id, error: spotErr.message });
     }
@@ -1786,6 +1874,11 @@ async function readCachedReport(spotId, nowMs, spot = null) {
     // Same for the per-day tide events (added after days[] shipped).
     // Skip if any day in the forecast is missing tideEvents.
     if (!data.days.every((d) => Array.isArray(d?.tideEvents))) continue;
+    // Skip caches from before the 24h→7d windows expansion. Old reports
+    // capped at 8 windows (one day forward); new reports return 56 so
+    // the desktop hourly card can switch between forecast days. Self-
+    // clears within an hour as caches refill.
+    if (!Array.isArray(data?.windows) || data.windows.length < 56) continue;
     // Skip if the cached report's tide source doesn't match the spot's
     // currently-configured tide station (e.g. Maui spots switched from
     // Honolulu to Kahului — old cache should not be served).
@@ -2039,7 +2132,9 @@ exports.deleteUserAccount = onCall(
 
 exports.submitDiveLog  = require('./submitDiveLog').submitDiveLog;
 exports.deleteDiveLog  = require('./submitDiveLog').deleteDiveLog;
-exports.archiveHourly  = require('./archiveHourly').archiveHourly;
+exports.archiveHourly        = require('./archiveHourly').archiveHourly;
+exports.boxJellyForecaster   = require('./notifications').boxJellyForecaster;
+exports.spotOfDayPublisher   = require('./notifications').spotOfDayPublisher;
 
 // User stats aggregation — recomputes /users/{uid}/stats/summary on
 // every diveLogs write. Only writer to that doc; both clients read it
@@ -2052,6 +2147,13 @@ exports.aggregateUserStats = require('./aggregations/userStats').aggregateUserSt
 // direct client writes to profile/prefs/meta. See userSettings.js for
 // the request/response contract and the shared/ allowlist.
 exports.updateUserSetting = require('./userSettings').updateUserSetting;
+
+// Charter dashboard — public read-only briefing share. The trip doc
+// itself is NOT publicly readable (see firestore.rules); this
+// function validates the share token and returns just the safe
+// subset for the brief page. See functions/charter/getBrief.js for
+// the field allowlist + collectionGroup query.
+exports.getCharterBrief = require('./charter/getBrief').getCharterBrief;
 
 // Legacy onDiveLogCreated trigger removed — its responsibilities
 // (ingesting reported_vis vs predicted_vis into abyss_diver_reports)
