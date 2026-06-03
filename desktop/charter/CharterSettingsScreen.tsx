@@ -23,8 +23,9 @@ import type {
   CharterAccount, Vessel, OrgHarbor, OperationsProfile,
 } from './types';
 import type { NavigateFn } from '../router';
+import { FareHarborTab } from './fareharbor/FareHarborTab';
 
-const TABS = ['Organization', 'Fleet', 'Harbors', 'Operations', 'Account'] as const;
+const TABS = ['Organization', 'Fleet', 'Harbors', 'Operations', 'FareHarbor', 'Account'] as const;
 type Tab = (typeof TABS)[number];
 
 export function CharterSettingsScreen({ onNavigate }: { onNavigate?: NavigateFn }) {
@@ -90,6 +91,7 @@ export function CharterSettingsScreen({ onNavigate }: { onNavigate?: NavigateFn 
       {tab === 'Fleet'        && <FleetTab        orgId={orgId} account={account} />}
       {tab === 'Harbors'      && <HarborsTab      orgId={orgId} account={account} />}
       {tab === 'Operations'   && <OperationsTab   orgId={orgId} account={account} />}
+      {tab === 'FareHarbor'   && <FareHarborTab   orgId={orgId} account={account} />}
       {tab === 'Account'      && <AccountTab      account={account} signedInEmail={user?.email ?? ''} />}
     </CharterShell>
   );
