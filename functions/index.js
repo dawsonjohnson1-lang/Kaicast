@@ -2172,6 +2172,29 @@ exports.provisionCharterOperator = require('./charter/provisionOperator').provis
 // acceptCrewInvitation callable (Slice C2) consumes it.
 exports.createCrewInvitation = require('./charter/createCrewInvitation').createCrewInvitation;
 
+// Companion to createCrewInvitation:
+//   - getCrewInvitationPublic: unauth read so the /invite/:id page
+//     can show org / role / expiry before the user signs in.
+//   - acceptCrewInvitation: authed accept that pushes a membership
+//     onto the invitee's users/{uid}.orgMemberships, flips Pro
+//     access via 'crew_membership', and marks the invite accepted.
+exports.getCrewInvitationPublic = require('./charter/acceptCrewInvitation').getCrewInvitationPublic;
+exports.acceptCrewInvitation = require('./charter/acceptCrewInvitation').acceptCrewInvitation;
+
+// One-shot admin seed for the global /harbors collection — 12 Hawaii
+// small-boat harbors. Idempotent, email-allowlisted.
+exports.seedHarbors = require('./charter/seedHarbors').seedHarbors;
+
+// FareHarbor integration (Phase 9):
+//   - validateFareHarborCredentials  — callable, pre-flight cred check
+//   - syncFareHarborTrips            — scheduled every 30 min
+//   - fareharborWebhook              — public POST endpoint FH calls
+// See functions/charter/fareharbor/* for details. App key lives in
+// the FAREHARBOR_APP_KEY secret (firebase functions:secrets:set).
+exports.validateFareHarborCredentials = require('./charter/fareharbor/validateCredentials').validateFareHarborCredentials;
+exports.syncFareHarborTrips           = require('./charter/fareharbor/sync').syncFareHarborTrips;
+exports.fareharborWebhook             = require('./charter/fareharbor/webhook').fareharborWebhook;
+
 // Legacy onDiveLogCreated trigger removed — its responsibilities
 // (ingesting reported_vis vs predicted_vis into abyss_diver_reports)
 // are now part of the submitDiveLog callable, with the same data

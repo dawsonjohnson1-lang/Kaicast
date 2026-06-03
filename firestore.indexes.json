@@ -71,6 +71,20 @@
       "indexes": [
         { "queryScope": "COLLECTION_GROUP", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "integrations",
+      "fieldPath": "shortname",
+      "indexes": [
+        { "queryScope": "COLLECTION_GROUP", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "fh_trips",
+      "fieldPath": "fhAvailabilityPk",
+      "indexes": [
+        { "queryScope": "COLLECTION_GROUP", "order": "ASCENDING" }
+      ]
     }
   ]
 }

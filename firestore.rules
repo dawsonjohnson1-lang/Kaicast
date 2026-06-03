@@ -221,6 +221,68 @@ service cloud.firestore {
                            .hasOnly(['read', 'readAt']);
         allow create, delete: if false;
       }
+
+      // ── FareHarbor integration (Phase 9) ──────────────────────────
+      //
+      // integrations/{provider} — connection metadata + the (sensitive)
+      // userApiKey. Readable by org members; writable for the
+      // shortname/userApiKey/connectedAt subset only (server functions
+      // patch the operational fields like lastSync, syncStatus, etc).
+      // Clients use the validateFareHarborCredentials callable before
+      // writing here — direct rule-level validation can't reach
+      // FareHarbor, so the callable is the real gate.
+      match /integrations/{provider} {
+        allow read: if isCharterMember(orgId);
+        // Clients can write the connection inputs (shortname,
+        // userApiKey, connectedAt) and optionally clear the integration
+        // by deleting the doc. The sync function (Admin SDK) writes
+        // lastSync / syncStatus / errorMsg / tripCount / itemCount.
+        allow create, update: if isCharterMember(orgId)
+                              && request.resource.data.diff(resource.data).affectedKeys()
+                                   .hasOnly(['shortname','userApiKey','connectedAt',
+                                             'lastSync','syncStatus','errorMsg','tripCount','itemCount']);
+        allow delete: if isCharterMember(orgId);
+      }
+
+      // fh_items — FareHarbor product catalog mirror PLUS charter
+      // enrichment fields (tripType, boatIds, harborId,
+      // kaicastSpotIds, notes, enriched). The sync function writes
+      // the FH subset; clients write the enrichment subset via the
+      // Settings → Products UI.
+      match /fh_items/{itemId} {
+        allow read: if isCharterMember(orgId);
+        // No allow-list at the field level — clients can patch any
+        // field. The sync function uses merge:true so client
+        // enrichments survive each sync. If a client writes a bad
+        // tripType the trip wizard's validation catches it; nothing
+        // here can corrupt other orgs' data because the path is
+        // org-scoped.
+        allow write: if isCharterMember(orgId);
+      }
+
+      // fh_trips — synced availability mirror. Read by org members
+      // (the /charter/trips page renders these). All writes are
+      // server-only — the sync function and webhook both use Admin
+      // SDK and bypass these rules; client writes are denied so a
+      // bad actor can't synthesize fake trips or fake cancellations.
+      match /fh_trips/{tripId} {
+        allow read:  if isCharterMember(orgId);
+        allow write: if false;
+      }
+
+      // boats — per-charter boat roster. Used by the enrichment
+      // drawer's "Assigned boats" multi-select. Org-scoped writes.
+      match /boats/{boatId} {
+        allow read, write: if isCharterMember(orgId);
+      }
+    }
+
+    // Global harbor reference data. Public read so an unauthenticated
+    // brief share or marketing page can render harbor names + coords.
+    // Writes are admin-only (the seedHarbors callable uses Admin SDK).
+    match /harbors/{harborId} {
+      allow read:  if true;
+      allow write: if false;
     }
 
     // ── Crew invitations ───────────────────────────────────────────────
