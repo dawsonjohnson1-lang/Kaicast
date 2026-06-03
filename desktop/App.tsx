@@ -32,6 +32,7 @@ import { ManageFavoritesScreen } from './ManageFavoritesScreen';
 import { AboutScreen } from './AboutScreen';
 import { AuthScreen } from './AuthScreen';
 import { LegalScreen } from './LegalScreen';
+import { InviteAcceptScreen } from './InviteAcceptScreen';
 
 // Charter dashboard — completely separate surface gated by
 // users/{uid}.accountType === 'charter'. See charter/CharterShell.tsx
@@ -93,6 +94,14 @@ const SCREENS: Record<RouteKey, React.ComponentType<any>> = {
   'charter-brief':     CharterBriefScreen,
   'charter-setup':     CharterSetupScreen,
   'charter-settings':  CharterSettingsScreen,
+
+  // /invite/:inviteId — crew-invitation landing. Public route; the
+  // screen itself owns the signed-out auth form (combined signup +
+  // signin) and the signed-in accept button. The inviteId rides as
+  // a RouteParam pulled from the URL via params.inviteId.
+  'invite-accept':     (p: any) => (
+    <InviteAcceptScreen inviteId={p.params?.inviteId ?? ''} onNavigate={p.onNavigate} />
+  ),
 };
 
 function NotFoundScreen({ onNavigate }: { onNavigate?: NavigateFn }) {

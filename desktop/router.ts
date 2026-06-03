@@ -31,6 +31,10 @@ export type RouteKey =
   | 'refund'
   | 'aup'
   | 'not-found'
+  // Crew invitation accept page — public route, dynamic id in path.
+  // The screen calls getCrewInvitationPublic for the unauth landing
+  // state and acceptCrewInvitation once the invitee has signed in.
+  | 'invite-accept'
   // ── Charter dashboard (a different product on the same hosting) ─────
   // Gated to users whose Firestore doc has accountType === 'charter'.
   // Consumer routes redirect charter users to /charter; charter routes
@@ -64,6 +68,9 @@ export type RouteParams = {
    *  trip's briefingShareToken must match the URL token before it
    *  renders anything. */
   briefToken?: string;
+  /** Invitation id — required by /invite/:inviteId. The screen looks
+   *  it up via the getCrewInvitationPublic callable. */
+  inviteId?: string;
 };
 
 export type NavigateFn = (route: RouteKey, params?: RouteParams) => void;
@@ -137,6 +144,7 @@ export const HIDE_FOOTER_ROUTES: ReadonlySet<RouteKey> = new Set([
   'signin',
   'signup',
   'spots-map',
+  'invite-accept',
   // Charter shell has its own chrome (CharterNav + Emergency button);
   // the consumer footer would just be marketing noise inside a pro tool.
   'charter-home',
@@ -188,6 +196,9 @@ const STATIC_ROUTES: Record<RouteKey, string> = {
   'charter-brief':     '/charter/brief',
   'charter-setup':     '/charter/setup',
   'charter-settings':  '/charter/settings',
+  // /invite/:inviteId — dynamic; pathFor() embeds the id. The
+  // placeholder value here keeps the Record exhaustive.
+  'invite-accept':     '/invite',
 };
 
 const ALL_ROUTE_KEYS: ReadonlySet<string> = new Set(Object.keys(STATIC_ROUTES));
@@ -202,6 +213,10 @@ export function pathFor(route: RouteKey, params?: RouteParams): string {
     // The briefToken (used to authorize access on the rendering screen)
     // rides along as a query string so the share link is one URL.
     path = `/charter/brief/${encodeURIComponent(params?.tripId ?? '')}`;
+  } else if (route === 'invite-accept') {
+    // /invite/:inviteId — the inviteId is the link's auth on the
+    // unauth read; the accept callable layers on email-match + signed-in.
+    path = `/invite/${encodeURIComponent(params?.inviteId ?? '')}`;
   } else {
     path = STATIC_ROUTES[route];
   }
@@ -247,10 +262,20 @@ export function parseLocation(loc: { pathname: string; search: string }): {
     return { route: 'charter-brief', params };
   }
 
+  // Dynamic: /invite/:inviteId — public crew-invite landing page.
+  const inviteMatch = pathname.match(/^\/invite\/([^/]+)$/);
+  if (inviteMatch) {
+    return {
+      route: 'invite-accept',
+      params: { inviteId: decodeURIComponent(inviteMatch[1]) },
+    };
+  }
+
   // Static routes: reverse-lookup by path.
   for (const [route, staticPath] of Object.entries(STATIC_ROUTES) as Array<[RouteKey, string]>) {
     if (route === 'spot-detail') continue;
     if (route === 'charter-brief') continue; // dynamic, handled above
+    if (route === 'invite-accept') continue; // dynamic, handled above
     if (staticPath === pathname) {
       const params: RouteParams = {};
       if (tab) params.tab = tab;
