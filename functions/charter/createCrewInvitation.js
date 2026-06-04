@@ -24,7 +24,9 @@ if (admin.apps.length === 0) {
   admin.initializeApp();
 }
 
-const ROLES = ['captain', 'divemaster', 'deckhand'];
+// Keep in sync with desktop/charter/types.ts CrewRole minus 'owner'
+// (org owner role is set by provisionCharterOperator, not invited).
+const ROLES = ['captain', 'divemaster', 'deckhand', 'manager', 'instructor'];
 
 const Input = z.object({
   orgId: z.string().min(1).max(120),

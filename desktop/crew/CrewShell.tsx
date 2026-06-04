@@ -156,19 +156,23 @@ export function CrewShell({
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
-function roleDisplay(role: 'captain' | 'divemaster' | 'deckhand'): string {
-  if (role === 'captain') return 'Captain';
+function roleDisplay(role: import('../hooks/useAuth').OrgRole): string {
+  if (role === 'captain')    return 'Captain';
   if (role === 'divemaster') return 'Divemaster';
+  if (role === 'instructor') return 'Instructor';
+  if (role === 'manager')    return 'Manager';
   return 'Deckhand';
 }
 
-// Per-role accent. Matches the addendum spec:
-//   Captain — KaiCast accent blue
-//   Divemaster — green
-//   Deckhand — neutral
-function roleColorFor(role: 'captain' | 'divemaster' | 'deckhand'): string {
-  if (role === 'captain') return colors.accent;
+// Per-role accent. Captain + Manager use the KaiCast accent blue;
+// Divemaster + Instructor use water-green tones; Deckhand stays
+// neutral. Matches the spec's intent: blue for "in charge", green
+// for "dive-side responsibility", neutral for general crew.
+function roleColorFor(role: import('../hooks/useAuth').OrgRole): string {
+  if (role === 'captain')    return colors.accent;
+  if (role === 'manager')    return '#A78BFA';
   if (role === 'divemaster') return '#3DDC84';
+  if (role === 'instructor') return '#2A9D8F';
   return colors.text3;
 }
 

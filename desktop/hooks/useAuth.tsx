@@ -44,8 +44,10 @@ import { auth, db, firebaseConfigured } from '../firebase';
  *  crew → /crew). */
 export type AccountType = 'consumer' | 'charter' | 'crew';
 
-/** Role inside a charter org. */
-export type OrgRole = 'captain' | 'divemaster' | 'deckhand';
+/** Role inside a charter org. Mirrors CrewRole in
+ *  desktop/charter/types.ts minus 'owner' (only the provisioning
+ *  callable can set 'owner'; it never rides through an invite). */
+export type OrgRole = 'captain' | 'divemaster' | 'deckhand' | 'manager' | 'instructor';
 
 /** Lifecycle state of an org membership. `invited` is created by the
  *  charter admin via the invite-crew modal; flips to `active` when the
@@ -330,9 +332,10 @@ function coerceOrgMemberships(raw: unknown): OrgMembership[] {
     if (!item || typeof item !== 'object') continue;
     const m = item as Record<string, unknown>;
     if (typeof m.orgId !== 'string' || !m.orgId) continue;
-    const role = m.role === 'captain' || m.role === 'divemaster' || m.role === 'deckhand'
-      ? (m.role as OrgRole)
-      : null;
+    const role: OrgRole | null = (
+      m.role === 'captain'    || m.role === 'divemaster' || m.role === 'deckhand'
+      || m.role === 'manager' || m.role === 'instructor'
+    ) ? (m.role as OrgRole) : null;
     const status = m.status === 'active' || m.status === 'invited' || m.status === 'inactive'
       ? (m.status as OrgMembershipStatus)
       : null;

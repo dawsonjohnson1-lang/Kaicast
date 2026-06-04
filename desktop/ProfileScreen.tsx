@@ -1622,6 +1622,8 @@ const overlayStyles = StyleSheet.create({
 const ROLE_LABELS: Record<OrgRole, string> = {
   captain: 'Captain',
   divemaster: 'Divemaster',
+  instructor: 'Instructor',
+  manager: 'Manager',
   deckhand: 'Deckhand',
 };
 

@@ -114,9 +114,11 @@ function PlaceholderCard({
   );
 }
 
-function roleLabel(role: 'captain' | 'divemaster' | 'deckhand'): string {
-  if (role === 'captain') return 'Captain';
+function roleLabel(role: import('../hooks/useAuth').OrgRole): string {
+  if (role === 'captain')    return 'Captain';
   if (role === 'divemaster') return 'Divemaster';
+  if (role === 'instructor') return 'Instructor';
+  if (role === 'manager')    return 'Manager';
   return 'Deckhand';
 }
 

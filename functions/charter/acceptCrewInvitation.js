@@ -118,10 +118,40 @@ exports.acceptCrewInvitation = onCall(
 
     const callerUid = req.auth.uid;
     const callerEmail = String(req.auth.token?.email ?? '').toLowerCase();
+    const callerTokenName = typeof req.auth.token?.name === 'string'
+      ? req.auth.token.name
+      : null;
 
     const db = admin.firestore();
     const inviteRef = db.doc(`crew_invitations/${input.inviteId}`);
     const userRef = db.doc(`users/${callerUid}`);
+
+    // Pre-transaction: peek at the invite to grab the orgId so we can
+    // query crew records linked to this user (transactions can't run
+    // queries — only doc reads). The result feeds the auto-create
+    // decision below. We re-validate the invite inside the transaction
+    // so a status flip mid-flight is still caught atomically.
+    const invitePreSnap = await inviteRef.get();
+    if (!invitePreSnap.exists) {
+      throw new HttpsError('not-found', 'Invitation not found.');
+    }
+    const orgIdPre = String(invitePreSnap.data().orgId ?? '');
+    if (!orgIdPre) {
+      throw new HttpsError('failed-precondition', 'Invitation is missing orgId.');
+    }
+
+    // Is there already a crew record in this org pointing at this user?
+    // The admin may have created one manually via CrewEditModal and
+    // typed the uid in. If so, we skip the auto-create below to avoid
+    // duplicates. (Race: admin creates one between this query and the
+    // transaction write — possible but rare; result is a duplicate doc
+    // an admin can clean up.)
+    const existingCrewSnap = await db
+      .collection(`charter_accounts/${orgIdPre}/crew`)
+      .where('uid', '==', callerUid)
+      .limit(1)
+      .get();
+    const hasExistingCrewRecord = !existingCrewSnap.empty;
 
     let result;
     try {
@@ -186,8 +216,20 @@ exports.acceptCrewInvitation = onCall(
           });
         }
 
+        // Denormalized activeOrgIds — Firestore rules can't introspect
+        // the orgMemberships array of objects, so we maintain a simple
+        // string array alongside it. The rule check is `hasAny`-based
+        // off this field.
+        const activeOrgIdsRaw = Array.isArray(userData.activeOrgIds)
+          ? userData.activeOrgIds.filter((o) => typeof o === 'string')
+          : [];
+        const activeOrgIds = activeOrgIdsRaw.includes(invite.orgId)
+          ? activeOrgIdsRaw
+          : [...activeOrgIdsRaw, invite.orgId];
+
         const patch = {
           orgMemberships: memberships,
+          activeOrgIds,
           activeContext: `crew:${invite.orgId}`,
         };
 
@@ -212,11 +254,32 @@ exports.acceptCrewInvitation = onCall(
           acceptedAt: FieldValue.serverTimestamp(),
         });
 
+        // Auto-create a crew record so the new member shows up in the
+        // org's roster and cert tracker without the admin needing to
+        // type their uid by hand. Skips when there's already a record
+        // linked to this uid (admin pre-created one).
+        if (!hasExistingCrewRecord) {
+          const fallbackName = String(userData.displayName ?? '').trim()
+            || callerTokenName
+            || callerEmail.split('@')[0];
+          const crewName = (invite.invitedDisplayName && String(invite.invitedDisplayName)) || fallbackName;
+          const crewRef = db.collection(`charter_accounts/${invite.orgId}/crew`).doc();
+          tx.set(crewRef, {
+            name: crewName,
+            role: invite.role,
+            uid: callerUid,
+            certs: [],
+            createdAt: FieldValue.serverTimestamp(),
+            createdBySource: 'invite-accept',
+          });
+        }
+
         return {
           orgId: invite.orgId,
           orgName: invite.orgName,
           role: invite.role,
           newlyAdded: !alreadyActive,
+          crewRecordCreated: !hasExistingCrewRecord,
         };
       });
     } catch (err) {

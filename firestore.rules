@@ -38,6 +38,7 @@ service cloud.firestore {
                          .hasAny([
                            'profile', 'prefs', 'meta', 'phone',
                            'accountType', 'orgId', 'orgMemberships',
+                           'activeOrgIds',
                            'proAccess', 'proSource',
                          ]);
       allow delete: if request.auth != null && request.auth.uid == uid;
@@ -177,33 +178,73 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.orgId == orgId;
     }
 
+    // Crew-side access for a specific org.
+    //
+    // Backed by users/{uid}.activeOrgIds — a denormalized string array
+    // maintained by acceptCrewInvitation. We can't introspect the
+    // structured orgMemberships array from rules (each entry is an
+    // object), so activeOrgIds is the rule-friendly mirror of the
+    // "which orgs am I active in right now?" question.
+    function hasActiveCrewMembership(orgId) {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.activeOrgIds is list
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.activeOrgIds.hasAny([orgId]);
+    }
+
+    // Union of admin + crew access for an org. Most read rules use
+    // this; writes stay scoped to admin unless explicitly broadened.
+    function hasOrgAccess(orgId) {
+      return isCharterMember(orgId) || hasActiveCrewMembership(orgId);
+    }
+
     match /charter_accounts/{orgId} {
-      // Org doc — read by any member of the org. Writes (rename, harbor
-      // change) restricted to the owner; the seed flow that creates the
-      // doc happens via a Cloud Function with Admin SDK.
-      allow read:   if isCharterMember(orgId);
+      // Org doc — read by admin OR any active crew member (crew need
+      // the org name + harbor info to render their dashboard). Writes
+      // (rename, harbor change) stay admin-only; the seed flow uses
+      // Admin SDK.
+      allow read:   if hasOrgAccess(orgId);
       allow update: if isCharterMember(orgId);
       // Create + delete are intentionally denied — orgs are provisioned
       // server-side so a single uid can't fork a fresh org for itself.
       allow create, delete: if false;
 
       match /crew/{crewId} {
-        // Roster is org-scoped: readable + writable by any member of
-        // the org. Cert expiry warnings on the home screen need the
-        // read; the Crew screen needs the write.
-        allow read, write: if isCharterMember(orgId);
+        // Roster:
+        //   - Admin reads + writes everything (existing behavior).
+        //   - A crew member reads ONLY their own record (matched by
+        //     uid on the doc) — needed by /crew/certs.
+        //   - A crew member may update ONLY the certs field on their
+        //     own record. Other field updates (role changes, uid
+        //     reassignment) stay admin-only.
+        allow read:   if isCharterMember(orgId)
+                      || (hasActiveCrewMembership(orgId)
+                          && resource.data.uid == request.auth.uid);
+        allow create, delete: if isCharterMember(orgId);
+        allow update: if isCharterMember(orgId)
+                      || (hasActiveCrewMembership(orgId)
+                          && resource.data.uid == request.auth.uid
+                          && request.resource.data.diff(resource.data).affectedKeys()
+                               .hasOnly(['certs']));
       }
 
       match /spots/{spotId} {
-        // Private spot library. Same scoping as crew.
-        allow read, write: if isCharterMember(orgId);
+        // Private spot library. Crew reads (for trip brief context);
+        // only admin writes.
+        allow read:  if hasOrgAccess(orgId);
+        allow write: if isCharterMember(orgId);
       }
 
       match /trips/{tripId} {
-        // Trip docs. Readable + writable by org members. The public
-        // brief share is served via a Cloud Function that validates the
-        // briefingShareToken — the doc itself is NOT publicly readable.
-        allow read, write: if isCharterMember(orgId);
+        // Trip docs. Readable by admin OR any active crew member of
+        // the org — the My Trips screen filters client-side to the
+        // ones the caller is actually on. Writes (creating/editing
+        // trips, filing float plan + log) stay admin-only for D2;
+        // captain-scoped writes land in Slice D3. The public brief
+        // share goes through a Cloud Function that validates the
+        // token — the doc itself is NOT publicly readable.
+        allow read:  if hasOrgAccess(orgId);
+        allow write: if isCharterMember(orgId);
       }
 
       match /alerts/{alertId} {

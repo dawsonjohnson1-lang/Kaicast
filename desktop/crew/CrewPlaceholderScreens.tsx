@@ -1,8 +1,11 @@
-// CrewPlaceholderScreens — minimal stubs for the crew routes that
-// don't have their own screen yet. Each renders inside CrewShell so
-// the sidebar nav stays intact and the user can navigate back without
-// losing context. As each one gets a real implementation it moves to
-// its own file and this exports list shrinks.
+// CrewPlaceholderScreens — stubs for the crew routes that don't have
+// their own screen yet. Each renders inside CrewShell so the sidebar
+// nav stays intact. As each one gets a real implementation it moves
+// to its own file and this exports list shrinks.
+//
+// Slice D2 graduated CrewTrips / CrewCerts / CrewSettings to real
+// implementations. Captain's Log + the authenticated trip brief land
+// in D3.
 
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
@@ -15,49 +18,13 @@ interface Props {
   params?: RouteParams;
 }
 
-export function CrewTripsScreen({ onNavigate }: Props) {
-  return (
-    <CrewShell active="crew-trips" onNavigate={onNavigate}>
-      <Placeholder
-        title="My trips"
-        body="Your upcoming and past trip assignments will land here, with conditions snapshots, route briefs, and the 'Log my dive' handoff for completed trips."
-        eta="Ships with the next slice once crew-scoped Firestore reads are wired."
-      />
-    </CrewShell>
-  );
-}
-
-export function CrewCertsScreen({ onNavigate }: Props) {
-  return (
-    <CrewShell active="crew-certs" onNavigate={onNavigate}>
-      <Placeholder
-        title="My certs"
-        body="View certs on file with this org. Submit a new cert — admin reviews before it's recorded. Expiry timeline below."
-        eta="Lands with the Firestore rule additions that let crew read + update their own crew record."
-      />
-    </CrewShell>
-  );
-}
-
-export function CrewSettingsScreen({ onNavigate }: Props) {
-  return (
-    <CrewShell active="crew-settings" onNavigate={onNavigate}>
-      <Placeholder
-        title="Crew settings"
-        body="Notification preferences, full org membership list (with leave option), and a link to your consumer Pro status."
-        eta="Next slice."
-      />
-    </CrewShell>
-  );
-}
-
 export function CrewLogScreen({ onNavigate }: Props) {
   return (
     <CrewShell active="crew-log" onNavigate={onNavigate}>
       <Placeholder
         title="Captain's Log"
         body="File float plans and log trips you captain. Reuses the same filer the charter admin uses, scoped to your own trips."
-        eta="Lands alongside My Trips."
+        eta="Lands alongside trip detail in Slice D3."
       />
     </CrewShell>
   );
@@ -69,7 +36,7 @@ export function CrewBriefScreen({ onNavigate, params }: Props) {
       <Placeholder
         title={`Trip brief${params?.tripId ? ` · ${params.tripId}` : ''}`}
         body="Authenticated crew-side trip brief. Same content as the public crew briefing share link, with your own name highlighted in the roster and (for captains) the full manifest visible."
-        eta="Next slice."
+        eta="Slice D3."
       />
     </CrewShell>
   );
@@ -148,4 +115,3 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
 });
-

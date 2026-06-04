@@ -73,6 +73,15 @@ async function main() {
       reasons.push('orgMemberships: []');
     }
 
+    // activeOrgIds is the denormalized array of orgIds the user is
+    // actively part of. Firestore rules need a simple-string array
+    // to .hasAny() against — they can't introspect orgMemberships's
+    // objects. Maintained by acceptCrewInvitation on accept.
+    if (!Array.isArray(data.activeOrgIds)) {
+      patch.activeOrgIds = [];
+      reasons.push('activeOrgIds: []');
+    }
+
     if (typeof data.proAccess !== 'boolean') {
       patch.proAccess = false;
       reasons.push('proAccess: false');

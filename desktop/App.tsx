@@ -53,10 +53,10 @@ import { CharterSettingsScreen }  from './charter/CharterSettingsScreen';
 // CREW_ROUTES in router.ts and the membership gate in
 // computeEffectiveFrame below.
 import { CrewHomeScreen } from './crew/CrewHomeScreen';
+import { CrewTripsScreen } from './crew/CrewTripsScreen';
+import { CrewCertsScreen } from './crew/CrewCertsScreen';
+import { CrewSettingsScreen } from './crew/CrewSettingsScreen';
 import {
-  CrewTripsScreen,
-  CrewCertsScreen,
-  CrewSettingsScreen,
   CrewLogScreen,
   CrewBriefScreen,
 } from './crew/CrewPlaceholderScreens';
