@@ -1,21 +1,17 @@
-// CrewPlaceholderScreens — stubs for the crew routes that don't have
-// their own screen yet. Each renders inside CrewShell so the sidebar
-// nav stays intact. As each one gets a real implementation it moves
-// to its own file and this exports list shrinks.
-//
-// Slice D2 graduated CrewTrips / CrewCerts / CrewSettings to real
-// implementations. Captain's Log + the authenticated trip brief land
-// in D3.
+// CrewPlaceholderScreens — stubs for crew routes that don't have a
+// real implementation yet. After D3 only CrewLog remains (Captain's
+// Log filing + float plan filing — captain-scoped trip writes — land
+// in the next slice along with the rule additions that authorize
+// them).
 
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { colors, fonts, radius } from '../tokens';
 import { CrewShell } from './CrewShell';
-import type { NavigateFn, RouteParams } from '../router';
+import type { NavigateFn } from '../router';
 
 interface Props {
   onNavigate?: NavigateFn;
-  params?: RouteParams;
 }
 
 export function CrewLogScreen({ onNavigate }: Props) {
@@ -23,20 +19,8 @@ export function CrewLogScreen({ onNavigate }: Props) {
     <CrewShell active="crew-log" onNavigate={onNavigate}>
       <Placeholder
         title="Captain's Log"
-        body="File float plans and log trips you captain. Reuses the same filer the charter admin uses, scoped to your own trips."
-        eta="Lands alongside trip detail in Slice D3."
-      />
-    </CrewShell>
-  );
-}
-
-export function CrewBriefScreen({ onNavigate, params }: Props) {
-  return (
-    <CrewShell active="crew-brief" onNavigate={onNavigate}>
-      <Placeholder
-        title={`Trip brief${params?.tripId ? ` · ${params.tripId}` : ''}`}
-        body="Authenticated crew-side trip brief. Same content as the public crew briefing share link, with your own name highlighted in the roster and (for captains) the full manifest visible."
-        eta="Slice D3."
+        body="File float plans on planned trips and log trips you captain. Same UI the charter admin uses, scoped to trips where you're the assigned captain."
+        eta="Ships with the captain-scoped trip rule update."
       />
     </CrewShell>
   );

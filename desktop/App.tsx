@@ -56,9 +56,9 @@ import { CrewHomeScreen } from './crew/CrewHomeScreen';
 import { CrewTripsScreen } from './crew/CrewTripsScreen';
 import { CrewCertsScreen } from './crew/CrewCertsScreen';
 import { CrewSettingsScreen } from './crew/CrewSettingsScreen';
+import { CrewBriefScreen } from './crew/CrewBriefScreen';
 import {
   CrewLogScreen,
-  CrewBriefScreen,
 } from './crew/CrewPlaceholderScreens';
 
 /**

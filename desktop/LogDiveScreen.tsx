@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom';
 import { View, Text, Pressable, TextInput, ScrollView, StyleSheet, Modal } from 'react-native';
+import { doc, getDoc } from 'firebase/firestore';
 import { SPECIES_CATEGORIES, SPECIES_BY_ID, type SpeciesCategory } from './data/marineLife';
 import {
   colors,
@@ -13,7 +14,8 @@ import { KaiCastMap, HAWAII_CENTER, HAWAII_ZOOM, type MapMarker } from './compon
 import { CertEligibilityBadge } from './components/CertEligibilityBadge';
 import { PhotoUpload } from './components/PhotoUpload';
 import { useBreakpoint, pick } from './hooks/useBreakpoint';
-import type { NavigateFn } from './router';
+import { db, firebaseConfigured } from './firebase';
+import type { NavigateFn, RouteParams } from './router';
 
 // Subset of known Hawaii dive spots — used by the Step 01 map picker.
 // Clicking a pin sets form.spot to that name. Kept in lockstep with
@@ -376,9 +378,19 @@ const DIVE_TYPES = [
 export interface LogDiveScreenProps {
   activeNav?: 'dashboard' | 'forecast' | 'spots' | 'log';
   onNavigate?: NavigateFn;
+  /** Route params. When `tripId` + `orgId` are both present, the form
+   *  pre-fills from /charter_accounts/{orgId}/trips/{tripId} — the
+   *  crew "Log my dive →" handoff from CrewBriefScreen. Other params
+   *  are ignored here. */
+  params?: RouteParams;
 }
 
-export function LogDiveScreen({ activeNav = 'log', onNavigate }: LogDiveScreenProps) {
+interface PrefillBanner {
+  source: string;
+  fieldsApplied: string[];
+}
+
+export function LogDiveScreen({ activeNav = 'log', onNavigate, params }: LogDiveScreenProps) {
   const bp = useBreakpoint();
   const sidePad = pick(bp, 28, 16);
   const colGap = pick(bp, 28, 16);
@@ -386,6 +398,7 @@ export function LogDiveScreen({ activeNav = 'log', onNavigate }: LogDiveScreenPr
   const [published, setPublished] = React.useState(false);
   const [form, setForm] = React.useState<FormState>(INITIAL_FORM);
   const [draftSavedAt, setDraftSavedAt] = React.useState<number | null>(null);
+  const [prefillBanner, setPrefillBanner] = React.useState<PrefillBanner | null>(null);
 
   // Single update helper — every field accepts a key + value pair so we don't
   // hand each child a typed setter just to flip one property.
@@ -395,6 +408,73 @@ export function LogDiveScreen({ activeNav = 'log', onNavigate }: LogDiveScreenPr
     },
     [],
   );
+
+  // Trip prefill — fires once on mount when both tripId + orgId are
+  // present and the user hasn't started editing yet. Reads the trip
+  // doc + the first spot's name, then writes the matching fields onto
+  // the form. The banner above the form lists what was applied so the
+  // user knows what to double-check before publishing.
+  const tripIdParam = params?.tripId ?? null;
+  const orgIdParam = params?.orgId ?? null;
+  React.useEffect(() => {
+    if (!tripIdParam || !orgIdParam || !db || !firebaseConfigured) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const tripSnap = await getDoc(doc(db, 'charter_accounts', orgIdParam, 'trips', tripIdParam));
+        if (cancelled || !tripSnap.exists()) return;
+        const tripData = tripSnap.data() as Record<string, unknown>;
+
+        // Resolve first spot's name via /charter_accounts/{orgId}/spots/{spotId}.
+        const spotIds = Array.isArray(tripData.spots) ? (tripData.spots as string[]) : [];
+        let spotName = '';
+        if (spotIds[0]) {
+          try {
+            const spotSnap = await getDoc(doc(db, 'charter_accounts', orgIdParam, 'spots', spotIds[0]));
+            if (spotSnap.exists()) {
+              spotName = String((spotSnap.data() as Record<string, unknown>)?.name ?? '');
+            }
+          } catch { /* fall through */ }
+        }
+        if (cancelled) return;
+
+        const tripDate = tsToJSDate(tripData.date);
+        const cs = (tripData.conditionsSnapshot ?? {}) as Record<string, unknown>;
+        const visFt = pickNum(cs, 'visibilityFt', 'visibility.estimatedVisibilityFeet');
+        const waterTempF = pickNum(cs, 'waterTempF', 'temperature.waterF');
+
+        const applied: string[] = [];
+        setForm((prev) => {
+          const next: FormState = { ...prev };
+          if (spotName && !prev.spot) { next.spot = spotName; applied.push('spot'); }
+          if (tripDate) {
+            const dateStr = formatTripDate(tripDate);
+            if (dateStr && prev.date !== dateStr) { next.date = dateStr; applied.push('date'); }
+          }
+          if (typeof visFt === 'number' && prev.visibility === INITIAL_FORM.visibility) {
+            next.visibility = Math.round(visFt); applied.push('visibility');
+          }
+          if (typeof waterTempF === 'number' && prev.waterTemp === INITIAL_FORM.waterTemp) {
+            next.waterTemp = Math.round(waterTempF); applied.push('water temp');
+          }
+          return next;
+        });
+        const sourceLabel = tripDate
+          ? `Trip on ${tripDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`
+          : 'A trip you were on';
+        if (applied.length > 0) {
+          setPrefillBanner({ source: sourceLabel, fieldsApplied: applied });
+        }
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn('[log-dive prefill] failed', err);
+      }
+    })();
+    return () => { cancelled = true; };
+    // Run-once per (tripId, orgId) combo. If the user navigates away
+    // and back to /log-dive without params, this stays unchanged.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tripIdParam, orgIdParam]);
 
   return (
     <ScrollView style={styles.page} contentContainerStyle={styles.pageContent}>
@@ -411,18 +491,43 @@ export function LogDiveScreen({ activeNav = 'log', onNavigate }: LogDiveScreenPr
             onNavigate={onNavigate}
           />
         ) : (
-          <View style={[styles.body, { paddingHorizontal: sidePad, gap: colGap }]}>
-            <View style={{ width: leftColW }}>
-              <LeftPreview
-                form={form}
-                draftSavedAt={draftSavedAt}
-                onPublish={() => setPublished(true)}
-                onSaveDraft={() => setDraftSavedAt(Date.now())}
-                onShareToggle={() => update('shareToCommunity', !form.shareToCommunity)}
-              />
+          <>
+            {prefillBanner ? (
+              <View style={[stylesPrefill.banner, { marginHorizontal: sidePad }]}>
+                <View style={{ flex: 1 }}>
+                  <Text style={stylesPrefill.bannerTitle}>
+                    Pre-filled from {prefillBanner.source}
+                  </Text>
+                  <Text style={stylesPrefill.bannerBody}>
+                    {prefillBanner.fieldsApplied.join(', ')} pulled from the trip's
+                    forecast snapshot. Double-check anything that doesn't match what you
+                    actually saw underwater.
+                  </Text>
+                </View>
+                <Pressable
+                  onPress={() => {
+                    setForm(INITIAL_FORM);
+                    setPrefillBanner(null);
+                  }}
+                  style={stylesPrefill.bannerBtn}
+                >
+                  <Text style={stylesPrefill.bannerBtnText}>Clear</Text>
+                </Pressable>
+              </View>
+            ) : null}
+            <View style={[styles.body, { paddingHorizontal: sidePad, gap: colGap }]}>
+              <View style={{ width: leftColW }}>
+                <LeftPreview
+                  form={form}
+                  draftSavedAt={draftSavedAt}
+                  onPublish={() => setPublished(true)}
+                  onSaveDraft={() => setDraftSavedAt(Date.now())}
+                  onShareToggle={() => update('shareToCommunity', !form.shareToCommunity)}
+                />
+              </View>
+              <RightForm form={form} update={update} />
             </View>
-            <RightForm form={form} update={update} />
-          </View>
+          </>
         )}
       </View>
     </ScrollView>
@@ -4126,5 +4231,89 @@ const styles = StyleSheet.create({
     fontSize: 9,
     letterSpacing: 1,
     color: colors.text3,
+  },
+});
+
+// ─── Trip-prefill helpers + banner styles ────────────────────────────
+//
+// These sit at module scope so the prefill effect can reach them
+// without dragging hooks/state into helper functions. Kept here rather
+// than a separate file because they're only relevant to this screen.
+
+function tsToJSDate(raw: unknown): Date | null {
+  if (raw == null) return null;
+  if (raw instanceof Date) return raw;
+  if (typeof raw === 'object' && raw && 'toDate' in raw) {
+    try { return (raw as { toDate: () => Date }).toDate(); } catch { return null; }
+  }
+  if (typeof raw === 'string') {
+    const d = new Date(raw);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  return null;
+}
+
+/** "MM / DD / YYYY" — matches the format the LogDive date picker uses. */
+function formatTripDate(d: Date): string {
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${mm} / ${dd} / ${d.getFullYear()}`;
+}
+
+function pickNum(o: Record<string, unknown>, ...keys: string[]): number | null {
+  for (const k of keys) {
+    const v = getPath(o, k);
+    if (typeof v === 'number' && Number.isFinite(v)) return v;
+  }
+  return null;
+}
+
+function getPath(o: Record<string, unknown>, path: string): unknown {
+  return path.split('.').reduce<unknown>((acc, k) => {
+    if (acc != null && typeof acc === 'object' && k in (acc as Record<string, unknown>)) {
+      return (acc as Record<string, unknown>)[k];
+    }
+    return undefined;
+  }, o);
+}
+
+const stylesPrefill = StyleSheet.create({
+  banner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    padding: 14,
+    marginBottom: 16,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.accent,
+    backgroundColor: 'rgba(9,161,251,0.08)',
+  },
+  bannerTitle: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.accent,
+  },
+  bannerBody: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.text2,
+    marginTop: 4,
+    lineHeight: 18,
+  },
+  bannerBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.accent,
+    backgroundColor: 'transparent',
+  },
+  bannerBtnText: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.accent,
   },
 });

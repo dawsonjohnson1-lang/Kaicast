@@ -211,15 +211,15 @@ service cloud.firestore {
 
       match /crew/{crewId} {
         // Roster:
-        //   - Admin reads + writes everything (existing behavior).
-        //   - A crew member reads ONLY their own record (matched by
-        //     uid on the doc) — needed by /crew/certs.
-        //   - A crew member may update ONLY the certs field on their
-        //     own record. Other field updates (role changes, uid
-        //     reassignment) stay admin-only.
-        allow read:   if isCharterMember(orgId)
-                      || (hasActiveCrewMembership(orgId)
-                          && resource.data.uid == request.auth.uid);
+        //   - Admin reads + writes everything.
+        //   - Active crew can read the FULL roster (the /crew/brief
+        //     screen renders a list of names + roles for the crew on
+        //     a trip; per-doc filtering would mean N reads instead of
+        //     one collection scan).
+        //   - Active crew may update ONLY the certs field on their
+        //     OWN record. Role / uid / other-fields stay admin-only,
+        //     and writes against another member's record stay denied.
+        allow read:   if hasOrgAccess(orgId);
         allow create, delete: if isCharterMember(orgId);
         allow update: if isCharterMember(orgId)
                       || (hasActiveCrewMembership(orgId)

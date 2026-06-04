@@ -82,6 +82,11 @@ export type RouteParams = {
   /** Invitation id — required by /invite/:inviteId. The screen looks
    *  it up via the getCrewInvitationPublic callable. */
   inviteId?: string;
+  /** Org id ride-along for cross-surface handoffs. Currently used by
+   *  the "Log my dive →" flow on /crew/brief — the LogDive screen
+   *  reads it (together with tripId) to fetch the trip and pre-fill
+   *  the form. Carried in the URL as `?orgId=…`. */
+  orgId?: string;
 };
 
 export type NavigateFn = (route: RouteKey, params?: RouteParams) => void;
@@ -280,6 +285,13 @@ export function pathFor(route: RouteKey, params?: RouteParams): string {
   if (params?.tab) qs.set('tab', params.tab);
   if (params?.returnTo) qs.set('returnTo', params.returnTo);
   if (params?.briefToken) qs.set('t', params.briefToken);
+  // Crew → LogDive prefill carries trip + org as query string so a
+  // bookmark / refresh on /log-dive?tripId=…&orgId=… still loads the
+  // prefill correctly. Only attached when both are present.
+  if (route === 'log-dive' && params?.tripId && params?.orgId) {
+    qs.set('tripId', params.tripId);
+    qs.set('orgId', params.orgId);
+  }
   const qsStr = qs.toString();
   return qsStr ? `${path}?${qsStr}` : path;
 }
@@ -344,6 +356,17 @@ export function parseLocation(loc: { pathname: string; search: string }): {
       const params: RouteParams = {};
       if (tab) params.tab = tab;
       if (returnTo) params.returnTo = returnTo;
+      // Crew → LogDive prefill — extract both tripId + orgId from
+      // the query string on /log-dive specifically. Other routes
+      // ignore these even if a stray URL carries them.
+      if (route === 'log-dive') {
+        const tripIdQ = qs.get('tripId');
+        const orgIdQ = qs.get('orgId');
+        if (tripIdQ && orgIdQ) {
+          params.tripId = tripIdQ;
+          params.orgId = orgIdQ;
+        }
+      }
       return {
         route,
         params: Object.keys(params).length ? params : undefined,
