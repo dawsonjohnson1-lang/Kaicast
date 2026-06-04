@@ -5,6 +5,7 @@ import {
   AUTH_ROUTES,
   CHARTER_ROUTES,
   CONSUMER_HOME_ROUTES,
+  CREW_ROUTES,
   HIDE_FOOTER_ROUTES,
   PRIVATE_ROUTES,
   parseLocation,
@@ -46,6 +47,19 @@ import { CharterEmergencyScreen } from './charter/CharterEmergencyScreen';
 import { CharterBriefScreen }     from './charter/CharterBriefScreen';
 import { CharterSetupScreen }     from './charter/CharterSetupScreen';
 import { CharterSettingsScreen }  from './charter/CharterSettingsScreen';
+
+// Crew dashboard — sits between consumer and charter. Visible to any
+// signed-in user with at least one active orgMembership. See
+// CREW_ROUTES in router.ts and the membership gate in
+// computeEffectiveFrame below.
+import { CrewHomeScreen } from './crew/CrewHomeScreen';
+import {
+  CrewTripsScreen,
+  CrewCertsScreen,
+  CrewSettingsScreen,
+  CrewLogScreen,
+  CrewBriefScreen,
+} from './crew/CrewPlaceholderScreens';
 
 /**
  * Desktop app shell.
@@ -102,6 +116,16 @@ const SCREENS: Record<RouteKey, React.ComponentType<any>> = {
   'invite-accept':     (p: any) => (
     <InviteAcceptScreen inviteId={p.params?.inviteId ?? ''} onNavigate={p.onNavigate} />
   ),
+
+  // Crew dashboard — see useActiveMembership / CrewShell for context
+  // resolution. Gated by CREW_ROUTES + membership check in the route
+  // gate below.
+  'crew-home':         CrewHomeScreen,
+  'crew-trips':        CrewTripsScreen,
+  'crew-certs':        CrewCertsScreen,
+  'crew-settings':     CrewSettingsScreen,
+  'crew-log':          CrewLogScreen,
+  'crew-brief':        CrewBriefScreen,
 };
 
 function NotFoundScreen({ onNavigate }: { onNavigate?: NavigateFn }) {
@@ -255,6 +279,8 @@ function AppInner() {
     useCharterAccount(auth.accountType === 'charter' ? auth.orgId : null);
   const setupComplete = charterAcct ? charterAcct.setupComplete : null;
 
+  const hasActiveMembership = auth.orgMemberships.some((m) => m.status === 'active');
+
   const effective = computeEffectiveFrame(
     current,
     auth.user != null,
@@ -262,6 +288,7 @@ function AppInner() {
     auth.accountType === 'charter',
     setupComplete,
     auth.activeContext,
+    hasActiveMembership,
   );
 
   // After sign-in, route based on history:
@@ -274,6 +301,9 @@ function AppInner() {
   //     spots map so they can explore before getting the dashboard
   //     firehose
   //   - returning consumer → straight to dashboard
+  //   - activeContext is 'crew:{orgId}' AND user has matching active
+  //     membership → /crew (overrides the consumer/charter default)
+  //   - accountType === 'crew' (no other activeContext signal) → /crew
   // We set a localStorage flag on the first successful sign-in so
   // the "first vs returning" distinction survives refreshes.
   React.useEffect(() => {
@@ -281,6 +311,10 @@ function AppInner() {
     if (!auth.user) return;
     if (current.route !== 'signin' && current.route !== 'signup') return;
     const isCharter = auth.accountType === 'charter';
+    const isCrewType = auth.accountType === 'crew';
+    const activeCtx = auth.activeContext;
+    const activeMemberships = auth.orgMemberships.filter((m) => m.status === 'active');
+
     const returnTo = current.params?.returnTo;
     if (returnTo) {
       // Honor returnTo only when the destination is reachable for
@@ -289,15 +323,37 @@ function AppInner() {
       // on its own, but a clean post-sign-in nav is nicer UX.
       const blockedForCharter = isCharter && CONSUMER_HOME_ROUTES.has(returnTo);
       const blockedForConsumer = !isCharter && CHARTER_ROUTES.has(returnTo);
-      if (!blockedForCharter && !blockedForConsumer) {
+      const blockedForNonCrew = CREW_ROUTES.has(returnTo) && activeMemberships.length === 0;
+      if (!blockedForCharter && !blockedForConsumer && !blockedForNonCrew) {
         navigate(returnTo);
         return;
       }
     }
+
+    // activeContext is the strongest signal — if the user explicitly
+    // picked a crew org (via the switcher or by accepting an invite,
+    // which sets activeContext to crew:{orgId}) and that membership
+    // is still active, land them in /crew.
+    if (activeCtx.startsWith('crew:') && activeMemberships.length > 0) {
+      const wantedOrgId = activeCtx.slice(5);
+      if (activeMemberships.some((m) => m.orgId === wantedOrgId)) {
+        navigate('crew-home');
+        return;
+      }
+    }
+
     if (isCharter) {
       navigate('charter-home');
       return;
     }
+
+    // accountType === 'crew' with no specific activeContext — they
+    // were created via the invite flow, so /crew is their home.
+    if (isCrewType && activeMemberships.length > 0) {
+      navigate('crew-home');
+      return;
+    }
+
     const isReturning = typeof window !== 'undefined'
       ? !!window.localStorage?.getItem(LS_RETURNING_KEY)
       : false;
@@ -306,7 +362,7 @@ function AppInner() {
     }
     navigate(isReturning ? 'dashboard' : 'spots-map');
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [auth.loading, auth.user, auth.accountType]);
+  }, [auth.loading, auth.user, auth.accountType, auth.activeContext]);
 
   if (auth.loading) {
     return (
@@ -350,6 +406,9 @@ function computeEffectiveFrame(
    *  explicitly Personal mode (via the switcher in Profile/Settings),
    *  so charter admins should NOT be bounced off /dashboard etc. */
   activeContext: 'consumer' | `crew:${string}`,
+  /** True iff the user has at least one orgMembership with
+   *  status === 'active'. Crew routes require this. */
+  hasActiveMembership: boolean,
 ): Frame {
   if (loading) return current;
 
@@ -375,6 +434,15 @@ function computeEffectiveFrame(
       route: 'signin',
       params: { returnTo: current.route },
     };
+  }
+
+  // ── Crew surface gate ──
+  // /crew/* requires at least one active orgMembership. Users without
+  // one (a plain consumer who somehow landed on /crew via a stale
+  // link, or a charter admin with no own-org crew role) get sent to
+  // their normal home rather than bounced to a not-found page.
+  if (signedIn && CREW_ROUTES.has(current.route) && !hasActiveMembership) {
+    return { route: isCharter ? 'charter-home' : 'dashboard' };
   }
 
   // Signed-in + auth route → no need; punt to dashboard. (The post-signin

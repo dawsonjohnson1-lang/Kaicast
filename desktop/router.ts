@@ -35,6 +35,17 @@ export type RouteKey =
   // The screen calls getCrewInvitationPublic for the unauth landing
   // state and acceptCrewInvitation once the invitee has signed in.
   | 'invite-accept'
+  // ── Crew dashboard (third surface, between consumer and charter) ────
+  // Gated to users with at least one active orgMembership. Reads
+  // auth.activeContext to determine which org is currently active.
+  // A captain who's also a charter admin sees both /crew and
+  // /charter; they pick via the account switcher in Profile > Settings.
+  | 'crew-home'
+  | 'crew-trips'
+  | 'crew-certs'
+  | 'crew-settings'
+  | 'crew-log'
+  | 'crew-brief'
   // ── Charter dashboard (a different product on the same hosting) ─────
   // Gated to users whose Firestore doc has accountType === 'charter'.
   // Consumer routes redirect charter users to /charter; charter routes
@@ -99,6 +110,30 @@ export const PRIVATE_ROUTES: ReadonlySet<RouteKey> = new Set([
   'charter-emergency',
   'charter-setup',
   'charter-settings',
+  // Crew routes require both auth AND at least one active
+  // orgMembership; the membership check happens in App.tsx's
+  // computeEffectiveFrame via the CREW_ROUTES set below. crew-brief
+  // intentionally stays private — crew-side briefings are NOT the
+  // public token-share path (that's charter-brief).
+  'crew-home',
+  'crew-trips',
+  'crew-certs',
+  'crew-settings',
+  'crew-log',
+  'crew-brief',
+]);
+
+/** Routes that require an active orgMembership in addition to auth.
+ *  Users without any active membership get bounced to /dashboard. The
+ *  membership check + orgId resolution lives in App.tsx so this set
+ *  only needs to enumerate the routes. */
+export const CREW_ROUTES: ReadonlySet<RouteKey> = new Set([
+  'crew-home',
+  'crew-trips',
+  'crew-certs',
+  'crew-settings',
+  'crew-log',
+  'crew-brief',
 ]);
 
 /** Routes that require `accountType === 'charter'` in addition to auth.
@@ -155,6 +190,13 @@ export const HIDE_FOOTER_ROUTES: ReadonlySet<RouteKey> = new Set([
   'charter-emergency',
   'charter-brief',
   'charter-settings',
+  // Crew shell also owns its own chrome (CrewShell + Emergency button).
+  'crew-home',
+  'crew-trips',
+  'crew-certs',
+  'crew-settings',
+  'crew-log',
+  'crew-brief',
 ]);
 
 // ── URL ↔ route mapping ──────────────────────────────────────────────
@@ -199,6 +241,14 @@ const STATIC_ROUTES: Record<RouteKey, string> = {
   // /invite/:inviteId — dynamic; pathFor() embeds the id. The
   // placeholder value here keeps the Record exhaustive.
   'invite-accept':     '/invite',
+  // Crew dashboard. crew-brief is dynamic (/crew/brief/:tripId); the
+  // placeholder string here keeps the Record type exhaustive.
+  'crew-home':         '/crew',
+  'crew-trips':        '/crew/trips',
+  'crew-certs':        '/crew/certs',
+  'crew-settings':     '/crew/settings',
+  'crew-log':          '/crew/log',
+  'crew-brief':        '/crew/brief',
 };
 
 const ALL_ROUTE_KEYS: ReadonlySet<string> = new Set(Object.keys(STATIC_ROUTES));
@@ -217,6 +267,10 @@ export function pathFor(route: RouteKey, params?: RouteParams): string {
     // /invite/:inviteId — the inviteId is the link's auth on the
     // unauth read; the accept callable layers on email-match + signed-in.
     path = `/invite/${encodeURIComponent(params?.inviteId ?? '')}`;
+  } else if (route === 'crew-brief') {
+    // /crew/brief/:tripId — authenticated crew-side brief view.
+    // Reuses the `tripId` param the charter brief route already has.
+    path = `/crew/brief/${encodeURIComponent(params?.tripId ?? '')}`;
   } else {
     path = STATIC_ROUTES[route];
   }
@@ -271,11 +325,21 @@ export function parseLocation(loc: { pathname: string; search: string }): {
     };
   }
 
+  // Dynamic: /crew/brief/:tripId — authenticated crew-side brief.
+  const crewBriefMatch = pathname.match(/^\/crew\/brief\/([^/]+)$/);
+  if (crewBriefMatch) {
+    return {
+      route: 'crew-brief',
+      params: { tripId: decodeURIComponent(crewBriefMatch[1]) },
+    };
+  }
+
   // Static routes: reverse-lookup by path.
   for (const [route, staticPath] of Object.entries(STATIC_ROUTES) as Array<[RouteKey, string]>) {
     if (route === 'spot-detail') continue;
     if (route === 'charter-brief') continue; // dynamic, handled above
     if (route === 'invite-accept') continue; // dynamic, handled above
+    if (route === 'crew-brief') continue;    // dynamic, handled above
     if (staticPath === pathname) {
       const params: RouteParams = {};
       if (tab) params.tab = tab;

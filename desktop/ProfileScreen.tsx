@@ -1644,10 +1644,7 @@ function AccountSwitcherSection({ onNavigate }: { onNavigate?: NavigateFn }) {
   const switchToCrew = async (orgId: string) => {
     const ctx: ActiveContext = `crew:${orgId}`;
     await auth.setActiveContext(ctx);
-    // /crew shell ships in the next slice. For now land them on the
-    // consumer dashboard so they're not stranded on Profile after
-    // toggling — the activeContext is persisted regardless.
-    onNavigate?.('dashboard');
+    onNavigate?.('crew-home');
   };
 
   return (

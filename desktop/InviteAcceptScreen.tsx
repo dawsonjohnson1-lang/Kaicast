@@ -380,11 +380,11 @@ function AcceptBlock({
       );
       await fn({ inviteId });
       setAccepted(true);
-      // Land them on the consumer dashboard for now — /crew shell is
-      // Slice D. Their activeContext is already flipped to
-      // crew:{orgId} server-side, so once /crew exists they'll land
-      // there automatically.
-      setTimeout(() => onNavigate?.('dashboard'), 1500);
+      // Their activeContext was flipped server-side to crew:{orgId}.
+      // Route them straight into the crew shell — the post-signin
+      // redirect logic would do the same on a fresh page load, but
+      // a direct nav keeps the UX flowing without a reload.
+      setTimeout(() => onNavigate?.('crew-home'), 1500);
     } catch (e) {
       setError(prettyError(e));
     } finally {
