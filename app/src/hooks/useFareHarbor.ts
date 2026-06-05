@@ -140,7 +140,7 @@ export function useFareHarbor(
           const ts = d.lastSynced?.toMillis?.() ?? 0;
           if (ts > newest) newest = ts;
         });
-        trips.sort((a, b) => a.departureTime.localeCompare(b.departureTime));
+        trips.sort((a, b) => (a.departureTime ?? '').localeCompare(b.departureTime ?? ''));
         trips.forEach((t, i) => { t.tripNum = i + 1; });
         setState({ trips, loading: false, lastSynced: newest || null, error: null });
       },

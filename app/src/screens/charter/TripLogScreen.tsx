@@ -100,7 +100,9 @@ export function TripLogScreen() {
   const trip = log?.trips.find((t) => t.tripId === tripId);
 
   // Abyss conditions — pulled fresh per trip departure time + primary spot.
-  const departureMs = trip ? parseDepartureMs(dateMs, trip.departureTime) : undefined;
+  // departureTime is optional on the new lightweight rows — fall back to
+  // the daily start so the hook still returns a meaningful snapshot.
+  const departureMs = trip ? parseDepartureMs(dateMs, trip.departureTime ?? '') : undefined;
   const { conditions: abyssLive, loading: abyssLoading, source: abyssSource } =
     useAbyssConditions(trip?.primarySite, departureMs);
 
@@ -241,11 +243,18 @@ export function TripLogScreen() {
         </Card>
 
         {/* ── 3. Conditions ── */}
+        {/* These are the LEGACY per-trip conditions (TripLogScreen
+            still exists for archived data + back-compat). The new
+            standalone flow uses day-level CharterLog.conditions. */}
         <SectionTitle title="Conditions" />
         <View style={{ marginBottom: spacing.xl }}>
           <ConditionsPanel
             abyss={abyssLive}
-            observed={trip.observedConditions}
+            observed={trip.observedConditions ?? {
+              visibility: '', feltTemp: '', seaState: '', swellDirObserved: '',
+              windObserved: '', currentObserved: '', currentDirObserved: '',
+              captainNote: '',
+            }}
             abyssLoading={abyssLoading}
             abyssSource={abyssSource}
             onObservedChange={(next) => patch({ observedConditions: next })}
@@ -256,9 +265,9 @@ export function TripLogScreen() {
         <SectionTitle title="Guests" />
         <View style={{ marginBottom: spacing.xl }}>
           <GuestManifest
-            guests={trip.guests}
+            guests={trip.guests ?? []}
             tripType={trip.type}
-            bookedCount={trip.passengerCount}
+            bookedCount={trip.passengerCount ?? 0}
             onGuestsChange={(next) => patch({ guests: next })}
           />
         </View>
@@ -267,7 +276,7 @@ export function TripLogScreen() {
         <SectionTitle title="Protected species observed" />
         <View style={{ marginBottom: spacing.xl }}>
           <SpeciesPicker
-            observed={trip.speciesObserved}
+            observed={trip.speciesObserved ?? []}
             onChange={(next) => patch({ speciesObserved: next })}
           />
         </View>

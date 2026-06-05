@@ -62,7 +62,7 @@ export function IncidentReport({ trip, onChange }: Props) {
             <Text style={styles.label}>TYPE</Text>
             <View style={styles.chipRow}>
               {INCIDENT_TYPES.map((t) => {
-                const active = trip.incident === t || trip.incident.startsWith(t);
+                const active = trip.incident === t || (trip.incident ?? '').startsWith(t);
                 return (
                   <Pressable
                     key={t}
@@ -125,12 +125,12 @@ export function IncidentReport({ trip, onChange }: Props) {
           <View style={styles.toggleList}>
             <ToggleRow
               label="USCG notified"
-              value={trip.coastGuardNotification}
+              value={trip.coastGuardNotification ?? false}
               onChange={(v) => onChange({ coastGuardNotification: v })}
             />
             <ToggleRow
               label="DLNR notified"
-              value={trip.dlnrNotification}
+              value={trip.dlnrNotification ?? false}
               onChange={(v) => onChange({ dlnrNotification: v })}
             />
             <ToggleRow
