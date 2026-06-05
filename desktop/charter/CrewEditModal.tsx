@@ -14,8 +14,10 @@ import type { Cert, CrewMember, CrewRole } from './types';
 
 const ROLE_OPTIONS: ReadonlyArray<{ id: CrewRole; label: string }> = [
   { id: 'owner',      label: 'Owner' },
+  { id: 'manager',    label: 'Manager' },
   { id: 'captain',    label: 'Captain' },
   { id: 'divemaster', label: 'Divemaster' },
+  { id: 'instructor', label: 'Instructor' },
   { id: 'deckhand',   label: 'Deckhand' },
 ];
 

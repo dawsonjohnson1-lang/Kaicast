@@ -119,7 +119,14 @@ export function NumberStepper({
       setText('');
       return;
     }
-    const clamped = clamp(value);
+    // Only clamp DOWN to max on blur — clamping UP to min on blur is
+    // user-hostile (typing "5" while min=10 instantly snaps back to "10"
+    // and you can never reach "25" by hand). Form-level validation
+    // catches sub-minimum values at step submit time. The +/- stepper
+    // buttons still clamp both directions; this only affects keyboard
+    // editing.
+    let clamped = value;
+    if (typeof max === 'number') clamped = Math.min(max, clamped);
     if (clamped !== value) onChange(clamped);
     setText(String(clamped));
   };

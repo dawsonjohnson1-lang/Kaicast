@@ -222,7 +222,7 @@ const styles = StyleSheet.create({
     top: 16,
     right: 16,
     width: 220,
-    backgroundColor: 'rgba(12,16,21,0.85)',
+    backgroundColor: colors.overlay,
     borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: colors.hairlineStrong,

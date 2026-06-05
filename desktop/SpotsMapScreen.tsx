@@ -9,6 +9,8 @@ import { useFavorites } from './hooks/useFavorites';
 import { FavoriteButton } from './components/FavoriteButton';
 import { SPOTS as CANONICAL_SPOTS } from './data/spots';
 import { useSpotRatings, useSpotReport, tierFromRating, type BackendReport } from './data/getReport';
+import { useSpotAlerts } from './data/spotAlerts';
+import { SpotAlerts } from './components/SpotAlerts';
 import type { NavigateFn } from './router';
 
 /**
@@ -91,12 +93,6 @@ const BEST_WINDOW_BAR: ConditionTier[] = [
   'no-go', 'fair', 'good', 'great', 'excellent', 'excellent', 'great', 'good',
 ];
 
-const ALERTS = [
-  { icon: '👁', tint: colors.accentDim,             title: 'Molokini Crater',                 body: 'Visibility improved to 80ft — best reading in 2 weeks' },
-  { icon: '🌊', tint: colors.accentDim,             title: 'Kealakekua Bay',                  body: 'Swell dropping Thursday — excellent 6–10am window forming' },
-  { icon: '⚠',  tint: 'rgba(255,157,37,0.16)',      title: 'Turtle Canyon · Runoff warning',  body: '48hr advisory · High rainfall + overflow reported' },
-];
-
 const FRIENDS = [
   { initials: 'KM', name: 'Kai M.',     activity: 'at Electric Beach · Freediving',   when: 'NOW' },
   { initials: 'LS', name: 'Leilani S.', activity: 'at Molokini · Scuba · 60ft',       when: '14M' },
@@ -147,19 +143,46 @@ export function SpotsMapScreen({ activeNav = 'spots', onNavigate }: SpotsMapScre
   // Selection is keyed by spot name (the data has no stable id field).
   const [selectedName, setSelectedName] = React.useState<string>('Electric Beach');
   const [hoveredName, setHoveredName] = React.useState<string | undefined>(undefined);
+  // Dismissal state for alerts is now per-alert and lives inside
+  // AlertBanner — the whole banner hides when no alerts are active.
 
-  // Wide layout only: lock the document scroll so the 3-col grid
-  // (sidebar · map · panel) fits in exactly one viewport. Below
-  // 1080px we let the page scroll normally and the map column
-  // takes a bounded fixed height — see styles.mapColumnNarrow.
+  // Wide layout only: clamp html AND body to a single viewport so the
+  // 3-col grid can't push the document past it. The map column was
+  // growing vertical because the sidebar's long spot list let the
+  // document scroll, and the grid row was tracking the tallest column.
+  // Locking body height kills that scroll entirely; locking overflow
+  // hidden kills any residual scroll triggered by inner content.
   React.useEffect(() => {
     if (typeof document === 'undefined') return;
     if (!wideLayout) return;
     const html = document.documentElement;
-    const prevHeight = html.style.height;
+    const body = document.body;
+    const prev = {
+      htmlHeight: html.style.height,
+      htmlOverflow: html.style.overflow,
+      bodyHeight: body.style.height,
+      bodyOverflow: body.style.overflow,
+      bodyMargin: body.style.margin,
+    };
     html.style.height = '100vh';
-    return () => { html.style.height = prevHeight; };
+    html.style.overflow = 'hidden';
+    body.style.height = '100vh';
+    body.style.overflow = 'hidden';
+    body.style.margin = '0';
+    return () => {
+      html.style.height = prev.htmlHeight;
+      html.style.overflow = prev.htmlOverflow;
+      body.style.height = prev.bodyHeight;
+      body.style.overflow = prev.bodyOverflow;
+      body.style.margin = prev.bodyMargin;
+    };
   }, [wideLayout]);
+
+  // Measure the chrome (nav + alert) so we can set bodyFixed's height
+  // to calc(100vh - chromeHeight). Using a ref + onLayout means we
+  // adapt automatically when the alert is dismissed (banner unmounts,
+  // chrome shrinks, bodyFixed grows — the grid row follows).
+  const [chromeHeight, setChromeHeight] = React.useState<number>(140);
 
   // Flat list of every spot — used by the map (always shows all pins,
   // sidebar filtering only affects the list panel).
@@ -197,20 +220,54 @@ export function SpotsMapScreen({ activeNav = 'spots', onNavigate }: SpotsMapScre
 
   return (
     <View style={[styles.page, wideLayout && styles.pageFixed]}>
-      {/* Chrome (nav + alert) renders first as a normal in-flow column —
-          its height becomes whatever it needs. */}
-      <View style={styles.chromeStack}>
+      {/* Nav + (dismissable) banner stack at the top. onLayout reports
+          the combined height so bodyFixed can sit exactly underneath
+          via calc(100vh - chromeHeight). */}
+      <View
+        style={styles.chromeStack}
+        onLayout={(e) => setChromeHeight(e.nativeEvent.layout.height)}
+      >
         <DesktopNav active={activeNav} onNavigate={onNavigate} />
-        <AlertBanner />
+        <AlertBanner spotIds={allSpotIds} />
       </View>
 
-      {/* Wide layout (≥1080px): viewport-locked grid where MapColumn
-          fills the visible area inside bodyFixed. Narrow: body laid
-          out vertically with bounded map height + ScrollView, so the
-          whole page scrolls naturally and the map doesn't grow past
-          a few hundred pixels. */}
-      <View style={wideLayout ? styles.bodyFixed : styles.bodyNarrow}>
-        <View style={wideLayout ? { width: sidebarW, height: '100%' } : { width: '100%' }}>
+      {/* Wide layout (≥1080px): real CSS Grid with three columns
+          (sidebarW · 1fr · panelW). The grid wrapper takes the rest
+          of the viewport (flex:1 inside pageFixed) and uses
+          overflow:hidden so only the inner columns scroll, never
+          the document. Each column gets its own scroll surface.
+          Narrow: body laid out vertically with bounded map height +
+          ScrollView — whole page scrolls naturally. */}
+      <View
+        style={
+          wideLayout
+            ? ([
+                styles.bodyFixed,
+                // Hard-pin to the viewport via position:fixed with an
+                // explicit pixel height. This stops the grid row from
+                // ever tracking the sidebar's content height (the root
+                // cause of the "super-tall map" symptom — flex:1 +
+                // overflow:hidden weren't enough because RN's default
+                // flex-shrink:0 let the body row grow past pageFixed).
+                //
+                // gridTemplateRows: '1fr' makes the row fill exactly
+                // the wrapper height — without it the row falls back
+                // to content-sized auto and the map cell stretches.
+                {
+                  position: 'fixed',
+                  top: chromeHeight,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  display: 'grid',
+                  gridTemplateColumns: `${sidebarW}px 1fr ${panelW}px`,
+                  gridTemplateRows: '1fr',
+                } as unknown as object,
+              ] as object)
+            : styles.bodyNarrow
+        }
+      >
+        <View style={wideLayout ? { height: '100%' } : { width: '100%' }}>
           <Sidebar
             tab={tab}
             onTab={setTab}
@@ -249,7 +306,7 @@ export function SpotsMapScreen({ activeNav = 'spots', onNavigate }: SpotsMapScre
             />
           </View>
         )}
-        <View style={wideLayout ? { width: panelW, height: '100%' } : { width: '100%' }}>
+        <View style={wideLayout ? { height: '100%' } : { width: '100%' }}>
           <ScrollView
             style={wideLayout ? styles.panelScroll : undefined}
             contentContainerStyle={wideLayout ? styles.panelScrollContent : undefined}
@@ -265,21 +322,45 @@ export function SpotsMapScreen({ activeNav = 'spots', onNavigate }: SpotsMapScre
 }
 
 // ─── Alert banner ─────────────────────────────────────────────────────────
+//
+// Reads live alerts from /spot_alerts for every spot in the user's
+// island list. If zero active alerts, the banner hides entirely — no
+// placeholder copy. Highest-priority alert (per spotAlerts.ts ranking)
+// wins the slot. Dismissal is per-session and per-alert; reopens on
+// next page load (intentional — tsunami/shark/box-jelly are too
+// important to permanently silence with one click).
 
-function AlertBanner({ onDismiss }: { onDismiss?: () => void }) {
+function AlertBanner({ spotIds }: { spotIds: string[] }) {
+  const alerts = useSpotAlerts(spotIds);
+  const [dismissed, setDismissed] = React.useState<Set<string>>(new Set());
+  const visible = alerts.filter((a) => !dismissed.has(a.alertId));
+  if (visible.length === 0) return null;
+  const top = visible[0];
+
+  // Color tone per severity. Life-safety urgent uses the hazard red.
+  const toneStyle = top.severity === 'urgent' ? styles.alertBannerUrgent
+    : top.severity === 'warning' ? styles.alertBannerWarning
+    : top.severity === 'advisory' ? styles.alertBannerAdvisory
+    : styles.alertBanner;
+  const dotColor = top.severity === 'urgent' ? colors.nogo
+    : top.severity === 'warning' ? colors.fair
+    : top.severity === 'advisory' ? colors.fair
+    : colors.accent;
+
+  // Show a "+N more" tail if multiple alerts are active.
+  const more = visible.length > 1 ? ` · +${visible.length - 1} more` : '';
+
   return (
-    <View style={styles.alertBanner}>
-      <View style={styles.alertDot} />
+    <View style={toneStyle}>
+      <View style={[styles.alertDot, { backgroundColor: dotColor }]} />
       <Text style={styles.alertText}>
-        <Text style={{ color: colors.text1, fontWeight: '600' }}>Runoff advisory: </Text>
-        <Text style={{ color: colors.fair, fontWeight: '600' }}>Turtle Canyon</Text>
-        <Text> and </Text>
-        <Text style={{ color: colors.fair, fontWeight: '600' }}>Hanauma Bay</Text>
-        <Text> — avoid for 48hrs after recent rainfall. </Text>
-        <Text style={styles.alertLink}>Learn more</Text>
+        <Text style={{ color: colors.text1, fontWeight: '600' }}>{top.title}</Text>
+        <Text>{' — '}{top.body}</Text>
+        {top.sourceUrl ? <Text style={styles.alertLink}>{' Learn more'}</Text> : null}
+        {more ? <Text style={styles.alertMeta}>{more}</Text> : null}
       </Text>
       <View style={styles.alertSpacer} />
-      <Pressable onPress={onDismiss} hitSlop={6}>
+      <Pressable onPress={() => setDismissed(new Set([...dismissed, top.alertId]))} hitSlop={6}>
         <Text style={styles.alertDismiss}>DISMISS ×</Text>
       </Pressable>
     </View>
@@ -504,7 +585,7 @@ function MapColumn({
   const zoom = selectedMarker ? 9.5 : HAWAII_ZOOM;
 
   return (
-    <View style={narrow ? { flex: 1, position: 'relative' } : [styles.mapColumn, { left: sidebarW, right: panelW }]}>
+    <View style={narrow ? { flex: 1, position: 'relative' } : styles.mapColumn}>
       <KaiCastMap
         markers={markers}
         center={center}
@@ -515,6 +596,8 @@ function MapColumn({
         showZoomControls
         showLayerControl
         layerControlOpenByDefault
+        waterColor="#0B1015"
+        landColor="#161C24"
       />
 
       {/* Bottom status bar — absolute overlay above the map canvas. */}
@@ -620,19 +703,10 @@ function SelectedSpotPanel({
 
       <BestWindow report={report} />
 
-      <PanelSection title="Condition alerts">
-        {ALERTS.map((a, i) => (
-          <View key={i} style={styles.alertRow}>
-            <View style={[styles.alertIconWrap, { backgroundColor: a.tint }]}>
-              <Text style={styles.alertIconText}>{a.icon}</Text>
-            </View>
-            <View style={styles.alertRowTextWrap}>
-              <Text style={styles.alertRowTitle}>{a.title}</Text>
-              <Text style={styles.alertRowBody}>{a.body}</Text>
-            </View>
-          </View>
-        ))}
-      </PanelSection>
+      {/* Live alerts from /spot_alerts. Hides itself when nothing's
+          active — no placeholder copy. Replaces the static ALERTS
+          stub. */}
+      <SpotAlerts spotId={spotId} />
 
       <PanelSection title="Friends in the water">
         {FRIENDS.map((f, i) => (
@@ -921,9 +995,43 @@ const styles = StyleSheet.create({
     paddingHorizontal: 28,
     paddingVertical: 10,
     gap: 12,
+    backgroundColor: 'rgba(12,155,250,0.10)', // info — accent blue tint
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(12,155,250,0.30)',
+  },
+  alertBannerAdvisory: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 28,
+    paddingVertical: 10,
+    gap: 12,
     backgroundColor: 'rgba(255,157,37,0.10)',
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255,157,37,0.30)',
+  },
+  alertBannerWarning: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 28,
+    paddingVertical: 10,
+    gap: 12,
+    backgroundColor: 'rgba(255,90,40,0.14)',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,90,40,0.40)',
+  },
+  alertBannerUrgent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 28,
+    paddingVertical: 12,
+    gap: 12,
+    backgroundColor: 'rgba(247,55,38,0.18)',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(247,55,38,0.55)',
+  },
+  alertMeta: {
+    color: 'rgba(248,248,248,0.55)',
+    fontFamily: 'inherit',
   },
   alertDot: {
     width: 8,
@@ -1157,20 +1265,16 @@ const styles = StyleSheet.create({
   },
 
   // ── Map (center) ──
-  // Absolutely positioned inside bodyFixed so it fills only the area
-  // between the side columns AND below the chrome — Hawaii ends up
-  // centered in the visible map instead of pushed down by an overlay.
-  // The page wrapper has overflow:hidden + height:100vh so nothing on
-  // this screen ever scrolls the document — only the side columns
-  // scroll internally.
+  // Lives in the middle column of the CSS Grid wrapper, so the grid
+  // itself places it between the side columns. No position:absolute
+  // needed. Mapbox's canvas re-resizes via the ResizeObserver in
+  // KaiCastMap whenever this cell's size changes (alert dismiss,
+  // sidebar collapse, window resize, etc.).
   mapColumn: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    // left + right set inline based on responsive side-column widths
+    height: '100%',
     backgroundColor: '#04111e',
     overflow: 'hidden',
-    zIndex: 0,
+    position: 'relative',
   },
   // Status bar
   mapStatusBar: {

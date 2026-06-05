@@ -25,6 +25,14 @@ export interface CreateInvitationResult {
   expiresAt: number;
   reused: boolean;
   acceptUrl: string;
+  /** True when the server actually sent the invitation email via
+   *  Resend. False when delivery failed (rate-limit, sandbox limits,
+   *  unverified sender) — the modal surfaces this so the admin knows
+   *  to fall back to copying the link. */
+  emailSent: boolean;
+  /** Resend error message (or "RESEND_API_KEY not configured") when
+   *  emailSent is false. Pre-formatted for surfacing to the admin. */
+  emailFailureReason: string | null;
 }
 
 export async function createCrewInvitation(

@@ -10,6 +10,7 @@
 import { initializeApp, type FirebaseApp } from 'firebase/app';
 import { getFirestore, type Firestore } from 'firebase/firestore';
 import { getAuth, type Auth } from 'firebase/auth';
+import { getStorage, type FirebaseStorage } from 'firebase/storage';
 
 const config = {
   apiKey:            ((import.meta as any).env?.VITE_FIREBASE_API_KEY            ?? '').trim(),
@@ -26,19 +27,22 @@ export const firebaseConfigured =
 let app: FirebaseApp | null = null;
 let db: Firestore | null = null;
 let auth: Auth | null = null;
+let storage: FirebaseStorage | null = null;
 
 if (firebaseConfigured) {
   try {
     app = initializeApp(config);
     db = getFirestore(app);
     auth = getAuth(app);
+    storage = getStorage(app);
   } catch (err) {
     // eslint-disable-next-line no-console
     console.warn('[firebase] init failed; falling back to mock', err);
     app = null;
     db = null;
     auth = null;
+    storage = null;
   }
 }
 
-export { app, db, auth };
+export { app, db, auth, storage };

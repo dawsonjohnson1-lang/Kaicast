@@ -1,4 +1,3 @@
-import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { colors, fonts, DESKTOP_MAX_WIDTH } from '../tokens';
 import type { NavigateFn, RouteKey } from '../router';

@@ -1721,7 +1721,15 @@ function buildDailyForecast({ marineForecast, owHourly, spot, nowMs, tideSeries 
     });
   }
 
-  const sortedKeys = [...buckets.keys()].sort();
+  // Drop any bucket older than the spot's local "today". Open-Meteo's
+  // forecast window can leak a few hours of yesterday into the data
+  // (UTC hours that span midnight HST end up in yesterday's local
+  // calendar day), so without this filter the 7-day strip starts on
+  // yesterday instead of today.
+  const todayKey = fmt.format(new Date(nowMs));
+  const sortedKeys = [...buckets.keys()]
+    .sort()
+    .filter((k) => k >= todayKey);
   // Solar events use the spot's horizon profile to compute the local
   // first-light / last-light per calendar day. Cheap (<30ms per day),
   // and the result is the *effective* sunrise/sunset accounting for
@@ -2161,6 +2169,14 @@ exports.getCharterBrief = require('./charter/getBrief').getCharterBrief;
 // dashboard banner reads from charter_accounts/{orgId}/alerts/.
 exports.charterGoodWindowAlerter = require('./charter/goodWindowAlerter').charterGoodWindowAlerter;
 
+// Spot share — satori-rendered Open Graph card + minimal HTML landing
+// page for iMessage/WhatsApp/Slack/Twitter unfurls. The hosting
+// rewrite "/s/**" → spotSharePage serves the HTML; the OG <meta> tag
+// points crawlers at generateSpotShareImage for the 1200×630 PNG.
+// Both are public (no auth) since unfurl crawlers fetch anonymously.
+exports.generateSpotShareImage = require('./share/generateSpotShareImage').generateSpotShareImage;
+exports.spotSharePage          = require('./share/spotSharePage').spotSharePage;
+
 // One-shot self-service callable for flipping the caller's user doc to
 // a charter account + seeding a fresh org with demo content. Email-
 // allowlisted (see ALLOWED_EMAILS in the file). Delete this export and
@@ -2200,7 +2216,15 @@ exports.seedHarbors = require('./charter/seedHarbors').seedHarbors;
 // the FAREHARBOR_APP_KEY secret (firebase functions:secrets:set).
 exports.validateFareHarborCredentials = require('./charter/fareharbor/validateCredentials').validateFareHarborCredentials;
 exports.syncFareHarborTrips           = require('./charter/fareharbor/sync').syncFareHarborTrips;
+exports.syncFareHarborTripsCallable   = require('./charter/fareharbor/syncCallable').syncFareHarborTripsCallable;
 exports.fareharborWebhook             = require('./charter/fareharbor/webhook').fareharborWebhook;
+
+// Captain's Log (Phase 10):
+//   - generateCaptainsLog — callable, renders charter_logs/{logDocId}
+//     to a printable HTML preview, emails operator digest. The
+//     Puppeteer PDF render plugs in once the printable template
+//     lands; until then the in-app submit returns the HTML preview.
+exports.generateCaptainsLog = require('./charter/generateCaptainsLog').generateCaptainsLog;
 
 // Legacy onDiveLogCreated trigger removed — its responsibilities
 // (ingesting reported_vis vs predicted_vis into abyss_diver_reports)

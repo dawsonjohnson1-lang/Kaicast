@@ -113,7 +113,17 @@ export type DiveLogInput = {
    * same `diveLogs/{logId}` doc so listing/cross-reference still works.
    */
   scuba?: {
-    diveSubType?: 'shore' | 'boat' | 'drift' | 'night' | 'wreck' | 'cave' | 'training';
+    // Legacy single-value subtype kept for backwards compat with
+    // existing server schema. The 14-value union matches desktop's
+    // SCUBA_DIVE_SUBTYPES (LogDiveScreen.tsx:301).
+    diveSubType?:
+      | 'shore' | 'boat' | 'drift' | 'night' | 'deep' | 'wreck'
+      | 'cave' | 'cavern' | 'ice' | 'altitude' | 'reef' | 'wall'
+      | 'training' | 'search_recovery';
+    // Multi-select array — primary source from the mobile/desktop UI.
+    // The first entry is mirrored back to `diveSubType` for server
+    // schemas that haven't been updated yet.
+    diveSubTypes?: NonNullable<DiveLogInput['scuba']>['diveSubType'][];
     entryType?: 'giant_stride' | 'back_roll' | 'shore';
     maxDepthFt?: number;
     visibilityFt?: number;
@@ -134,6 +144,50 @@ export type DiveLogInput = {
     // Calculated, stored for fast logbook queries.
     airUsedPsi?: number;
     sacRate?: number;
+    // Cert-eligibility — mirrors desktop's CertEligibilityBadge inputs.
+    isOfficial?: boolean;
+    verificationType?: 'self' | 'buddy' | 'instructor';
+    verifierName?: string;
+    verifierAgency?: string;
+    verifierCertNumber?: string;
+    verifierSignatureTyped?: string;
+    // Conditional reveal sub-objects — only present when the matching
+    // subtype is selected. Mirror desktop sections N1 + D1.
+    night?: {
+      lightSource?: string;
+      ambientLight?: string;
+      visibilityFt?: number;
+    };
+    deep?: {
+      confirmedFromComputer?: boolean;
+      narcosisExperienced?: boolean;
+      narcosisNotes?: string;
+      gasPlan?: string;
+    };
+  };
+  // Activity-specific top-level blocks (mirror desktop sections F1, S1).
+  // Only present when diveType matches.
+  freedive?: {
+    discipline?: string;
+    equalization?: string;
+    targetDepthFt?: number;
+    breathHold?: string;       // 'mm:ss'
+    attempts?: number;
+    surfaceProtocolPass?: boolean;
+    safetyOnDuty?: boolean;
+  };
+  spear?: {
+    gear?: string;
+    accessMode?: string;
+    speciesLanded?: string;    // comma-separated free text
+    catchWeightLbs?: number;
+    stringerUsed?: boolean;
+  };
+  // Rate the Dive (desktop section 07).
+  rating?: {
+    stars?: number;            // 0–5
+    recommend?: string;        // RECOMMEND_CHIPS value
+    reefHealth?: string;       // REEF_HEALTH_CHIPS value
   };
 };
 

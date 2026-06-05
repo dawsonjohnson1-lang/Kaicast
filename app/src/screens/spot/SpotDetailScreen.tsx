@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, Pressable, Image, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, Pressable, Image, StyleSheet, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 
@@ -30,6 +30,7 @@ import { useSpotDiveLogs, diveLogToReport } from '@/hooks/useDiveLogs';
 import { useAuth } from '@/hooks/useAuth';
 import { useFavorites } from '@/hooks/useFavorites';
 import { addFavorite, removeFavorite } from '@/api/favorites';
+import { useSpotShare } from '@/hooks/useSpotShare';
 
 type SpotTab = 'Overview' | 'Hazards' | 'Forecast' | 'Guide';
 
@@ -61,6 +62,14 @@ export function SpotDetailScreen() {
   };
   const reportState = useSpotReport(spot ?? undefined);
   const r = reportState.data;
+  // Share button — wraps RN Share with the canonical kaicast.com/s
+  // URL the OG-tag function unfurls. When the screen was opened from
+  // a deep link that carried a date (`/spot/:spotId/:date`), we keep
+  // sharing that same date so the chain of shares stays coherent.
+  // Otherwise we omit the date and the server defaults to today HST
+  // (matches what's actually showing on screen — there's no per-day
+  // picker yet).
+  const { share: onShare, isSharing } = useSpotShare(spot, route.params.date ?? null);
   const { logs: spotLogs } = useSpotDiveLogs(spot?.id);
   // Live community feed for this spot. We no longer fall back to the
   // mocks — an empty list renders the "Be the first to log here" CTA.
@@ -104,13 +113,29 @@ export function SpotDetailScreen() {
           transparent
           onBack={() => nav.goBack()}
           rightSlot={
-            <Pressable hitSlop={12} style={styles.iconBtn} onPress={onToggleFavorite}>
-              <Icon
-                name={favorited ? 'heart-filled' : 'heart'}
-                size={20}
-                color={favorited ? colors.accent : colors.textPrimary}
-              />
-            </Pressable>
+            <View style={styles.headerActions}>
+              <Pressable
+                hitSlop={12}
+                style={styles.iconBtn}
+                onPress={onShare}
+                disabled={isSharing}
+                accessibilityRole="button"
+                accessibilityLabel="Share this spot"
+              >
+                {isSharing ? (
+                  <ActivityIndicator size="small" color={colors.accent} />
+                ) : (
+                  <Icon name="share" size={20} color={colors.accent} />
+                )}
+              </Pressable>
+              <Pressable hitSlop={12} style={styles.iconBtn} onPress={onToggleFavorite}>
+                <Icon
+                  name={favorited ? 'heart-filled' : 'heart'}
+                  size={20}
+                  color={favorited ? colors.accent : colors.textPrimary}
+                />
+              </Pressable>
+            </View>
           }
         />
         <View style={styles.heroBody}>
@@ -379,6 +404,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: colors.border,
+  },
+  // Wraps the share + favorite buttons in the Header's rightSlot.
+  // Header.side flexes to accommodate the wider content.
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
   },
   dialOverlay: { position: 'absolute', right: 8, bottom: 8 },
   stickyCta: {

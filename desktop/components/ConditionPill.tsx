@@ -1,4 +1,3 @@
-import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { colors, fonts, TIER_COLORS, TIER_LABELS, type ConditionTier } from '../tokens';
 

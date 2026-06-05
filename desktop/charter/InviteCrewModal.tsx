@@ -14,8 +14,10 @@ import { createCrewInvitation, type CreateInvitationResult } from './createCrewI
 import type { InvitedRole } from './useCharterInvitations';
 
 const ROLE_OPTIONS: ReadonlyArray<{ id: InvitedRole; label: string }> = [
+  { id: 'manager',    label: 'Manager' },
   { id: 'captain',    label: 'Captain' },
   { id: 'divemaster', label: 'Divemaster' },
+  { id: 'instructor', label: 'Instructor' },
   { id: 'deckhand',   label: 'Deckhand' },
 ];
 
@@ -138,12 +140,16 @@ export function InviteCrewModal({ orgId, onClose }: Props) {
             ) : (
               <View style={styles.successWrap}>
                 <Text style={styles.successTitle}>
-                  {result.reused ? 'Invitation already pending' : 'Invitation created'}
+                  {result.emailSent
+                    ? (result.reused ? 'Invitation re-sent' : 'Invitation sent')
+                    : (result.reused ? 'Invitation already pending' : 'Invitation created')}
                 </Text>
                 <Text style={styles.successBody}>
-                  {result.reused
-                    ? `A pending invite for this email already exists. The link below works either way.`
-                    : `${result.orgName} → ${draft.email} as ${labelForRole(result.role)}. Expires in 7 days.`}
+                  {result.emailSent
+                    ? `${result.orgName} → ${draft.email} as ${labelForRole(result.role)}. They'll get an email with the accept link.`
+                    : (result.reused
+                        ? `A pending invite for this email already exists. The accept link is below — email delivery didn't go through this time, so paste it manually.`
+                        : `${result.orgName} → ${draft.email} as ${labelForRole(result.role)}. The email didn't go through, but the accept link still works.`)}
                 </Text>
                 <Text style={styles.linkLabel}>Accept link</Text>
                 <View style={styles.linkRow}>
@@ -152,9 +158,15 @@ export function InviteCrewModal({ orgId, onClose }: Props) {
                     <Text style={styles.btnGhostText}>{copied ? 'Copied ✓' : 'Copy'}</Text>
                   </Pressable>
                 </View>
-                <Text style={styles.hint}>
-                  Auto-sent invitation emails land with the next deploy. Until then, paste this link into whichever messenger you use.
-                </Text>
+                {!result.emailSent ? (
+                  <Text style={styles.hint}>
+                    Email delivery failed{result.emailFailureReason ? `: ${result.emailFailureReason}` : ''}. The invitation itself is saved — paste the link above into whichever messenger you prefer.
+                  </Text>
+                ) : (
+                  <Text style={styles.hint}>
+                    You can also paste this link directly if they don't see the email.
+                  </Text>
+                )}
                 {error ? <Text style={styles.errText}>{error}</Text> : null}
                 <View style={styles.actions}>
                   <Pressable onPress={onClose} style={[styles.btn, styles.btnPrimary]}>

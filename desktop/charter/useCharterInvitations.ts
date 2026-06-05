@@ -103,7 +103,7 @@ function invitationFromDoc(id: string, data: Record<string, unknown>): CrewInvit
 }
 
 function roleFromString(v: unknown): InvitedRole {
-  if (v === 'captain' || v === 'divemaster' || v === 'deckhand') return v;
+  if (v === 'manager' || v === 'captain' || v === 'divemaster' || v === 'instructor' || v === 'deckhand') return v;
   return 'deckhand';
 }
 

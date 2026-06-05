@@ -1126,40 +1126,260 @@ function _compass(deg) {
   return _COMPASS_16[Math.round((((deg % 360) + 360) % 360) / 22.5) % 16];
 }
 
-function _describeVisibility(visFt) {
-  if (visFt == null) return 'visibility hard to read';
-  if (visFt >= 50) return `gin-clear ~${visFt} ft`;
-  if (visFt >= 30) return `clean ~${visFt} ft`;
-  if (visFt >= 15) return `decent ~${visFt} ft`;
-  return `murky — only ${visFt} ft`;
+// Deterministic small hash so the same conditions pick the same phrase
+// across reads (no flickering on refresh) but neighboring conditions
+// pick different ones (no copy-paste feel). Inputs are coerced to ints
+// so 12.4 kt and 12.6 kt → same seed; 12 kt and 15 kt → different seeds.
+function _seed(...nums) {
+  let h = 2166136261;
+  for (const n of nums) {
+    const v = Number.isFinite(n) ? Math.round(n) : 0;
+    h ^= v;
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0);
+}
+function _pick(arr, seed) {
+  return arr[seed % arr.length];
 }
 
-function _describeWind(windKt, windDirDeg) {
-  const dir = _compass(windDirDeg);
+// ── Phrase banks ─────────────────────────────────────────────────────
+// Each describer returns ONE OF N variants chosen by a stable seed,
+// so we don't read like an assembly line. Phrasings are crafted to
+// fit different sentence shapes — some are full clauses, some are
+// fragments meant to be commaed together, some lead a sentence.
+
+function _describeVisibility(visFt, seed = 0) {
+  if (visFt == null) return null;
+  if (visFt >= 50) {
+    return _pick([
+      `${visFt} ft of gin-clear water`,
+      `you can see forever — ${visFt}+ ft`,
+      `viz pops at ${visFt} ft`,
+      `${visFt}-ft visibility`,
+    ], seed);
+  }
+  if (visFt >= 30) {
+    return _pick([
+      `clean water, ${visFt}-ish feet`,
+      `${visFt} ft of visibility`,
+      `clear enough — about ${visFt} ft`,
+      `${visFt}-ft viz`,
+    ], seed);
+  }
+  if (visFt >= 15) {
+    return _pick([
+      `decent ${visFt}-ft viz`,
+      `${visFt} ft, workable`,
+      `${visFt}-ish ft of visibility`,
+      `not bad — ${visFt} ft`,
+    ], seed);
+  }
+  // murky bucket
+  return _pick([
+    `${visFt} ft of soup`,
+    `cloudy, maybe ${visFt} ft`,
+    `green and hazy at ${visFt} ft`,
+    `${visFt} ft tops`,
+    `you'll see your hand and not much else, ${visFt}-ish`,
+    `murky — barely ${visFt} ft`,
+  ], seed);
+}
+
+function _describeWind(windKt, windDirDeg, seed = 0) {
   if (windKt == null) return null;
+  const dir = _compass(windDirDeg);
   const kt = Math.round(windKt);
-  if (windKt < 6)  return dir ? `light ${dir} winds (${kt} kts)` : 'barely any wind';
-  if (windKt < 12) return dir ? `moderate ${dir} trades around ${kt} kts` : `moderate trades around ${kt} kts`;
-  if (windKt < 18) return dir ? `stiff ${kt}-kt trades from the ${dir}` : `stiff ${kt}-kt trades`;
-  return dir ? `blown out — ${kt}-kt winds out of the ${dir}` : `blown out at ${kt} kts`;
+  const dirTxt = dir ? dir : null;
+
+  if (windKt < 6) {
+    return _pick([
+      'glassy surface',
+      'barely any wind',
+      'wind is asleep',
+      dirTxt ? `light ${dirTxt} breeze` : 'a whisper of wind',
+    ], seed);
+  }
+  if (windKt < 12) {
+    return _pick([
+      dirTxt ? `moderate ${dirTxt} trades` : 'moderate trades',
+      `trades doing their thing at ${kt}`,
+      dirTxt ? `${kt}-kt ${dirTxt} breeze` : `${kt}-kt breeze`,
+      'trades are present but not pushy',
+    ], seed);
+  }
+  if (windKt < 18) {
+    return _pick([
+      dirTxt ? `${kt}-kt ${dirTxt} trades pushing through` : `${kt}-kt trades pushing through`,
+      dirTxt ? `stiff ${dirTxt} wind, ${kt} kt` : `stiff wind at ${kt} kt`,
+      `${kt}-kt trades, surface has some texture`,
+      dirTxt ? `wind's up — ${kt} kt out of the ${dirTxt}` : `wind's up — ${kt} kt`,
+    ], seed);
+  }
+  // ≥ 18 kt — bad
+  return _pick([
+    dirTxt ? `it's honking out of the ${dirTxt} at ${kt}` : `it's honking at ${kt} kt`,
+    `the surface is trashed`,
+    dirTxt ? `${kt}-kt ${dirTxt} wind has the top ripped up` : `${kt}-kt wind has the top ripped up`,
+    `whitecaps to the horizon`,
+    dirTxt ? `${dirTxt} wind ripping at ${kt}` : `wind ripping at ${kt}`,
+    dirTxt ? `${kt}-kt ${dirTxt} winds — surface is choppy as hell` : `${kt}-kt winds — surface is choppy as hell`,
+  ], seed);
 }
 
-function _describeSwell(swellFt, periodS, swellDirDeg) {
+function _describeSwell(swellFt, periodS, swellDirDeg, seed = 0) {
   if (swellFt == null) return null;
   const dir = _compass(swellDirDeg);
-  const fromTxt = dir ? ` out of the ${dir}` : '';
-  const periodTxt = periodS ? `${Math.round(periodS)}s ` : '';
-  if (swellFt < 1)     return `barely any swell (sub-foot${fromTxt})`;
-  if (swellFt < 3)     return `mellow ${swellFt.toFixed(1)}-ft ${periodTxt}swell${fromTxt}`;
-  if (swellFt < 5)     return `${swellFt.toFixed(1)}-ft ${periodTxt}swell${fromTxt}`;
-  if (swellFt < 8)     return `solid ${swellFt.toFixed(1)}-ft ${periodTxt}swell pushing in${fromTxt}`;
-  return `big ${swellFt.toFixed(1)}-ft ${periodTxt}swell pounding the coast${fromTxt}`;
+  const dirTxt = dir ? dir : null;
+  const ft = swellFt.toFixed(1);
+
+  if (swellFt < 1) {
+    return _pick([
+      'essentially flat',
+      'barely a ripple',
+      dirTxt ? `sub-foot from the ${dirTxt}` : 'sub-foot',
+      'knee-high mush at best',
+    ], seed);
+  }
+  if (swellFt < 3) {
+    return _pick([
+      dirTxt ? `mellow ${ft}-ft swell from ${dirTxt}` : `mellow ${ft}-ft swell`,
+      dirTxt ? `${ft} ft of ${dirTxt} groundswell` : `${ft} ft of groundswell`,
+      `${ft} ft, easy`,
+    ], seed);
+  }
+  if (swellFt < 5) {
+    return _pick([
+      dirTxt ? `${ft}-ft swell out of ${dirTxt}` : `${ft}-ft swell`,
+      `${ft} ft pushing in`,
+      dirTxt ? `${ft} ft from the ${dirTxt}` : `${ft} ft of swell`,
+    ], seed);
+  }
+  if (swellFt < 8) {
+    return _pick([
+      dirTxt ? `solid ${ft}-ft ${dirTxt} groundswell` : `solid ${ft}-ft groundswell`,
+      `${ft} ft is moving real water`,
+      dirTxt ? `${ft}-ft swell out of ${dirTxt}, plenty of push` : `${ft}-ft swell with plenty of push`,
+    ], seed);
+  }
+  return _pick([
+    dirTxt ? `head-high+ from ${dirTxt}` : 'head-high+ swell',
+    `${ft} ft pounding the coast`,
+    `swell is overhead and angry`,
+  ], seed);
 }
 
 function _pickStrongestHurts(details) {
   return Object.entries(details || {})
     .filter(([, v]) => Number.isFinite(v) && v < 0)
     .sort((a, b) => a[1] - b[1]);
+}
+
+// ── Tier-specific lead generators ─────────────────────────────────────
+// Returns either { verdict, lead } where lead is a full first sentence
+// already cased and punctuated. If lead leads with the dominant factor,
+// verdict can be tacked on as sentence 2; if verdict leads, the factor
+// phrase becomes sentence 2.
+
+function _excellentLead(seed) {
+  return _pick([
+    "Prime day — about as good as it gets here.",
+    "If you've been waiting, today's the day.",
+    "Drop everything; this is the window.",
+    "About as clean as this spot ever runs.",
+  ], seed);
+}
+
+function _greatLead(seed, _hasStress) {
+  // "great with caveats" gets a different tone from clean great
+  if (_hasStress) {
+    return _pick([
+      "Solid, with a few asterisks.",
+      "Good window if you know how this spot handles wind.",
+      "Workable if you know the spot.",
+    ], seed);
+  }
+  return _pick([
+    "Solid window today.",
+    "Stacked in your favor.",
+    "Today's a good one.",
+    "Conditions are dialed in.",
+  ], seed);
+}
+
+function _goodLead(seed, headlineHurtPhrase) {
+  // Sometimes verdict-first, sometimes problem-first. ~50/50.
+  if (headlineHurtPhrase && (seed % 2 === 0)) {
+    // Capitalize first letter of the dominant-factor phrase
+    const cap = headlineHurtPhrase.charAt(0).toUpperCase() + headlineHurtPhrase.slice(1);
+    return _pick([
+      `${cap} is the catch, but it's still go-able.`,
+      `${cap}. Still diveable if you're flexible.`,
+      `${cap} — but you can work around it.`,
+    ], seed);
+  }
+  return _pick([
+    "Diveable but pick your moment.",
+    "Go-able, just not perfect.",
+    "Get in if you've got the morning free.",
+    "Window's narrow but it's there.",
+  ], seed);
+}
+
+function _fairLead(seed, headlineHurtPhrase) {
+  // Fair days are where the writer voice lives. Lead with the texture.
+  if (headlineHurtPhrase && (seed % 3 !== 0)) {
+    const cap = headlineHurtPhrase.charAt(0).toUpperCase() + headlineHurtPhrase.slice(1);
+    return _pick([
+      `${cap}. Locals-only kind of day.`,
+      `${cap} is making this a stretch.`,
+      `${cap} — borderline.`,
+      `${cap}. Only worth it if you really know this spot.`,
+    ], seed);
+  }
+  return _pick([
+    "Marginal. You'd want to know this spot before going.",
+    "Stretchy day — possible but not pretty.",
+    "Borderline. Save it for the next swell window.",
+  ], seed);
+}
+
+function _nogoLead(seed, headlineHurtPhrase) {
+  // Blunt, short, no fluff.
+  if (headlineHurtPhrase && (seed % 2 === 0)) {
+    const cap = headlineHurtPhrase.charAt(0).toUpperCase() + headlineHurtPhrase.slice(1);
+    return _pick([
+      `${cap}. Stay home.`,
+      `${cap}. Not today.`,
+      `${cap}. Try tomorrow.`,
+    ], seed);
+  }
+  return _pick([
+    "Skip it today.",
+    "Not today.",
+    "Nope. Try tomorrow.",
+    "Hard pass.",
+  ], seed);
+}
+
+// Compose a single sentence from a list of factor phrases using varied
+// connectors instead of always-comma. e.g. "X, and Y" vs "X. Y." vs "X
+// but Y" — different shapes for different days.
+function _composeFactors(phrases, seed) {
+  if (phrases.length === 0) return '';
+  if (phrases.length === 1) {
+    const p = phrases[0];
+    return p.charAt(0).toUpperCase() + p.slice(1) + '.';
+  }
+  // Two phrases — vary the connector
+  const a = phrases[0];
+  const b = phrases[1];
+  const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+  const shape = seed % 4;
+  if (shape === 0) return `${cap(a)}. ${cap(b)}.`;
+  if (shape === 1) return `${cap(a)}, and ${b}.`;
+  if (shape === 2) return `${cap(a)} — plus ${b}.`;
+  return `${cap(a)}, though ${b}.`;
 }
 
 function humanizeReason({
@@ -1179,91 +1399,122 @@ function humanizeReason({
   const headlineHurt = hurts[0] && hurts[0][0];
   const secondHurt = hurts[1] && hurts[1][0];
 
-  // 1. Verdict — tone matches the underlying ground truth (a GREAT
-  //    day with stiff wind isn't "drop everything", it's "workable").
-  let verdict;
-  if (tier === 'excellent') {
-    verdict = 'Prime day — about as good as it gets here.';
-  } else if (tier === 'great') {
-    verdict = (windKnots != null && windKnots >= 15) || (swellFeet != null && swellFeet >= 5)
-      ? 'Workable if you know the spot.'
-      : 'Solid window today.';
-  } else if (tier === 'good') {
-    verdict = 'Diveable but pick your moment.';
-  } else if (tier === 'fair') {
-    verdict = 'Marginal — only worth it if you know this spot well.';
-  } else if (tier === 'no-go') {
-    verdict = 'Skip it today.';
-  } else {
-    verdict = 'Conditions update.';
+  // Per-report seed — stable across reads, varies by conditions.
+  const seed = _seed(
+    Math.round((visibilityFeet ?? 0) * 1),
+    Math.round((windKnots ?? 0) * 1),
+    Math.round((swellFeet ?? 0) * 10),
+    Math.round((windDirDeg ?? 0) / 22.5),
+  );
+
+  // Helper: get the dominant-factor phrase (positive on excellent/great,
+  // negative on good/fair/no-go).
+  const visTxt   = _describeVisibility(visibilityFeet, seed);
+  const windTxt  = _describeWind(windKnots, windDirDeg, seed >> 3);
+  const swellTxt = _describeSwell(swellFeet, swellPeriodSec, swellDirDeg, seed >> 6);
+
+  // What's the dominant negative factor's plain-language phrase, if any?
+  // Used to construct problem-first leads on bad days.
+  let headlinePhrase = null;
+  if (headlineHurt === 'wind' && windTxt)       headlinePhrase = windTxt;
+  else if (headlineHurt === 'vis' && visTxt)    headlinePhrase = visTxt;
+  else if ((headlineHurt === 'swell' || headlineHurt === 'swellSpot' || headlineHurt === 'swellSpotHard') && swellTxt) headlinePhrase = swellTxt;
+  else if (headlineHurt === 'rain' || headlineHurt === 'runoff') {
+    headlinePhrase = _pick([
+      'runoff has muddied things up',
+      'recent rain is still flushing through',
+      'runoff plume is sitting in the bay',
+    ], seed);
+  } else if (headlineHurt === 'current') {
+    headlinePhrase = "current's strong enough to push you around";
+  } else if (headlineHurt === 'period') {
+    headlinePhrase = 'short-period chop is messing with the surface';
   }
 
-  // 2. What's helping or what's hurting, in normal language.
-  const phrases = [];
-  if (tier === 'excellent' || tier === 'great') {
-    // Lead with the conditions that make it dive-worthy
-    const swellTxt = _describeSwell(swellFeet, swellPeriodSec, swellDirDeg);
-    const windTxt = _describeWind(windKnots, windDirDeg);
-    const visTxt = _describeVisibility(visibilityFeet);
-    if (swellTxt) phrases.push(swellTxt);
-    if (windTxt)  phrases.push(windTxt);
-    if (phrases.length === 0 || (windKnots != null && windKnots < 12 && swellFeet != null && swellFeet < 3)) {
-      phrases.push(visTxt);
+  // ── Compose by tier ───────────────────────────────────────────
+  let pieces = [];
+
+  if (tier === 'excellent') {
+    pieces.push(_excellentLead(seed));
+    // Add one positive observation about today's conditions
+    const positives = [swellTxt, windTxt, visTxt].filter(Boolean);
+    if (positives.length) {
+      const p1 = positives[seed % positives.length];
+      const p2 = positives[(seed + 1) % positives.length];
+      const obs = (p1 && p2 && p1 !== p2) ? _composeFactors([p1, p2], seed) : (p1 + '.');
+      pieces.push(obs.charAt(0).toUpperCase() + obs.slice(1));
     }
-  } else {
-    // Lead with the strongest negative factor. Suffixes are bucket-
-    // aware so the adjective and the verdict don't contradict —
-    // "decent ~23 ft" can't be "killing it", and "blown out winds"
-    // is already conclusive without "chopping the surface" tacked on.
-    if (headlineHurt === 'vis') {
-      const visTxt = _describeVisibility(visibilityFeet);
-      const isMurky = visibilityFeet != null && visibilityFeet < 15;
-      phrases.push(isMurky ? `${visTxt} is killing it` : `${visTxt} isn't helping`);
-    } else if (headlineHurt === 'wind') {
-      const w = _describeWind(windKnots, windDirDeg);
-      const alreadyBlown = windKnots != null && windKnots >= 18;
-      if (w) phrases.push(alreadyBlown ? w : `${w} is chopping the surface`);
-    } else if (headlineHurt === 'swell' || headlineHurt === 'swellSpot' || headlineHurt === 'swellSpotHard') {
-      const s = _describeSwell(swellFeet, swellPeriodSec, swellDirDeg);
-      if (s) phrases.push(`${s}${details.swellSpotHard ? ' — way over what this spot handles cleanly' : ''}`);
-    } else if (headlineHurt === 'rain' || headlineHurt === 'runoff') {
-      phrases.push('runoff from recent rain has muddied things up');
-    } else if (headlineHurt === 'current') {
-      phrases.push("current's strong enough to push you around");
-    } else if (headlineHurt === 'period') {
-      phrases.push('short-period chop is making the surface messy');
-    }
-    // Second-most-significant factor, if it's also material
+  } else if (tier === 'great') {
+    const hasStress = (windKnots != null && windKnots >= 15) || (swellFeet != null && swellFeet >= 5);
+    pieces.push(_greatLead(seed, hasStress));
+    // One positive + maybe one mild caveat
+    const phrases = [];
+    if (visTxt && (visibilityFeet ?? 0) >= 20) phrases.push(visTxt);
+    if (swellTxt && (swellFeet ?? 0) > 0 && (swellFeet ?? 0) < 5) phrases.push(swellTxt);
+    if (hasStress && windTxt) phrases.push(windTxt);
+    if (phrases.length) pieces.push(_composeFactors(phrases.slice(0, 2), seed));
+  } else if (tier === 'good') {
+    pieces.push(_goodLead(seed, headlinePhrase));
+    // Add a second factor if it's also notably negative AND wasn't the lead
+    const phrases = [];
     if (secondHurt && details[secondHurt] <= -10 && secondHurt !== headlineHurt) {
-      if (secondHurt === 'wind' && !phrases.some((p) => /wind|trades|kts/.test(p))) {
-        const w = _describeWind(windKnots, windDirDeg);
-        if (w) phrases.push(`and ${w}`);
-      } else if (secondHurt === 'vis' && !phrases.some((p) => /viz|visibility|murky|clean|gin/i.test(p))) {
-        if (visibilityFeet != null) phrases.push(`viz is only around ${visibilityFeet} ft`);
-      } else if ((secondHurt === 'swell' || secondHurt === 'swellSpot') && !phrases.some((p) => /swell|ft/.test(p))) {
-        const s = _describeSwell(swellFeet, swellPeriodSec, swellDirDeg);
-        if (s) phrases.push(`plus ${s}`);
+      let p = null;
+      if (secondHurt === 'wind' && windTxt) p = windTxt;
+      else if (secondHurt === 'vis' && visTxt) p = visTxt;
+      else if ((secondHurt === 'swell' || secondHurt === 'swellSpot') && swellTxt) p = swellTxt;
+      if (p && pieces[0].toLowerCase().indexOf(p.slice(0, 6).toLowerCase()) === -1) {
+        phrases.push(p);
       }
     }
+    if (phrases.length) pieces.push(_composeFactors(phrases, seed));
+  } else if (tier === 'fair') {
+    pieces.push(_fairLead(seed, headlinePhrase));
+    // Add a contrasting note if anything's working
+    if (visTxt && (visibilityFeet ?? 0) >= 20 && headlineHurt !== 'vis') {
+      pieces.push(_pick([
+        `Vis is actually okay — ${visibilityFeet} ft.`,
+        `At least viz isn't the problem (${visibilityFeet} ft).`,
+        `${visTxt.charAt(0).toUpperCase() + visTxt.slice(1)} is the only thing going for it.`,
+      ], seed) );
+    } else if (secondHurt && details[secondHurt] <= -10 && secondHurt !== headlineHurt) {
+      // Stack the second hurt as a short fragment
+      let p = null;
+      if (secondHurt === 'wind' && windTxt) p = windTxt;
+      else if (secondHurt === 'vis' && visTxt) p = visTxt;
+      else if ((secondHurt === 'swell' || secondHurt === 'swellSpot') && swellTxt) p = swellTxt;
+      if (p) pieces.push(p.charAt(0).toUpperCase() + p.slice(1) + '.');
+    }
+  } else if (tier === 'no-go') {
+    pieces.push(_nogoLead(seed, headlinePhrase));
+    // Sometimes add a second short reason. Keep terse.
+    if (secondHurt && details[secondHurt] <= -15 && secondHurt !== headlineHurt && (seed % 2 === 0)) {
+      let p = null;
+      if (secondHurt === 'wind' && windTxt) p = windTxt;
+      else if (secondHurt === 'vis' && visTxt) p = visTxt;
+      else if ((secondHurt === 'swell' || secondHurt === 'swellSpot') && swellTxt) p = swellTxt;
+      if (p) pieces.push(p.charAt(0).toUpperCase() + p.slice(1) + '.');
+    }
+  } else {
+    pieces.push('Conditions update.');
   }
-  let sentence2 = phrases.join(', ');
-  if (sentence2) sentence2 = sentence2.charAt(0).toUpperCase() + sentence2.slice(1) + '.';
 
-  // 3. Tide — only when load-bearing. Skip the formulaic "rising tide +
-  //    clean water" bonus that previously fired on almost every report.
-  let sentence3 = '';
+  // ── Tide note — only when load-bearing AND not already implied ──
   if (tide) {
     const state = tide.currentTideState;
-    if (state === 'slack') {
-      sentence3 = 'Tide near slack — minimal current, good for photography.';
-    } else if ((state === 'high' || state === 'low') && (tier === 'excellent' || tier === 'great' || tier === 'good')) {
-      sentence3 = `Near ${state} tide — expect a bit more water movement.`;
-    } else if (runoff && runoff.severity && runoff.severity !== 'none' && state === 'rising') {
-      sentence3 = 'Rising tide is flushing recent runoff back out, which is the main reason it reads as workable.';
+    if (state === 'slack' && (tier === 'excellent' || tier === 'great' || tier === 'good')) {
+      pieces.push(_pick([
+        'Tide near slack — minimal current, good for photography.',
+        'Slack tide right now, current is asleep.',
+      ], seed));
+    } else if (runoff && runoff.severity && runoff.severity !== 'none' && runoff.severity !== 'low' && state === 'rising') {
+      pieces.push(_pick([
+        "Rising tide is flushing the runoff out, which is the main reason it's even workable.",
+        'Tide is on the rise and pushing fresh water back out.',
+      ], seed));
     }
   }
 
-  return [verdict, sentence2, sentence3].filter(Boolean).join(' ');
+  return pieces.filter(Boolean).join(' ');
 }
 
 function generateSnorkelRating({
@@ -1713,6 +1964,7 @@ module.exports = {
   evaluateJellyfishAndNightDive,
   estimateVisibility,
   generateSnorkelRating,
+  humanizeReason,
   estimateRunoffRisk,
   assessRunoffRisk,
   computeRainTotals,

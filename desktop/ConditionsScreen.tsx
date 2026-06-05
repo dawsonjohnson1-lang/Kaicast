@@ -87,7 +87,6 @@ const MAUI_SPOTS: SpotRow[] = [
   { name: 'Honolua Bay',         region: 'West · Shore',  rating: 'great',     forecast: ['great','great','good','good','fair','fair','good'],            vis: 55, temp: 77, swell: 2.5 },
   { name: 'Black Rock',          region: 'West · Shore',  rating: 'great',     forecast: ['great','great','good','good','good','good','great'],           vis: 45, temp: 78, swell: 2.0 },
   { name: 'La Perouse',          region: 'South · Shore', rating: 'good',      forecast: ['good','good','good','fair','fair','good','good'],              vis: 40, temp: 77, swell: 2.2 },
-  { name: 'Airport Beach',       region: 'West · Shore',  rating: 'good',      forecast: ['good','good','great','good','good','great','good'],            vis: 38, temp: 78, swell: 2.0 },
 ];
 
 const BIG_ISLAND_SPOTS: SpotRow[] = [
@@ -102,7 +101,6 @@ const KAUAI_SPOTS: SpotRow[] = [
   { name: 'Koloa Landing',     region: 'South · Shore',   rating: 'great', forecast: ['great','great','good','good','great','great','great'], vis: 50, temp: 76, swell: 2.0 },
   { name: 'Tunnels Beach',     region: 'North · Shore',   rating: 'good',  forecast: ['good','good','fair','fair','fair','good','good'],       vis: 45, temp: 76, swell: 2.5 },
   { name: "Brennecke's Ledge", region: 'South · Shore',   rating: 'good',  forecast: ['good','good','good','great','great','good','good'],     vis: 40, temp: 76, swell: 2.0 },
-  { name: 'Nukumoi Point',     region: 'South · Shore',   rating: 'fair',  forecast: ['fair','fair','good','good','good','fair','fair'],       vis: 30, temp: 76, swell: 2.8 },
 ];
 
 const MOLOKAI_SPOTS: SpotRow[] = [
@@ -169,6 +167,12 @@ export function ConditionsScreen({ activeNav = 'forecast', onNavigate }: Conditi
   const [diveTypeFilter, setDiveTypeFilter] = React.useState<string | null>(null);
   const [mySpotsOnly, setMySpotsOnly] = React.useState(false);
   const [viewMode, setViewMode] = React.useState<'table' | 'grid'>('table');
+  // selectedDay: 0 = today, 1..6 = days out. Drives the condition pill
+  // column, the highlighted bar in the 7-day strip, and the snapshot/
+  // firing-now headers. Vis/temp/swell numeric columns continue to
+  // show today's values (the per-spot mock data only carries tier-level
+  // forecasts), with a small disclaimer when day != today.
+  const [selectedDay, setSelectedDay] = React.useState(0);
   const favs = useFavorites();
 
   const filterRow = React.useCallback(
@@ -199,6 +203,8 @@ export function ConditionsScreen({ activeNav = 'forecast', onNavigate }: Conditi
           onViewModeChange={setViewMode}
         />
 
+        <DayPicker value={selectedDay} onChange={setSelectedDay} />
+
         <View style={styles.body}>
           <Sidebar
             activeFilter={activeFilter}
@@ -209,8 +215,9 @@ export function ConditionsScreen({ activeNav = 'forecast', onNavigate }: Conditi
             onDiveTypeFilterChange={setDiveTypeFilter}
             mySpotsOnly={mySpotsOnly}
             onMySpotsOnlyChange={setMySpotsOnly}
+            selectedDay={selectedDay}
           />
-          <Main filterRow={filterRow} onNavigate={onNavigate} />
+          <Main filterRow={filterRow} selectedDay={selectedDay} onNavigate={onNavigate} />
         </View>
       </View>
     </ScrollView>
@@ -286,6 +293,7 @@ function Sidebar({
   onDiveTypeFilterChange,
   mySpotsOnly,
   onMySpotsOnlyChange,
+  selectedDay,
 }: {
   activeFilter: FilterTab;
   onActiveFilterChange: (v: FilterTab) => void;
@@ -295,6 +303,7 @@ function Sidebar({
   onDiveTypeFilterChange: (v: string | null) => void;
   mySpotsOnly: boolean;
   onMySpotsOnlyChange: (v: boolean) => void;
+  selectedDay: number;
 }) {
   // Filter rows toggle: clicking the active filter clears it. Makes the
   // sidebar a self-contained way to back out of a filter without hunting
@@ -347,7 +356,7 @@ function Sidebar({
 
       <Divider />
 
-      <TodaysSnapshot />
+      <TodaysSnapshot selectedDay={selectedDay} />
 
       <Divider />
 
@@ -435,7 +444,7 @@ function Divider() {
   return <View style={styles.sidebarDivider} />;
 }
 
-function TodaysSnapshot() {
+function TodaysSnapshot({ selectedDay }: { selectedDay: number }) {
   // Same numbers used in the sidebar filter counts.
   const SEGMENTS = [
     { tier: 'excellent' as ConditionTier, count: 5 },
@@ -444,12 +453,13 @@ function TodaysSnapshot() {
     { tier: 'fair'      as ConditionTier, count: 3 },
   ];
   const total = SEGMENTS.reduce((s, x) => s + x.count, 0);
+  const dayLabel = selectedDay === 0 ? 'Today' : longDayLabel(selectedDay);
 
   return (
     <View style={styles.snapshot}>
       <View style={styles.snapshotHeader}>
-        <Text style={styles.snapshotTitle}>Today across Hawaii</Text>
-        <Text style={styles.snapshotUpdated}>Updated 4m ago</Text>
+        <Text style={styles.snapshotTitle}>{dayLabel} across Hawaii</Text>
+        <Text style={styles.snapshotUpdated}>{selectedDay === 0 ? 'Updated 4m ago' : 'Forecast'}</Text>
       </View>
 
       <View style={styles.snapshotBar}>
@@ -481,9 +491,11 @@ function TodaysSnapshot() {
 
 function Main({
   filterRow,
+  selectedDay,
   onNavigate,
 }: {
   filterRow: (s: SpotRow) => boolean;
+  selectedDay: number;
   onNavigate?: NavigateFn;
 }) {
   // Pre-filter per-island so we can skip rendering empty island tables.
@@ -499,7 +511,12 @@ function Main({
 
   return (
     <View style={styles.main}>
-      <FiringNow onNavigate={onNavigate} />
+      <FiringNow selectedDay={selectedDay} onNavigate={onNavigate} />
+      {selectedDay !== 0 ? (
+        <Text style={styles.forecastNote}>
+          Vis · Temp · Swell columns show today's snapshot. The pill + the highlighted bar in each row are the forecast for {longDayLabel(selectedDay)}.
+        </Text>
+      ) : null}
       {total === 0 ? (
         <View style={styles.emptyWrap}>
           <Text style={styles.emptyTitle}>No spots match these filters</Text>
@@ -508,19 +525,22 @@ function Main({
       ) : (
         islands
           .filter((i) => i.spots.length > 0)
-          .map((i) => <SpotTable key={i.title} title={i.title} spots={i.spots} onNavigate={onNavigate} />)
+          .map((i) => <SpotTable key={i.title} title={i.title} spots={i.spots} selectedDay={selectedDay} onNavigate={onNavigate} />)
       )}
     </View>
   );
 }
 
-function FiringNow({ onNavigate }: { onNavigate?: NavigateFn }) {
+function FiringNow({ selectedDay, onNavigate }: { selectedDay: number; onNavigate?: NavigateFn }) {
+  const isToday = selectedDay === 0;
   return (
     <View style={styles.firingNow}>
       <View style={styles.firingNowHeader}>
         <View style={styles.firingNowTitleRow}>
-          <View style={styles.firingNowPulse} />
-          <Text style={styles.firingNowTitle}>Firing right now</Text>
+          {isToday ? <View style={styles.firingNowPulse} /> : null}
+          <Text style={styles.firingNowTitle}>
+            {isToday ? 'Firing right now' : `Top picks · ${longDayLabel(selectedDay)}`}
+          </Text>
         </View>
         <Text style={styles.firingNowLink}>See all excellent spots →</Text>
       </View>
@@ -545,7 +565,7 @@ function slugify(s: string): string {
 
 // ─── Spot table (per island) ──────────────────────────────────────────────
 
-function SpotTable({ title, spots, onNavigate }: { title: string; spots: SpotRow[]; onNavigate?: NavigateFn }) {
+function SpotTable({ title, spots, selectedDay, onNavigate }: { title: string; spots: SpotRow[]; selectedDay: number; onNavigate?: NavigateFn }) {
   const best = bestRating(spots);
   return (
     <View style={styles.tableWrap}>
@@ -570,45 +590,135 @@ function SpotTable({ title, spots, onNavigate }: { title: string; spots: SpotRow
           <View style={[styles.colSwell]}><Text style={styles.colHeaderText}>Swell</Text></View>
         </View>
 
-        {spots.map((s, i) => (
-          <Pressable
-            key={s.name}
-            onPress={() => onNavigate?.('spot-detail', { spotId: slugify(s.name) })}
-            style={[styles.tableRow, i === spots.length - 1 && styles.tableRowLast]}
-          >
-            <View style={styles.colSpot}>
-              <Text style={styles.spotName}>{s.name}</Text>
-              <Text style={styles.spotRegion}>{s.region}</Text>
-            </View>
-            <View style={styles.colCondition}>
-              <ConditionPill tier={s.rating} size="sm" />
-            </View>
-            <View style={styles.colForecast}>
-              <View style={styles.forecastBarRow}>
-                {s.forecast.map((tier, idx) => (
-                  <View key={idx} style={[styles.forecastBar, { backgroundColor: TIER_COLORS[tier] }]} />
-                ))}
+        {spots.map((s, i) => {
+          // Pill follows the day picker. selectedDay=0 keeps the canonical
+          // `rating` field (which should match forecast[0] but is kept
+          // for forward-compat with richer "now" data); other days fall
+          // back to the per-day tier from the forecast array.
+          const pillTier = selectedDay === 0 ? s.rating : (s.forecast[selectedDay] ?? s.rating);
+          return (
+            <Pressable
+              key={s.name}
+              onPress={() => onNavigate?.('spot-detail', { spotId: slugify(s.name) })}
+              style={[styles.tableRow, i === spots.length - 1 && styles.tableRowLast]}
+            >
+              <View style={styles.colSpot}>
+                <Text style={styles.spotName}>{s.name}</Text>
+                <Text style={styles.spotRegion}>{s.region}</Text>
               </View>
-              <View style={styles.forecastDayRow}>
-                {['T', 'F', 'S', 'S', 'M', 'T', 'W'].map((d, idx) => (
-                  <Text key={idx} style={styles.forecastDayLetter}>{d}</Text>
-                ))}
+              <View style={styles.colCondition}>
+                <ConditionPill tier={pillTier} size="sm" />
               </View>
-            </View>
-            <View style={styles.colVis}>
-              <Text style={styles.cellValue}>{s.vis}<Text style={styles.cellUnit}> ft</Text></Text>
-            </View>
-            <View style={styles.colTemp}>
-              <Text style={styles.cellValue}>{s.temp}<Text style={styles.cellUnit}> °F</Text></Text>
-            </View>
-            <View style={styles.colSwell}>
-              <Text style={styles.cellValue}>{s.swell}<Text style={styles.cellUnit}> ft</Text></Text>
-            </View>
-          </Pressable>
-        ))}
+              <View style={styles.colForecast}>
+                <View style={styles.forecastBarRow}>
+                  {s.forecast.map((tier, idx) => (
+                    <View
+                      key={idx}
+                      style={[
+                        styles.forecastBar,
+                        { backgroundColor: TIER_COLORS[tier] },
+                        idx === selectedDay && styles.forecastBarSelected,
+                      ]}
+                    />
+                  ))}
+                </View>
+                <View style={styles.forecastDayRow}>
+                  {weekdayLetters().map((d, idx) => (
+                    <Text
+                      key={idx}
+                      style={[styles.forecastDayLetter, idx === selectedDay && styles.forecastDayLetterSelected]}
+                    >
+                      {d}
+                    </Text>
+                  ))}
+                </View>
+              </View>
+              <View style={styles.colVis}>
+                <Text style={styles.cellValue}>{s.vis}<Text style={styles.cellUnit}> ft</Text></Text>
+              </View>
+              <View style={styles.colTemp}>
+                <Text style={styles.cellValue}>{s.temp}<Text style={styles.cellUnit}> °F</Text></Text>
+              </View>
+              <View style={styles.colSwell}>
+                <Text style={styles.cellValue}>{s.swell}<Text style={styles.cellUnit}> ft</Text></Text>
+              </View>
+            </Pressable>
+          );
+        })}
       </View>
     </View>
   );
+}
+
+// ─── Day picker ───────────────────────────────────────────────────────────
+//
+// Horizontal strip of 7 chips below the FilterBar. Today is highlighted
+// by default; pressing any future day flips the page's `selectedDay`
+// state, which in turn drives the condition pill column, the
+// highlighted bar in each row's 7-day strip, and the snapshot/firing-
+// now headers. Stays viewport-friendly via flexBasis sizing so all
+// 7 chips fit even at the 1080px breakpoint.
+
+function DayPicker({ value, onChange }: { value: number; onChange: (n: number) => void }) {
+  const today = React.useMemo(() => new Date(), []);
+  const days = React.useMemo(() => {
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(today);
+      d.setDate(today.getDate() + i);
+      return {
+        offset: i,
+        weekday: d.toLocaleDateString(undefined, { weekday: 'short' }),
+        dateLabel: `${d.getMonth() + 1}/${d.getDate()}`,
+      };
+    });
+  }, [today]);
+
+  return (
+    <View style={styles.dayPicker}>
+      <Text style={styles.dayPickerLabel}>FORECAST</Text>
+      <View style={styles.dayPickerStrip}>
+        {days.map((d) => {
+          const active = d.offset === value;
+          const isToday = d.offset === 0;
+          return (
+            <Pressable
+              key={d.offset}
+              onPress={() => onChange(d.offset)}
+              style={[styles.dayChip, active && styles.dayChipActive]}
+            >
+              <Text style={[styles.dayChipWeekday, active && styles.dayChipWeekdayActive]}>
+                {isToday ? 'Today' : d.weekday}
+              </Text>
+              <Text style={[styles.dayChipDate, active && styles.dayChipDateActive]}>
+                {d.dateLabel}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+// Two helpers shared with the snapshot / firing-now headers and the
+// per-row day-letter strip. weekdayLetters() returns 7 single letters
+// starting today, so the bars + letters under each forecast strip
+// stay in lockstep with the day picker above.
+function longDayLabel(offset: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + offset);
+  return d.toLocaleDateString(undefined, { weekday: 'long' });
+}
+
+function weekdayLetters(): string[] {
+  const out: string[] = [];
+  const d = new Date();
+  for (let i = 0; i < 7; i++) {
+    const day = new Date(d);
+    day.setDate(d.getDate() + i);
+    out.push(day.toLocaleDateString(undefined, { weekday: 'short' }).slice(0, 1));
+  }
+  return out;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
@@ -1041,5 +1151,81 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: colors.text3,
     fontWeight: '400',
+  },
+
+  // ── Day picker ────────────────────────────────────────────────────
+  dayPicker: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface0,
+    borderWidth: 1,
+    borderColor: colors.hairline,
+    marginTop: 10,
+  },
+  dayPickerLabel: {
+    fontFamily: fonts.mono,
+    fontSize: 9,
+    letterSpacing: 1.4,
+    color: colors.text4,
+    fontWeight: '700',
+  },
+  dayPickerStrip: {
+    flex: 1,
+    flexDirection: 'row',
+    gap: 6,
+  },
+  dayChip: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 6,
+    borderRadius: radius.sm,
+    backgroundColor: colors.surface1,
+    borderWidth: 1,
+    borderColor: colors.hairline,
+    alignItems: 'center',
+    gap: 2,
+  },
+  dayChipActive: {
+    backgroundColor: colors.accentDim,
+    borderColor: colors.accent,
+  },
+  dayChipWeekday: {
+    fontFamily: fonts.mono,
+    fontSize: 10,
+    letterSpacing: 0.8,
+    color: colors.text3,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
+  dayChipWeekdayActive: { color: colors.accent },
+  dayChipDate: {
+    fontFamily: fonts.display,
+    fontSize: 13,
+    color: colors.text1,
+    fontWeight: '700',
+  },
+  dayChipDateActive: { color: colors.text1 },
+
+  // Selected-day highlight on the per-row forecast strip.
+  forecastBarSelected: {
+    borderWidth: 1.5,
+    borderColor: colors.text1,
+  },
+  forecastDayLetterSelected: {
+    color: colors.text1,
+    fontWeight: '700',
+  },
+
+  // Small disclaimer above the spot tables when a future day is selected.
+  forecastNote: {
+    fontFamily: fonts.body,
+    fontSize: 11,
+    color: colors.text3,
+    paddingHorizontal: 4,
+    paddingBottom: 4,
   },
 });

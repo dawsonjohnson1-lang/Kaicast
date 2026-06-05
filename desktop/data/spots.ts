@@ -25,7 +25,9 @@ export const SPOTS: Spot[] = [
   { id: 'mokulua', name: "Mokulua Islands (the Mokes)", region: 'Oahu', lat: 21.395, lon: -157.703 },
   { id: 'sharks-cove', name: "Shark's Cove", region: 'Oahu', lat: 21.6545, lon: -158.0651 },
   { id: 'three-tables', name: "Three Tables", region: 'Oahu', lat: 21.6483, lon: -158.0666 },
-  { id: 'pupukea-beach', name: "Pupukea Beach", region: 'Oahu', lat: 21.6533, lon: -158.0639 },
+  // Pupukea Beach removed 2026-05-24: umbrella name overlapping Shark's Cove
+  // + Three Tables (same Pupukea Marine Life Conservation District, identical
+  // ROMS/buoy/tide data, no distinguishing topology).
   { id: 'waimea-bay', name: "Waimea Bay", region: 'Oahu', lat: 21.6411, lon: -158.0664 },
   { id: 'turtle-reef-turtle-bay', name: "Turtle Reef/Turtle Bay", region: 'Oahu', lat: 21.708, lon: -158.005 },
   { id: 'mokuleia', name: "Mokuleia", region: 'Oahu', lat: 21.585, lon: -158.253 },
@@ -33,12 +35,14 @@ export const SPOTS: Spot[] = [
   { id: 'makaha', name: "Makaha", region: 'Oahu', lat: 21.4691, lon: -158.2206 },
   { id: 'magic-island', name: "Magic Island", region: 'Oahu', lat: 21.2836, lon: -157.8497 },
   { id: 'sandy-beach', name: "Sandy Beach", region: 'Oahu', lat: 21.2849, lon: -157.6717 },
-  { id: 'koko-crater', name: "Koko Crater", region: 'Oahu', lat: 21.2810, lon: -157.6798 },
+  // Koko Crater removed 2026-05-24: body-surf coastline duplicate of Sandy
+  // Beach (~0.6 km apart, identical fetch data, no distinct dive topology).
   { id: 'pearl-harbor', name: "Pearl Harbor", region: 'Oahu', lat: 21.3650, lon: -157.9500 },
 
   // ── Maui ────────────────────────────────────────────────────────────
-  { id: 'airport-beach', name: "Airport Beach", region: 'Maui', lat: 20.9042, lon: -156.690 },
-  { id: 'ala-wharf', name: "Ala Wharf", region: 'Maui', lat: 20.8989, lon: -156.690 },
+  // Airport Beach + Ala Wharf removed 2026-05-24: same Kaanapali reef strip
+  // as Black Rock, ≤3 km away, identical conditions data, only differ in
+  // parking-lot access. Black Rock is the anchor name for this reef.
   { id: 'black-rock-kaanapali', name: "Black Rock (Kaanapali)", region: 'Maui', lat: 20.9262, lon: -156.7000 },
   { id: 'honolua-bay', name: "Honolua Bay", region: 'Maui', lat: 21.014, lon: -156.643 },
   { id: 'makena-landing', name: "Makena Landing", region: 'Maui', lat: 20.6536, lon: -156.4460 },
@@ -52,7 +56,9 @@ export const SPOTS: Spot[] = [
   { id: 'niihau', name: "Ni'ihau", region: 'Kauai', lat: 22.025, lon: -160.100 },
   { id: 'sheraton-caverns', name: "Sheraton Caverns", region: 'Kauai', lat: 21.870, lon: -159.466 },
   { id: 'tunnels-reef', name: "Tunnels Reef", region: 'Kauai', lat: 22.226, lon: -159.572 },
-  { id: 'nukumoi-point', name: "Nukumoi Point", region: 'Kauai', lat: 21.876, lon: -159.439 },
+  // Nukumoi Point removed 2026-05-24: lesser-known fringing reef ~2 km from
+  // Koloa Landing, identical fetch data, no distinguishing topology vs the
+  // other Poipu spots (Koloa Landing / Sheraton Caverns / Brennecke's).
 
   // ── Big Island ──────────────────────────────────────────────────────
   { id: 'kaiwi-point', name: "Kaiwi Point", region: 'Big Island', lat: 19.780, lon: -156.025 },

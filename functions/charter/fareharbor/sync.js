@@ -282,3 +282,9 @@ function extractHhmm(iso) {
   const t = String(iso).split('T')[1] ?? iso;
   return String(t).slice(0, 5);
 }
+
+// Export the per-charter helper so the on-demand callable
+// (syncFareHarborTripsCallable) can reuse the exact same flow as the
+// scheduled cron. Captains hit this from the Daily Log when they want
+// a fresh pull without waiting for the next 30-minute tick.
+exports.syncOneCharter = syncOneCharter;

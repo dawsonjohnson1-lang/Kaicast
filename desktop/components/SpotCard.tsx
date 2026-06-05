@@ -1,4 +1,3 @@
-import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { colors, fonts, radius, TIER_COLORS, type ConditionTier } from '../tokens';
 import { ConditionPill } from './ConditionPill';

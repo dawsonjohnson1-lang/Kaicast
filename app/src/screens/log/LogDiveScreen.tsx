@@ -12,6 +12,7 @@ import { Card } from '@/components/Card';
 import { Icon } from '@/components/Icon';
 import { AuthHero } from '@/components/AuthHero';
 import { SpotPicker, type PickedSpot } from '@/components/SpotPicker';
+import { CertEligibilityBadge } from '@/components/CertEligibilityBadge';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserDiveLogs } from '@/hooks/useDiveLogs';
 import { submitDiveLog } from '@/api/diveLogs';
@@ -123,7 +124,14 @@ const HAZARDS: { id: Hazard; label: string }[] = [
   { id: 'other', label: 'Other' },
 ];
 
-type ScubaSubType = 'shore' | 'boat' | 'drift' | 'night' | 'wreck' | 'cave' | 'training';
+// Matches desktop's SCUBA_DIVE_SUBTYPES (14 options) so cert-eligibility
+// criteria evaluate identically across surfaces.
+type ScubaSubType =
+  | 'shore' | 'boat' | 'drift' | 'night' | 'deep' | 'wreck'
+  | 'cave' | 'cavern' | 'ice' | 'altitude' | 'reef' | 'wall'
+  | 'training' | 'search_recovery';
+
+type VerificationType = 'self' | 'buddy' | 'instructor';
 type EntryType = 'giant_stride' | 'back_roll' | 'shore';
 type GasMix = 'air' | 'eanx' | 'trimix';
 type SuitType = 'wetsuit' | 'drysuit' | 'skin';
@@ -135,14 +143,63 @@ type TempUnit = 'F' | 'C';
 type WeightUnit = 'lbs' | 'kg';
 
 const SCUBA_SUB_TYPES: { id: ScubaSubType; label: string }[] = [
-  { id: 'shore', label: 'Shore' },
   { id: 'boat', label: 'Boat' },
+  { id: 'shore', label: 'Shore' },
   { id: 'drift', label: 'Drift' },
   { id: 'night', label: 'Night' },
+  { id: 'deep', label: 'Deep' },
   { id: 'wreck', label: 'Wreck' },
   { id: 'cave', label: 'Cave' },
+  { id: 'cavern', label: 'Cavern' },
+  { id: 'ice', label: 'Ice' },
+  { id: 'altitude', label: 'Altitude' },
+  { id: 'reef', label: 'Reef' },
+  { id: 'wall', label: 'Wall' },
   { id: 'training', label: 'Training' },
+  { id: 'search_recovery', label: 'Search & Recovery' },
 ];
+
+const VERIFICATION_OPTIONS: { value: VerificationType; label: string; sub: string }[] = [
+  { value: 'self',       label: 'Self-logged',             sub: 'No cert credit toward pro levels' },
+  { value: 'buddy',      label: 'Buddy verified',          sub: 'Counts toward AOW, Rescue' },
+  { value: 'instructor', label: 'Instructor / Divemaster', sub: 'Required for DM + Instructor credit' },
+];
+
+const AGENCY_OPTIONS = ['PADI', 'SSI', 'NAUI', 'SDI', 'RAID', 'CMAS', 'BSAC', 'GUE', 'TDI', 'Other'] as const;
+
+// ─── Conditional-reveal section option lists (mirror desktop) ────────────
+// Order matches desktop's LogDiveScreen.tsx constants so the same value
+// renders the same option index on both surfaces.
+
+const NIGHT_LIGHT_OPTIONS = [
+  'Primary only', 'Primary + backup', 'Primary + backup + chemlight', 'Other',
+];
+const NIGHT_AMBIENT_OPTIONS = [
+  'New moon / dark', 'Quarter moon', 'Half moon', 'Full moon', 'Dusk/dawn',
+];
+
+const FREEDIVE_DISCIPLINES = [
+  'Constant weight (CWT)',
+  'Constant no fins (CNF)',
+  'Free immersion (FIM)',
+  'Variable weight (VWT)',
+  'No-limits (NLT)',
+  'Dynamic apnea (DYN)',
+  'Dynamic no fins (DNF)',
+  'Static apnea (STA)',
+  'Recreational',
+];
+const FREEDIVE_EQUALIZATION = [
+  'Frenzel', 'Mouthfill', 'Valsalva', 'BTV (hands-free)', 'Other',
+];
+
+const SPEAR_GEAR_OPTIONS = [
+  'Pole spear', 'Hawaiian sling', 'Speargun (band)', 'Speargun (pneumatic)', 'Three-prong', 'Other',
+];
+const SPEAR_ACCESS_OPTIONS = ['Shore', 'Boat', 'Kayak'];
+
+const RECOMMEND_CHIPS = ['Definitely', 'Yes', 'With caveats', 'No'];
+const REEF_HEALTH_CHIPS = ['Pristine', 'Healthy', 'Stressed', 'Bleached'];
 const ENTRY_TYPES: { id: EntryType; label: string }[] = [
   { id: 'giant_stride', label: 'Giant stride' },
   { id: 'back_roll', label: 'Back roll' },
@@ -287,7 +344,56 @@ export function LogDiveScreen() {
   // All numeric inputs hold the user's entered string in the currently
   // selected display unit. Conversion to base units (ft, psi, °F, lbs,
   // cu ft) happens at submit time.
-  const [scubaSubType, setScubaSubType] = useState<ScubaSubType>('shore');
+  // Multi-select per desktop parity (SCUBA_DIVE_SUBTYPES). At least one
+  // entry required for AOW cert credit; first entry is mirrored back to
+  // the legacy `diveSubType` server field for backwards compat.
+  const [scubaSubtypes, setScubaSubtypes] = useState<ScubaSubType[]>(['shore']);
+  const toggleSubtype = (id: ScubaSubType) => {
+    setScubaSubtypes((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  };
+
+  // Cert-eligibility + verification state. Mirrors desktop's
+  // OfficialToggle + VerificationBlock — see components/CertEligibilityBadge.tsx
+  // for the evaluation criteria.
+  const [isOfficial, setIsOfficial] = useState(false);
+  const [verificationType, setVerificationType] = useState<VerificationType>('self');
+  const [verifierName, setVerifierName] = useState('');
+  const [verifierAgency, setVerifierAgency] = useState<string>('');
+  const [verifierCertNumber, setVerifierCertNumber] = useState('');
+  const [verifierSignatureTyped, setVerifierSignatureTyped] = useState('');
+
+  // ─── Conditional-reveal state (Night / Deep / Freedive / Spear) ────────
+  // Mirrors desktop's FormState fields; each section gates render on its
+  // condition (scuba subtypes, depth > 60, dive type).
+  const [nightLightSource, setNightLightSource] = useState('');
+  const [nightAmbientLight, setNightAmbientLight] = useState('');
+  const [nightVisibility, setNightVisibility] = useState('');
+
+  const [deepConfirmedFromComputer, setDeepConfirmedFromComputer] = useState(false);
+  const [deepNarcosisExperienced, setDeepNarcosisExperienced] = useState(false);
+  const [deepNarcosisNotes, setDeepNarcosisNotes] = useState('');
+  const [deepGasPlan, setDeepGasPlan] = useState('');
+
+  const [freediveDiscipline, setFreediveDiscipline] = useState('');
+  const [freediveEqualization, setFreediveEqualization] = useState('');
+  const [freediveTargetDepth, setFreediveTargetDepth] = useState('');
+  const [freediveBreathHold, setFreediveBreathHold] = useState('');
+  const [freediveAttempts, setFreediveAttempts] = useState('');
+  const [freediveSurfaceProtocolPass, setFreediveSurfaceProtocolPass] = useState(false);
+  const [freediveSafetyOnDuty, setFreediveSafetyOnDuty] = useState(false);
+
+  const [spearGear, setSpearGear] = useState('');
+  const [spearAccessMode, setSpearAccessMode] = useState('');
+  const [spearSpeciesLanded, setSpearSpeciesLanded] = useState('');
+  const [spearCatchWeight, setSpearCatchWeight] = useState('');
+  const [spearStringerUsed, setSpearStringerUsed] = useState(false);
+
+  // Rate-the-Dive (final-step section, mirrors desktop's section 07).
+  const [ratingStars, setRatingStars] = useState(0);
+  const [recommend, setRecommend] = useState('');
+  const [reefHealth, setReefHealth] = useState('');
   const [scubaEntry, setScubaEntry] = useState<EntryType>('giant_stride');
   const [scubaMaxDepth, setScubaMaxDepth] = useState('');
   const [scubaDepthUnit, setScubaDepthUnit] = useState<DepthUnit>('ft');
@@ -341,6 +447,53 @@ export function LogDiveScreen() {
   // standalone "water temp" question because step 2 captures it per
   // surface/bottom.
   const totalSteps = 4;
+
+  // Required fields for an official scuba entry — mirrors desktop's
+  // computeMissingOfficialFields (LogDiveScreen.tsx:1504). Only checked
+  // when isOfficial && type === 'scuba'.
+  const missingOfficialFields = useMemo<string[]>(() => {
+    if (!isOfficial || type !== 'scuba') return [];
+    const missing: string[] = [];
+    if (!spotPick) missing.push('Dive spot');
+    if (!duration || Number(duration) <= 0) missing.push('Bottom time');
+    if (!scubaMaxDepth || Number(scubaMaxDepth) <= 0) missing.push('Max depth');
+    if (!scubaStartPressure) missing.push('Start pressure');
+    if (!scubaEndPressure) missing.push('End pressure');
+    if (!scubaGasMix) missing.push('Gas mix');
+    if (!scubaWeight) missing.push('Weight used');
+    if (!scubaSuit) missing.push('Exposure suit');
+    if (!scubaTempSurface) missing.push('Water temperature');
+    if (!scubaVis) missing.push('Visibility');
+    if (!scubaBuddy) missing.push('Buddy name');
+
+    if (verificationType === 'self') {
+      missing.push('Verification (buddy or instructor — self-log is not eligible)');
+    } else {
+      if (!verifierName) {
+        missing.push(verificationType === 'instructor' ? 'Instructor name' : 'Buddy name (verifier)');
+      }
+      if (verificationType === 'instructor') {
+        if (!verifierAgency) missing.push('Verifier agency');
+        if (!verifierCertNumber) missing.push('Verifier cert / member number');
+      }
+      if (!verifierSignatureTyped) missing.push('Verifier signature acknowledgment');
+    }
+
+    if (scubaSubtypes.includes('night') && !nightLightSource) {
+      missing.push('Night-dive light source');
+    }
+    if ((scubaSubtypes.includes('deep') || Number(scubaMaxDepth) > 60) && !deepConfirmedFromComputer) {
+      missing.push('Confirm max depth from dive computer (deep dive)');
+    }
+
+    return missing;
+  }, [
+    isOfficial, type, spotPick, duration, scubaMaxDepth, scubaStartPressure,
+    scubaEndPressure, scubaGasMix, scubaWeight, scubaSuit, scubaTempSurface,
+    scubaVis, scubaBuddy, verificationType, verifierName, verifierAgency,
+    verifierCertNumber, verifierSignatureTyped, scubaSubtypes,
+    nightLightSource, deepConfirmedFromComputer,
+  ]);
 
   const next = () => setStep(((step + 1) as Step));
   const back = () => (step === 1 ? nav.goBack() : setStep(((step - 1) as Step)));
@@ -423,7 +576,19 @@ export function LogDiveScreen() {
         },
         scuba: type === 'scuba'
           ? {
-              diveSubType: scubaSubType,
+              // Legacy single-value field, server schema accepts this.
+              // First entry of the multi-select is the primary subtype.
+              diveSubType: scubaSubtypes[0] ?? 'shore',
+              // New multi-select array + cert-eligibility fields. Server
+              // may not consume these yet; they're stored on the log doc
+              // for the calibration job + future client refactor.
+              diveSubTypes: scubaSubtypes,
+              isOfficial,
+              verificationType,
+              verifierName: verifierName.trim() || undefined,
+              verifierAgency: verifierAgency || undefined,
+              verifierCertNumber: verifierCertNumber.trim() || undefined,
+              verifierSignatureTyped: verifierSignatureTyped.trim() || undefined,
               entryType: scubaEntry,
               maxDepthFt: toBaseDepth(scubaMaxDepth, scubaDepthUnit) || undefined,
               visibilityFt: toBaseDepth(scubaVis, scubaVisUnit) || undefined,
@@ -447,6 +612,50 @@ export function LogDiveScreen() {
               buddyName: scubaBuddy.trim() || undefined,
               airUsedPsi: scubaAirUsedPsi ?? undefined,
               sacRate: scubaSacRate ?? undefined,
+              // Conditional reveal blocks — only attached when the
+              // relevant subtype is selected.
+              night: scubaSubtypes.includes('night')
+                ? {
+                    lightSource: nightLightSource || undefined,
+                    ambientLight: nightAmbientLight || undefined,
+                    visibilityFt: nightVisibility ? parseFloat(nightVisibility) : undefined,
+                  }
+                : undefined,
+              deep: scubaSubtypes.includes('deep') || Number(scubaMaxDepth) > 60
+                ? {
+                    confirmedFromComputer: deepConfirmedFromComputer,
+                    narcosisExperienced: deepNarcosisExperienced,
+                    narcosisNotes: deepNarcosisNotes.trim() || undefined,
+                    gasPlan: deepGasPlan.trim() || undefined,
+                  }
+                : undefined,
+            }
+          : undefined,
+        freedive: type === 'freedive'
+          ? {
+              discipline: freediveDiscipline || undefined,
+              equalization: freediveEqualization || undefined,
+              targetDepthFt: freediveTargetDepth ? parseFloat(freediveTargetDepth) : undefined,
+              breathHold: freediveBreathHold.trim() || undefined,
+              attempts: freediveAttempts ? parseInt(freediveAttempts, 10) : undefined,
+              surfaceProtocolPass: freediveSurfaceProtocolPass,
+              safetyOnDuty: freediveSafetyOnDuty,
+            }
+          : undefined,
+        spear: type === 'spear'
+          ? {
+              gear: spearGear || undefined,
+              accessMode: spearAccessMode || undefined,
+              speciesLanded: spearSpeciesLanded.trim() || undefined,
+              catchWeightLbs: spearCatchWeight ? parseFloat(spearCatchWeight) : undefined,
+              stringerUsed: spearStringerUsed,
+            }
+          : undefined,
+        rating: (ratingStars > 0 || recommend || reefHealth)
+          ? {
+              stars: ratingStars || undefined,
+              recommend: recommend || undefined,
+              reefHealth: reefHealth || undefined,
             }
           : undefined,
       });
@@ -524,22 +733,149 @@ export function LogDiveScreen() {
 
           <View style={{ height: spacing.xl }} />
           <Input label="Max depth (ft)" placeholder="40" keyboardType="number-pad" value={depth} onChangeText={setDepth} />
-          {type === 'spear' && (
-            <>
-              <View style={{ height: spacing.lg }} />
-              <Input label="Weapon" placeholder="Speargun (band)" value={weapon} onChangeText={setWeapon} />
-              <View style={{ height: spacing.lg }} />
-              <Input label="Catch" placeholder="2 × Uku (4 lb, 3 lb)" />
-            </>
-          )}
+
+          {/* ── Freediving Details — desktop section F1 ─────────────── */}
           {type === 'freedive' && (
             <>
-              <View style={{ height: spacing.lg }} />
-              <Input label="Discipline" placeholder="Constant weight (CWT)" />
-              <View style={{ height: spacing.lg }} />
-              <Input label="Best dive time" placeholder="2:15" />
+              <SectionLabel>Discipline & Equalization</SectionLabel>
+              <Text style={styles.label}>Discipline</Text>
+              <View style={styles.chipRow}>
+                {FREEDIVE_DISCIPLINES.map((d) => (
+                  <ChoiceChip
+                    key={d}
+                    label={d}
+                    selected={freediveDiscipline === d}
+                    onPress={() => setFreediveDiscipline(d)}
+                  />
+                ))}
+              </View>
+              <Text style={[styles.label, { marginTop: spacing.lg }]}>Equalization</Text>
+              <View style={styles.chipRow}>
+                {FREEDIVE_EQUALIZATION.map((e) => (
+                  <ChoiceChip
+                    key={e}
+                    label={e}
+                    selected={freediveEqualization === e}
+                    onPress={() => setFreediveEqualization(e)}
+                  />
+                ))}
+              </View>
+
+              <SectionLabel>Performance</SectionLabel>
+              <Input
+                label="Target depth (ft)"
+                placeholder="50"
+                keyboardType="number-pad"
+                value={freediveTargetDepth}
+                onChangeText={setFreediveTargetDepth}
+              />
+              <View style={{ marginTop: spacing.lg }}>
+                <Input
+                  label="Breath-hold (mm:ss)"
+                  placeholder="2:15"
+                  value={freediveBreathHold}
+                  onChangeText={setFreediveBreathHold}
+                />
+              </View>
+              <View style={{ marginTop: spacing.lg }}>
+                <Input
+                  label="Attempts"
+                  placeholder="3"
+                  keyboardType="number-pad"
+                  value={freediveAttempts}
+                  onChangeText={setFreediveAttempts}
+                />
+              </View>
+
+              <Pressable
+                style={deepRowStyles.row}
+                onPress={() => setFreediveSurfaceProtocolPass(!freediveSurfaceProtocolPass)}
+              >
+                <View style={[
+                  deepRowStyles.check,
+                  freediveSurfaceProtocolPass && deepRowStyles.checkOn,
+                ]}>
+                  {freediveSurfaceProtocolPass ? <Text style={deepRowStyles.checkMark}>✓</Text> : null}
+                </View>
+                <Text style={[typography.body, { flex: 1 }]}>
+                  Surface protocol passed (clean recovery within 15s)
+                </Text>
+              </Pressable>
+              <Pressable
+                style={deepRowStyles.row}
+                onPress={() => setFreediveSafetyOnDuty(!freediveSafetyOnDuty)}
+              >
+                <View style={[
+                  deepRowStyles.check,
+                  freediveSafetyOnDuty && deepRowStyles.checkOn,
+                ]}>
+                  {freediveSafetyOnDuty ? <Text style={deepRowStyles.checkMark}>✓</Text> : null}
+                </View>
+                <Text style={[typography.body, { flex: 1 }]}>
+                  Safety diver on duty (strongly recommended for depth)
+                </Text>
+              </Pressable>
             </>
           )}
+
+          {/* ── Spearfishing Details — desktop section S1 ───────────── */}
+          {type === 'spear' && (
+            <>
+              <SectionLabel>Gear & Access</SectionLabel>
+              <Text style={styles.label}>Gear</Text>
+              <View style={styles.chipRow}>
+                {SPEAR_GEAR_OPTIONS.map((g) => (
+                  <ChoiceChip
+                    key={g}
+                    label={g}
+                    selected={spearGear === g}
+                    onPress={() => setSpearGear(g)}
+                  />
+                ))}
+              </View>
+              <Text style={[styles.label, { marginTop: spacing.lg }]}>Access</Text>
+              <View style={styles.chipRow}>
+                {SPEAR_ACCESS_OPTIONS.map((a) => (
+                  <ChoiceChip
+                    key={a}
+                    label={a}
+                    selected={spearAccessMode === a}
+                    onPress={() => setSpearAccessMode(a)}
+                  />
+                ))}
+              </View>
+
+              <SectionLabel>Catch</SectionLabel>
+              <Input
+                label="Species landed (comma-separated)"
+                placeholder="Uku, Kole"
+                value={spearSpeciesLanded}
+                onChangeText={setSpearSpeciesLanded}
+              />
+              <View style={{ marginTop: spacing.lg }}>
+                <Input
+                  label="Total catch weight (lbs)"
+                  placeholder="7"
+                  keyboardType="number-pad"
+                  value={spearCatchWeight}
+                  onChangeText={setSpearCatchWeight}
+                />
+              </View>
+              <Pressable
+                style={deepRowStyles.row}
+                onPress={() => setSpearStringerUsed(!spearStringerUsed)}
+              >
+                <View style={[
+                  deepRowStyles.check,
+                  spearStringerUsed && deepRowStyles.checkOn,
+                ]}>
+                  {spearStringerUsed ? <Text style={deepRowStyles.checkMark}>✓</Text> : null}
+                </View>
+                <Text style={[typography.body, { flex: 1 }]}>Stringer used</Text>
+              </Pressable>
+            </>
+          )}
+
           {type === 'snorkel' && (
             <>
               <View style={{ height: spacing.lg }} />
@@ -567,11 +903,53 @@ export function LogDiveScreen() {
             <CalcCard label="Surf. Interval" value={formatSurfaceInterval(surfaceIntervalMin)} unit="" />
           </View>
 
+          {/* Sticky-style banner when official mode is on but required
+              fields aren't filled. One-tap escape to turn it back off. */}
+          {isOfficial && missingOfficialFields.length > 0 ? (
+            <MissingFieldsBanner
+              missing={missingOfficialFields}
+              onTurnOff={() => setIsOfficial(false)}
+            />
+          ) : null}
+
+          {/* Cert-eligibility toggle — when on, the dive counts toward
+              AOW/Rescue/DM logbook hours per agency rules. See
+              components/CertEligibilityBadge.tsx for the criteria.
+              Mirrors desktop's OfficialToggle (LogDiveScreen.tsx:1465). */}
+          <OfficialToggle value={isOfficial} onChange={setIsOfficial} />
+
+          {/* Live eligibility readout — chips flip on as fields complete. */}
+          <View style={{ marginTop: spacing.md }}>
+            <CertEligibilityBadge
+              dive={{
+                isOfficial,
+                verificationType,
+                verifierName,
+                verifierAgency,
+                verifierCertNumber,
+                verifierSignatureTyped,
+                spot: spotPick?.name ?? spotPick?.id ?? '',
+                depthMax: scubaMaxDepth,
+                bottomTime: duration,
+                gasMix: scubaGasMix,
+                waterTemp: parseFloat(scubaTempSurface) || 0,
+                visibility: parseFloat(scubaVis) || 0,
+                buddy: scubaBuddy,
+                scubaSubtypes,
+              }}
+            />
+          </View>
+
           <SectionLabel>Dive Info</SectionLabel>
-          <Text style={styles.label}>Dive Type</Text>
+          <Text style={styles.label}>Dive Type (multi-select)</Text>
           <View style={styles.chipRow}>
             {SCUBA_SUB_TYPES.map((d) => (
-              <ChoiceChip key={d.id} label={d.label} selected={scubaSubType === d.id} onPress={() => setScubaSubType(d.id)} />
+              <ChoiceChip
+                key={d.id}
+                label={d.label}
+                selected={scubaSubtypes.includes(d.id)}
+                onPress={() => toggleSubtype(d.id)}
+              />
             ))}
           </View>
           <Text style={[styles.label, { marginTop: spacing.lg }]}>Entry Type</Text>
@@ -708,6 +1086,183 @@ export function LogDiveScreen() {
 
           <SectionLabel>Buddy</SectionLabel>
           <Input label="Buddy Name" placeholder="Buddy's name" value={scubaBuddy} onChangeText={setScubaBuddy} />
+
+          {/* Verification — required for cert credit. Mirrors desktop's
+              VerificationBlock (LogDiveScreen.tsx:1579). Only renders when
+              the user has chosen to log this dive as official. */}
+          {isOfficial && (
+            <>
+              <SectionLabel>Verification</SectionLabel>
+              <Text style={styles.sub}>Required for pro-level certifications (DM, Instructor)</Text>
+              <View style={{ gap: spacing.sm, marginTop: spacing.md }}>
+                {VERIFICATION_OPTIONS.map((opt) => {
+                  const selected = opt.value === verificationType;
+                  return (
+                    <Pressable
+                      key={opt.value}
+                      onPress={() => setVerificationType(opt.value)}
+                      style={[verifStyles.row, selected && verifStyles.rowActive]}
+                    >
+                      <View style={[verifStyles.radio, selected && verifStyles.radioActive]}>
+                        {selected ? <View style={verifStyles.radioDot} /> : null}
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[typography.body, { fontWeight: '600' }]}>{opt.label}</Text>
+                        <Text style={{ ...typography.bodySm, color: colors.textMuted }}>{opt.sub}</Text>
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              {verificationType !== 'self' && (
+                <>
+                  <View style={{ marginTop: spacing.lg }}>
+                    <Input
+                      label={verificationType === 'instructor' ? 'Instructor name' : 'Buddy name (verifier)'}
+                      placeholder="Full name"
+                      value={verifierName}
+                      onChangeText={setVerifierName}
+                    />
+                  </View>
+
+                  {verificationType === 'instructor' && (
+                    <>
+                      <Text style={[styles.label, { marginTop: spacing.lg }]}>Agency</Text>
+                      <View style={styles.chipRow}>
+                        {AGENCY_OPTIONS.map((a) => (
+                          <ChoiceChip
+                            key={a}
+                            label={a}
+                            selected={verifierAgency === a}
+                            onPress={() => setVerifierAgency(a)}
+                          />
+                        ))}
+                      </View>
+                      <View style={{ marginTop: spacing.lg }}>
+                        <Input
+                          label="Cert / member number"
+                          placeholder="e.g. PADI 123456"
+                          value={verifierCertNumber}
+                          onChangeText={setVerifierCertNumber}
+                        />
+                      </View>
+                    </>
+                  )}
+
+                  <View style={{ marginTop: spacing.lg }}>
+                    <Input
+                      label="Type verifier's name to acknowledge signature"
+                      placeholder={verifierName || 'Full name'}
+                      value={verifierSignatureTyped}
+                      onChangeText={setVerifierSignatureTyped}
+                    />
+                  </View>
+                </>
+              )}
+            </>
+          )}
+
+          {/* ── Night Dive Details — desktop section N1 ──────────────── */}
+          {scubaSubtypes.includes('night') && (
+            <>
+              <SectionLabel>Night Dive Details</SectionLabel>
+              <Text style={[styles.label]}>Light source</Text>
+              <View style={styles.chipRow}>
+                {NIGHT_LIGHT_OPTIONS.map((o) => (
+                  <ChoiceChip
+                    key={o}
+                    label={o}
+                    selected={nightLightSource === o}
+                    onPress={() => setNightLightSource(o)}
+                  />
+                ))}
+              </View>
+              <Text style={[styles.label, { marginTop: spacing.lg }]}>Ambient light</Text>
+              <View style={styles.chipRow}>
+                {NIGHT_AMBIENT_OPTIONS.map((o) => (
+                  <ChoiceChip
+                    key={o}
+                    label={o}
+                    selected={nightAmbientLight === o}
+                    onPress={() => setNightAmbientLight(o)}
+                  />
+                ))}
+              </View>
+              <View style={{ marginTop: spacing.lg }}>
+                <Input
+                  label="Visibility at night (ft)"
+                  placeholder="20"
+                  keyboardType="number-pad"
+                  value={nightVisibility}
+                  onChangeText={setNightVisibility}
+                />
+              </View>
+            </>
+          )}
+
+          {/* ── Deep Dive Details — desktop section D1.
+                Triggers on the 'deep' subtype OR any dive past 60 ft, the
+                PADI Deep-specialty threshold. ──────────────────────── */}
+          {(scubaSubtypes.includes('deep') || Number(scubaMaxDepth) > 60) && (
+            <>
+              <SectionLabel>Deep Dive Details</SectionLabel>
+              <Pressable
+                style={deepRowStyles.row}
+                onPress={() => setDeepConfirmedFromComputer(!deepConfirmedFromComputer)}
+              >
+                <View style={[
+                  deepRowStyles.check,
+                  deepConfirmedFromComputer && deepRowStyles.checkOn,
+                ]}>
+                  {deepConfirmedFromComputer ? <Text style={deepRowStyles.checkMark}>✓</Text> : null}
+                </View>
+                <Text style={[typography.body, { flex: 1 }]}>
+                  Max depth confirmed from dive computer
+                </Text>
+              </Pressable>
+              <Pressable
+                style={deepRowStyles.row}
+                onPress={() => setDeepNarcosisExperienced(!deepNarcosisExperienced)}
+              >
+                <View style={[
+                  deepRowStyles.check,
+                  deepNarcosisExperienced && deepRowStyles.checkOn,
+                ]}>
+                  {deepNarcosisExperienced ? <Text style={deepRowStyles.checkMark}>✓</Text> : null}
+                </View>
+                <Text style={[typography.body, { flex: 1 }]}>
+                  Narcosis symptoms experienced
+                </Text>
+              </Pressable>
+              {deepNarcosisExperienced && (
+                <View style={{ marginTop: spacing.md }}>
+                  <Text style={styles.label}>Narcosis notes</Text>
+                  <TextInput
+                    placeholder="What did you experience? At what depth? How did you manage it?"
+                    placeholderTextColor={colors.textMuted}
+                    multiline
+                    numberOfLines={3}
+                    value={deepNarcosisNotes}
+                    onChangeText={setDeepNarcosisNotes}
+                    style={styles.textarea}
+                  />
+                </View>
+              )}
+              <View style={{ marginTop: spacing.md }}>
+                <Text style={styles.label}>Gas plan</Text>
+                <TextInput
+                  placeholder="e.g. Air to 100ft, EAN50 deco at 20ft"
+                  placeholderTextColor={colors.textMuted}
+                  multiline
+                  numberOfLines={3}
+                  value={deepGasPlan}
+                  onChangeText={setDeepGasPlan}
+                  style={styles.textarea}
+                />
+              </View>
+            </>
+          )}
         </View>
       )}
 
@@ -911,6 +1466,47 @@ export function LogDiveScreen() {
             <ChoiceChip label="Friends" />
             <ChoiceChip label="Only me" />
           </View>
+
+          {/* ── Rate the Dive — desktop section 07 ──────────────────── */}
+          <SectionLabel>Rate the Dive</SectionLabel>
+          <Text style={{ ...typography.caption, color: colors.textMuted, letterSpacing: 1 }}>
+            OVERALL EXPERIENCE
+          </Text>
+          <View style={rateStyles.starsRow}>
+            {[0, 1, 2, 3, 4].map((i) => (
+              <Pressable key={i} onPress={() => setRatingStars(i + 1)} hitSlop={6}>
+                <Text style={[rateStyles.star, i < ratingStars && rateStyles.starOn]}>★</Text>
+              </Pressable>
+            ))}
+          </View>
+          {ratingStars > 0 ? (
+            <Text style={{ ...typography.bodySm, color: colors.textSecondary, marginTop: 4 }}>
+              {ratingStars} of 5
+            </Text>
+          ) : null}
+
+          <Text style={[styles.label, { marginTop: spacing.lg }]}>Would you recommend this spot?</Text>
+          <View style={styles.chipRow}>
+            {RECOMMEND_CHIPS.map((r) => (
+              <ChoiceChip
+                key={r}
+                label={r}
+                selected={recommend === r}
+                onPress={() => setRecommend(r)}
+              />
+            ))}
+          </View>
+          <Text style={[styles.label, { marginTop: spacing.lg }]}>Reef health observed</Text>
+          <View style={styles.chipRow}>
+            {REEF_HEALTH_CHIPS.map((h) => (
+              <ChoiceChip
+                key={h}
+                label={h}
+                selected={reefHealth === h}
+                onPress={() => setReefHealth(h)}
+              />
+            ))}
+          </View>
         </View>
       )}
 
@@ -1040,6 +1636,195 @@ function labelForType(t: DiveType) {
 function SectionLabel({ children }: { children: string }) {
   return <Text style={styles.sectionLabel}>{children.toUpperCase()}</Text>;
 }
+
+// "Make official" toggle — mirrors desktop's OfficialToggle in
+// LogDiveScreen.tsx:1465. When on, the dive counts toward cert
+// logbook requirements (AOW/Rescue/DM) per agency rules; the
+// Verification block becomes required.
+function OfficialToggle({
+  value,
+  onChange,
+}: {
+  value: boolean;
+  onChange: (next: boolean) => void;
+}) {
+  return (
+    <Pressable
+      onPress={() => onChange(!value)}
+      style={[officialToggleStyles.row, value && officialToggleStyles.rowOn]}
+    >
+      <View style={{ flex: 1, gap: 4 }}>
+        <View style={officialToggleStyles.titleRow}>
+          <Text style={officialToggleStyles.title}>Make official</Text>
+          {value ? (
+            <View style={officialToggleStyles.badge}>
+              <Text style={officialToggleStyles.badgeText}>OFFICIAL · CERT-ELIGIBLE</Text>
+            </View>
+          ) : null}
+        </View>
+        <Text style={officialToggleStyles.sub}>
+          {value
+            ? 'Official logbook entry — all required fields must be completed before sign + publish.'
+            : 'Cert-grade entry. Counts toward AOW, Rescue, DM, Instructor logbook requirements. Requires buddy or instructor verification before submit.'}
+        </Text>
+      </View>
+      <View style={[officialToggleStyles.track, !value && officialToggleStyles.trackOff]}>
+        <View style={[officialToggleStyles.thumb, !value && officialToggleStyles.thumbOff]} />
+      </View>
+    </Pressable>
+  );
+}
+
+const officialToggleStyles = StyleSheet.create({
+  row: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.md,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+    marginTop: spacing.lg,
+  },
+  rowOn: {
+    borderColor: colors.accent,
+    backgroundColor: colors.accentSoft,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    flexWrap: 'wrap',
+  },
+  title: { ...typography.h3, fontSize: 15, color: colors.textPrimary },
+  badge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: radius.sm,
+    backgroundColor: colors.accent,
+  },
+  badgeText: { ...typography.caption, color: '#000', fontWeight: '800' },
+  sub: { ...typography.bodySm, color: colors.textSecondary },
+  track: {
+    width: 40,
+    height: 24,
+    borderRadius: 999,
+    backgroundColor: colors.accent,
+    padding: 2,
+    justifyContent: 'center',
+    alignItems: 'flex-end',
+  },
+  trackOff: { backgroundColor: colors.border, alignItems: 'flex-start' },
+  thumb: { width: 20, height: 20, borderRadius: 999, backgroundColor: '#fff' },
+  thumbOff: { backgroundColor: colors.textMuted },
+});
+
+// Sticky-style banner shown above the form when "Make official" is on
+// but required fields are missing. Mirrors desktop's MissingFieldsBanner
+// (LogDiveScreen.tsx:1548).
+function MissingFieldsBanner({
+  missing,
+  onTurnOff,
+}: {
+  missing: string[];
+  onTurnOff: () => void;
+}) {
+  return (
+    <View style={bannerStyles.row}>
+      <Text style={bannerStyles.title}>
+        ⚠ {missing.length} required field{missing.length === 1 ? '' : 's'} missing for official entry
+      </Text>
+      <View style={bannerStyles.list}>
+        {missing.slice(0, 6).map((m) => (
+          <Text key={m} style={bannerStyles.item}>· {m}</Text>
+        ))}
+        {missing.length > 6 ? (
+          <Text style={bannerStyles.item}>· +{missing.length - 6} more</Text>
+        ) : null}
+      </View>
+      <Pressable style={bannerStyles.btn} onPress={onTurnOff}>
+        <Text style={bannerStyles.btnText}>Turn off "Make official"</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+const bannerStyles = StyleSheet.create({
+  row: {
+    padding: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.warn,
+    backgroundColor: colors.warnSoft,
+    gap: spacing.sm,
+    marginTop: spacing.md,
+  },
+  title: { ...typography.body, fontWeight: '700', color: colors.warn },
+  list: { gap: 2 },
+  item: { ...typography.bodySm, color: colors.textSecondary },
+  btn: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.sm,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  btnText: { ...typography.bodySm, color: colors.textPrimary, fontWeight: '600' },
+});
+
+const deepRowStyles = StyleSheet.create({
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingVertical: spacing.md,
+  },
+  check: {
+    width: 22,
+    height: 22,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkOn: { borderColor: colors.accent, backgroundColor: colors.accent },
+  checkMark: { color: '#000', fontWeight: '800', fontSize: 14 },
+});
+
+const rateStyles = StyleSheet.create({
+  starsRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm },
+  star: { fontSize: 36, color: colors.border },
+  starOn: { color: colors.warn },
+});
+
+const verifStyles = StyleSheet.create({
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+  },
+  rowActive: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
+  radio: {
+    width: 20,
+    height: 20,
+    borderRadius: 999,
+    borderWidth: 2,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  radioActive: { borderColor: colors.accent },
+  radioDot: { width: 10, height: 10, borderRadius: 999, backgroundColor: colors.accent },
+});
 
 // 2x2 calc card. Re-uses the project's Card surface so it visually
 // fits with step 1, but tints to accent so it reads as derived/locked.

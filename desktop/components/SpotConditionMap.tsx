@@ -35,7 +35,9 @@ export function SpotConditionMap({
   const spotIds = React.useMemo(() => SPOTS.map((s) => s.id), []);
   const ratings = useSpotRatings(spotIds);
 
-  const [hoveredId, setHoveredId] = React.useState<string | undefined>(undefined);
+  // setHoveredId removed — the map's hover-pulse is handled internally
+  // now. Keep `hoveredId` as a constant so existing JSX stays valid.
+  const hoveredId: string | undefined = undefined;
 
   const markers: MapMarker[] = React.useMemo(
     () =>

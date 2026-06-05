@@ -19,7 +19,7 @@
  *     palette could be wired later via custom PALETTE param.
  */
 
-import type mapboxgl from 'mapbox-gl';
+import type * as mapboxgl from 'mapbox-gl';
 
 export const SWELL_SOURCE_ID = 'kc-swell-src';
 export const SWELL_LAYER_ID = 'kc-swell-lyr';

@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, Pressable, ScrollView, StyleSheet, Linking, Share } from 'react-native';
+import { View, Text, Pressable, ScrollView, StyleSheet, Linking, Share, Modal, TextInput, Alert } from 'react-native';
 import { useNavigation, CompositeNavigationProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
@@ -17,6 +17,7 @@ import { colors, radius, spacing, typography } from '@/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfilePhoto } from '@/hooks/useProfilePhoto';
 import { useUserProfile } from '@/hooks/useUserProfile';
+import { setUserProfile } from '@/api/userProfile';
 import { useUserDiveLogs, diveLogToReport } from '@/hooks/useDiveLogs';
 import { useUserStats } from '@/hooks/useUserStats';
 import { useSpots } from '@/hooks/useSpots';
@@ -75,6 +76,53 @@ export function ProfileScreen() {
     [spots, favoriteIds],
   );
   const [tab, setTab] = useState<Tab>('Dashboard');
+  // Edit-profile sheet — fields mirror desktop's EditableSettingsRow
+  // section under Account in ProfileScreen.tsx.
+  const [editOpen, setEditOpen] = useState(false);
+  const [editDraft, setEditDraft] = useState({
+    name: '',
+    handle: '',
+    homeIsland: '',
+    homeTown: '',
+  });
+  const [editSaving, setEditSaving] = useState(false);
+  const openEdit = () => {
+    setEditDraft({
+      name: profile?.name ?? '',
+      handle: (profile?.handle ?? '').replace(/^@/, ''),
+      homeIsland: profile?.homeIsland ?? '',
+      homeTown: profile?.homeTown ?? '',
+    });
+    setEditOpen(true);
+  };
+  const saveEdit = async () => {
+    if (!user) return;
+    const trimmedName = editDraft.name.trim();
+    const trimmedHandle = editDraft.handle.trim();
+    if (!trimmedName) {
+      Alert.alert('Required', "Display name can't be blank.");
+      return;
+    }
+    if (trimmedHandle && !/^[a-z0-9_]{2,20}$/i.test(trimmedHandle)) {
+      Alert.alert('Invalid username', 'Use 2–20 letters, numbers, or underscores.');
+      return;
+    }
+    setEditSaving(true);
+    try {
+      await setUserProfile(user.id, {
+        name: trimmedName,
+        handle: trimmedHandle || undefined,
+        homeIsland: editDraft.homeIsland.trim() || undefined,
+        homeTown: editDraft.homeTown.trim() || undefined,
+      });
+      setEditOpen(false);
+    } catch (err) {
+      const msg = (err as { message?: string })?.message ?? 'Please try again.';
+      Alert.alert("Couldn't save", msg);
+    } finally {
+      setEditSaving(false);
+    }
+  };
 
   // Prefer the live profile doc when present; fall back to the auth
   // user blob (which itself falls back to email-derived defaults).
@@ -107,6 +155,10 @@ export function ProfileScreen() {
         <Text style={[typography.display, { marginTop: spacing.lg }]}>{displayName}</Text>
         <Text style={styles.handle}>@{handle}</Text>
         <Text style={styles.location}>{homeLocation}</Text>
+        <Pressable style={editProfileStyles.cta} onPress={openEdit} hitSlop={6}>
+          <Icon name="edit" size={13} color={colors.textSecondary} />
+          <Text style={editProfileStyles.ctaText}>Edit profile</Text>
+        </Pressable>
         <View style={styles.statsRow}>
           <Pressable style={styles.statCol} onPress={() => nav.navigate('Followers')}>
             <Text style={styles.statBold}>{followCounts.followers}</Text>
@@ -287,9 +339,130 @@ export function ProfileScreen() {
           <Text style={styles.version}>KaiCast 1.0.0 (build 142)</Text>
         </View>
       )}
+
+      <Modal visible={editOpen} transparent animationType="slide" onRequestClose={() => setEditOpen(false)}>
+        <Pressable style={editProfileStyles.backdrop} onPress={() => setEditOpen(false)}>
+          <Pressable style={editProfileStyles.sheet} onPress={() => undefined}>
+            <View style={editProfileStyles.handle} />
+            <Text style={editProfileStyles.title}>Edit profile</Text>
+
+            <Text style={editProfileStyles.label}>Display name</Text>
+            <TextInput
+              value={editDraft.name}
+              onChangeText={(v) => setEditDraft((p) => ({ ...p, name: v }))}
+              placeholder="Your name"
+              placeholderTextColor={colors.textMuted}
+              style={editProfileStyles.input}
+              autoCapitalize="words"
+            />
+
+            <Text style={editProfileStyles.label}>Username</Text>
+            <View style={editProfileStyles.atRow}>
+              <Text style={editProfileStyles.atSign}>@</Text>
+              <TextInput
+                value={editDraft.handle}
+                onChangeText={(v) => setEditDraft((p) => ({ ...p, handle: v.replace(/^@/, '') }))}
+                placeholder="yourhandle"
+                placeholderTextColor={colors.textMuted}
+                style={[editProfileStyles.input, { flex: 1, marginTop: 0 }]}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            </View>
+
+            <Text style={editProfileStyles.label}>Home island</Text>
+            <TextInput
+              value={editDraft.homeIsland}
+              onChangeText={(v) => setEditDraft((p) => ({ ...p, homeIsland: v }))}
+              placeholder="Oahu"
+              placeholderTextColor={colors.textMuted}
+              style={editProfileStyles.input}
+              autoCapitalize="words"
+            />
+
+            <Text style={editProfileStyles.label}>Home town</Text>
+            <TextInput
+              value={editDraft.homeTown}
+              onChangeText={(v) => setEditDraft((p) => ({ ...p, homeTown: v }))}
+              placeholder="Honolulu"
+              placeholderTextColor={colors.textMuted}
+              style={editProfileStyles.input}
+              autoCapitalize="words"
+            />
+
+            <View style={editProfileStyles.actions}>
+              <Button label="Cancel" variant="ghost" onPress={() => setEditOpen(false)} />
+              <Button label="Save" loading={editSaving} onPress={saveEdit} />
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </Screen>
   );
 }
+
+const editProfileStyles = StyleSheet.create({
+  cta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginTop: spacing.sm,
+  },
+  ctaText: { ...typography.bodySm, color: colors.textSecondary, fontWeight: '600' },
+  backdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  sheet: {
+    backgroundColor: colors.bgElevated,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    padding: spacing.xl,
+    paddingBottom: spacing.xxl,
+    gap: spacing.md,
+  },
+  handle: {
+    alignSelf: 'center',
+    width: 40, height: 4, borderRadius: 999,
+    backgroundColor: colors.border,
+  },
+  title: { ...typography.h3, marginBottom: spacing.sm },
+  label: {
+    ...typography.caption,
+    color: colors.textMuted,
+    marginTop: spacing.sm,
+    letterSpacing: 1,
+  },
+  input: {
+    backgroundColor: colors.cardAlt,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: 12,
+    color: colors.textPrimary,
+    fontSize: 15,
+    marginTop: 4,
+  },
+  atRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  atSign: { ...typography.body, color: colors.textMuted, marginTop: 4 },
+  actions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: spacing.md,
+    marginTop: spacing.lg,
+  },
+});
 
 function StatTile({ value, unit, label, borderColor }: { value: string; unit: string; label: string; borderColor: string }) {
   return (

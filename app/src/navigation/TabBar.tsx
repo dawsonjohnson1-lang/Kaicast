@@ -8,6 +8,9 @@ const ICONS: Record<string, ImageSourcePropType> = {
   Dashboard: require('../assets/logo-mark.png'),
   Saved: require('../../assets/tab-saved.png'),
   Explore: require('../../assets/tab-explore.png'),
+  // TODO: ship a dedicated tab-logs icon. Reusing tab-saved (bookmark)
+  // is semantically the closest existing asset for a log-entries tab.
+  Logs: require('../../assets/tab-saved.png'),
   Profile: require('../../assets/tab-profile.png'),
 };
 
@@ -15,6 +18,7 @@ const LABELS: Record<string, string> = {
   Dashboard: 'DASHBOARD',
   Saved: 'SAVED',
   Explore: 'EXPLORE',
+  Logs: 'LOGS',
   Profile: 'PROFILE',
 };
 

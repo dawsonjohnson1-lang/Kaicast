@@ -344,7 +344,10 @@ export function VesselCard({
         </Field>
       ) : null}
       <View style={styles.row2}>
-        <NumberStepper label="Length (ft)" value={vessel.lengthFt || null} onChange={(v) => onPatch({ lengthFt: v ?? 0 })} step={1} min={10} max={150} unit="ft" />
+        {/* No min on Length — typing "25" was getting clamped to 10 mid-
+            edit on every blur. Form-level validation (lengthFt > 0)
+            handles the empty-state case at submit time. */}
+        <NumberStepper label="Length (ft)" value={vessel.lengthFt || null} onChange={(v) => onPatch({ lengthFt: v ?? 0 })} step={1} max={150} unit="ft" />
         <NumberStepper label="Passenger capacity" value={vessel.passengerCapacity || null} onChange={(v) => onPatch({ passengerCapacity: v ?? 0 })} step={1} min={1} max={150} unit="ppl" />
       </View>
       <View style={styles.row2}>
@@ -552,11 +555,52 @@ export function ProfileCard({
   onRemove: () => void;
 }) {
   const [newTime, setNewTime] = React.useState('');
+  const [timeError, setTimeError] = React.useState<string | null>(null);
+  // Accept loose user input and coerce to HH:MM. Examples:
+  //   "7"    → "07:00"        "07:00" → "07:00"
+  //   "07"   → "07:00"        "7:0"   → "07:00"
+  //   "730"  → "07:30"        "15:5"  → "15:05"
+  //   "1530" → "15:30"
+  // Returns null when nothing reasonable can be parsed so the caller can
+  // show feedback instead of silently rejecting the click.
+  const coerceTime = (raw: string): string | null => {
+    const t = raw.trim();
+    if (!t) return null;
+    const digits = t.replace(/[^\d]/g, '');
+    let hh: number;
+    let mm: number;
+    if (t.includes(':')) {
+      const [hPart, mPart = '0'] = t.split(':');
+      hh = parseInt(hPart, 10);
+      mm = parseInt(mPart, 10);
+    } else if (digits.length <= 2) {
+      hh = parseInt(digits, 10);
+      mm = 0;
+    } else if (digits.length === 3) {
+      hh = parseInt(digits.slice(0, 1), 10);
+      mm = parseInt(digits.slice(1), 10);
+    } else if (digits.length === 4) {
+      hh = parseInt(digits.slice(0, 2), 10);
+      mm = parseInt(digits.slice(2), 10);
+    } else {
+      return null;
+    }
+    if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null;
+    if (hh < 0 || hh > 23 || mm < 0 || mm > 59) return null;
+    return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+  };
   const addTime = () => {
-    const t = newTime.trim();
-    if (!/^\d{1,2}:\d{2}$/.test(t)) return;
-    if (profile.typicalDepartureTimes.includes(t)) return;
-    onPatch({ typicalDepartureTimes: [...profile.typicalDepartureTimes, t].sort() });
+    const coerced = coerceTime(newTime);
+    if (!coerced) {
+      setTimeError(newTime.trim() ? `"${newTime.trim()}" isn't a valid time` : 'Type a time first');
+      return;
+    }
+    if (profile.typicalDepartureTimes.includes(coerced)) {
+      setTimeError(`${coerced} is already in the list`);
+      return;
+    }
+    setTimeError(null);
+    onPatch({ typicalDepartureTimes: [...profile.typicalDepartureTimes, coerced].sort() });
     setNewTime('');
   };
   const removeTime = (t: string) => onPatch({ typicalDepartureTimes: profile.typicalDepartureTimes.filter((x) => x !== t) });
@@ -632,12 +676,23 @@ export function ProfileCard({
             </Pressable>
           ))}
           <View style={styles.timeChipAdd}>
-            <TextInput value={newTime} onChangeText={setNewTime} onSubmitEditing={addTime} placeholder="07:00" placeholderTextColor={colors.text4} style={styles.timeChipInput} />
-            <Pressable onPress={addTime} style={styles.timeChipAddBtn}>
+            <TextInput
+              value={newTime}
+              onChangeText={(v) => { setNewTime(v); if (timeError) setTimeError(null); }}
+              onSubmitEditing={addTime}
+              placeholder="07:00 or 730"
+              placeholderTextColor={colors.text4}
+              style={styles.timeChipInput}
+            />
+            {/* focusable=false stops the +'s mousedown from blurring the
+                TextInput before the click registers — a Pressable + active-
+                TextInput race that lets clicks slip through on RN Web. */}
+            <Pressable onPress={addTime} style={styles.timeChipAddBtn} focusable={false}>
               <Text style={styles.timeChipAddText}>+</Text>
             </Pressable>
           </View>
         </View>
+        {timeError ? <Text style={styles.timeChipError}>{timeError}</Text> : null}
       </Field>
 
       <Field label="Destination areas (loose route-planner seeds)">
@@ -893,6 +948,7 @@ const styles = StyleSheet.create({
   timeChipInput: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: colors.hairlineStrong, backgroundColor: colors.surface0, fontFamily: fonts.mono, fontSize: 12, color: colors.text1, width: 80 },
   timeChipAddBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: colors.surface0, borderWidth: 1, borderColor: colors.hairlineStrong, alignItems: 'center', justifyContent: 'center' },
   timeChipAddText: { fontFamily: fonts.display, fontSize: 16, fontWeight: '700', color: colors.text2 },
+  timeChipError: { marginTop: 6, fontFamily: fonts.body, fontSize: 11, color: colors.fair },
 
   areaRow: { flexDirection: 'row', gap: 6, alignItems: 'center' },
 

@@ -17,7 +17,7 @@
  * supports zoom 0–7 natively; Mapbox oversamples beyond that.
  */
 
-import type mapboxgl from 'mapbox-gl';
+import type * as mapboxgl from 'mapbox-gl';
 
 // Two stacked sources for the cloud layer:
 //   - GIBS GOES-West GeoColor (top, archipelago zoom only): real

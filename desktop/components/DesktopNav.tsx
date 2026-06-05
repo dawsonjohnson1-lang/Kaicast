@@ -1,6 +1,5 @@
-import React from 'react';
 import { View, Text, Pressable, TextInput, Image, StyleSheet } from 'react-native';
-import { colors, fonts, radius, NAV_HEIGHT, UTIL_BAR_HEIGHT, DESKTOP_MAX_WIDTH } from '../tokens';
+import { colors, fonts, radius, NAV_HEIGHT, UTIL_BAR_HEIGHT } from '../tokens';
 import type { NavigateFn, RouteKey } from '../router';
 import { logos } from '../assets/figma/logos';
 import { flags } from '../assets/figma/flags';
@@ -18,16 +17,19 @@ import { useUserProfile } from '../hooks/useUserProfile';
  * - Logo → dashboard, avatar → profile.
  */
 
-export type NavKey = 'dashboard' | 'forecast' | 'spots' | 'log';
+export type NavKey = 'dashboard' | 'forecast' | 'spots' | 'log' | 'charter';
 
 /** Map a nav slot to its destination route. Forecast/Spots/Log are 1:1
  * with route keys; the nav doesn't surface a separate Conditions slot
- * because Conditions sits under the Forecast group. */
+ * because Conditions sits under the Forecast group. The Charter slot
+ * only appears for charter-affiliated accounts (see NAV_ITEMS logic
+ * below) and routes into the charter ops dashboard. */
 const NAV_TO_ROUTE: Record<NavKey, RouteKey> = {
   dashboard: 'dashboard',
   forecast:  'conditions',
   spots:     'spots-map',
   log:       'log-dive',
+  charter:   'charter-home',
 };
 
 export interface DesktopNavProps {
@@ -39,12 +41,14 @@ export interface DesktopNavProps {
   showUtilBar?: boolean;
 }
 
-const NAV_ITEMS: ReadonlyArray<{ key: NavKey; label: string }> = [
+const BASE_NAV_ITEMS: ReadonlyArray<{ key: NavKey; label: string }> = [
   { key: 'dashboard', label: 'Dashboard' },
   { key: 'forecast',  label: 'Forecast' },
   { key: 'spots',     label: 'Spots & Maps' },
   { key: 'log',       label: 'Log Dive' },
 ];
+
+const CHARTER_NAV_ITEM = { key: 'charter' as const, label: 'Charter' };
 
 export function DesktopNav({
   active,
@@ -63,6 +67,14 @@ export function DesktopNav({
   const signedIn = auth.user != null;
   const resolvedInitials = userInitials ?? initialsFromUser(auth.user, 'KC');
   const resolvedPhotoURL = profile?.photoURL ?? auth.user?.photoURL ?? null;
+  // Charter-affiliated accounts get a "Charter" entry to the right of
+  // Log Dive so they can jump to the ops dashboard even when their
+  // activeContext is 'consumer' (Personal mode). Surfaced for
+  // accountType === 'charter' (the admin role); crew users have their
+  // own /crew nav under the crew shell.
+  const navItems = auth.accountType === 'charter'
+    ? [...BASE_NAV_ITEMS, CHARTER_NAV_ITEM]
+    : BASE_NAV_ITEMS;
   return (
     <View style={styles.root}>
       {showUtilBar ? (
@@ -85,7 +97,7 @@ export function DesktopNav({
         </Pressable>
 
         <View style={styles.linksWrap}>
-          {NAV_ITEMS.map((item) => {
+          {navItems.map((item) => {
             const isActive = item.key === active;
             return (
               <Pressable

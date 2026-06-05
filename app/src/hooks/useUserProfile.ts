@@ -74,6 +74,7 @@ export function useUserProfile(uid: string | undefined): State & { refresh: () =
               yearsActive: data.yearsActive,
               certification: data.certification,
               onboardingComplete: data.onboardingComplete === true,
+              accountType: data.accountType === 'charter' ? 'charter' : 'consumer',
               updatedAt: data.updatedAt?.toDate?.() ?? null,
               createdAt: data.createdAt?.toDate?.() ?? null,
             } as UserProfile,

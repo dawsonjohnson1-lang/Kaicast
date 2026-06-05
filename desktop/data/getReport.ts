@@ -130,13 +130,23 @@ const TIER_FROM_SCORE = (score: number | undefined | null): 'excellent' | 'great
 };
 
 export function tierFromRating(r: BackendRating | undefined): 'excellent' | 'great' | 'good' | 'fair' | 'no-go' {
+  // Single source of truth: the numeric score, mapped via TIER_FROM_SCORE.
+  // Previously this preferred the backend's string label (`r.label` /
+  // `r.rating`) which caused the map markers (label-driven) to disagree
+  // with the spot detail page's day strip + hourly card (score-driven)
+  // whenever server-side label thresholds drifted from the client's.
+  // Label is now a last-resort fallback for legacy docs that have no
+  // numeric score at all.
+  if (typeof r?.score === 'number' && Number.isFinite(r.score)) {
+    return TIER_FROM_SCORE(r.score);
+  }
   const label = (r?.label ?? r?.rating ?? '').toLowerCase();
   if (label.includes('excellent')) return 'excellent';
   if (label.includes('great'))     return 'great';
   if (label.includes('good'))      return 'good';
   if (label.includes('fair'))      return 'fair';
   if (label.includes('no-go') || label.includes('nogo')) return 'no-go';
-  return TIER_FROM_SCORE(r?.score);
+  return 'good';
 }
 
 const HOUR_LABEL = (h: number): string => {
@@ -379,18 +389,53 @@ export function backendReportToHours(
 ): DesktopHourRow[] {
   let windows = report.windows ?? [];
   if (windows.length === 0) return [];
-  if (dayOffset !== 0) {
-    const target = new Date();
-    target.setHours(0, 0, 0, 0);
-    target.setDate(target.getDate() + dayOffset);
-    const yyyy = target.getFullYear();
-    const mm = String(target.getMonth() + 1).padStart(2, '0');
-    const dd = String(target.getDate()).padStart(2, '0');
-    const targetDate = `${yyyy}-${mm}-${dd}`;
-    const filtered = windows.filter((w) => (w.startIso ?? '').startsWith(targetDate));
-    // If the report doesn't carry windows for the requested day, fall
-    // through to the full list — better than rendering an empty table.
-    windows = filtered.length > 0 ? filtered : windows;
+
+  // Always filter to the requested HST calendar day (including today).
+  // The previous code skipped the filter when dayOffset === 0, which
+  // let the first 8 windows wrap past midnight HST and produced rows
+  // ordered "8A, 11A, 2P, 5P, 8P, 11P, 2A, 5A" — visually backwards.
+  // We also build the target date in Hawaii-local time (not the
+  // browser's tz), and compare each window's startIso in Hawaii-local
+  // time. Otherwise a viewer in EST sees Hawaii's evening windows
+  // attributed to "tomorrow" in their browser tz.
+  const hstDateOf = (ms: number): string => {
+    const fmt = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Pacific/Honolulu',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+    });
+    return fmt.format(new Date(ms));
+  };
+  const targetMs = Date.now() + dayOffset * 86400000;
+  const targetHstDate = hstDateOf(targetMs);
+
+  const filtered = windows.filter((w) => {
+    const ms = Date.parse(w.startIso ?? '');
+    if (!Number.isFinite(ms)) return false;
+    return hstDateOf(ms) === targetHstDate;
+  });
+  // Sort chronologically as a safety net — backend usually returns in
+  // order but we don't want a single out-of-order entry to scramble
+  // the table.
+  filtered.sort((a, b) => Date.parse(a.startIso ?? '') - Date.parse(b.startIso ?? ''));
+  // If the report doesn't carry windows for the requested day, fall
+  // back to the full chronologically-sorted list — better than an
+  // empty table. Trim to today's HST date range anyway by walking
+  // until we cross midnight HST.
+  if (filtered.length === 0) {
+    const sorted = [...windows].sort((a, b) => Date.parse(a.startIso ?? '') - Date.parse(b.startIso ?? ''));
+    const fallback: typeof sorted = [];
+    let lastHstDate: string | null = null;
+    for (const w of sorted) {
+      const ms = Date.parse(w.startIso ?? '');
+      if (!Number.isFinite(ms)) continue;
+      const hstDate = hstDateOf(ms);
+      if (lastHstDate && hstDate !== lastHstDate) break;
+      lastHstDate = hstDate;
+      fallback.push(w);
+    }
+    windows = fallback.length > 0 ? fallback : sorted;
+  } else {
+    windows = filtered;
   }
   const nowMetrics = (report.now?.metrics ?? {}) as Record<string, number | null | undefined>;
   const swellDir = nowMetrics.waveDirectionDegFrom;
@@ -403,7 +448,18 @@ export function backendReportToHours(
   return windows.slice(0, count).map((w): DesktopHourRow => {
     const startMs = Date.parse(w.startIso ?? '');
     const hasStart = Number.isFinite(startMs);
-    const time = hasStart ? hourLabelSpaced(new Date(startMs).getHours()) : '—';
+    // Hour-label in HAWAII local time, not the browser's timezone.
+    // A viewer in EST/PST would otherwise see times shifted 3-5 hours
+    // off what a Hawaii diver expects.
+    const time = hasStart
+      ? hourLabelSpaced(
+          Number(new Intl.DateTimeFormat('en-US', {
+            timeZone: 'Pacific/Honolulu',
+            hour: 'numeric',
+            hour12: false,
+          }).format(new Date(startMs))),
+        )
+      : '—';
 
     const waveHM = w.avg?.waveHeightM;
     const waveFt = waveHM == null ? null : Math.round(waveHM * M_TO_FT * 10) / 10;
@@ -447,13 +503,35 @@ export function backendDayToDesktopDay(
   const dateLabel = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   const lo = Math.max(0, Math.round((day.waveMinM ?? 0) * M_TO_FT));
   const hi = Math.max(lo, Math.round((day.waveMaxM ?? day.waveAvgM ?? 0) * M_TO_FT));
-  // Visibility estimate (mirrors mobile heuristic): clean swell + low
-  // rain → high vis; choppy + rainy → low vis. Result is a "lo–hiFT" string.
-  const swellAvgM = day.waveAvgM ?? 1;
-  const rain = day.rainTotalMM ?? 0;
-  const base = Math.max(8, Math.min(80, Math.round(60 - swellAvgM * 10 - rain * 0.8)));
-  const visLo = Math.max(5, base - 10);
-  const visHi = Math.min(80, base + 10);
+
+  // Visibility range — derive from the SAME per-window vis values the
+  // hourly card reads (windows[].visibility.estimatedVisibilityMeters),
+  // so the day strip and the hourly bars can't tell different stories.
+  // Previously this was a synthetic `base ± 10` heuristic that ignored
+  // the actual hourly spread — the strip said "42–60" while hourly
+  // showed 25–75.
+  let visLo: number;
+  let visHi: number;
+  const windowVisFt = (buckets ?? [])
+    .map((w) => w?.visibility?.estimatedVisibilityMeters)
+    .filter((m): m is number => typeof m === 'number' && Number.isFinite(m))
+    .map((m) => Math.round(m * M_TO_FT));
+  if (windowVisFt.length > 0) {
+    visLo = Math.max(5, Math.min(...windowVisFt));
+    visHi = Math.min(80, Math.max(...windowVisFt));
+    // Guarantee a sensible range even when all windows report the same
+    // value — show e.g. "60FT" not "60–60FT". Mapping handled in the
+    // display string below.
+  } else {
+    // Fallback: legacy heuristic when this day has no windows attached
+    // (truncated report, off-hour, etc.). Preserves the old behavior so
+    // the strip never renders "—".
+    const swellAvgM = day.waveAvgM ?? 1;
+    const rain = day.rainTotalMM ?? 0;
+    const base = Math.max(8, Math.min(80, Math.round(60 - swellAvgM * 10 - rain * 0.8)));
+    visLo = Math.max(5, base - 10);
+    visHi = Math.min(80, base + 10);
+  }
   // One score drives all three day-card visuals (top accent, stars in
   // ForecastDayCard, and the bars) — derived from the same windows
   // the hourly card renders.
@@ -464,7 +542,7 @@ export function backendDayToDesktopDay(
     rating: TIER_FROM_SCORE(score),
     waveLo: lo,
     waveHi: hi,
-    vis: `${visLo}–${visHi}FT`,
+    vis: visLo === visHi ? `${visLo}FT` : `${visLo}–${visHi}FT`,
     bars: dayBars(day, buckets),
   };
 }

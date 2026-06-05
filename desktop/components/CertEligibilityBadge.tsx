@@ -22,7 +22,6 @@
  * qualifies for Rescue+).
  */
 
-import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { colors, fonts, radius } from '../tokens';
 

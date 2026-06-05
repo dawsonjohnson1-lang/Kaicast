@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
+import { NavigationContainer, DefaultTheme, type LinkingOptions } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 
@@ -27,6 +27,10 @@ import { FollowingScreen } from '@/screens/profile/FollowingScreen';
 import { ProfileSettingsScreen } from '@/screens/profile/ProfileSettingsScreen';
 import { DeleteAccountScreen } from '@/screens/profile/DeleteAccountScreen';
 import { DiscoverUsersScreen } from '@/screens/profile/DiscoverUsersScreen';
+import { CharterDashboard } from '@/screens/charter/CharterDashboard';
+import { DailyLogScreen } from '@/screens/charter/DailyLogScreen';
+import { TripLogScreen } from '@/screens/charter/TripLogScreen';
+import { SubmitLogScreen } from '@/screens/charter/SubmitLogScreen';
 
 import type { AuthStackParamList, RootStackParamList, TabParamList } from './types';
 
@@ -41,6 +45,36 @@ const navTheme = {
     border: colors.border,
     primary: colors.accent,
     notification: colors.accent,
+  },
+};
+
+// Deep-link routing for share URLs.
+//
+// Two surfaces share the same payload (`{ spotId, date? }`):
+//   - kaicast://spot/:spotId/:date?   — custom-scheme link the
+//     spotSharePage HTML fires from its <script>; works when the app
+//     is installed and the OS routes the scheme back to us.
+//   - https://kaicast.com/spots/:spotId/:date? — Universal Link path.
+//     Activated once apple-app-site-association lands at kaicast.com
+//     with the live Apple team ID; until then this stays a no-op
+//     since iOS won't intercept the URL without the AASA handshake.
+const linking: LinkingOptions<RootStackParamList> = {
+  prefixes: ['kaicast://', 'https://kaicast.com'],
+  config: {
+    initialRouteName: 'Main',
+    screens: {
+      // `screens.SpotDetail` accepts both `spot/:spotId/:date?`
+      // (custom scheme route) and `spots/:spotId/:date?` (Universal
+      // Link route). React Navigation matches the first pattern that
+      // fits, so listing both lets a single screen back both paths.
+      SpotDetail: {
+        path: 'spot/:spotId/:date?',
+        parse: {
+          spotId: (v: string) => decodeURIComponent(v),
+          date:   (v: string) => decodeURIComponent(v),
+        },
+      },
+    },
   },
 };
 
@@ -86,6 +120,11 @@ function MainTabs() {
       <Tabs.Screen name="Dashboard" component={HomeScreen} />
       <Tabs.Screen name="Saved" component={SavedSpotsScreen} />
       <Tabs.Screen name="Explore" component={ExploreScreen} />
+      {/* Logs tab is always present in the bar — the screen itself
+          renders the charter-tier upsell card when the user isn't on
+          the charter plan. Keeps the tab layout stable across
+          upgrades + dev role-switching. */}
+      <Tabs.Screen name="Logs" component={DailyLogScreen} />
       <Tabs.Screen name="Profile" component={ProfileScreen} />
     </Tabs.Navigator>
   );
@@ -120,7 +159,7 @@ export function AppNavigator() {
       : 'onboarding';
 
   return (
-    <NavigationContainer theme={navTheme}>
+    <NavigationContainer theme={navTheme} linking={linking}>
       <RootStack.Navigator
         screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}
       >
@@ -135,6 +174,19 @@ export function AppNavigator() {
             <RootStack.Screen name="ProfileSettings" component={ProfileSettingsScreen} />
             <RootStack.Screen name="DeleteAccount" component={DeleteAccountScreen} />
             <RootStack.Screen name="DiscoverUsers" component={DiscoverUsersScreen} />
+            {/* Charter Dashboard — gate is enforced inside the screen
+                itself (CharterDashboard checks profile.accountType ===
+                'charter'). Registered here unconditionally so deep
+                links don't break for charter users; non-charter
+                visitors get bounced back from inside the screen. */}
+            <RootStack.Screen name="Charter" component={CharterDashboard} />
+            {/* Captain's Log nested screens — DailyLogScreen lives on
+                the Logs tab; these two are pushed onto the root stack
+                from there. Tier gate is enforced inside each screen
+                (mirrors CharterDashboard's pattern) so deep links
+                degrade gracefully. */}
+            <RootStack.Screen name="LogsTrip" component={TripLogScreen} />
+            <RootStack.Screen name="LogsSubmit" component={SubmitLogScreen} />
           </>
         )}
         {phase === 'onboarding' && (

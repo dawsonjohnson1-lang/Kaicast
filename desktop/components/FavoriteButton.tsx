@@ -1,4 +1,3 @@
-import React from 'react';
 import { Pressable, Text, StyleSheet } from 'react-native';
 import { colors, fonts, radius } from '../tokens';
 import { useFavorites } from '../hooks/useFavorites';

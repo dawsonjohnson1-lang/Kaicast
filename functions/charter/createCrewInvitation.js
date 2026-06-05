@@ -5,20 +5,26 @@
 // invites and the invitee (matched by auth-token email) read the doc
 // they're being invited to.
 //
-// The actual email-sending lives in Slice C2. This callable just
-// persists the invite + returns the accept URL the client can copy
-// to the clipboard for now.
+// After the doc is persisted, the callable fires a best-effort
+// invitation email via Resend (see ./sendInviteEmail.js). Email
+// failures NEVER fail the callable — the admin still gets the accept
+// URL back and the copy-link path in the modal stays useful.
 //
 // Idempotent: if a pending invitation already exists for (orgId,
 // invitedEmail), we return that one instead of creating a duplicate.
-// That keeps double-clicks + retries safe without exotic error
-// handling on the client.
+// Email is re-sent on every successful call so an admin clicking
+// "Send invitation" again actually re-sends — that matches user
+// intent better than silently no-op'ing the email.
 
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
+const { defineSecret } = require('firebase-functions/params');
 const logger = require('firebase-functions/logger');
 const admin = require('firebase-admin');
 const { FieldValue } = require('firebase-admin/firestore');
 const { z } = require('zod');
+const { sendInviteEmail } = require('./sendInviteEmail');
+
+const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
 
 if (admin.apps.length === 0) {
   admin.initializeApp();
@@ -43,6 +49,7 @@ exports.createCrewInvitation = onCall(
     cors: true,
     timeoutSeconds: 30,
     memory: '256MiB',
+    secrets: [RESEND_API_KEY],
   },
   async (req) => {
     if (!req.auth) {
@@ -97,56 +104,85 @@ exports.createCrewInvitation = onCall(
       .limit(1)
       .get();
 
+    let inviteId;
+    let expiresAtMs;
+    let reused;
+    let effectiveDisplayName;
+    let effectiveRole;
+
     if (!existing.empty) {
       const doc = existing.docs[0];
       const data = doc.data();
-      const expiresMs = data.expiresAt?.toMillis?.() ?? 0;
-      if (expiresMs > nowMs) {
+      const existingExpiresMs = data.expiresAt?.toMillis?.() ?? 0;
+      if (existingExpiresMs > nowMs) {
         logger.info('[invite] returning existing pending invite', {
           inviteId: doc.id, orgId, invitedEmail,
         });
-        return {
-          inviteId: doc.id,
-          status: 'pending',
-          orgName,
-          role,
-          expiresAt: expiresMs,
-          reused: true,
-        };
+        inviteId = doc.id;
+        expiresAtMs = existingExpiresMs;
+        reused = true;
+        effectiveDisplayName = typeof data.invitedDisplayName === 'string' ? data.invitedDisplayName : null;
+        effectiveRole = typeof data.role === 'string' ? data.role : role;
+      } else {
+        // Expired pending — mark it expired so the new one is the live
+        // record. We DON'T delete it — keeping the history is useful for
+        // an admin reviewing "who did I invite and never got back to me?"
+        await doc.ref.update({ status: 'expired' });
       }
-      // Expired pending — mark it expired so the new one is the live
-      // record. We DON'T delete it — keeping the history is useful for
-      // an admin reviewing "who did I invite and never got back to me?"
-      await doc.ref.update({ status: 'expired' });
     }
 
-    // Create a fresh invite. The doc id is the inviteId we hand back
-    // to the client — it's also the path token in the accept URL.
-    const ref = db.collection('crew_invitations').doc();
-    const expiresAtMs = nowMs + SEVEN_DAYS_MS;
-    await ref.set({
-      orgId,
-      orgName,
-      invitedEmail,
-      invitedDisplayName: displayName ?? null,
-      role,
-      invitedBy: callerUid,
-      status: 'pending',
-      createdAt: FieldValue.serverTimestamp(),
-      expiresAt: admin.firestore.Timestamp.fromMillis(expiresAtMs),
-    });
+    if (inviteId == null) {
+      // Create a fresh invite. The doc id is the inviteId we hand back
+      // to the client — it's also the path token in the accept URL.
+      const ref = db.collection('crew_invitations').doc();
+      expiresAtMs = nowMs + SEVEN_DAYS_MS;
+      await ref.set({
+        orgId,
+        orgName,
+        invitedEmail,
+        invitedDisplayName: displayName ?? null,
+        role,
+        invitedBy: callerUid,
+        status: 'pending',
+        createdAt: FieldValue.serverTimestamp(),
+        expiresAt: admin.firestore.Timestamp.fromMillis(expiresAtMs),
+      });
+      inviteId = ref.id;
+      reused = false;
+      effectiveDisplayName = displayName ?? null;
+      effectiveRole = role;
+      logger.info('[invite] created', {
+        inviteId, orgId, invitedEmail, role,
+      });
+    }
 
-    logger.info('[invite] created', {
-      inviteId: ref.id, orgId, invitedEmail, role,
+    // ── Email send (best-effort) ──
+    // Failures are caught + logged inside sendInviteEmail; the result
+    // tells us whether to flip `emailSent` in the response so the
+    // modal can show either "Email sent" or the copy-link fallback.
+    const inviterName = typeof caller?.displayName === 'string' && caller.displayName.trim().length > 0
+      ? caller.displayName.trim()
+      : (caller?.email || null);
+    const emailResult = await sendInviteEmail({
+      inviteId,
+      invitedEmail,
+      invitedDisplayName: effectiveDisplayName,
+      orgName,
+      role: effectiveRole,
+      invitedByDisplayName: inviterName,
+      expiresAtMs,
+      resendApiKey: RESEND_API_KEY.value(),
     });
 
     return {
-      inviteId: ref.id,
+      inviteId,
       status: 'pending',
       orgName,
-      role,
+      role: effectiveRole,
       expiresAt: expiresAtMs,
-      reused: false,
+      reused,
+      emailSent: emailResult.sent,
+      emailFailureReason: emailResult.sent ? null : (emailResult.reason ?? null),
     };
   },
 );

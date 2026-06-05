@@ -10,7 +10,7 @@ import { View, Text, Pressable, TextInput, ScrollView, ActivityIndicator, StyleS
 import { colors, fonts, radius } from '../tokens';
 import { useAuth } from '../hooks/useAuth';
 import { CharterShell } from './CharterShell';
-import { useCharterAccount } from './useCharterData';
+import { useCharterAccount, useCharterCrew, crewWorstCertTier } from './useCharterData';
 import {
   VesselCard, HarborCard, ProfileCard,
   emptyVessel, emptyHarbor, emptyProfile,
@@ -20,12 +20,15 @@ import {
   updateOrgBasics, updateOrgFleet, updateOrgHarbors, updateOrgOperations,
 } from './saveOnboarding';
 import type {
-  CharterAccount, Vessel, OrgHarbor, OperationsProfile,
+  CharterAccount, Vessel, OrgHarbor, OperationsProfile, CrewMember,
 } from './types';
 import type { NavigateFn } from '../router';
 import { FareHarborTab } from './fareharbor/FareHarborTab';
+import { CrewListCard } from './CrewListCard';
+import { CrewEditModal } from './CrewEditModal';
+import { InviteCrewModal } from './InviteCrewModal';
 
-const TABS = ['Organization', 'Fleet', 'Harbors', 'Operations', 'FareHarbor', 'Account'] as const;
+const TABS = ['Organization', 'Fleet', 'Harbors', 'Operations', 'Crew', 'FareHarbor', 'Account'] as const;
 type Tab = (typeof TABS)[number];
 
 export function CharterSettingsScreen({ onNavigate }: { onNavigate?: NavigateFn }) {
@@ -91,6 +94,7 @@ export function CharterSettingsScreen({ onNavigate }: { onNavigate?: NavigateFn 
       {tab === 'Fleet'        && <FleetTab        orgId={orgId} account={account} />}
       {tab === 'Harbors'      && <HarborsTab      orgId={orgId} account={account} />}
       {tab === 'Operations'   && <OperationsTab   orgId={orgId} account={account} />}
+      {tab === 'Crew'         && <CrewTab         orgId={orgId} onNavigate={onNavigate} />}
       {tab === 'FareHarbor'   && <FareHarborTab   orgId={orgId} account={account} />}
       {tab === 'Account'      && <AccountTab      account={account} signedInEmail={user?.email ?? ''} />}
     </CharterShell>
@@ -275,6 +279,101 @@ function OperationsTab({ orgId, account }: { orgId: string; account: CharterAcco
       >
         <Text style={styles.addEntryText}>+ Add another trip type</Text>
       </Pressable>
+    </Section>
+  );
+}
+
+// ─── Crew tab ───────────────────────────────────────────────────────
+//
+// Surfaces the same roster as /charter/crew so admins can add captains,
+// deckhands, managers, divemasters, instructors, owners while they're
+// already in Settings. Reuses CrewListCard + the two existing modals
+// (CrewEditModal for manual entry, InviteCrewModal for email invites)
+// so behavior stays in lockstep with the dedicated page. For the deeper
+// surface — cert filters, expiring/expired backlog browsing — there's a
+// "Manage full roster" link to /charter/crew.
+
+function CrewTab({ orgId, onNavigate }: { orgId: string; onNavigate?: NavigateFn }) {
+  const { crew, loading, error } = useCharterCrew(orgId);
+  const [creating, setCreating] = React.useState(false);
+  const [editing, setEditing]   = React.useState<CrewMember | null>(null);
+  const [inviting, setInviting] = React.useState(false);
+
+  const counts = React.useMemo(() => {
+    let expired = 0, expiring = 0;
+    for (const m of crew) {
+      const t = crewWorstCertTier(m);
+      if (t === 'expired') expired++;
+      else if (t === 'expiring-soon') expiring++;
+    }
+    return { total: crew.length, expired, expiring };
+  }, [crew]);
+
+  return (
+    <Section title={`Crew (${counts.total})`}>
+      <View style={styles.crewActions}>
+        <Pressable onPress={() => setCreating(true)} style={styles.crewAddBtn}>
+          <Text style={styles.crewAddBtnText}>+ Add manually</Text>
+        </Pressable>
+        <Pressable onPress={() => setInviting(true)} style={[styles.crewAddBtn, styles.crewInviteBtn]}>
+          <Text style={[styles.crewAddBtnText, styles.crewInviteBtnText]}>+ Invite by email</Text>
+        </Pressable>
+        <View style={{ flex: 1 }} />
+        <Pressable onPress={() => onNavigate?.('charter-crew')}>
+          <Text style={styles.crewManageLink}>Manage full roster →</Text>
+        </Pressable>
+      </View>
+
+      {counts.total > 0 && (counts.expired > 0 || counts.expiring > 0) ? (
+        <View style={styles.crewCountRow}>
+          {counts.expired > 0 ? (
+            <Text style={styles.crewCountDanger}>{counts.expired} expired cert{counts.expired === 1 ? '' : 's'}</Text>
+          ) : null}
+          {counts.expiring > 0 ? (
+            <Text style={styles.crewCountWarn}>{counts.expiring} expiring soon</Text>
+          ) : null}
+        </View>
+      ) : null}
+
+      {loading ? (
+        <View style={styles.loadingCard}>
+          <ActivityIndicator color={colors.accent} />
+          <Text style={styles.loadingText}>Reading roster…</Text>
+        </View>
+      ) : error ? (
+        <View style={styles.errCard}>
+          <Text style={styles.errTitle}>Could not load roster</Text>
+          <Text style={styles.errBody}>{error}</Text>
+        </View>
+      ) : crew.length === 0 ? (
+        <View style={styles.emptyCard}>
+          <Text style={styles.emptyTitle}>Roster is empty.</Text>
+          <Text style={styles.emptyBody}>
+            Add captains, deckhands, managers, divemasters, instructors, and owners — anyone who
+            crews your trips. Each member can carry a cert list (USCG, CPR, Divemaster, O₂ Provider,
+            Instructor), and expiry warnings show up everywhere they appear.
+          </Text>
+          <Pressable onPress={() => setCreating(true)} style={styles.emptyCta}>
+            <Text style={styles.emptyCtaText}>+ Add your first crew member →</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <View style={styles.crewStack}>
+          {crew.map((m) => (
+            <CrewListCard key={m.id} member={m} onEdit={() => setEditing(m)} />
+          ))}
+        </View>
+      )}
+
+      {creating ? (
+        <CrewEditModal orgId={orgId} onClose={() => setCreating(false)} />
+      ) : null}
+      {editing ? (
+        <CrewEditModal orgId={orgId} existing={editing} onClose={() => setEditing(null)} />
+      ) : null}
+      {inviting ? (
+        <InviteCrewModal orgId={orgId} onClose={() => setInviting(false)} />
+      ) : null}
     </Section>
   );
 }
@@ -477,4 +576,18 @@ const styles = StyleSheet.create({
   emptyBody: { fontFamily: fonts.body, fontSize: 13, color: colors.text2, lineHeight: 20 },
   primaryBtn: { alignSelf: 'flex-start', paddingHorizontal: 14, paddingVertical: 10, borderRadius: radius.sm, backgroundColor: colors.accent },
   primaryBtnText: { fontFamily: fonts.body, fontSize: 12, fontWeight: '700', color: colors.bg },
+
+  // Crew tab — matches /charter/crew visual treatment so the two surfaces feel like the same product.
+  crewActions: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
+  crewAddBtn: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: radius.sm, backgroundColor: colors.accent },
+  crewAddBtnText: { fontFamily: fonts.body, fontSize: 13, fontWeight: '700', color: colors.bg },
+  crewInviteBtn: { backgroundColor: colors.surface1, borderWidth: 1, borderColor: colors.hairlineStrong },
+  crewInviteBtnText: { color: colors.text1 },
+  crewManageLink: { fontFamily: fonts.body, fontSize: 12, color: colors.accent, fontWeight: '600' },
+  crewCountRow: { flexDirection: 'row', gap: 14, paddingTop: 4 },
+  crewCountDanger: { fontFamily: fonts.body, fontSize: 12, fontWeight: '600', color: '#F73726' },
+  crewCountWarn:   { fontFamily: fonts.body, fontSize: 12, fontWeight: '600', color: colors.fair },
+  crewStack: { gap: 10 },
+  emptyCta: { alignSelf: 'flex-start', paddingHorizontal: 14, paddingVertical: 10, borderRadius: radius.sm, backgroundColor: colors.accent },
+  emptyCtaText: { fontFamily: fonts.body, fontSize: 12, fontWeight: '700', color: colors.bg },
 });

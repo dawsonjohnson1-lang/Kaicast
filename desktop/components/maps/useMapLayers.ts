@@ -12,8 +12,8 @@
  * once on the next `style.load` event.
  */
 
-import { useEffect, useRef } from 'react';
-import type mapboxgl from 'mapbox-gl';
+import { useEffect, useRef, useState } from 'react';
+import type * as mapboxgl from 'mapbox-gl';
 import type { LayerState, WeatherLayerId } from './MapLayerControl';
 import { addPrecipitation, removePrecipitation } from './layers/precipitation';
 import { addWind, removeWind } from './layers/wind';
@@ -27,6 +27,25 @@ export function useMapLayers(map: mapboxgl.Map | null, state: LayerState): void 
   const prevVisibility = useRef<boolean>(false);
   const prevSwell = useRef<boolean>(false);
   const prevCurrents = useRef<boolean>(false);
+  // Bumped whenever the basemap style reloads. Mapbox's setStyle wipes
+  // every user-added source + layer, so we treat those as gone and let
+  // the diff below re-add whatever the LayerState still has on.
+  const [styleEpoch, setStyleEpoch] = useState(0);
+
+  useEffect(() => {
+    if (!map) return;
+    const onStyle = () => {
+      prevWeather.current = null;
+      prevVisibility.current = false;
+      prevSwell.current = false;
+      prevCurrents.current = false;
+      setStyleEpoch((v) => v + 1);
+    };
+    map.on('style.load', onStyle);
+    return () => {
+      map.off('style.load', onStyle);
+    };
+  }, [map]);
 
   useEffect(() => {
     if (!map) return;
@@ -76,7 +95,7 @@ export function useMapLayers(map: mapboxgl.Map | null, state: LayerState): void 
     return () => {
       map.off('style.load', apply);
     };
-  }, [map, state.weather, state.visibility, state.swell, state.currents]);
+  }, [map, state.weather, state.visibility, state.swell, state.currents, styleEpoch]);
 }
 
 function addWeather(map: mapboxgl.Map, id: WeatherLayerId): void {

@@ -189,7 +189,11 @@ async function estimateVisibilityAbyss(opts) {
       ? 0.25 + light.factor * 2.0       // twilight/night: 0.25–0.55
       : 0.55 + 0.45 * Math.min(1.0, light.factor);
     const visAfterLight = legacy.estimatedVisibilityMeters * lightMultiplier;
-    const visM = visAfterLight * windChopMultiplier;
+    let visM = visAfterLight * windChopMultiplier;
+    // Same depth ceiling as the satellite path — can't see further
+    // than the bottom.
+    const heurDepthCeilingM = Math.max(3, siteDepth * 1.2);
+    visM = Math.min(heurDepthCeilingM, visM);
     const visMRounded = Math.max(2, Math.round(visM));
 
     const heurRationale = [];
@@ -319,7 +323,13 @@ async function estimateVisibilityAbyss(opts) {
   pushDelta('Surface chop / wind',    layerLight,    layerWind);
 
   // ── Final clamping & rating ────────────────────────────────────────────────
-  vis = Math.max(1, Math.min(40, vis));
+  // You can't see further horizontally than the bottom depth in real
+  // diving conditions — reported visibility should never exceed the
+  // spot's actual depth. Hanauma's 10m bottom can't read 25m vis even
+  // on the clearest water. siteDepth defaults to 10 when the spot
+  // record doesn't specify maxDepthM.
+  const depthCeilingM = Math.max(3, siteDepth * 1.2); // +20% slack for diagonal sightlines
+  vis = Math.max(1, Math.min(40, depthCeilingM, vis));
   const visFt = Math.round(vis * 3.28084);
   const visM = Math.round(vis * 10) / 10;
 

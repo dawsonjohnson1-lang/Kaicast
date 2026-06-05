@@ -12,8 +12,10 @@ import type { Cert, CrewMember } from './types';
 
 const ROLE_LABEL: Record<CrewMember['role'], string> = {
   owner:      'OWNER',
+  manager:    'MANAGER',
   captain:    'CAPTAIN',
   divemaster: 'DIVEMASTER',
+  instructor: 'INSTRUCTOR',
   deckhand:   'DECKHAND',
 };
 

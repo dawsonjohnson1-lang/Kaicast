@@ -1,5 +1,4 @@
-import React from 'react';
-import { View, Text, Pressable, Image, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { colors, fonts, radius, DESKTOP_MAX_WIDTH } from './tokens';
 import { DesktopNav } from './components/DesktopNav';
 import type { NavigateFn } from './router';

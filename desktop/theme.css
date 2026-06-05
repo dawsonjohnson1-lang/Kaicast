@@ -1,0 +1,91 @@
+/*
+ * KaiCast desktop — theme palettes.
+ *
+ * Dark is the default — applied at :root with no class. Light is
+ * opt-in via `<html class="theme-light">`. The toggle lives in
+ * Profile → Settings and persists to localStorage (key:
+ * `kaicast.desktop.theme`). useTheme() in hooks/useTheme.ts is the
+ * runtime authority.
+ *
+ * Why CSS variables instead of a React Context: every screen styles
+ * via StyleSheet.create({...}) at module-init time, which means JS
+ * values are frozen. CSS vars get re-resolved on every paint by the
+ * browser, so flipping a class at <html> updates the whole tree
+ * with zero React work. Side benefit: no FOUC flash on page load —
+ * the variables resolve before React hydrates.
+ *
+ * What is NOT themed:
+ *   - The 5-tier condition spectrum (red/orange/yellow/green/blue) is
+ *     mapped to slightly darker variants in light mode so it stays
+ *     legible on off-white, but the meaning is identical.
+ *   - Component-specific accent fills (e.g. CTAs) follow --c-accent
+ *     so they shift to a deeper blue under light theme.
+ */
+
+:root,
+:root.theme-dark {
+  /* surfaces (darkest → lightest) */
+  --c-bg:               #0C1015;
+  --c-surface0:         #111518;
+  --c-surface1:         #181D22;
+  --c-surface2:         #1E252C;
+
+  /* strokes */
+  --c-hairline:         rgba(255,255,255,0.06);
+  --c-hairline-strong:  rgba(255,255,255,0.11);
+
+  /* text (highest → lowest emphasis) */
+  --c-text1:            #F8F8F8;
+  --c-text2:            rgba(248,248,248,0.70);
+  --c-text3:            rgba(248,248,248,0.44);
+  --c-text4:            rgba(248,248,248,0.26);
+
+  /* accent + accent dim */
+  --c-accent:           #09A1FB;
+  --c-accent-dim:       rgba(9,161,251,0.18);
+
+  /* 5-tier condition colors */
+  --c-excellent:        #09A1FB;
+  --c-great:            #27D667;
+  --c-good:             #FFD321;
+  --c-fair:             #FF9D25;
+  --c-nogo:             #F73726;
+
+  /* Semi-transparent surface for floating overlays (map layer control,
+     tooltips). Matches the page bg so the overlay reads as a slab cut
+     from the same surface. */
+  --c-overlay:          rgba(12,16,21,0.85);
+}
+
+:root.theme-light {
+  --c-bg:               #F7F6F2; /* warm off-white, easier on eyes than pure white */
+  --c-surface0:         #FFFFFF;
+  --c-surface1:         #F1EFE9;
+  --c-surface2:         #E8E5DC;
+
+  --c-hairline:         rgba(12,16,21,0.08);
+  --c-hairline-strong:  rgba(12,16,21,0.16);
+
+  --c-text1:            #0C1015;
+  --c-text2:            rgba(12,16,21,0.70);
+  --c-text3:            rgba(12,16,21,0.50);
+  --c-text4:            rgba(12,16,21,0.32);
+
+  --c-accent:           #0577C0; /* deeper blue for AA contrast on off-white */
+  --c-accent-dim:       rgba(5,119,192,0.14);
+
+  --c-excellent:        #0577C0;
+  --c-great:            #1F9C50;
+  --c-good:             #B07B05;
+  --c-fair:             #B85A0D;
+  --c-nogo:             #B7240D;
+
+  --c-overlay:          rgba(247,246,242,0.92);
+}
+
+/* Body background follows theme — without this the default page
+   colour shows briefly before any RN-Web component paints. */
+html, body {
+  background-color: var(--c-bg);
+  color: var(--c-text1);
+}

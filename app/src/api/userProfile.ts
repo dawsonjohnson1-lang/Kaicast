@@ -55,6 +55,21 @@ export type UserProfile = {
    * user to the onboarding stack regardless of how they got authed.
    */
   onboardingComplete?: boolean;
+  /**
+   * Subscription tier. `charter` unlocks the Charter Dashboard
+   * (screens/charter/) and gates the per-vessel features. Mirrors
+   * desktop's `accountType === 'charter'` check used in router.ts.
+   * Default for new users is implicitly `consumer` (undefined treated
+   * as consumer).
+   */
+  accountType?: 'consumer' | 'charter';
+  /**
+   * When `accountType === 'charter'`, this points at the operator's
+   * charter_accounts/{orgId} doc. Written by
+   * functions/charter/provisionOperator.js at provisioning time. Used
+   * to scope all per-vessel reads (fh_trips, charter_logs).
+   */
+  orgId?: string;
   updatedAt?: Date | null;
   createdAt?: Date | null;
 };
@@ -86,6 +101,8 @@ function fromFirestore(uid: string, data: any): UserProfile {
     yearsActive: data.yearsActive,
     certification: data.certification,
     onboardingComplete: data.onboardingComplete === true,
+    accountType: data.accountType === 'charter' ? 'charter' : 'consumer',
+    orgId: typeof data.orgId === 'string' ? data.orgId : undefined,
     updatedAt: data.updatedAt?.toDate?.() ?? null,
     createdAt: data.createdAt?.toDate?.() ?? null,
   };

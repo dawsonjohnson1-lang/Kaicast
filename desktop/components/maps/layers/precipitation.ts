@@ -13,7 +13,7 @@
  * full Hawaii coverage, refreshes every ~3 hours.
  */
 
-import type mapboxgl from 'mapbox-gl';
+import type * as mapboxgl from 'mapbox-gl';
 
 export const PRECIPITATION_SOURCE_ID = 'kc-precipitation-src';
 export const PRECIPITATION_LAYER_ID = 'kc-precipitation-lyr';

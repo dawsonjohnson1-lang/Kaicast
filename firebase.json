@@ -7,6 +7,9 @@
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
   },
+  "storage": {
+    "rules": "storage.rules"
+  },
   "hosting": [
     {
       "target": "legal",
@@ -38,6 +41,8 @@
         "**/node_modules/**"
       ],
       "rewrites": [
+        { "source": "/s/**", "function": "spotSharePage" },
+        { "source": "/generateSpotShareImage", "function": "generateSpotShareImage" },
         { "source": "**", "destination": "/index.html" }
       ],
       "headers": [

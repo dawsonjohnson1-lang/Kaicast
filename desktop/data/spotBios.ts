@@ -53,14 +53,9 @@ const BIOS: Record<string, Bio> = {
   ],
 
   // ── Maui ─────────────────────────────────────────────────────────
-  'airport-beach': [
-    "Airport Beach (Kaanapali North) is the shore-entry sister to nearby Black Rock — long flat reef just offshore with regular turtle sightings.",
-    "Sandy walk-in, no surge entry. Best in mornings before the afternoon Maalaea breeze fills in across the channel.",
-  ],
-  'ala-wharf': [
-    "Ala Wharf (Mala Pier) in Lahaina is the wreck of a 1992 pier — the storm-shattered concrete pilings are now a reef of their own with eels, schools of taape, and resident turtles.",
-    "Easy beach entry next to the wharf; the wreck starts about 25yds out at 15-25ft. Surge picks up when south swell is running.",
-  ],
+  // 'airport-beach' + 'ala-wharf' bios removed 2026-05-24 — those spots
+  // are consolidated into 'black-rock-kaanapali' (same Kaanapali reef
+  // strip, identical fetch data, only differ in parking access).
   'black-rock-kaanapali': [
     "Black Rock (Puu Kekaa) is the lava promontory at the north end of Kaanapali Beach — a classic shore dive over reef ledges and sand channels.",
     "Walk-in from the Sheraton beach, work your way around the point. Watch for current on the outside; viz is best in the morning before chop builds.",
@@ -135,10 +130,10 @@ const BIOS: Record<string, Bio> = {
   ],
 
   // ── Oahu (additions) ────────────────────────────────────────────
-  'pupukea-beach': [
-    "Pupukea Beach Park stretches from Shark's Cove to Three Tables on Oahu's north shore — a Marine Life Conservation District protecting the reef and tide pools.",
-    "Multiple entry points along the park; the south end (toward Sharks Cove) has the best shore-dive structure. Summer only — winter's NS swell closes the whole zone out.",
-  ],
+  // 'pupukea-beach' bio removed 2026-05-24 — Pupukea is the umbrella
+  // park name; the actual dive structure is captured by sharks-cove +
+  // three-tables (both inside the same Marine Life Conservation
+  // District) so the standalone entry was a confusing duplicate.
   'waimea-bay': [
     "Waimea Bay is Oahu's iconic big-wave winter venue — but in summer it's a calm sand-bottom cove ideal for shallow shore dives and the famous Waimea jump rock.",
     "Park in the small lot or walk in from Sharks Cove. Surf can build fast on north-swell forecasts; don't enter when waves are over 3ft, the shorebreak is brutal.",
@@ -151,10 +146,8 @@ const BIOS: Record<string, Bio> = {
     "Sandy Beach on Oahu's east end is a body-surfing landmark — heavy shorebreak and rip current most of the year. Dive access is reserved for the calmest summer days.",
     "Shore entry only when surf is below 2ft and trades are light. Outer reef holds tako and the occasional monk seal; treat the inner shorebreak as a no-go zone.",
   ],
-  'koko-crater': [
-    "Koko Crater is the offshore reef ridge just east of Hanauma Bay on Oahu's southeast tip — a deeper boat-access dive with lava arches and pelagic visitors.",
-    "Charter access only. Strong current is common on the outside of the point; book with a Hanauma-area operator who knows the slack-tide window.",
-  ],
+  // 'koko-crater' bio removed 2026-05-24 — body-surf coastline
+  // duplicate of sandy-beach (~0.6 km apart, identical fetch data).
   'pearl-harbor': [
     "Pearl Harbor is a national historic landmark and an active military base — recreational diving is restricted to specific permitted tour operators.",
     "No casual shore or boat access. The Arizona Memorial and surrounding waters are monitored. Use a registered tour for any in-water activity; otherwise the harbor is closed to divers.",
@@ -171,10 +164,9 @@ const BIOS: Record<string, Bio> = {
   ],
 
   // ── Kauai (additions) ───────────────────────────────────────────
-  'nukumoi-point': [
-    "Nukumoi Point sits just off Poipu on Kauai's south shore — a reef ledge at 25-40ft that links Brennecke's Ledge to Koloa Landing.",
-    "Boat or long-swim shore access from Poipu Beach. Diveable year-round when south swell is small. Sea turtles are regulars; watch for current at the point.",
-  ],
+  // 'nukumoi-point' bio removed 2026-05-24 — lesser-known Poipu reef
+  // covered topographically by sheraton-caverns + koloa-landing +
+  // brenneckes-ledge in the same cluster.
 
   // ── Molokai (additions) ─────────────────────────────────────────
   'moomomi': [

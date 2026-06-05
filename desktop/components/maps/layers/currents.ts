@@ -17,7 +17,7 @@
  * because ncWMS already renders it as vector arrows.
  */
 
-import type mapboxgl from 'mapbox-gl';
+import type * as mapboxgl from 'mapbox-gl';
 
 export const CURRENTS_SOURCE_ID = 'kc-currents-src';
 export const CURRENTS_LAYER_ID = 'kc-currents-lyr';

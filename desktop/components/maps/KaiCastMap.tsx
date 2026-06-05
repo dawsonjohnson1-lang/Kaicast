@@ -9,11 +9,12 @@
  * guarantees the div has real dimensions even when the flex layout's
  * width:'100%'/height:'100%' resolution is squishy.
  *
- * Style: starts from `mapbox://styles/mapbox/dark-v11` and overrides
- * land/water/road/label colors at runtime via setPaintProperty so the
- * map blends with the KaiCast surface palette. Keeping the overrides
- * in code (rather than a hosted custom style) means tokens.ts edits
- * propagate to the map automatically.
+ * Style: dark-v11 or light-v11 depending on the active KaiCast theme.
+ * Land/water/road/label colors are overridden at runtime via
+ * setPaintProperty so the map blends with the KaiCast surface
+ * palette. Keeping the overrides in code (rather than a hosted
+ * custom style) means tokens.ts edits propagate to the map
+ * automatically. Theme flips trigger setStyle and re-apply.
  *
  * Pins: colored by 5-tier condition (excellent/great/good/fair/no-go)
  * via TIER_COLORS, or neutral text3 when no tier is provided. Selected
@@ -24,9 +25,10 @@ import React, { useEffect, useRef } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 
-import { colors, TIER_COLORS, type ConditionTier } from '../../tokens';
+import { colors, TIER_COLORS, RAW_COLORS_DARK, RAW_COLORS_LIGHT, type ConditionTier } from '../../tokens';
 import { MapLayerControl, INITIAL_LAYER_STATE, type LayerState } from './MapLayerControl';
 import { useMapLayers } from './useMapLayers';
+import { useTheme, type ThemeName } from '../../hooks/useTheme';
 
 // Vite injects this at build time. If absent, the map renders an empty
 // surface + logs a warning — see desktop/.env.example for setup.
@@ -65,34 +67,55 @@ export interface KaiCastMapProps {
   showLayerControl?: boolean;
   /** Expand the layer panel on mount. Pair with `showLayerControl`. */
   layerControlOpenByDefault?: boolean;
+  /** Per-instance override for the water-fill color (raw hex). When
+   *  set, replaces the theme-default water tint without touching land,
+   *  roads, or labels. Persists across theme flips. */
+  waterColor?: string;
+  /** Per-instance override for the land color (raw hex). Applied to
+   *  the land background, landcover fills, and building polygons so
+   *  the islands read as a single tone above the water. */
+  landColor?: string;
   style?: React.CSSProperties;
 }
 
-const BASE_STYLE = 'mapbox://styles/mapbox/dark-v11';
+const DARK_STYLE  = 'mapbox://styles/mapbox/dark-v11';
+const LIGHT_STYLE = 'mapbox://styles/mapbox/light-v11';
+const baseStyleFor = (theme: ThemeName) => (theme === 'light' ? LIGHT_STYLE : DARK_STYLE);
 
-// Layer-color overrides applied on every style load. Layer IDs are from
-// the dark-v11 style spec; missing layers are silently skipped so a
-// future Mapbox style version won't break the map.
-const STYLE_OVERRIDES: Array<{ layer: string; prop: string; value: string }> = [
-  // Land — blend into KaiCast surface so the map doesn't feel like a
-  // foreign element pasted onto the page.
-  { layer: 'land',                     prop: 'background-color', value: colors.surface0 },
-  { layer: 'landcover',                prop: 'fill-color',       value: colors.surface0 },
-  { layer: 'land-structure-polygon',   prop: 'fill-color',       value: colors.surface1 },
-  // Water — slightly darker so islands read as raised against the sea.
-  { layer: 'water',                    prop: 'fill-color',       value: colors.bg },
-  // Roads — muted; this map is about ocean conditions, not driving.
-  { layer: 'road-primary',             prop: 'line-color',       value: colors.surface2 },
-  { layer: 'road-secondary-tertiary',  prop: 'line-color',       value: colors.surface2 },
-  { layer: 'road-street',              prop: 'line-color',       value: colors.surface2 },
-  { layer: 'road-minor',               prop: 'line-color',       value: colors.surface2 },
-  // Labels — text3/text4 so KaiCast pins stay the visual focal point.
-  { layer: 'country-label',            prop: 'text-color',       value: colors.text3 },
-  { layer: 'settlement-major-label',   prop: 'text-color',       value: colors.text3 },
-  { layer: 'settlement-minor-label',   prop: 'text-color',       value: colors.text4 },
-  { layer: 'water-point-label',        prop: 'text-color',       value: colors.text4 },
-  { layer: 'water-line-label',         prop: 'text-color',       value: colors.text4 },
-];
+// Mapbox setPaintProperty values must be raw hex (WebGL — does not
+// read DOM CSS variables), so each theme has its own override list.
+// Layer IDs are from the dark-v11 / light-v11 style specs; missing
+// layers are silently skipped so a future Mapbox style version won't
+// break the map.
+type StyleOverride = { layer: string; prop: string; value: string };
+const buildStyleOverrides = (theme: ThemeName, waterColor?: string, landColor?: string): StyleOverride[] => {
+  const c = theme === 'light' ? RAW_COLORS_LIGHT : RAW_COLORS_DARK;
+  const land0 = landColor ?? c.surface0;
+  const land1 = landColor ?? c.surface1;
+  return [
+    // Land — blend into KaiCast surface so the map doesn't feel like a
+    // foreign element pasted onto the page. `landColor` collapses both
+    // surface tiers into one tone so islands read as a single shape.
+    { layer: 'land',                     prop: 'background-color', value: land0 },
+    { layer: 'landcover',                prop: 'fill-color',       value: land0 },
+    { layer: 'land-structure-polygon',   prop: 'fill-color',       value: land1 },
+    // Water — slightly tinted so islands read as raised against the sea.
+    // Per-instance `waterColor` prop overrides the theme default; used
+    // on the Spots map to match the surrounding panel background.
+    { layer: 'water',                    prop: 'fill-color',       value: waterColor ?? c.bg },
+    // Roads — muted; this map is about ocean conditions, not driving.
+    { layer: 'road-primary',             prop: 'line-color',       value: c.surface2 },
+    { layer: 'road-secondary-tertiary',  prop: 'line-color',       value: c.surface2 },
+    { layer: 'road-street',              prop: 'line-color',       value: c.surface2 },
+    { layer: 'road-minor',               prop: 'line-color',       value: c.surface2 },
+    // Labels — text3/text4 so KaiCast pins stay the visual focal point.
+    { layer: 'country-label',            prop: 'text-color',       value: c.text3 },
+    { layer: 'settlement-major-label',   prop: 'text-color',       value: c.text3 },
+    { layer: 'settlement-minor-label',   prop: 'text-color',       value: c.text4 },
+    { layer: 'water-point-label',        prop: 'text-color',       value: c.text4 },
+    { layer: 'water-line-label',         prop: 'text-color',       value: c.text4 },
+  ];
+};
 
 export function KaiCastMap({
   markers = [],
@@ -106,6 +129,8 @@ export function KaiCastMap({
   interactive = true,
   showLayerControl = false,
   layerControlOpenByDefault = false,
+  waterColor,
+  landColor,
   style,
 }: KaiCastMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -117,6 +142,18 @@ export function KaiCastMap({
   // Bumped when the map instance finishes initializing — forces a
   // re-render so useMapLayers sees the non-null mapRef.current.
   const [, setMapVersion] = React.useState(0);
+  // Live theme — drives basemap style (dark-v11 ↔ light-v11) and the
+  // STYLE_OVERRIDES variant we reapply on every style.load.
+  const { theme } = useTheme();
+  const themeRef = useRef<ThemeName>(theme);
+  themeRef.current = theme;
+  // Mirror waterColor + landColor into refs so the style.load handler
+  // (which fires again after every theme flip via setStyle) picks up
+  // the latest values without depending on stale closure state.
+  const waterColorRef = useRef<string | undefined>(waterColor);
+  waterColorRef.current = waterColor;
+  const landColorRef = useRef<string | undefined>(landColor);
+  landColorRef.current = landColor;
   useMapLayers(mapRef.current, layerState);
 
   // Init once. Subsequent prop changes are handled by the targeted
@@ -132,7 +169,7 @@ export function KaiCastMap({
 
     const map = new mapboxgl.Map({
       container: containerRef.current,
-      style: BASE_STYLE,
+      style: baseStyleFor(themeRef.current),
       center,
       zoom,
       interactive,
@@ -153,7 +190,11 @@ export function KaiCastMap({
     );
 
     map.on('style.load', () => {
-      for (const { layer, prop, value } of STYLE_OVERRIDES) {
+      // Read the current theme from the ref so the handler always uses
+      // whichever palette is active at the moment style.load fires —
+      // setStyle below triggers this same handler asynchronously.
+      const overrides = buildStyleOverrides(themeRef.current, waterColorRef.current, landColorRef.current);
+      for (const { layer, prop, value } of overrides) {
         try {
           if (prop === 'background-color') {
             map.setPaintProperty(layer, 'background-color' as any, value);
@@ -200,7 +241,25 @@ export function KaiCastMap({
     // that mapRef.current is non-null. Without this the ref mutation
     // alone won't trigger a re-render.
     setMapVersion((v) => v + 1);
+
+    // Resize observer: Mapbox needs an explicit map.resize() whenever
+    // its container's dimensions change. Without it the canvas stays
+    // at its initial size — sidebar collapse, alert dismiss, window
+    // resize, devtools toggle, etc. all leave the canvas stale.
+    // ResizeObserver fires synchronously on a separate task, so we
+    // don't need to dedupe — Mapbox's own resize is cheap.
+    let resizeObs: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined' && containerRef.current) {
+      resizeObs = new ResizeObserver(() => {
+        // Guard: the map may have been removed by the time the
+        // observer fires (component unmount race).
+        if (mapRef.current) mapRef.current.resize();
+      });
+      resizeObs.observe(containerRef.current);
+    }
+
     return () => {
+      if (resizeObs) resizeObs.disconnect();
       map.remove();
       mapRef.current = null;
       markersRef.current = {};
@@ -249,6 +308,39 @@ export function KaiCastMap({
     map.easeTo({ center, zoom, duration: 600 });
   }, [center, zoom]);
 
+  // Theme change → swap the Mapbox style. setStyle fires another
+  // style.load, which our handler above uses to reapply overrides
+  // with the new palette. Custom data layers added by useMapLayers
+  // (visibility heatmap, swell, etc.) are wiped by setStyle and re-
+  // added by useMapLayers's own style.load listener.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    map.setStyle(baseStyleFor(theme));
+  }, [theme]);
+
+  // Re-apply water + land fills when the per-instance overrides change
+  // at runtime without remounting. setStyle wipes overrides on theme
+  // change, but a plain color swap doesn't, so these targeted calls
+  // are safe + cheap.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !map.isStyleLoaded()) return;
+    const c = themeRef.current === 'light' ? RAW_COLORS_LIGHT : RAW_COLORS_DARK;
+    try { map.setPaintProperty('water', 'fill-color' as any, waterColor ?? c.bg); } catch {}
+  }, [waterColor]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !map.isStyleLoaded()) return;
+    const c = themeRef.current === 'light' ? RAW_COLORS_LIGHT : RAW_COLORS_DARK;
+    const land0 = landColor ?? c.surface0;
+    const land1 = landColor ?? c.surface1;
+    try { map.setPaintProperty('land',                   'background-color' as any, land0); } catch {}
+    try { map.setPaintProperty('landcover',              'fill-color'       as any, land0); } catch {}
+    try { map.setPaintProperty('land-structure-polygon', 'fill-color'       as any, land1); } catch {}
+  }, [landColor]);
+
   // Wrapper div hosts the absolutely-positioned map canvas + any
   // overlays (layer control, etc.). The wrapper itself fills the
   // parent View via inset:0; both wrapper and inner canvas are
@@ -296,16 +388,10 @@ function applyMarkerStyle(
   el.style.border = '2px solid #ffffff';
   el.style.cursor = 'pointer';
   el.style.transition = 'width 120ms ease, height 120ms ease, box-shadow 200ms ease';
+  // color-mix handles CSS variables natively, so this works whether
+  // `base` is "#FFD321" or "var(--c-good)". hexToRgba below cannot.
   el.style.boxShadow = selected
-    ? `0 0 0 6px ${hexToRgba(base, 0.28)}, 0 2px 8px rgba(0,0,0,0.55)`
+    ? `0 0 0 6px color-mix(in srgb, ${base} 28%, transparent), 0 2px 8px rgba(0,0,0,0.55)`
     : '0 2px 6px rgba(0,0,0,0.5)';
   if (m.label) el.setAttribute('aria-label', m.label);
-}
-
-function hexToRgba(hex: string, alpha: number): string {
-  const h = hex.replace('#', '');
-  const r = parseInt(h.slice(0, 2), 16);
-  const g = parseInt(h.slice(2, 4), 16);
-  const b = parseInt(h.slice(4, 6), 16);
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }

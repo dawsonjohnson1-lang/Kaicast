@@ -16,8 +16,10 @@ import type { CrewMember, CrewRole } from './types';
 import type { NavigateFn } from '../router';
 
 const ROLE_LABELS: Record<InvitedRole, string> = {
+  manager: 'Manager',
   captain: 'Captain',
   divemaster: 'Divemaster',
+  instructor: 'Instructor',
   deckhand: 'Deckhand',
 };
 
@@ -114,8 +116,10 @@ export function CharterCrewScreen({ onNavigate }: { onNavigate?: NavigateFn }) {
         <FilterGroup label="Role" options={[
           { id: 'all', label: 'All' },
           { id: 'owner', label: 'Owner' },
+          { id: 'manager', label: 'Manager' },
           { id: 'captain', label: 'Captain' },
           { id: 'divemaster', label: 'Divemaster' },
+          { id: 'instructor', label: 'Instructor' },
           { id: 'deckhand', label: 'Deckhand' },
         ]} value={roleFilter} onChange={setRoleFilter} />
         <FilterGroup label="Cert state" options={[

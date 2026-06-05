@@ -20,7 +20,7 @@
  *     "Invalid TMS Request" PNGs from the service
  */
 
-import type mapboxgl from 'mapbox-gl';
+import type * as mapboxgl from 'mapbox-gl';
 
 export const WIND_SOURCE_ID = 'kc-wind-src';
 export const WIND_LAYER_ID = 'kc-wind-lyr';

@@ -19,10 +19,10 @@
  * log lands.
  */
 
-import type mapboxgl from 'mapbox-gl';
+import type * as mapboxgl from 'mapbox-gl';
 import { collection, getDocs } from 'firebase/firestore';
 
-import { TIER_COLORS } from '../../../tokens';
+import { RAW_TIER_HEX } from '../../../tokens';
 import { db, firebaseConfigured } from '../../../firebase';
 
 export const VISIBILITY_SOURCE_ID = 'kc-visibility-src';
@@ -42,11 +42,9 @@ interface VisibilityPoint {
 const MOCK_VISIBILITY: VisibilityPoint[] = [
   { spotId: 'electric-beach',   lng: -158.1220, lat: 21.3550, visibilityFt: 56 },
   { spotId: 'sharks-cove',      lng: -158.0617, lat: 21.6417, visibilityFt: 48 },
-  { spotId: 'pupukea-beach',    lng: -158.0500, lat: 21.6500, visibilityFt: 42 },
   { spotId: 'magic-island',     lng: -157.8458, lat: 21.2840, visibilityFt: 38 },
   { spotId: 'hanauma-bay',      lng: -157.6939, lat: 21.2694, visibilityFt: 30 },
   { spotId: 'turtle-canyon',    lng: -158.1500, lat: 21.4000, visibilityFt: 18 },
-  { spotId: 'koko-crater',      lng: -157.6700, lat: 21.2820, visibilityFt: 26 },
   { spotId: 'molokini-crater',  lng: -156.4950, lat: 20.6330, visibilityFt: 75 },
   { spotId: 'honolua-bay',      lng: -156.6398, lat: 21.0123, visibilityFt: 50 },
   { spotId: 'ulua-beach',       lng: -156.4427, lat: 20.6843, visibilityFt: 40 },
@@ -177,11 +175,11 @@ export async function addVisibility(map: mapboxgl.Map): Promise<void> {
         'heatmap-color': [
           'interpolate', ['linear'], ['heatmap-density'],
           0,    'rgba(0,0,0,0)',
-          0.1,  hexToRgba(TIER_COLORS['no-go'],    0.55),
-          0.3,  hexToRgba(TIER_COLORS['fair'],     0.65),
-          0.5,  hexToRgba(TIER_COLORS['good'],     0.7),
-          0.75, hexToRgba(TIER_COLORS['great'],    0.75),
-          1.0,  hexToRgba(TIER_COLORS['excellent'], 0.8),
+          0.1,  hexToRgba(RAW_TIER_HEX['no-go'],    0.55),
+          0.3,  hexToRgba(RAW_TIER_HEX['fair'],     0.65),
+          0.5,  hexToRgba(RAW_TIER_HEX['good'],     0.7),
+          0.75, hexToRgba(RAW_TIER_HEX['great'],    0.75),
+          1.0,  hexToRgba(RAW_TIER_HEX['excellent'], 0.8),
         ],
         // Scale point influence radius with zoom — at archipelago view
         // (z6-7) we want big blobs so spots merge into per-island

@@ -20,6 +20,7 @@ import { Icon, IconName } from '@/components/Icon';
 import { Button } from '@/components/Button';
 import { colors, radius, spacing, typography } from '@/theme';
 import { useAuth } from '@/hooks/useAuth';
+import { useUserProfile } from '@/hooks/useUserProfile';
 import { useUserSettings } from '@/hooks/useUserSettings';
 import { useSpots } from '@/hooks/useSpots';
 import {
@@ -64,6 +65,12 @@ export function ProfileSettingsScreen() {
   const nav = useNavigation<RootNav>();
   const { signOut, user } = useAuth();
   const { settings, loading } = useUserSettings(user?.id);
+  // Tier check — used to conditionally surface the Charter dashboard
+  // entry point. `accountType` lives on /users/{uid} and is read by
+  // useUserProfile; setting it server-side is what flips the user
+  // into the charter product surface.
+  const { profile } = useUserProfile(user?.id);
+  const isCharter = profile?.accountType === 'charter';
   const [pending, setPending] = useState<PendingMap>({});
   const [picker, setPicker] = useState<PickerSpec | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -253,6 +260,23 @@ export function ProfileSettingsScreen() {
           }
         />
       </Card>
+
+      {/* Charter dashboard entry point — only surfaces for users on
+          the charter subscription tier. The screen itself also gates
+          on accountType so this is belt-and-suspenders. */}
+      {isCharter && (
+        <>
+          <SectionHeader>CHARTER</SectionHeader>
+          <Card padding={0}>
+            <Row
+              icon="compass"
+              label="Charter dashboard"
+              value="Vessel · Crew · Trips"
+              onPress={() => nav.navigate('Charter')}
+            />
+          </Card>
+        </>
+      )}
 
       <SectionHeader>LEGAL & SUPPORT</SectionHeader>
       <Card padding={0}>

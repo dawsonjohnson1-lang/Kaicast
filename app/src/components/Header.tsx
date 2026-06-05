@@ -43,7 +43,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     justifyContent: 'space-between',
   },
-  side: { width: 52 },
+  // minWidth so a single icon keeps the title visually centered
+  // against the back arrow's 52px on the left; auto-grows when a
+  // rightSlot ships multiple buttons (e.g. SpotDetail's share +
+  // favorite pair).
+  side: { minWidth: 52 },
   iconBtn: {
     width: 36,
     height: 36,

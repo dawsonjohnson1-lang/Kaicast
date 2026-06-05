@@ -55,6 +55,7 @@ const SIDEBAR_NAV = [
 // (the user's saved spots) is empty until they actually star one.
 import { findSpot as findCanonicalSpot } from './data/spots';
 import { useSpotRatings, useSpotReport, tierFromRating, bestWindowLabel, type BackendReport } from './data/getReport';
+import { useSpotAlerts } from './data/spotAlerts';
 import { useFavorites } from './hooks/useFavorites';
 import { useAuth } from './hooks/useAuth';
 import { useUserLocation, distanceMiles } from './hooks/useUserLocation';
@@ -102,12 +103,6 @@ const ISLAND_BREAKDOWN: Array<{ island: string; counts: Partial<Record<Condition
   { island: 'MAUI',       counts: { excellent: 1, great: 2, good: 1, fair: 1 } },
   { island: "BIG ISLAND", counts: { excellent: 2, great: 2, good: 1 } },
   { island: "KAUA'I",     counts: { great: 1, good: 2, fair: 1 } },
-];
-
-const DASHBOARD_ALERTS = [
-  { title: 'Molokini Crater',                  body: 'Visibility hit 80ft — best reading in 2 weeks.', when: '14M' },
-  { title: 'Turtle Canyon · Runoff warning',   body: '48hr advisory after rainfall.',                  when: '2H' },
-  { title: 'Hanauma Bay closed Tuesdays',      body: 'Conservation closure. Next open: Wednesday.',    when: '1D' },
 ];
 
 // Friends' recent dives — empty until the friend graph + dive feed
@@ -171,7 +166,7 @@ export function DashboardScreen({ activeNav = 'dashboard', onNavigate }: Dashboa
           </View>
           <Main onNavigate={onNavigate} favorites={favorites} />
           <View style={{ width: railW }}>
-            <RightRail onNavigate={onNavigate} />
+            <RightRail onNavigate={onNavigate} alertSpotIds={favoriteIds} />
           </View>
         </View>
       </View>
@@ -688,12 +683,12 @@ function RecentDivesSection() {
 
 // ─── Right rail ───────────────────────────────────────────────────────────
 
-function RightRail({ onNavigate }: { onNavigate?: NavigateFn }) {
+function RightRail({ onNavigate, alertSpotIds }: { onNavigate?: NavigateFn; alertSpotIds: string[] }) {
   return (
     <View style={styles.rightRail}>
       <UpcomingBestWindow onNavigate={onNavigate} />
       <IslandBreakdown />
-      <ConditionAlerts />
+      <ConditionAlerts spotIds={alertSpotIds} />
       <FriendsFeed />
     </View>
   );
@@ -770,26 +765,58 @@ function IslandBreakdown() {
   );
 }
 
-function ConditionAlerts() {
+function ConditionAlerts({ spotIds }: { spotIds: string[] }) {
+  const alerts = useSpotAlerts(spotIds);
+  // Hide the whole card on the dashboard when no alerts AND no
+  // favorites — empty favorites is already its own onboarding affordance
+  // elsewhere on the page. When favorites exist but yield zero alerts,
+  // we still surface a brief "all clear" line so the user knows the
+  // feed is wired (not silently empty).
+  if (alerts.length === 0) {
+    if (spotIds.length === 0) return null;
+    return (
+      <View style={styles.rightCard}>
+        <View style={styles.rightCardHeader}>
+          <Text style={styles.rightCardTitle}>Condition alerts</Text>
+        </View>
+        <View style={styles.rightCardBody}>
+          <Text style={styles.alertBody}>No active alerts for your favorite spots.</Text>
+        </View>
+      </View>
+    );
+  }
   return (
     <View style={styles.rightCard}>
       <View style={styles.rightCardHeader}>
         <Text style={styles.rightCardTitle}>Condition alerts</Text>
       </View>
       <View style={styles.rightCardBody}>
-        {DASHBOARD_ALERTS.map((a, i) => (
-          <View
-            key={i}
-            style={[styles.alertRow, i < DASHBOARD_ALERTS.length - 1 && styles.alertRowDivider]}
-          >
-            <Text style={styles.alertTitle}>{a.title}</Text>
-            <Text style={styles.alertBody}>{a.body}</Text>
-            <Text style={styles.alertWhen}>{a.when}</Text>
-          </View>
-        ))}
+        {alerts.slice(0, 5).map((a, i) => {
+          const when = relativeShort(a.startMs);
+          return (
+            <View
+              key={a.alertId}
+              style={[styles.alertRow, i < Math.min(alerts.length, 5) - 1 && styles.alertRowDivider]}
+            >
+              <Text style={styles.alertTitle}>{a.title}</Text>
+              <Text style={styles.alertBody}>{a.body}</Text>
+              <Text style={styles.alertWhen}>{when}</Text>
+            </View>
+          );
+        })}
       </View>
     </View>
   );
+}
+
+// "2h", "14m", "3d" — terse, matches the existing alertWhen column.
+function relativeShort(startMs: number): string {
+  const dMs = Math.max(0, Date.now() - startMs);
+  const m = Math.floor(dMs / 60000);
+  if (m < 60) return `${Math.max(1, m)}M`;
+  const h = Math.floor(m / 60);
+  if (h < 48) return `${h}H`;
+  return `${Math.floor(h / 24)}D`;
 }
 
 function FriendsFeed() {
