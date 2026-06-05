@@ -1,17 +1,25 @@
-// DailyLogScreen — entry point for the Captain's Log tab.
+// DailyLogScreen — standalone captain's daily log (Phase 1).
 //
-// Shows today's date + vessel, the Abyss daily-alert bar, an editable
-// crew list, FareHarbor-derived trip cards, and a "Submit Daily Log"
-// button gated on every trip being marked Complete.
+// What the spec calls for:
+//   - Creatable + savable with just date + vessel + captain.
+//   - Conditions section UNCHANGED — Abyss auto-fill on the left,
+//     captain-observed on the right, at the DAY level (one matrix
+//     for the whole log instead of one per trip).
+//   - Trips are a lightweight, fast inline list. Trip type is the
+//     only required field per row. Captain adds rows in a couple
+//     taps. Zero-trip days are valid.
+//   - Day-level incident block (occurred toggle + summary + USCG /
+//     DLNR flags) below the trips.
+//   - Save button is always enabled — no per-trip "Complete" gate.
 //
-// Hydration:
-//   1. Resolve operatorId from users/{uid}.orgId.
-//   2. Pull today's FareHarbor trip stubs from charter_accounts/{orgId}/fh_trips.
-//   3. Pass those stubs to useCharterLog, which seeds the doc on first
-//      open and subscribes from then on.
+// Out of scope here (Slice 2):
+//   - Type-conditional species + cert-level fields on Scuba and
+//     Spearfishing rows (still collapse to plain rows for now).
+//   - PDF generator update — generateCaptainsLog.js still renders
+//     from the legacy structure until the next slice.
 
-import React, { useMemo, useState } from 'react';
-import { View, Text, Pressable, ScrollView, StyleSheet, Alert } from 'react-native';
+import React, { useMemo } from 'react';
+import { View, Text, Pressable, ScrollView, StyleSheet, TextInput } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
@@ -22,19 +30,21 @@ import { Icon } from '@/components/Icon';
 import { Card } from '@/components/Card';
 import { Input } from '@/components/Input';
 import { SectionTitle } from '@/components/SectionTitle';
-import { LogTripCard } from '@/components/charter/LogTripCard';
+import { ConditionsPanel } from '@/components/charter/ConditionsPanel';
 import { CharterUpsell } from '@/components/charter/CharterUpsell';
 import { colors, radius, spacing, typography } from '@/theme';
 
 import { useAuth } from '@/hooks/useAuth';
 import { useUserProfile } from '@/hooks/useUserProfile';
-import { useFareHarbor } from '@/hooks/useFareHarbor';
+import { useAbyssConditions } from '@/hooks/useAbyssConditions';
 import { useCharterLog } from '@/hooks/useCharterLog';
 import {
-  emptyAbyssConditions,
-  emptyObservedConditions,
+  emptyLightweightTrip,
   type CharterLogCrew,
   type CharterLogTrip,
+  type CharterLogIncident,
+  type TripType,
+  TRIP_TYPE_OPTIONS,
 } from '@/types/charterLog';
 
 import type { RootStackParamList } from '@/navigation/types';
@@ -42,35 +52,6 @@ import type { RootStackParamList } from '@/navigation/types';
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 const todayMs = () => Date.now();
-
-function makeManualTrip(tripNum: number): CharterLogTrip {
-  const id = `manual_${Date.now().toString(36)}`;
-  return {
-    tripId: id,
-    tripNum,
-    title: 'Manual trip',
-    type: 'other',
-    departureTime: '',
-    returnTime: '',
-    passengerCount: 0,
-    primarySite: '',
-    secondarySite: '',
-    coordinates: '',
-    maxDepth: '',
-    duration: '',
-    siteNotes: '',
-    fareharborBookingId: '',
-    guests: [],
-    abyssConditions: emptyAbyssConditions(),
-    observedConditions: emptyObservedConditions(),
-    speciesObserved: [],
-    incident: 'None',
-    coastGuardNotification: false,
-    dlnrNotification: false,
-    equipmentNotes: '',
-    complete: false,
-  };
-}
 
 export function DailyLogScreen() {
   const nav = useNavigation<Nav>();
@@ -81,18 +62,12 @@ export function DailyLogScreen() {
   const orgId = profile?.orgId;
   const dateMs = useMemo(todayMs, []);
 
-  // FareHarbor trip stubs for today.
-  const { trips: fhTrips, loading: fhLoading, lastSynced, syncNow } = useFareHarbor(orgId, dateMs);
-
-  // Seed payload passed into useCharterLog. We let the user fill in
-  // captain name / license / harbor at the top of the screen — but
-  // also default-prefill from the auth profile so an empty form is
-  // never the captain's first experience.
+  // Seed payload for useCharterLog. Notably we DO NOT pull trips
+  // from FareHarbor here — Phase 1 is standalone. The trips array
+  // is always empty on first open; captain adds rows manually.
+  // FareHarbor sync re-enters the flow as Phase 2.
   const seed = useMemo(() => {
-    if (!isCharter || !orgId || fhLoading) return null;
-    // Vessel defaults — until per-user vessel routing lands, treat the
-    // org's primary vessel id as the orgId itself so the doc path is
-    // deterministic. Manager UI can split vessels later.
+    if (!isCharter || !orgId) return null;
     return {
       operatorId: orgId,
       vesselId: orgId,
@@ -101,13 +76,31 @@ export function DailyLogScreen() {
       captainLicense: '',
       harborDeparture: '',
       dailyAlerts: '',
-      trips: fhTrips,
+      trips: [] as CharterLogTrip[],
       crew: [] as CharterLogCrew[],
     };
-  }, [isCharter, orgId, fhLoading, fhTrips, profile?.handle, profile?.name]);
+  }, [isCharter, orgId, profile?.handle, profile?.name]);
 
-  const { log, loading: logLoading, saving, patch, setCrew, addManualTrip } =
-    useCharterLog(dateMs, seed);
+  const {
+    log,
+    loading: logLoading,
+    saving,
+    patch,
+    setCrew,
+    addManualTrip,
+    removeTrip,
+    flush,
+  } = useCharterLog(dateMs, seed);
+
+  // Abyss auto-fill — keyed off the captain's profile.homeSpotId.
+  // Falls back to the empty Abyss block when no home spot is set;
+  // ConditionsPanel handles that gracefully (shows "No data this hour").
+  const homeSpotId = profile?.homeSpot;
+  const {
+    conditions: abyssLive,
+    loading:    abyssLoading,
+    source:     abyssSource,
+  } = useAbyssConditions(homeSpotId, dateMs);
 
   // ── Gates ───────────────────────────────────────────────────────────
   if (profileLoading) {
@@ -117,7 +110,7 @@ export function DailyLogScreen() {
     return (
       <CharterUpsell
         title="Captain's Log"
-        body="The Captain's Log is part of KaiCast Charter — fill out a USCG-style daily log straight from your boat, auto-populated from FareHarbor and Abyss conditions."
+        body="The Captain's Log is part of KaiCast Charter — fill out a daily log straight from your boat with conditions auto-pulled from Abyss."
         onBack={() => nav.goBack()}
       />
     );
@@ -128,8 +121,7 @@ export function DailyLogScreen() {
         <Header title="Captain's Log" />
         <View style={{ padding: spacing.xl }}>
           <Text style={{ color: colors.textSecondary, ...typography.body }}>
-            Your account is marked charter, but no operator is linked yet. Finish
-            charter onboarding (Charter → Setup) to enable the log.
+            Your account is marked charter, but no operator is linked yet. Finish charter onboarding (Charter → Setup) to enable the log.
           </Text>
         </View>
       </Screen>
@@ -137,15 +129,13 @@ export function DailyLogScreen() {
   }
 
   // ── Derived ─────────────────────────────────────────────────────────
-  const allComplete = (log?.trips.length ?? 0) > 0 && log!.trips.every((t) => t.complete);
-  const lastSyncedLabel = lastSynced
-    ? new Date(lastSynced).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
-    : null;
+  const tripCount = log?.trips.length ?? 0;
+  const canSign = !!log && !!log.vesselName.trim() && !!(log.captainName ?? '').trim();
 
   // ── Render ──────────────────────────────────────────────────────────
   return (
     <Screen contentStyle={{ paddingTop: 0 }} scroll={false}>
-      <Header title="Captain's Log" rightIcon="bell" onRightPress={syncNow} />
+      <Header title="Captain's Log" />
       <ScrollView
         contentContainerStyle={{ padding: spacing.xl, paddingBottom: 140 }}
         showsVerticalScrollIndicator={false}
@@ -159,20 +149,9 @@ export function DailyLogScreen() {
           </Text>
           <Text style={styles.vesselName}>{log?.vesselName ?? 'Vessel'}</Text>
           <View style={styles.saveStateRow}>
-            <Text style={styles.saveState}>
-              {saving ? 'Saving…' : 'Saved'}
-              {lastSyncedLabel ? `  ·  FareHarbor synced ${lastSyncedLabel}` : ''}
-            </Text>
+            <Text style={styles.saveState}>{saving ? 'Saving…' : 'Saved'}</Text>
           </View>
         </View>
-
-        {/* Abyss daily alert */}
-        {log?.dailyAlerts ? (
-          <View style={styles.alertBar}>
-            <Icon name="bell" size={14} color={colors.warn} />
-            <Text style={styles.alertText}>{log.dailyAlerts}</Text>
-          </View>
-        ) : null}
 
         {/* Vessel / captain header inputs — editable up-top, persisted. */}
         <SectionTitle title="Today" />
@@ -187,7 +166,7 @@ export function DailyLogScreen() {
             label="License #"
             value={log?.captainLicense ?? ''}
             onChangeText={(v) => patch((p) => ({ ...p, captainLicense: v }))}
-            placeholder="USCG license"
+            placeholder="USCG license (optional)"
           />
           <Input
             label="Harbor of departure"
@@ -197,61 +176,294 @@ export function DailyLogScreen() {
           />
         </Card>
 
-        {/* Crew section */}
+        {/* Day-level conditions — Abyss auto-fill | captain-observed.
+            Whatever the captain types here is what flows into the PDF
+            and the future trip-by-trip drill-in.
+
+            The patch we apply is namespaced under .conditions to match
+            the new day-level schema. Abyss side is read-only and pulled
+            from the captain's home spot. */}
+        <SectionTitle title="Conditions" />
+        <View style={{ marginBottom: spacing.xl }}>
+          <ConditionsPanel
+            abyss={log?.conditions?.abyss ?? abyssLive}
+            observed={log?.conditions?.observed ?? {
+              visibility: '', feltTemp: '', seaState: '', swellDirObserved: '',
+              windObserved: '', currentObserved: '', currentDirObserved: '',
+              captainNote: '',
+            }}
+            abyssLoading={abyssLoading}
+            abyssSource={abyssSource}
+            onObservedChange={(next) =>
+              patch((p) => ({
+                ...p,
+                conditions: {
+                  abyss:    p.conditions?.abyss ?? abyssLive,
+                  observed: next,
+                },
+              }))
+            }
+          />
+        </View>
+
+        {/* Crew section — unchanged from prior. */}
         <SectionTitle title="Crew on board" />
         <CrewEditor
           crew={log?.crew ?? []}
           onChange={setCrew}
         />
 
-        {/* Trip cards */}
+        {/* Trips — lightweight, fast. Add row → set type → done.
+            The whole point is speed; rows stay compact. */}
         <SectionTitle
-          title={`Trips · ${log?.trips.length ?? 0}`}
-          action="Add manual"
-          onActionPress={() => addManualTrip(makeManualTrip((log?.trips.length ?? 0) + 1))}
+          title={`Trips · ${tripCount} today`}
+          action="Add trip"
+          onActionPress={() => addManualTrip(emptyLightweightTrip(tripCount + 1))}
         />
-        {logLoading || fhLoading ? (
-          <Text style={styles.loading}>Loading trips…</Text>
-        ) : (log?.trips.length ?? 0) === 0 ? (
+        {logLoading ? (
+          <Text style={styles.loading}>Loading…</Text>
+        ) : tripCount === 0 ? (
           <View style={styles.empty}>
-            <Text style={styles.emptyTitle}>No trips today</Text>
+            <Text style={styles.emptyTitle}>No trips logged</Text>
             <Text style={styles.emptyBody}>
-              FareHarbor returned no confirmed bookings for {new Date(dateMs).toLocaleDateString()}.
-              Tap "Add manual" above to log a trip not in FareHarbor.
+              Tap "Add trip" above to log a charter. Days with no trips (weather-out, maintenance) save fine without any rows.
             </Text>
           </View>
         ) : (
-          log!.trips.map((t) => (
-            <LogTripCard
-              key={t.tripId}
-              trip={t}
-              onPress={() => nav.navigate('LogsTrip', { tripId: t.tripId })}
-            />
-          ))
+          <View style={{ gap: spacing.sm }}>
+            {(log?.trips ?? []).map((t, idx) => (
+              <TripRow
+                key={t.tripId}
+                trip={t}
+                index={idx + 1}
+                onChange={(next) =>
+                  patch((p) => ({
+                    ...p,
+                    trips: p.trips.map((x) => (x.tripId === t.tripId ? { ...x, ...next } : x)),
+                  }))
+                }
+                onRemove={() => removeTrip(t.tripId)}
+              />
+            ))}
+          </View>
         )}
 
-        {/* Summary + submit */}
-        {(log?.trips.length ?? 0) > 0 ? (
-          <Card style={{ marginTop: spacing.lg, gap: spacing.sm }} bordered>
-            <View style={styles.summaryRow}>
-              <SummaryStat label="Trips" value={String(log?.totalTrips ?? 0)} />
-              <SummaryStat label="Guests" value={String(log?.totalGuests ?? 0)} />
-              <SummaryStat label="Incidents" value={String(log?.incidents ?? 0)} />
-            </View>
-            <Button
-              label={allComplete ? 'Continue to Submit' : 'Mark all trips Complete to submit'}
-              fullWidth
-              disabled={!allComplete}
-              onPress={() => nav.navigate('LogsSubmit')}
-            />
-          </Card>
-        ) : null}
+        {/* Day notes — free-form, end-of-day narrative. */}
+        <SectionTitle title="Day notes" />
+        <Card style={{ marginBottom: spacing.xl }} bordered>
+          <TextInput
+            value={log?.dayNotes ?? ''}
+            onChangeText={(v) => patch((p) => ({ ...p, dayNotes: v }))}
+            placeholder="Anything noteworthy about the day overall — weather changes, crew swaps, equipment issues…"
+            placeholderTextColor={colors.textMuted}
+            multiline
+            style={styles.dayNotesInput}
+          />
+        </Card>
+
+        {/* Incident block — day-level. Captain flips occurred; the
+            summary / flags only matter when it's true. */}
+        <SectionTitle title="Incident" />
+        <IncidentBlock
+          value={log?.incident ?? { occurred: false, summary: '', uscgFlag: false, dlnrFlag: false }}
+          onChange={(next) => patch((p) => ({ ...p, incident: next }))}
+        />
+
+        {/* Sign-off — replaces "Mark all trips Complete to submit".
+            Enabled whenever there's a vessel + captain name; trips
+            are NOT required. */}
+        <Card style={{ marginTop: spacing.lg, gap: spacing.sm }} bordered>
+          <View style={styles.summaryRow}>
+            <SummaryStat label="Trips" value={String(tripCount)} />
+            <SummaryStat label="Guests" value={String(log?.totalGuests ?? 0)} />
+            <SummaryStat label="Incident" value={log?.incident?.occurred ? 'Yes' : 'No'} />
+          </View>
+          <Button
+            label={log?.signOff ? 'Signed ✓ — Re-open' : 'Sign log'}
+            fullWidth
+            disabled={!canSign}
+            onPress={async () => {
+              await flush();
+              if (log?.signOff) {
+                patch((p) => ({ ...p, signOff: null }));
+              } else {
+                patch((p) => ({
+                  ...p,
+                  signOff: { signedBy: p.captainName.trim() || 'Captain', signedAt: Date.now() },
+                }));
+              }
+            }}
+          />
+        </Card>
       </ScrollView>
     </Screen>
   );
 }
 
-// ── Inline crew editor ───────────────────────────────────────────────
+// ─── Lightweight trip row ────────────────────────────────────────────
+//
+// The whole row is intentionally compact — type chip up top + three
+// inline number/text inputs + remove button. Captain shouldn't need
+// to drill into a separate screen to log a trip's basics.
+
+function TripRow({
+  trip, index, onChange, onRemove,
+}: {
+  trip: CharterLogTrip;
+  index: number;
+  onChange: (patch: Partial<CharterLogTrip>) => void;
+  onRemove: () => void;
+}) {
+  const isOther = trip.type === 'other';
+  return (
+    <Card bordered style={{ gap: spacing.sm }}>
+      <View style={styles.tripHeaderRow}>
+        <Text style={styles.tripIndex}>#{index}</Text>
+        <TypeChipPicker
+          value={trip.type}
+          onChange={(next) => onChange({ type: next })}
+        />
+        <Pressable onPress={onRemove} hitSlop={10} style={styles.removeBtn}>
+          <Icon name="x" size={18} color={colors.textMuted} />
+        </Pressable>
+      </View>
+
+      {isOther ? (
+        <Input
+          label="Other — describe"
+          value={trip.label ?? ''}
+          onChangeText={(v) => onChange({ label: v })}
+          placeholder="What was this trip?"
+        />
+      ) : null}
+
+      <View style={styles.tripRowInline}>
+        <Input
+          containerStyle={{ flex: 3 }}
+          label="Label / time"
+          value={trip.label ?? ''}
+          onChangeText={(v) => onChange({ label: v })}
+          placeholder="3:00 PM Snorkel"
+        />
+        <Input
+          containerStyle={{ flex: 1 }}
+          label="Hrs"
+          value={trip.durationHours != null ? String(trip.durationHours) : ''}
+          onChangeText={(v) => {
+            const n = parseFloat(v);
+            onChange({ durationHours: Number.isFinite(n) ? n : undefined });
+          }}
+          placeholder="2.5"
+          keyboardType="decimal-pad"
+        />
+        <Input
+          containerStyle={{ flex: 1 }}
+          label="Guests"
+          value={trip.guestCount != null ? String(trip.guestCount) : ''}
+          onChangeText={(v) => {
+            const n = parseInt(v, 10);
+            onChange({ guestCount: Number.isFinite(n) ? n : undefined });
+          }}
+          placeholder="8"
+          keyboardType="number-pad"
+        />
+      </View>
+
+      <TextInput
+        value={trip.notes ?? ''}
+        onChangeText={(v) => onChange({ notes: v })}
+        placeholder="Notes — anything that stood out (optional)"
+        placeholderTextColor={colors.textMuted}
+        multiline
+        style={styles.tripNotesInput}
+      />
+    </Card>
+  );
+}
+
+function TypeChipPicker({
+  value, onChange,
+}: {
+  value: TripType;
+  onChange: (next: TripType) => void;
+}) {
+  // Horizontal scrolling chip strip so the option list fits without
+  // wrapping inside the trip card. Active chip uses the accent fill.
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={{ gap: 6 }}
+      style={{ flex: 1 }}
+    >
+      {TRIP_TYPE_OPTIONS.map((opt) => {
+        const active = opt.id === value;
+        return (
+          <Pressable
+            key={opt.id}
+            onPress={() => onChange(opt.id)}
+            style={[styles.typeChip, active && styles.typeChipActive]}
+          >
+            <Text style={[styles.typeChipText, active && styles.typeChipTextActive]}>
+              {opt.label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </ScrollView>
+  );
+}
+
+// ─── Incident block ──────────────────────────────────────────────────
+
+function IncidentBlock({
+  value, onChange,
+}: {
+  value: CharterLogIncident;
+  onChange: (next: CharterLogIncident) => void;
+}) {
+  const toggle = (k: keyof CharterLogIncident) =>
+    onChange({ ...value, [k]: !value[k] } as CharterLogIncident);
+
+  return (
+    <Card bordered style={{ marginBottom: spacing.xl, gap: spacing.sm }}>
+      <Pressable onPress={() => toggle('occurred')} style={styles.toggleRow}>
+        <View style={[styles.toggleBox, value.occurred && styles.toggleBoxOn]}>
+          {value.occurred ? <Text style={styles.toggleCheck}>✓</Text> : null}
+        </View>
+        <Text style={styles.toggleLabel}>An incident occurred today</Text>
+      </Pressable>
+
+      {value.occurred ? (
+        <>
+          <TextInput
+            value={value.summary}
+            onChangeText={(v) => onChange({ ...value, summary: v })}
+            placeholder="What happened? Brief summary for the record…"
+            placeholderTextColor={colors.textMuted}
+            multiline
+            style={styles.incidentSummary}
+          />
+          <Pressable onPress={() => toggle('uscgFlag')} style={styles.toggleRow}>
+            <View style={[styles.toggleBox, value.uscgFlag && styles.toggleBoxOn]}>
+              {value.uscgFlag ? <Text style={styles.toggleCheck}>✓</Text> : null}
+            </View>
+            <Text style={styles.toggleLabel}>USCG notified</Text>
+          </Pressable>
+          <Pressable onPress={() => toggle('dlnrFlag')} style={styles.toggleRow}>
+            <View style={[styles.toggleBox, value.dlnrFlag && styles.toggleBoxOn]}>
+              {value.dlnrFlag ? <Text style={styles.toggleCheck}>✓</Text> : null}
+            </View>
+            <Text style={styles.toggleLabel}>DLNR notified</Text>
+          </Pressable>
+        </>
+      ) : null}
+    </Card>
+  );
+}
+
+// ─── Crew editor (unchanged) ─────────────────────────────────────────
+
 function CrewEditor({
   crew,
   onChange,
@@ -331,23 +543,7 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontSize: 11,
   },
-  alertBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    padding: spacing.md,
-    borderRadius: radius.md,
-    backgroundColor: colors.warnSoft,
-    borderWidth: 1,
-    borderColor: colors.warn,
-    marginBottom: spacing.lg,
-  },
-  alertText: {
-    flex: 1,
-    ...typography.bodySm,
-    color: colors.warn,
-    fontWeight: '600',
-  },
+
   loading: {
     ...typography.body,
     color: colors.textMuted,
@@ -361,6 +557,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     gap: spacing.xs,
+    marginBottom: spacing.xl,
   },
   emptyTitle: {
     ...typography.body,
@@ -403,5 +600,104 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.6,
     textTransform: 'uppercase',
+  },
+
+  // ── Trip row ──
+  tripHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  tripIndex: {
+    ...typography.bodySm,
+    color: colors.textMuted,
+    fontWeight: '700',
+    width: 28,
+  },
+  tripRowInline: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    alignItems: 'flex-end',
+  },
+  tripNotesInput: {
+    minHeight: 60,
+    color: colors.textPrimary,
+    padding: spacing.sm,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.bgElevated,
+    textAlignVertical: 'top',
+  },
+
+  // ── Type chip ──
+  typeChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.bgElevated,
+  },
+  typeChipActive: {
+    borderColor: colors.accent,
+    backgroundColor: colors.accentSoft,
+  },
+  typeChipText: {
+    ...typography.bodySm,
+    color: colors.textSecondary,
+    fontWeight: '600',
+  },
+  typeChipTextActive: {
+    color: colors.textPrimary,
+    fontWeight: '700',
+  },
+
+  // ── Day notes ──
+  dayNotesInput: {
+    minHeight: 80,
+    color: colors.textPrimary,
+    padding: spacing.sm,
+    textAlignVertical: 'top',
+  },
+
+  // ── Incident ──
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  toggleBox: {
+    width: 22,
+    height: 22,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  toggleBoxOn: {
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
+  },
+  toggleCheck: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  toggleLabel: {
+    ...typography.body,
+    color: colors.textPrimary,
+  },
+  incidentSummary: {
+    minHeight: 80,
+    color: colors.textPrimary,
+    padding: spacing.sm,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.bgElevated,
+    textAlignVertical: 'top',
   },
 });

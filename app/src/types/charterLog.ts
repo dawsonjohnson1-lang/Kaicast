@@ -10,6 +10,9 @@ export type TripType =
   | 'snorkel'
   | 'freedive'
   | 'scuba'
+  | 'spearfishing'
+  | 'private'
+  | 'ash_scattering'
   | 'sunset'
   | 'whale_watch'
   | 'other';
@@ -60,40 +63,71 @@ export interface GuestStatus {
   status: 'checked_in' | 'no_show' | 'pending';
 }
 
+/**
+ * A single trip row in the lightweight daily log.
+ *
+ * The standalone (Phase 1) flow only writes `type` (required) plus
+ * any of the lightweight optional fields below. All FareHarbor-derived
+ * fields (passengerCount, guests[], booking id, abyss/observed
+ * conditions per-trip, etc.) are kept on the type as OPTIONAL so the
+ * legacy per-trip TripLogScreen + future FareHarbor sync don't break.
+ * The Phase 2 work that re-enables FareHarbor can populate them
+ * without a migration.
+ *
+ * `complete` is intentionally kept optional — the new flow no longer
+ * gates submit on it, but old saved logs may still carry the field.
+ */
 export interface CharterLogTrip {
   /** FareHarbor booking pk, or `manual_{uuid}` for ad-hoc trips. */
   tripId: string;
   /** Display index within the day, 1-based. */
   tripNum: number;
-  title: string;
+  /** Trip type — the ONLY required field in the new lightweight flow. */
   type: TripType;
+
+  // ── New lightweight fields (Phase 1) ──
+  /** Short text — e.g. "3:00 PM Snorkel", "Morning private". Optional. */
+  label?: string;
+  /** Hours, decimals allowed (2.5 = 2h 30m). Optional. */
+  durationHours?: number;
+  /** Total guests on this trip. Optional. */
+  guestCount?: number;
+  /** Free-text notes for the trip. Optional. */
+  notes?: string;
+
+  // ── Legacy fields kept optional for Phase 2 (FareHarbor sync) ──
+  title?: string;
   /** HH:MM in HST. */
-  departureTime: string;
-  returnTime: string;
-  passengerCount: number;
+  departureTime?: string;
+  returnTime?: string;
+  passengerCount?: number;
   /** KaiCast spot id (primary dive site). */
-  primarySite: string;
-  secondarySite: string;
-  /** Free-text coordinate string for log display, e.g. "21.355,-158.140". */
-  coordinates: string;
-  maxDepth: string;
-  duration: string;
-  siteNotes: string;
-  /** Original FareHarbor booking id (mirror of tripId when synced). */
-  fareharborBookingId: string;
-  guests: GuestStatus[];
-  abyssConditions: AbyssConditions;
-  observedConditions: ObservedConditions;
-  speciesObserved: SpeciesObservation[];
-  /** 'None' or free-text description. */
-  incident: string;
+  primarySite?: string;
+  secondarySite?: string;
+  coordinates?: string;
+  maxDepth?: string;
+  duration?: string;
+  siteNotes?: string;
+  /** Original FareHarbor booking id. Empty / unset on Phase 1 manual rows. */
+  fareharborBookingId?: string;
+  guests?: GuestStatus[];
+  /** Per-trip conditions — only populated by legacy TripLogScreen.
+   *  The new flow uses day-level CharterLog.conditions instead. */
+  abyssConditions?: AbyssConditions;
+  observedConditions?: ObservedConditions;
+  speciesObserved?: SpeciesObservation[];
+  /** Per-trip incident — only populated by legacy TripLogScreen.
+   *  The new flow uses day-level CharterLog.incident instead. */
+  incident?: string;
   incidentSeverity?: IncidentSeverity;
-  coastGuardNotification: boolean;
-  dlnrNotification: boolean;
+  coastGuardNotification?: boolean;
+  dlnrNotification?: boolean;
   insuranceClaim?: boolean;
-  equipmentNotes: string;
-  /** Captain flips this when the trip section is fully filled in. */
-  complete: boolean;
+  equipmentNotes?: string;
+  /** Per-trip "I'm done with this row" flag from the old flow. The
+   *  new flow doesn't read it — submission is no longer gated on
+   *  every trip being marked complete. */
+  complete?: boolean;
 }
 
 export interface CharterLogCrew {
@@ -101,6 +135,24 @@ export interface CharterLogCrew {
   name: string;
   role: string;
   license: string;
+}
+
+/** Day-level incident block. Replaces the per-trip incident /
+ *  coastGuardNotification / dlnrNotification trio. Captain flips
+ *  `occurred`; the rest is only meaningful when it's true. */
+export interface CharterLogIncident {
+  occurred: boolean;
+  summary: string;
+  uscgFlag: boolean;
+  dlnrFlag: boolean;
+}
+
+/** Day-level sign-off. Set when the captain explicitly hits the
+ *  "Sign log" button at the bottom of the screen. Submission is no
+ *  longer gated on every trip being marked complete — see the spec. */
+export interface CharterLogSignOff {
+  signedBy: string;   // captain name (display)
+  signedAt: number;   // epoch ms
 }
 
 export interface CharterLog {
@@ -117,6 +169,25 @@ export interface CharterLog {
   trips: CharterLogTrip[];
   crew: CharterLogCrew[];
   dailyAlerts: string;
+
+  // ── New Phase 1 day-level fields ──
+  /** Side-by-side conditions matrix — Abyss auto-fill on the left,
+   *  captain-observed on the right. Moved from per-trip to day-level
+   *  in the standalone log rework. */
+  conditions: {
+    abyss: AbyssConditions;
+    observed: ObservedConditions;
+  };
+  /** Free-form notes for the day. Below the trips list. */
+  dayNotes: string;
+  /** Day-level incident block (occurred toggle + summary + flags). */
+  incident: CharterLogIncident;
+  /** Captain sign-off — present once the captain explicitly signs. */
+  signOff: CharterLogSignOff | null;
+
+  // ── Counters / derived ──
+  /** Number of trips logged today — derived from trips.length on save. */
+  tripCount: number;
   totalGuests: number;
   totalTrips: number;
   incidents: number;
@@ -147,13 +218,32 @@ export const INCIDENT_TYPES: string[] = [
 ];
 
 export const TRIP_TYPE_LABEL: Record<TripType, string> = {
-  snorkel:     'Snorkel',
-  freedive:    'Freedive',
-  scuba:       'Scuba',
-  sunset:      'Sunset',
-  whale_watch: 'Whale watch',
-  other:       'Other',
+  snorkel:        'Snorkel Tour',
+  scuba:          'Scuba / Dive',
+  freedive:       'Freedive',
+  spearfishing:   'Spearfishing',
+  private:        'Private Charter',
+  ash_scattering: 'Ash Scattering / Memorial',
+  sunset:         'Sunset Cruise',
+  whale_watch:    'Whale Watch',
+  other:          'Other',
 };
+
+/** Picker order for the new lightweight trip-row Type select.
+ *  Edit this list to add/remove options without touching code in
+ *  DailyLogScreen. The order here is the order rendered in the chip
+ *  list. */
+export const TRIP_TYPE_OPTIONS: ReadonlyArray<{ id: TripType; label: string }> = [
+  { id: 'snorkel',        label: 'Snorkel Tour' },
+  { id: 'scuba',          label: 'Scuba / Dive' },
+  { id: 'freedive',       label: 'Freedive' },
+  { id: 'spearfishing',   label: 'Spearfishing' },
+  { id: 'private',        label: 'Private Charter' },
+  { id: 'ash_scattering', label: 'Ash Scattering / Memorial' },
+  { id: 'sunset',         label: 'Sunset Cruise' },
+  { id: 'whale_watch',    label: 'Whale Watch' },
+  { id: 'other',          label: 'Other' },
+];
 
 // ── Defaults / factories ────────────────────────────────────────────
 
@@ -170,6 +260,26 @@ export function emptyObservedConditions(): ObservedConditions {
     visibility: '', feltTemp: '', seaState: '', swellDirObserved: '',
     windObserved: '', currentObserved: '', currentDirObserved: '',
     captainNote: '',
+  };
+}
+
+export function emptyIncident(): CharterLogIncident {
+  return { occurred: false, summary: '', uscgFlag: false, dlnrFlag: false };
+}
+
+/** Make a new lightweight trip row for the standalone log flow.
+ *  Type is required at the UI level (the spec says it's the ONLY
+ *  required field per row), but we seed with a benign default so
+ *  the row is in a renderable shape on creation. */
+export function emptyLightweightTrip(tripNum: number): CharterLogTrip {
+  return {
+    tripId: `manual_${Date.now().toString(36)}_${tripNum}`,
+    tripNum,
+    type: 'snorkel',
+    label: '',
+    durationHours: undefined,
+    guestCount: undefined,
+    notes: '',
   };
 }
 

@@ -31,6 +31,9 @@ import {
   type CharterLogStatus,
   buildLogIdLabel,
   charterLogDocId,
+  emptyAbyssConditions,
+  emptyObservedConditions,
+  emptyIncident,
 } from '@/types/charterLog';
 
 const AUTOSAVE_DEBOUNCE_MS = 2000;
@@ -48,13 +51,23 @@ type HydrationSeed = {
 };
 
 function totalGuestsOf(trips: CharterLogTrip[]): number {
-  return trips.reduce((acc, t) => acc + (t.passengerCount || 0), 0);
+  // New flow stores guestCount; legacy fhTrips stored passengerCount.
+  // Sum whichever is present so the totals stay coherent across both.
+  return trips.reduce((acc, t) => acc + (t.guestCount ?? t.passengerCount ?? 0), 0);
 }
-function incidentsOf(trips: CharterLogTrip[]): number {
-  return trips.reduce((acc, t) => acc + (t.incident && t.incident !== 'None' ? 1 : 0), 0);
+function incidentsOf(log: CharterLog): number {
+  // Day-level incident is the new source of truth. Legacy per-trip
+  // incidents still count if no day-level incident was logged — keeps
+  // archived rows readable without a migration.
+  if (log.incident?.occurred) return 1;
+  return (log.trips || []).reduce(
+    (acc, t) => acc + (t.incident && t.incident !== 'None' ? 1 : 0),
+    0,
+  );
 }
 
 function buildEmptyLog(dateMs: number, seed: HydrationSeed): CharterLog {
+  const trips = seed.trips ?? [];
   return {
     logId: buildLogIdLabel(dateMs, seed.vesselId),
     date: dateMs,
@@ -66,12 +79,21 @@ function buildEmptyLog(dateMs: number, seed: HydrationSeed): CharterLog {
     harborDeparture: seed.harborDeparture,
     status: 'draft',
     submittedAt: null,
-    trips: seed.trips,
+    trips,
     crew: seed.crew,
     dailyAlerts: seed.dailyAlerts,
-    totalGuests: totalGuestsOf(seed.trips),
-    totalTrips: seed.trips.length,
-    incidents: incidentsOf(seed.trips),
+    // Day-level Phase 1 fields seeded empty — captain fills in.
+    conditions: {
+      abyss:    emptyAbyssConditions(),
+      observed: emptyObservedConditions(),
+    },
+    dayNotes: '',
+    incident: emptyIncident(),
+    signOff: null,
+    tripCount: trips.length,
+    totalGuests: totalGuestsOf(trips),
+    totalTrips: trips.length,
+    incidents: 0,
   };
 }
 
@@ -96,6 +118,7 @@ export function useCharterLog(
   patchTrip: (tripId: string, mutator: (prev: CharterLogTrip) => CharterLogTrip) => void;
   setCrew: (crew: CharterLogCrew[]) => void;
   addManualTrip: (trip: CharterLogTrip) => void;
+  removeTrip: (tripId: string) => void;
   /** Flush a queued write immediately and resolve. */
   flush: () => Promise<void>;
   /** Submit the log: status → submitted, generate PDF, return result. */
@@ -215,9 +238,10 @@ export function useCharterLog(
     if (!logRef.current) return;
     const next = mutator(logRef.current);
     // Re-derive summary counters so the home screen stays accurate.
+    next.tripCount   = next.trips.length;
     next.totalGuests = totalGuestsOf(next.trips);
-    next.totalTrips = next.trips.length;
-    next.incidents = incidentsOf(next.trips);
+    next.totalTrips  = next.trips.length;
+    next.incidents   = incidentsOf(next);
     logRef.current = next;
     setState((s) => ({ ...s, log: next }));
     scheduleWrite();
@@ -240,6 +264,12 @@ export function useCharterLog(
 
   const addManualTrip = useCallback(
     (trip: CharterLogTrip) => patch((prev) => ({ ...prev, trips: [...prev.trips, trip] })),
+    [patch],
+  );
+
+  const removeTrip = useCallback(
+    (tripId: string) =>
+      patch((prev) => ({ ...prev, trips: prev.trips.filter((t) => t.tripId !== tripId) })),
     [patch],
   );
 
@@ -299,6 +329,7 @@ export function useCharterLog(
     patchTrip,
     setCrew,
     addManualTrip,
+    removeTrip,
     flush,
     submit,
   };
