@@ -104,6 +104,12 @@ interface AuthCtx {
   proAccess: boolean;
   /** What's currently providing Pro access. `null` when proAccess is false. */
   proSource: ProSource;
+  /** When proSource === 'crew_membership' and the user has just lost
+   *  all active memberships, the entitlement Function arms a 7-day
+   *  grace clock — proAccess stays true, proExpiresAt is set to the
+   *  revocation deadline, and the daily sweep flips proAccess to
+   *  false once we cross it. Null when no grace is pending. */
+  proExpiresAt: number | null;
   /** Last-used context (persisted to users/{uid}.activeContext so it
    *  survives device switches per the spec). Always 'consumer' for
    *  brand-new users until they switch contexts. */
@@ -135,6 +141,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [orgMemberships, setOrgMemberships] = React.useState<OrgMembership[]>([]);
   const [proAccess, setProAccess] = React.useState<boolean>(false);
   const [proSource, setProSource] = React.useState<ProSource>(null);
+  const [proExpiresAt, setProExpiresAt] = React.useState<number | null>(null);
   const [activeContext, setActiveContextState] = React.useState<ActiveContext>('consumer');
   const [roleLoading, setRoleLoading] = React.useState(false);
 
@@ -176,6 +183,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setOrgMemberships([]);
       setProAccess(false);
       setProSource(null);
+      setProExpiresAt(null);
       setActiveContextState('consumer');
       setRoleLoading(false);
       return;
@@ -195,6 +203,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setOrgMemberships(coerceOrgMemberships(data?.orgMemberships));
         setProAccess(data?.proAccess === true);
         setProSource(coerceProSource(data?.proSource));
+        setProExpiresAt(tsToMs(data?.proExpiresAt));
         setActiveContextState(coerceActiveContext(data?.activeContext));
         setRoleLoading(false);
       },
@@ -206,6 +215,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setOrgMemberships([]);
         setProAccess(false);
         setProSource(null);
+        setProExpiresAt(null);
         setActiveContextState('consumer');
         setRoleLoading(false);
       },
@@ -248,6 +258,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     orgMemberships,
     proAccess,
     proSource,
+    proExpiresAt,
     activeContext,
     setActiveContext,
     signInEmail: async (email, password) => {

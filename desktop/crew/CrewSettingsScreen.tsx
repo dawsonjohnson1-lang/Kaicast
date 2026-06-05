@@ -18,6 +18,22 @@ const ROLE_LABEL: Record<OrgRole, string> = {
   deckhand: 'Deckhand',
 };
 
+/** Human-readable countdown for the Pro grace clock. Shows the
+ *  expiry date AND the day delta — both because "in 5 days" reads
+ *  fast at a glance, and "Jun 9, 2026" is unambiguous if the user
+ *  wants to plan around it. Past expirations read "Expired — Pro
+ *  will be revoked at the next sweep". */
+function graceLabel(expiresMs: number): string {
+  const now = Date.now();
+  const deltaMs = expiresMs - now;
+  if (deltaMs <= 0) return 'Expired — Pro will be revoked at the next sweep.';
+  const days = Math.ceil(deltaMs / (24 * 60 * 60 * 1000));
+  const date = new Date(expiresMs).toLocaleDateString(undefined, {
+    month: 'short', day: 'numeric', year: 'numeric',
+  });
+  return `${date} · in ${days} day${days === 1 ? '' : 's'}`;
+}
+
 export function CrewSettingsScreen({ onNavigate }: { onNavigate?: NavigateFn }) {
   const auth = useAuth();
   const { membership: active } = useActiveMembership();
@@ -67,8 +83,15 @@ export function CrewSettingsScreen({ onNavigate }: { onNavigate?: NavigateFn }) 
             : auth.proSource === 'crew_membership' ? 'Crew membership'
             : '—'
           }
-          isLast
+          isLast={auth.proExpiresAt == null}
         />
+        {auth.proExpiresAt != null ? (
+          <Row
+            label="Grace expires"
+            value={graceLabel(auth.proExpiresAt)}
+            isLast
+          />
+        ) : null}
       </Section>
 
       <Section

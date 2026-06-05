@@ -2181,6 +2181,13 @@ exports.createCrewInvitation = require('./charter/createCrewInvitation').createC
 exports.getCrewInvitationPublic = require('./charter/acceptCrewInvitation').getCrewInvitationPublic;
 exports.acceptCrewInvitation = require('./charter/acceptCrewInvitation').acceptCrewInvitation;
 
+// Pro entitlement automation. The trigger watches users/{uid} for
+// changes to orgMemberships and reconciles proAccess / proSource /
+// proExpiresAt. The scheduled function sweeps daily and revokes Pro
+// from users whose 7-day grace has expired.
+exports.onUserOrgMembershipsChanged = require('./charter/proEntitlement').onUserOrgMembershipsChanged;
+exports.revokeExpiredCrewPro = require('./charter/proEntitlement').revokeExpiredCrewPro;
+
 // One-shot admin seed for the global /harbors collection — 12 Hawaii
 // small-boat harbors. Idempotent, email-allowlisted.
 exports.seedHarbors = require('./charter/seedHarbors').seedHarbors;

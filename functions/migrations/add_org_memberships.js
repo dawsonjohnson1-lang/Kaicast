@@ -106,6 +106,15 @@ async function main() {
       reasons.push('activeContext: consumer');
     }
 
+    // proExpiresAt — Timestamp | null grace clock for Pro revocation.
+    // The entitlement trigger sets this when all memberships go
+    // inactive; daily sweeper revokes Pro once it's in the past.
+    // Backfill to null since no existing user is mid-grace.
+    if (!('proExpiresAt' in data)) {
+      patch.proExpiresAt = null;
+      reasons.push('proExpiresAt: null');
+    }
+
     if (Object.keys(patch).length === 0) {
       skipped += 1;
       continue;

@@ -56,6 +56,14 @@
         { "fieldPath": "date", "order": "ASCENDING" },
         { "fieldPath": "startTime", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "proSource", "order": "ASCENDING" },
+        { "fieldPath": "proExpiresAt", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": [

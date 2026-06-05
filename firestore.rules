@@ -39,7 +39,7 @@ service cloud.firestore {
                            'profile', 'prefs', 'meta', 'phone',
                            'accountType', 'orgId', 'orgMemberships',
                            'activeOrgIds',
-                           'proAccess', 'proSource',
+                           'proAccess', 'proSource', 'proExpiresAt',
                          ]);
       allow delete: if request.auth != null && request.auth.uid == uid;
 
