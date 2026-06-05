@@ -14,7 +14,7 @@ export type TripType = 'dive' | 'snorkel' | 'spearfishing' | 'freedive';
 
 export type TripStatus = 'planned' | 'active' | 'completed' | 'cancelled';
 
-export type CrewRole = 'owner' | 'captain' | 'divemaster' | 'deckhand';
+export type CrewRole = 'owner' | 'manager' | 'captain' | 'divemaster' | 'instructor' | 'deckhand';
 
 export type CertType = 'USCG' | 'DiveMaster' | 'Instructor' | 'CPR' | 'O2Provider';
 
@@ -283,6 +283,17 @@ export interface Trip {
   /** Random ~30-char token. When present, /charter/brief/:tripId?t=…
    *  renders the read-only briefing publicly. Null to revoke. */
   briefingShareToken: string | null;
+  /** Denormalized uid of the crew member with role === 'captain' on
+   *  this trip. Set by the trip planner when saving — pulled off the
+   *  crew record's uid field. Used by the Firestore rules to scope
+   *  captain-only writes (file float plan, file captain's log) to the
+   *  actual captain rather than any crew member, since rules can't
+   *  introspect the trip.crew array + crew records together.
+   *
+   *  null when no captain is assigned or the assigned captain has no
+   *  linked KaiCast user account — in that case only the org admin
+   *  can flip floatPlanFiled / captainsLog on this trip. */
+  captainUid: string | null;
   /** Snapshot of pipeline conditions at trip creation time (NOT at log
    *  filing time) so the forecast-vs-reality delta is honest about
    *  what was predicted at the time the captain committed. */

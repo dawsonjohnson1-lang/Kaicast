@@ -18,6 +18,12 @@ export interface NewTripInput {
   headcount: number;
   tripType: TripType;
   manifest: ManifestEntry[];      // empty unless tripType === 'dive'
+  /** Denormalized uid of the assigned captain — passed in from the
+   *  wizard which resolves it by looking up the crew member with role
+   *  'captain' in the trip's crew array and reading their .uid. null
+   *  when no captain is set or the assigned captain has no KaiCast
+   *  account; captain-scoped writes are admin-only in that case. */
+  captainUid: string | null;
   /** Snapshot of the per-spot forecast at planned arrival time,
    *  captured by the wizard from useSpotReport calls. Stored as-is
    *  for the Phase 4 forecast-vs-reality comparison. */
@@ -48,6 +54,7 @@ export async function saveTrip(orgId: string, input: NewTripInput): Promise<stri
     departureHarbor: input.departureHarbor,
     spots: input.spots,
     crew: input.crew,
+    captainUid: input.captainUid,
     headcount: input.headcount,
     tripType: input.tripType,
     status: 'planned' as const,

@@ -93,6 +93,7 @@ function tripFromDoc(id: string, data: Record<string, unknown>): Trip {
     manifest: Array.isArray(data.manifest) ? (data.manifest as Trip['manifest']) : [],
     floatPlanFiled: data.floatPlanFiled === true,
     briefingShareToken: typeof data.briefingShareToken === 'string' ? data.briefingShareToken : null,
+    captainUid: typeof data.captainUid === 'string' && data.captainUid.length > 0 ? data.captainUid : null,
     // The remaining structured fields aren't needed by the crew trip
     // list — the trip detail screen (Slice D3) reads them. Cast-through
     // keeps the type happy without us materializing every nested struct

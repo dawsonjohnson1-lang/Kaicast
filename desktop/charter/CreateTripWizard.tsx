@@ -113,7 +113,7 @@ export function CreateTripWizard({ orgId, org, onClose, onSaved }: Props) {
     setSaving(true);
     setSaveError(null);
     try {
-      const newTripId = await saveTrip(orgId, draftToInput(draft));
+      const newTripId = await saveTrip(orgId, draftToInput(draft, orgCrew));
       onSaved?.(newTripId);
       onClose();
     } catch (err) {
@@ -867,7 +867,7 @@ function basicsValid(d: DraftTrip): boolean {
   return true;
 }
 
-function draftToInput(d: DraftTrip): NewTripInput {
+function draftToInput(d: DraftTrip, orgCrew: CrewMember[]): NewTripInput {
   return {
     date: parseDateOrToday(d.date),
     departureTime: d.departureTime,
@@ -879,6 +879,7 @@ function draftToInput(d: DraftTrip): NewTripInput {
     },
     spots: d.spots,
     crew: d.crew,
+    captainUid: resolveCaptainUid(d.crew, orgCrew),
     headcount: parseInt(d.headcount, 10) || 0,
     tripType: d.tripType,
     manifest: d.tripType === 'dive' ? d.manifest : [],
@@ -888,6 +889,21 @@ function draftToInput(d: DraftTrip): NewTripInput {
     },
     generateShareToken: true,
   };
+}
+
+/** Pick the captain among the assigned crew and return their KaiCast
+ *  uid for rule-side captain-scoped write checks. Returns null when
+ *  no captain is assigned OR the assigned captain has no linked
+ *  KaiCast account (admin-only writes apply in that case). If multiple
+ *  captains are assigned, the first one in the roster order wins. */
+function resolveCaptainUid(crewIds: string[], orgCrew: CrewMember[]): string | null {
+  for (const id of crewIds) {
+    const member = orgCrew.find((m) => m.id === id);
+    if (member && member.role === 'captain' && member.uid) {
+      return member.uid;
+    }
+  }
+  return null;
 }
 
 function parseDateOrToday(s: string): Date {

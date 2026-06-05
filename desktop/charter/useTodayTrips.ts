@@ -107,6 +107,7 @@ function tripFromFirestore(id: string, data: Record<string, unknown>): Trip {
     manifest: Array.isArray(data.manifest) ? (data.manifest as Trip['manifest']) : [],
     floatPlanFiled: data.floatPlanFiled === true,
     briefingShareToken: typeof data.briefingShareToken === 'string' ? data.briefingShareToken : null,
+    captainUid: typeof data.captainUid === 'string' && data.captainUid.length > 0 ? data.captainUid : null,
     conditionsSnapshot: (data.conditionsSnapshot as Record<string, unknown>) ?? null,
     captainsLog: (data.captainsLog as Trip['captainsLog']) ?? null,
   };

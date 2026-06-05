@@ -20,12 +20,14 @@
 // them and pre-fills from the trip's conditionsSnapshot.
 
 import React from 'react';
-import { View, Text, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, Pressable, ActivityIndicator, Modal, StyleSheet } from 'react-native';
 import { colors, fonts, radius } from '../tokens';
 import { useAuth, type OrgRole } from '../hooks/useAuth';
 import { CrewShell } from './CrewShell';
 import { useActiveMembership } from './useActiveMembership';
 import { useTripBrief } from './useTripBrief';
+import { CaptainsLogFiler } from '../charter/CaptainsLogFiler';
+import { saveFloatPlan } from '../charter/saveFloatPlan';
 import type {
   CharterSpot, CrewMember, Trip, TripStatus, TripType,
 } from '../charter/types';
@@ -140,9 +142,38 @@ function BriefBody({
   const statusLabel = STATUS_LABEL[trip.status];
   const statusColor = STATUS_COLOR[trip.status];
 
+  const auth = useAuth();
+  // Manifest visibility: captain-by-role-and-assignment. Works even
+  // for legacy trips where captainUid wasn't denormalized at save time.
   const isSelfCaptain = !!(selfCrew && selfCrew.role === 'captain' && trip.crew.includes(selfCrew.id));
   const canSeeManifest = isSelfCaptain && trip.tripType === 'dive';
+  // Write permission: strict captainUid match — that's exactly what
+  // the Firestore rule checks. On legacy trips (captainUid null) the
+  // captain controls stay disabled until the admin re-saves the trip
+  // to pick up the denormalization.
+  const canFileAsCaptain = !!(auth.user && trip.captainUid && trip.captainUid === auth.user.uid);
+  const isPlanned = trip.status === 'planned';
   const isCompleted = trip.status === 'completed';
+
+  // Modal state for the captain actions.
+  const [showFloatPlanConfirm, setShowFloatPlanConfirm] = React.useState(false);
+  const [filingFloatPlan, setFilingFloatPlan] = React.useState(false);
+  const [floatPlanError, setFloatPlanError] = React.useState<string | null>(null);
+  const [showLogFiler, setShowLogFiler] = React.useState(false);
+
+  const onConfirmFloatPlan = async () => {
+    if (!orgId) return;
+    setFilingFloatPlan(true);
+    setFloatPlanError(null);
+    try {
+      await saveFloatPlan(orgId, trip.id);
+      setShowFloatPlanConfirm(false);
+    } catch (e) {
+      setFloatPlanError((e as Error).message || 'Could not file float plan.');
+    } finally {
+      setFilingFloatPlan(false);
+    }
+  };
 
   return (
     <View style={styles.body}>
@@ -253,22 +284,112 @@ function BriefBody({
 
       {/* ── Captain controls ── */}
       {isSelfCaptain ? (
-        <Section title="Captain actions" sub="Float plan filing + Captain's Log ship next slice">
+        <Section
+          title="Captain actions"
+          sub={canFileAsCaptain
+            ? 'Writes scoped to your trips'
+            : 'Awaiting admin re-save to enable writes (legacy trip)'}
+        >
           <View style={styles.actionsRow}>
-            <View style={[styles.disabledBtn]}>
-              <Text style={styles.disabledBtnText}>
-                {trip.floatPlanFiled ? 'Float plan filed ✓' : 'File float plan (soon)'}
-              </Text>
-            </View>
-            {isCompleted ? (
-              <View style={[styles.disabledBtn]}>
-                <Text style={styles.disabledBtnText}>
-                  {trip.captainsLog ? "Captain's Log on file ✓" : 'Log trip (soon)'}
+            {/* File float plan — visible on planned trips, before
+                filing. Locked on legacy trips (no captainUid). */}
+            {isPlanned && !trip.floatPlanFiled ? (
+              <Pressable
+                disabled={!canFileAsCaptain}
+                onPress={() => setShowFloatPlanConfirm(true)}
+                style={[canFileAsCaptain ? styles.captainBtn : styles.disabledBtn]}
+              >
+                <Text style={canFileAsCaptain ? styles.captainBtnText : styles.disabledBtnText}>
+                  File float plan
                 </Text>
+              </Pressable>
+            ) : trip.floatPlanFiled ? (
+              <View style={styles.filedBadge}>
+                <Text style={styles.filedBadgeText}>Float plan filed ✓</Text>
+              </View>
+            ) : null}
+
+            {/* Log trip — visible on completed trips. Locked on legacy
+                trips. */}
+            {isCompleted && !trip.captainsLog ? (
+              <Pressable
+                disabled={!canFileAsCaptain || !orgId}
+                onPress={() => setShowLogFiler(true)}
+                style={[canFileAsCaptain ? styles.captainBtn : styles.disabledBtn]}
+              >
+                <Text style={canFileAsCaptain ? styles.captainBtnText : styles.disabledBtnText}>
+                  Log trip
+                </Text>
+              </Pressable>
+            ) : trip.captainsLog ? (
+              <View style={styles.filedBadge}>
+                <Text style={styles.filedBadgeText}>Captain's Log on file ✓</Text>
               </View>
             ) : null}
           </View>
         </Section>
+      ) : null}
+
+      {/* ── File float plan confirmation modal ── */}
+      {showFloatPlanConfirm ? (
+        <Modal transparent animationType="fade" onRequestClose={() => setShowFloatPlanConfirm(false)}>
+          <View style={styles.modalBackdrop}>
+            <View style={styles.modalCard}>
+              <Text style={styles.modalTitle}>File float plan</Text>
+              <Text style={styles.modalBody}>
+                Confirm that you've submitted this trip's float plan with USCG (or whichever
+                authority your operation uses). Once filed, the trip shows as float-plan filed
+                across all surfaces.
+              </Text>
+              <View style={styles.modalSummary}>
+                <Text style={styles.modalSummaryRow}>
+                  <Text style={styles.modalSummaryLabel}>Date</Text> · {dateLabel}
+                </Text>
+                <Text style={styles.modalSummaryRow}>
+                  <Text style={styles.modalSummaryLabel}>Departure</Text> · {trip.departureTime || '—'}{trip.returnTime ? ` → ${trip.returnTime}` : ''}
+                </Text>
+                <Text style={styles.modalSummaryRow}>
+                  <Text style={styles.modalSummaryLabel}>Harbor</Text> · {trip.departureHarbor?.name || '—'}
+                </Text>
+                <Text style={styles.modalSummaryRow}>
+                  <Text style={styles.modalSummaryLabel}>Spots</Text> · {trip.spots.length} stop{trip.spots.length === 1 ? '' : 's'}
+                </Text>
+                <Text style={styles.modalSummaryRow}>
+                  <Text style={styles.modalSummaryLabel}>Crew</Text> · {trip.crew.length} assigned
+                </Text>
+              </View>
+              {floatPlanError ? <Text style={styles.errText}>{floatPlanError}</Text> : null}
+              <View style={styles.modalActions}>
+                <Pressable
+                  onPress={() => setShowFloatPlanConfirm(false)}
+                  disabled={filingFloatPlan}
+                  style={styles.modalBtnGhost}
+                >
+                  <Text style={styles.modalBtnGhostText}>Cancel</Text>
+                </Pressable>
+                <Pressable
+                  onPress={onConfirmFloatPlan}
+                  disabled={filingFloatPlan}
+                  style={[styles.modalBtnPrimary, filingFloatPlan && styles.disabledOpacity]}
+                >
+                  <Text style={styles.modalBtnPrimaryText}>
+                    {filingFloatPlan ? 'Filing…' : 'Mark as filed'}
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      ) : null}
+
+      {/* ── Captain's Log filer modal ── */}
+      {showLogFiler && orgId ? (
+        <CaptainsLogFiler
+          orgId={orgId}
+          trip={trip}
+          onClose={() => setShowLogFiler(false)}
+          onFiled={() => setShowLogFiler(false)}
+        />
       ) : null}
 
       {/* ── Log my dive handoff (all roles, completed trips) ── */}
@@ -592,6 +713,118 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.text3,
   },
+  captainBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.accent,
+    backgroundColor: colors.accent,
+  },
+  captainBtnText: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.bg,
+  },
+  filedBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: 'rgba(61,220,132,0.12)',
+    borderWidth: 1,
+    borderColor: '#3DDC84',
+  },
+  filedBadgeText: {
+    fontFamily: fonts.mono,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1,
+    color: '#3DDC84',
+    textTransform: 'uppercase',
+  },
+
+  // ── Float plan modal ──
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 480,
+    padding: 24,
+    backgroundColor: colors.surface0,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.hairlineStrong,
+    gap: 14,
+  },
+  modalTitle: {
+    fontFamily: fonts.display,
+    fontSize: 22,
+    fontWeight: '800',
+    color: colors.text1,
+    letterSpacing: -0.4,
+  },
+  modalBody: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: colors.text2,
+    lineHeight: 20,
+  },
+  modalSummary: {
+    backgroundColor: colors.surface1,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.hairline,
+    padding: 12,
+    gap: 4,
+  },
+  modalSummaryRow: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.text1,
+  },
+  modalSummaryLabel: {
+    fontFamily: fonts.mono,
+    fontSize: 10,
+    color: colors.text3,
+    fontWeight: '700',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+  },
+  modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 4 },
+  modalBtnGhost: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.hairlineStrong,
+    backgroundColor: 'transparent',
+  },
+  modalBtnGhostText: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.text2,
+  },
+  modalBtnPrimary: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: radius.sm,
+    backgroundColor: colors.accent,
+  },
+  modalBtnPrimaryText: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.bg,
+  },
+  disabledOpacity: { opacity: 0.6 },
+  errText: { fontFamily: fonts.body, fontSize: 12, color: '#F73726' },
 
   primaryBtn: {
     alignSelf: 'flex-start',
