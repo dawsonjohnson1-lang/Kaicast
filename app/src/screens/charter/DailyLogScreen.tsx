@@ -315,6 +315,19 @@ function TripRow({
   onRemove: () => void;
 }) {
   const isOther = trip.type === 'other';
+  // Type-conditional optional fields (kept collapsed by default so the
+  // common-case lightweight row never feels like data entry). Species
+  // applies to Spearfishing + Scuba; cert-level applies to Scuba only.
+  const hasSpecies = trip.type === 'spearfishing' || trip.type === 'scuba';
+  const hasCertLevels = trip.type === 'scuba';
+  const showMoreToggle = hasSpecies || hasCertLevels;
+  // Auto-expand if either field is already populated so a saved row
+  // doesn't hide pre-existing data behind a collapsed toggle.
+  const initiallyOpen =
+    !!(trip.speciesNotes && trip.speciesNotes.trim().length) ||
+    !!(trip.certLevelNotes && trip.certLevelNotes.trim().length);
+  const [expanded, setExpanded] = React.useState(initiallyOpen);
+
   return (
     <Card bordered style={{ gap: spacing.sm }}>
       <View style={styles.tripHeaderRow}>
@@ -377,6 +390,41 @@ function TripRow({
         multiline
         style={styles.tripNotesInput}
       />
+
+      {showMoreToggle ? (
+        <Pressable
+          onPress={() => setExpanded((v) => !v)}
+          style={styles.moreToggle}
+          hitSlop={6}
+        >
+          <Text style={styles.moreToggleText}>
+            {expanded ? '▴ Hide species / cert' : '▾ Species / cert (optional)'}
+          </Text>
+        </Pressable>
+      ) : null}
+
+      {showMoreToggle && expanded ? (
+        <View style={{ gap: spacing.sm }}>
+          {hasSpecies ? (
+            <Input
+              label={trip.type === 'spearfishing' ? 'Catches' : 'Species sighted'}
+              value={trip.speciesNotes ?? ''}
+              onChangeText={(v) => onChange({ speciesNotes: v })}
+              placeholder={trip.type === 'spearfishing'
+                ? 'e.g. 1 ono, 2 papio'
+                : 'e.g. 3 turtles, 1 whitetip'}
+            />
+          ) : null}
+          {hasCertLevels ? (
+            <Input
+              label="Cert levels onboard"
+              value={trip.certLevelNotes ?? ''}
+              onChangeText={(v) => onChange({ certLevelNotes: v })}
+              placeholder="e.g. 2× OW, 1× AOW, 1× Rescue"
+            />
+          ) : null}
+        </View>
+      ) : null}
     </Card>
   );
 }
@@ -628,6 +676,20 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.bgElevated,
     textAlignVertical: 'top',
+  },
+  moreToggle: {
+    alignSelf: 'flex-start',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 999,
+    backgroundColor: 'transparent',
+  },
+  moreToggleText: {
+    ...typography.bodySm,
+    color: colors.textMuted,
+    fontWeight: '700',
+    letterSpacing: 0.4,
+    fontSize: 11,
   },
 
   // ── Type chip ──

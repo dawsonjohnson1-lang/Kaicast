@@ -94,6 +94,13 @@ export interface CharterLogTrip {
   guestCount?: number;
   /** Free-text notes for the trip. Optional. */
   notes?: string;
+  /** Type-conditional, tucked behind the "More" toggle in the trip row:
+   *  Free-text species tally — only meaningful for spearfishing + scuba.
+   *  e.g. "1 ono, 2 papio" or "3 turtles, 1 whitetip". */
+  speciesNotes?: string;
+  /** Free-text cert-level summary — only meaningful for scuba.
+   *  e.g. "2× OW, 1× AOW, 1× Rescue". */
+  certLevelNotes?: string;
 
   // ── Legacy fields kept optional for Phase 2 (FareHarbor sync) ──
   title?: string;

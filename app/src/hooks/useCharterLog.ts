@@ -122,7 +122,14 @@ export function useCharterLog(
   /** Flush a queued write immediately and resolve. */
   flush: () => Promise<void>;
   /** Submit the log: status → submitted, generate PDF, return result. */
-  submit: () => Promise<{ pdfUrl: string | null }>;
+  /** Submit the log. Returns dark + light HTML URLs from
+   *  generateCaptainsLog. `pdfUrl` is kept as an alias of `darkPdfUrl`
+   *  for back-compat with screens that haven't moved off it yet. */
+  submit: () => Promise<{
+    pdfUrl: string | null;
+    darkPdfUrl: string | null;
+    lightPdfUrl: string | null;
+  }>;
 } {
   const docIdRef = useRef<string | null>(null);
   const logRef = useRef<CharterLog | null>(null);
@@ -290,23 +297,34 @@ export function useCharterLog(
     setState((s) => ({ ...s, saving: false }));
   }, []);
 
-  const submit = useCallback(async (): Promise<{ pdfUrl: string | null }> => {
+  const submit = useCallback(async (): Promise<{
+    pdfUrl: string | null;
+    darkPdfUrl: string | null;
+    lightPdfUrl: string | null;
+  }> => {
     await flush();
     const id = docIdRef.current;
     const cur = logRef.current;
-    if (!id || !cur || !db) return { pdfUrl: null };
+    if (!id || !cur || !db) return { pdfUrl: null, darkPdfUrl: null, lightPdfUrl: null };
     // Status flip happens server-side so the PDF render sees the final
     // state. Falls back to a local flip if the callable is unavailable.
-    let pdfUrl: string | null = null;
+    let darkPdfUrl: string | null = null;
+    let lightPdfUrl: string | null = null;
     if (firebaseApp) {
       try {
         const fns = getFunctions(firebaseApp, 'us-central1');
-        const fn = httpsCallable<{ logDocId: string }, { pdfUrl: string | null }>(
-          fns,
-          'generateCaptainsLog',
-        );
+        const fn = httpsCallable<
+          { logDocId: string },
+          {
+            pdfUrl: string | null;
+            darkPdfUrl?: string | null;
+            lightPdfUrl?: string | null;
+          }
+        >(fns, 'generateCaptainsLog');
         const res = await fn({ logDocId: id });
-        pdfUrl = res.data?.pdfUrl ?? null;
+        // darkPdfUrl is the modern key; pdfUrl is the legacy alias.
+        darkPdfUrl  = res.data?.darkPdfUrl  ?? res.data?.pdfUrl ?? null;
+        lightPdfUrl = res.data?.lightPdfUrl ?? null;
       } catch {
         // The callable will also flip status; if it failed, we still
         // mark locally so the captain can't get stuck.
@@ -317,7 +335,7 @@ export function useCharterLog(
     logRef.current = next;
     await setDoc(doc(db, 'charter_logs', id), { status: 'submitted', submittedAt }, { merge: true });
     setState((s) => ({ ...s, log: next }));
-    return { pdfUrl };
+    return { pdfUrl: darkPdfUrl, darkPdfUrl, lightPdfUrl };
   }, [flush]);
 
   return {

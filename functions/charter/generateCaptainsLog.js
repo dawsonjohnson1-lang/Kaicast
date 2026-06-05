@@ -1,25 +1,33 @@
-// generateCaptainsLog — render a CharterLog doc to a printable PDF
-// and email a digest to the operator owner.
+// generateCaptainsLog — render a CharterLog doc to HTML, upload both
+// the dark in-app preview AND the printable light version to Cloud
+// Storage, return signed URLs.
 //
-// CURRENT STATE (2026-06-05): The callable is wired end-to-end —
-// validates auth + org membership, marks the log as submitted,
-// uploads an HTML preview to Cloud Storage, returns its signed URL.
-// The actual Puppeteer-rendered PDF is stubbed pending the design
-// team's printable HTML template (referenced as "dark + light
-// versions" in the spec; not yet checked into this repo). The
-// captain experience works today via the HTML preview; swap in
-// Puppeteer when the template lands.
+// Schema this generator reads (Phase 1 standalone log):
+//   log.conditions.{abyss,observed}   — day-level conditions matrix
+//   log.incident.{occurred,summary,uscgFlag,dlnrFlag}  — day-level incident
+//   log.dayNotes                       — free-form day narrative
+//   log.trips[].{type,label,durationHours,guestCount,notes}  — lightweight rows
 //
-// To finish:
-//   1. Drop the printable HTML template at
-//      functions/charter/templates/captainsLog.html (mustache-ish:
-//      {{logId}}, {{trips}}, etc).
-//   2. Replace renderHtmlPreview() with a Puppeteer render: load the
-//      template, hydrate with the log data, call page.pdf().
-//   3. Replace email body (currently text-only) with HTML digest +
-//      PDF attachment.
+// Legacy fields (passengerCount, observedConditions per-trip,
+// speciesObserved, fareharborBookingId, etc.) are still on the trip
+// type as optional placeholders for Phase 2 (FareHarbor re-enable).
+// The renderer reads the lightweight fields with sensible fallbacks
+// so archived logs from the old per-trip flow continue to render —
+// just without trip-level conditions / guests.
 //
-// Auth: caller must be signed in AND belong to the log's operatorId.
+// Output: two HTML files per submission —
+//   logs/{logId}-dark.html   — dark theme (#0B1015 background), used
+//                              for the in-app preview and the captain's
+//                              quick on-device read.
+//   logs/{logId}-light.html  — light theme, printable / archive friendly.
+//
+// Both files are uploaded with 7-day signed URLs. The callable returns
+// `{ pdfUrl, lightPdfUrl }` — pdfUrl is the dark URL (backward-compat
+// for callers that only know about that field).
+//
+// Typography: DM Sans for headers + body, JetBrains Mono for numeric
+// / data values. Loaded from Google Fonts at the top of the document
+// with safe system-font fallbacks.
 
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const logger = require('firebase-functions/logger');
@@ -62,8 +70,8 @@ exports.generateCaptainsLog = onCall(
     }
 
     // Flip status if still draft. (The client also flips locally; this
-    // is the authoritative write so the email digest sees the final
-    // state.)
+    // is the authoritative write so the rendered document sees the
+    // final state.)
     if (log.status === 'draft') {
       await ref.set({
         status: 'submitted',
@@ -71,106 +79,658 @@ exports.generateCaptainsLog = onCall(
       }, { merge: true });
     }
 
-    // ── Render ──────────────────────────────────────────────────────
-    // TODO(captains-log-pdf): Replace with Puppeteer once the printable
-    // HTML template lands. See the file header for the swap-in
-    // checklist.
-    const html = renderHtmlPreview(log);
-    let signedUrl = null;
+    // ── Render both themes ─────────────────────────────────────────
+    const darkHtml  = renderHtml(log, { theme: 'dark'  });
+    const lightHtml = renderHtml(log, { theme: 'light' });
+
+    let darkUrl = null;
+    let lightUrl = null;
     try {
-      signedUrl = await uploadAndSign(log.logId, html);
+      [darkUrl, lightUrl] = await Promise.all([
+        uploadAndSign(`${log.logId}-dark`,  darkHtml),
+        uploadAndSign(`${log.logId}-light`, lightHtml),
+      ]);
     } catch (err) {
       logger.warn('[captains-log] preview upload failed', {
         logDocId, error: err?.message || String(err),
       });
-      // Fall through — surface null url so the client tells the
+      // Fall through — surface null URLs so the client tells the
       // captain the log was submitted but the document is queued.
     }
 
-    // ── Notify ──────────────────────────────────────────────────────
-    // TODO(captains-log-email): Hook into the existing email transport
-    // (functions/emails/) and send the digest with the rendered PDF
-    // attached. For now we just log the event so it shows up in
-    // observability — the captain still sees "submitted" in-app.
     logger.info('[captains-log] submitted', {
       logDocId,
       operatorId: log.operatorId,
-      totalTrips: log.totalTrips,
+      tripCount: (log.trips || []).length,
       totalGuests: log.totalGuests,
-      incidents: log.incidents,
-      previewUrl: signedUrl,
+      incidentOccurred: !!log.incident?.occurred,
+      darkUrl,
+      lightUrl,
     });
 
-    return { pdfUrl: signedUrl };
+    return {
+      pdfUrl: darkUrl,         // back-compat: legacy callers expect pdfUrl
+      darkPdfUrl: darkUrl,
+      lightPdfUrl: lightUrl,
+    };
   },
 );
 
 // ── Renderers ──────────────────────────────────────────────────────
 
-/**
- * Bare-bones HTML preview of the log. Mirrors the structure of the
- * printable template so swapping to Puppeteer + a real template is a
- * one-file change. Inline CSS keeps the file self-contained.
- */
-function renderHtmlPreview(log) {
-  const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;',
-  }[c]));
-  const tripsHtml = (log.trips || []).map((t) => `
-    <section class="trip">
-      <h3>${esc(t.tripNum)}. ${esc(t.title)}</h3>
-      <p class="muted">${esc(t.type)} · ${esc(t.departureTime)} → ${esc(t.returnTime)} · ${esc(t.passengerCount)} guests</p>
-      <p><strong>Site:</strong> ${esc(t.primarySite)} ${t.secondarySite ? `(also ${esc(t.secondarySite)})` : ''}</p>
-      <p><strong>Observed:</strong>
-        vis ${esc(t.observedConditions?.visibility)} ·
-        temp ${esc(t.observedConditions?.feltTemp)} ·
-        sea ${esc(t.observedConditions?.seaState)} ·
-        wind ${esc(t.observedConditions?.windObserved)}
-      </p>
-      ${t.captainNote ? `<p><em>${esc(t.observedConditions?.captainNote)}</em></p>` : ''}
-      ${(t.speciesObserved || []).length ? `<p><strong>Species:</strong> ${(t.speciesObserved).map((s) => `${esc(s.species)} ×${s.count}`).join(', ')}</p>` : ''}
-      ${t.incident && t.incident !== 'None' ? `<p class="incident"><strong>Incident:</strong> ${esc(t.incident)} (${esc(t.incidentSeverity || 'unspecified')})</p>` : ''}
-      ${t.equipmentNotes ? `<p><strong>Equipment:</strong> ${esc(t.equipmentNotes)}</p>` : ''}
-      ${t.siteNotes ? `<p><strong>Site notes:</strong> ${esc(t.siteNotes)}</p>` : ''}
-    </section>
-  `).join('\n');
-
-  return `<!doctype html>
-<html><head><meta charset="utf-8"><title>${esc(log.logId)}</title>
-<style>
-  body { font-family: -apple-system, sans-serif; background: #0B1015; color: #f8f8f8; max-width: 720px; margin: 40px auto; padding: 0 20px; }
-  h1 { font-size: 24px; margin-bottom: 4px; }
-  .id  { color: #9aa4b2; font-family: ui-monospace, monospace; font-size: 12px; }
-  .totals { display: flex; gap: 24px; margin: 24px 0; }
-  .totals div { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 12px 16px; flex: 1; }
-  .totals strong { display: block; font-size: 28px; }
-  .totals small { color: #9aa4b2; text-transform: uppercase; letter-spacing: 0.8px; font-size: 10px; }
-  .trip { border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 14px 18px; margin-bottom: 12px; }
-  .muted { color: #9aa4b2; }
-  .incident { color: #f73726; }
-</style></head>
-<body>
-  <h1>${esc(log.vesselName || 'Vessel')} — Daily Log</h1>
-  <p class="id">${esc(log.logId)}</p>
-  <p class="muted">${esc(log.captainName)} · ${esc(log.captainLicense)} · ${esc(log.harborDeparture)}</p>
-  <div class="totals">
-    <div><strong>${log.totalTrips || 0}</strong><small>Trips</small></div>
-    <div><strong>${log.totalGuests || 0}</strong><small>Guests</small></div>
-    <div><strong>${log.incidents || 0}</strong><small>Incidents</small></div>
-  </div>
-  ${log.dailyAlerts ? `<p style="background:rgba(245,176,65,0.14);border:1px solid #f5b041;padding:10px;border-radius:8px;"><strong>Alerts:</strong> ${esc(log.dailyAlerts)}</p>` : ''}
-  ${tripsHtml}
-  <p class="muted" style="margin-top: 36px; font-size: 11px;">
-    Generated by KaiCast · This is the in-app HTML preview.
-    A printable PDF will replace this once the captain's-log
-    template lands.
-  </p>
-</body></html>`;
+/** Theme tokens that swap by `theme: 'dark' | 'light'`. Kept as a
+ *  single object so the markup-rendering code below stays
+ *  theme-agnostic — it only reads `t.bg`, `t.text`, etc. */
+function tokens(theme) {
+  if (theme === 'light') {
+    return {
+      bg:        '#F7F8FA',
+      surface:   '#FFFFFF',
+      surfaceAlt:'#F1F3F6',
+      text:      '#0F1115',
+      textMuted: '#5C636D',
+      textSub:   '#8A929E',
+      border:    '#E2E6EC',
+      borderHi:  '#CBD2DA',
+      accent:    '#09A1FB',
+      accentSoft:'rgba(9,161,251,0.10)',
+      hazard:    '#D5292B',
+      hazardSoft:'rgba(213,41,43,0.10)',
+      warn:      '#C77400',
+      warnSoft:  'rgba(199,116,0,0.10)',
+      bannerBg:  '#FFFFFF',
+    };
+  }
+  return {
+    bg:        '#0B1015',
+    surface:   '#11171F',
+    surfaceAlt:'#161E27',
+    text:      '#F4F6F8',
+    textMuted: '#9AA4B2',
+    textSub:   '#6B7480',
+    border:    '#1F2832',
+    borderHi:  '#2A3441',
+    accent:    '#09A1FB',
+    accentSoft:'rgba(9,161,251,0.14)',
+    hazard:    '#F73726',
+    hazardSoft:'rgba(247,55,38,0.14)',
+    warn:      '#F5A623',
+    warnSoft:  'rgba(245,166,35,0.14)',
+    bannerBg:  '#11171F',
+  };
 }
 
-async function uploadAndSign(logId, html) {
+/** Per-trip-type left-border accent. The bar is rendered as a 6px
+ *  inset border on the card; readers can spot trip types by color
+ *  at a glance. */
+const TRIP_TYPE_COLOR = {
+  snorkel:        '#2A9D8F',
+  scuba:          '#09A1FB',
+  freedive:       '#3DDC84',
+  spearfishing:   '#A78BFA',
+  private:        '#F5A623',
+  ash_scattering: '#E1A19D',
+  sunset:         '#F76707',
+  whale_watch:    '#1A5DAB',
+  other:          '#8A929E',
+};
+
+const TRIP_TYPE_LABEL = {
+  snorkel:        'Snorkel Tour',
+  scuba:          'Scuba / Dive',
+  freedive:       'Freedive',
+  spearfishing:   'Spearfishing',
+  private:        'Private Charter',
+  ash_scattering: 'Ash Scattering / Memorial',
+  sunset:         'Sunset Cruise',
+  whale_watch:    'Whale Watch',
+  other:          'Other',
+};
+
+function renderHtml(log, { theme }) {
+  const t = tokens(theme);
+  const esc = htmlEscape;
+
+  const trips = Array.isArray(log.trips) ? log.trips : [];
+  const cond = log.conditions || {};
+  const abyss = cond.abyss || {};
+  const observed = cond.observed || {};
+  const incident = log.incident || {};
+
+  const dateLabel = log.date
+    ? new Date(log.date).toLocaleDateString('en-US', {
+        weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
+      })
+    : '—';
+
+  const tripsHtml = trips.length === 0
+    ? `<div class="empty">
+         <div class="empty-title">No trips logged</div>
+         <div class="empty-sub">Conditions captured for the day; no charters ran.</div>
+       </div>`
+    : trips.map((trip, idx) => renderTrip(trip, idx + 1, t, esc)).join('\n');
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>${esc(log.logId || 'Captain\'s Log')}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: ${t.bg};
+      --surface: ${t.surface};
+      --surface-alt: ${t.surfaceAlt};
+      --text: ${t.text};
+      --text-muted: ${t.textMuted};
+      --text-sub: ${t.textSub};
+      --border: ${t.border};
+      --border-hi: ${t.borderHi};
+      --accent: ${t.accent};
+      --accent-soft: ${t.accentSoft};
+      --hazard: ${t.hazard};
+      --hazard-soft: ${t.hazardSoft};
+      --warn: ${t.warn};
+      --warn-soft: ${t.warnSoft};
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); }
+    body {
+      font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+      padding: 40px 24px;
+      max-width: 880px;
+      margin: 0 auto;
+      -webkit-font-smoothing: antialiased;
+    }
+    .mono, .num { font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace; }
+    h1, h2, h3 { font-family: 'DM Sans', sans-serif; color: var(--text); margin: 0; }
+
+    /* ── Header ─────────────────────────────────────────────────── */
+    .head { margin-bottom: 32px; }
+    .eyebrow {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 1.5px;
+      color: var(--accent);
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+    h1 {
+      font-size: 32px;
+      font-weight: 800;
+      letter-spacing: -0.8px;
+      margin-top: 4px;
+    }
+    .head .meta {
+      color: var(--text-muted);
+      font-size: 13px;
+      margin-top: 6px;
+    }
+    .head .logId {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--text-sub);
+      margin-top: 4px;
+    }
+
+    /* ── Totals strip ──────────────────────────────────────────── */
+    .totals {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin: 24px 0 32px 0;
+    }
+    .totals .cell {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 16px;
+    }
+    .totals .num {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--text);
+      display: block;
+    }
+    .totals .label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      font-weight: 700;
+      margin-top: 4px;
+      display: block;
+    }
+
+    /* ── Section ──────────────────────────────────────────────── */
+    .section { margin-bottom: 28px; }
+    h2 {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+    }
+    h2 .sub {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      font-weight: 700;
+    }
+
+    /* ── Conditions matrix ────────────────────────────────────── */
+    .cond-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .cond-col {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+    }
+    .cond-col-abyss { border-left: 4px solid var(--accent); }
+    .cond-col-observed { border-left: 4px solid #3DDC84; }
+    .cond-head {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      font-weight: 700;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+    .cond-row {
+      display: flex;
+      gap: 10px;
+      padding: 5px 0;
+      border-top: 1px solid var(--border);
+    }
+    .cond-row:first-of-type { border-top: 0; }
+    .cond-label { flex: 0 0 110px; font-size: 12px; color: var(--text-muted); }
+    .cond-val {
+      flex: 1;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      color: var(--text);
+      font-weight: 600;
+    }
+    .cond-note {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px solid var(--border);
+      font-size: 12px;
+      color: var(--text-muted);
+      font-style: italic;
+    }
+
+    /* ── Trip card ────────────────────────────────────────────── */
+    .trip {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 18px;
+      margin-bottom: 10px;
+      border-left: 6px solid var(--border);
+      display: grid;
+      grid-template-columns: 36px 1fr auto;
+      gap: 12px;
+      align-items: center;
+    }
+    .trip-index {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      color: var(--text-muted);
+      font-weight: 700;
+    }
+    .trip-main { min-width: 0; }
+    .trip-type {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      font-weight: 700;
+    }
+    .trip-title {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text);
+      margin-top: 2px;
+    }
+    .trip-meta {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+    .trip-notes {
+      grid-column: 1 / -1;
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid var(--border);
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    .trip-tally {
+      grid-column: 1 / -1;
+      margin-top: 6px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+    .trip-tally strong { color: var(--text); font-weight: 700; }
+
+    /* ── Day notes ────────────────────────────────────────────── */
+    .day-notes {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 16px;
+      font-size: 13px;
+      color: var(--text);
+      white-space: pre-wrap;
+    }
+
+    /* ── Incident ─────────────────────────────────────────────── */
+    .incident-card {
+      background: var(--hazard-soft);
+      border: 1px solid var(--hazard);
+      border-radius: 10px;
+      padding: 14px 16px;
+    }
+    .incident-card.none {
+      background: var(--surface);
+      border: 1px solid var(--border);
+    }
+    .incident-head {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      font-weight: 700;
+      color: var(--hazard);
+    }
+    .incident-card.none .incident-head { color: var(--text-muted); }
+    .incident-summary {
+      margin-top: 8px;
+      font-size: 13px;
+      color: var(--text);
+      white-space: pre-wrap;
+    }
+    .incident-flags {
+      margin-top: 10px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .flag {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      font-weight: 700;
+      padding: 4px 8px;
+      border-radius: 999px;
+      border: 1px solid currentColor;
+    }
+    .flag.warn { color: var(--warn); background: var(--warn-soft); }
+    .flag.hazard { color: var(--hazard); background: var(--hazard-soft); }
+
+    /* ── Sign-off + footer ───────────────────────────────────── */
+    .signoff {
+      margin-top: 32px;
+      padding: 14px 16px;
+      border-radius: 10px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    .signoff strong { color: var(--text); font-weight: 700; }
+
+    .footer {
+      margin-top: 36px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      color: var(--text-sub);
+      text-align: center;
+      letter-spacing: 0.6px;
+    }
+
+    /* ── Empty state ─────────────────────────────────────────── */
+    .empty {
+      background: var(--surface);
+      border: 1px dashed var(--border-hi);
+      border-radius: 10px;
+      padding: 22px 18px;
+      text-align: center;
+      color: var(--text-muted);
+    }
+    .empty-title { font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 700; color: var(--text); }
+    .empty-sub { font-size: 12px; margin-top: 4px; }
+
+    /* Print sanity */
+    @media print {
+      body { padding: 24px; }
+      .trip { break-inside: avoid; }
+      .cond-grid { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <header class="head">
+    <div class="eyebrow">Captain's Daily Log</div>
+    <h1>${esc(log.vesselName || 'Vessel')}</h1>
+    <div class="meta">
+      ${esc(dateLabel)}${log.captainName ? ` · ${esc(log.captainName)}` : ''}${log.captainLicense ? ` · ${esc(log.captainLicense)}` : ''}${log.harborDeparture ? ` · ${esc(log.harborDeparture)}` : ''}
+    </div>
+    <div class="logId">${esc(log.logId || '')}</div>
+  </header>
+
+  <div class="totals">
+    <div class="cell">
+      <span class="num">${trips.length}</span>
+      <span class="label">Trips</span>
+    </div>
+    <div class="cell">
+      <span class="num">${esc(log.totalGuests || 0)}</span>
+      <span class="label">Guests</span>
+    </div>
+    <div class="cell">
+      <span class="num">${incident.occurred ? '1' : '0'}</span>
+      <span class="label">Incident</span>
+    </div>
+  </div>
+
+  <section class="section">
+    <h2>Conditions <span class="sub">Abyss · Observed</span></h2>
+    ${renderConditions(abyss, observed, t, esc)}
+  </section>
+
+  <section class="section">
+    <h2>Trips <span class="sub">${trips.length} today</span></h2>
+    ${tripsHtml}
+  </section>
+
+  ${log.dayNotes ? `
+  <section class="section">
+    <h2>Day notes</h2>
+    <div class="day-notes">${esc(log.dayNotes)}</div>
+  </section>` : ''}
+
+  <section class="section">
+    <h2>Incident</h2>
+    ${renderIncident(incident, esc)}
+  </section>
+
+  ${renderSignOff(log, esc)}
+
+  <div class="footer">
+    Generated by KaiCast Charter · ${esc(new Date().toISOString())}
+  </div>
+</body>
+</html>`;
+}
+
+function renderConditions(abyss, observed, t, esc) {
+  const FIELDS = [
+    { label: 'Visibility',  a: abyss.visibility,     o: observed.visibility       },
+    { label: 'Water temp',  a: abyss.waterTemp,      o: observed.feltTemp         },
+    { label: 'Swell',       a: abyss.swellHeight,    o: observed.seaState         },
+    { label: 'Swell dir',   a: abyss.swellDirection, o: observed.swellDirObserved },
+    { label: 'Wind',        a: abyss.windForecast,   o: observed.windObserved     },
+    { label: 'Current',     a: abyss.surfaceCurrent, o: observed.currentObserved  },
+    { label: 'Current dir', a: abyss.currentDirection, o: observed.currentDirObserved },
+  ];
+  const valOrDash = (v) => (v && String(v).trim()) || '—';
+
+  return `<div class="cond-grid">
+    <div class="cond-col cond-col-abyss">
+      <div class="cond-head">Abyss · Auto</div>
+      ${FIELDS.map((f) => `
+        <div class="cond-row">
+          <div class="cond-label">${esc(f.label)}</div>
+          <div class="cond-val">${esc(valOrDash(f.a))}</div>
+        </div>`).join('')}
+      ${abyss.alerts ? `<div class="cond-note">⚠ ${esc(abyss.alerts)}</div>` : ''}
+    </div>
+    <div class="cond-col cond-col-observed">
+      <div class="cond-head">Observed</div>
+      ${FIELDS.map((f) => `
+        <div class="cond-row">
+          <div class="cond-label">${esc(f.label)}</div>
+          <div class="cond-val">${esc(valOrDash(f.o))}</div>
+        </div>`).join('')}
+      ${observed.captainNote ? `<div class="cond-note">${esc(observed.captainNote)}</div>` : ''}
+    </div>
+  </div>`;
+}
+
+function renderTrip(trip, num, t, esc) {
+  const type = String(trip.type || 'other');
+  const accent = TRIP_TYPE_COLOR[type] || TRIP_TYPE_COLOR.other;
+  const typeLabel = TRIP_TYPE_LABEL[type] || type;
+  // Title prefers the captain's free-text label; falls back to the
+  // legacy title field for old logs.
+  const title = (trip.label && String(trip.label).trim())
+    || (trip.title && String(trip.title).trim())
+    || typeLabel;
+
+  // Meta line: duration + guests, mono-formatted. Legacy
+  // passengerCount picked up when the new guestCount isn't set.
+  const guests = trip.guestCount != null ? trip.guestCount : (trip.passengerCount ?? null);
+  const meta = [
+    trip.durationHours != null ? `${formatNum(trip.durationHours)} h` : null,
+    guests != null ? `${guests} guests` : null,
+    trip.departureTime || null,  // legacy
+    trip.primarySite  || null,   // legacy
+  ].filter(Boolean).join(' · ');
+
+  // Type-conditional tally lines — only rendered when there's
+  // something to show. New lightweight schema uses freeform
+  // speciesNotes / certLevelNotes (more useful for the captain's
+  // end-of-day workflow); legacy structured fields kept as a
+  // fallback so archived logs still render their species count.
+  const speciesLabel = type === 'spearfishing' ? 'Catches' : 'Species';
+  let speciesLine = '';
+  if (trip.speciesNotes && String(trip.speciesNotes).trim()) {
+    speciesLine = `<div class="trip-tally"><strong>${speciesLabel}:</strong> ${esc(trip.speciesNotes)}</div>`;
+  } else if ((trip.speciesObserved || []).length) {
+    speciesLine = `<div class="trip-tally"><strong>${speciesLabel}:</strong> ${
+      trip.speciesObserved.map((s) => `${esc(s.species)} ×${esc(s.count)}`).join(', ')
+    }</div>`;
+  }
+
+  let certLine = '';
+  if (type === 'scuba') {
+    if (trip.certLevelNotes && String(trip.certLevelNotes).trim()) {
+      certLine = `<div class="trip-tally"><strong>Certs:</strong> ${esc(trip.certLevelNotes)}</div>`;
+    } else if ((trip.guests || []).length) {
+      const certs = trip.guests.filter((g) => g.certLevel).map((g) => esc(g.certLevel));
+      if (certs.length) {
+        certLine = `<div class="trip-tally"><strong>Certs:</strong> ${certs.join(', ')}</div>`;
+      }
+    }
+  }
+
+  return `<article class="trip" style="border-left-color: ${accent};">
+    <div class="trip-index">#${num}</div>
+    <div class="trip-main">
+      <div class="trip-type" style="color: ${accent};">${esc(typeLabel)}</div>
+      <div class="trip-title">${esc(title)}</div>
+      ${meta ? `<div class="trip-meta">${esc(meta)}</div>` : ''}
+    </div>
+    <div></div>
+    ${trip.notes ? `<div class="trip-notes">${esc(trip.notes)}</div>` : ''}
+    ${speciesLine}
+    ${certLine}
+  </article>`;
+}
+
+function renderIncident(incident, esc) {
+  if (!incident || !incident.occurred) {
+    return `<div class="incident-card none">
+      <div class="incident-head">No incident reported</div>
+    </div>`;
+  }
+  const summary = incident.summary && String(incident.summary).trim();
+  return `<div class="incident-card">
+    <div class="incident-head">Incident — Reported</div>
+    ${summary ? `<div class="incident-summary">${esc(summary)}</div>` : ''}
+    <div class="incident-flags">
+      ${incident.uscgFlag ? `<span class="flag hazard">USCG notified</span>` : ''}
+      ${incident.dlnrFlag ? `<span class="flag warn">DLNR notified</span>` : ''}
+    </div>
+  </div>`;
+}
+
+function renderSignOff(log, esc) {
+  const so = log.signOff;
+  if (!so) {
+    return `<div class="signoff">Draft — not yet signed.</div>`;
+  }
+  const when = so.signedAt
+    ? new Date(so.signedAt).toLocaleString('en-US', {
+        month: 'short', day: 'numeric', year: 'numeric',
+        hour: 'numeric', minute: '2-digit',
+      })
+    : '';
+  return `<div class="signoff">
+    Signed by <strong>${esc(so.signedBy || log.captainName || 'Captain')}</strong>${when ? ` · ${esc(when)}` : ''}
+  </div>`;
+}
+
+// ── Utilities ──────────────────────────────────────────────────────
+
+function htmlEscape(s) {
+  return String(s ?? '').replace(/[&<>"]/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;',
+  }[c]));
+}
+
+function formatNum(n) {
+  if (typeof n !== 'number' || !Number.isFinite(n)) return '—';
+  // Trim trailing zero on whole numbers so "2.0 h" prints as "2 h".
+  return n % 1 === 0 ? String(n) : String(Math.round(n * 10) / 10);
+}
+
+async function uploadAndSign(fileBase, html) {
   const bucket = admin.storage().bucket(BUCKET_NAME);
-  const file = bucket.file(`logs/${logId}.html`);
+  const file = bucket.file(`logs/${fileBase}.html`);
   await file.save(Buffer.from(html, 'utf-8'), {
     contentType: 'text/html; charset=utf-8',
     resumable: false,
