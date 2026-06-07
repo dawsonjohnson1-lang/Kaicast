@@ -596,8 +596,8 @@ function MapColumn({
         showZoomControls
         showLayerControl
         layerControlOpenByDefault
-        waterColor="#0B1015"
-        landColor="#161C24"
+        waterColor="#0A0A0A"
+        landColor="#161616"
       />
 
       {/* Bottom status bar — absolute overlay above the map canvas. */}

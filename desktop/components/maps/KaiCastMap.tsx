@@ -92,6 +92,13 @@ const buildStyleOverrides = (theme: ThemeName, waterColor?: string, landColor?: 
   const c = theme === 'light' ? RAW_COLORS_LIGHT : RAW_COLORS_DARK;
   const land0 = landColor ?? c.surface0;
   const land1 = landColor ?? c.surface1;
+  // Coastline — a faint stroke on the water polygon edge traces every
+  // island so shapes stay readable when land/water contrast is low
+  // (near-black water + barely-raised land). dark-v11 has no dedicated
+  // coastline line layer, so we outline the water fill instead. Low-
+  // opacity + theme-aware so it defines edges without competing with
+  // the condition pins.
+  const coast = theme === 'light' ? 'rgba(12,16,21,0.10)' : 'rgba(255,255,255,0.08)';
   return [
     // Land — blend into KaiCast surface so the map doesn't feel like a
     // foreign element pasted onto the page. `landColor` collapses both
@@ -103,6 +110,7 @@ const buildStyleOverrides = (theme: ThemeName, waterColor?: string, landColor?: 
     // Per-instance `waterColor` prop overrides the theme default; used
     // on the Spots map to match the surrounding panel background.
     { layer: 'water',                    prop: 'fill-color',       value: waterColor ?? c.bg },
+    { layer: 'water',                    prop: 'fill-outline-color', value: coast },
     // Roads — muted; this map is about ocean conditions, not driving.
     { layer: 'road-primary',             prop: 'line-color',       value: c.surface2 },
     { layer: 'road-secondary-tertiary',  prop: 'line-color',       value: c.surface2 },
@@ -114,6 +122,11 @@ const buildStyleOverrides = (theme: ThemeName, waterColor?: string, landColor?: 
     { layer: 'settlement-minor-label',   prop: 'text-color',       value: c.text4 },
     { layer: 'water-point-label',        prop: 'text-color',       value: c.text4 },
     { layer: 'water-line-label',         prop: 'text-color',       value: c.text4 },
+    // POIs (businesses, parks, etc.) don't belong on an ocean-
+    // conditions map — hide them outright. City/settlement labels
+    // (Lihue, Wailuku, …) are kept but muted via the text3/text4
+    // overrides above so they read as faint geographic context.
+    { layer: 'poi-label',                prop: 'visibility',       value: 'none' },
   ];
 };
 
@@ -196,7 +209,10 @@ export function KaiCastMap({
       const overrides = buildStyleOverrides(themeRef.current, waterColorRef.current, landColorRef.current);
       for (const { layer, prop, value } of overrides) {
         try {
-          if (prop === 'background-color') {
+          if (prop === 'visibility') {
+            // Layout property, not paint — toggles a layer on/off.
+            map.setLayoutProperty(layer, 'visibility' as any, value);
+          } else if (prop === 'background-color') {
             map.setPaintProperty(layer, 'background-color' as any, value);
           } else if (prop.startsWith('fill-')) {
             map.setPaintProperty(layer, prop as any, value);
