@@ -98,34 +98,41 @@ const buildStyleOverrides = (theme: ThemeName, waterColor?: string, landColor?: 
   // coastline line layer, so we outline the water fill instead. Low-
   // opacity + theme-aware so it defines edges without competing with
   // the condition pins.
-  const coast = theme === 'light' ? 'rgba(12,16,21,0.10)' : 'rgba(255,255,255,0.08)';
+  const coast = theme === 'light' ? 'rgba(12,16,21,0.10)' : 'rgba(255,255,255,0.06)';
+  // Labels — muted blue-grey in dark so KaiCast pins stay the focal
+  // point; theme-aware so light mode keeps its readable token tones.
+  const label = theme === 'light' ? c.text3 : '#4A5A6A';
+  // NOTE: layer IDs below are verified against the live dark-v11 /
+  // light-v11 style specs (Styles API). `landuse` (NOT `landcover`)
+  // and `road-simple` (NOT `road-primary`/`road-street`/…) are the
+  // real IDs — the old names silently no-op'd. Unknown layers are
+  // skipped in the apply loop, so a future style rev won't break.
   return [
-    // Land — blend into KaiCast surface so the map doesn't feel like a
-    // foreign element pasted onto the page. `landColor` collapses both
-    // surface tiers into one tone so islands read as a single shape.
+    // Land — the `land` layer is dark-v11's background-type layer, so it
+    // doubles as the map base AND the island fill. `landColor` collapses
+    // the surface tiers into one tone so islands read as a single shape.
     { layer: 'land',                     prop: 'background-color', value: land0 },
-    { layer: 'landcover',                prop: 'fill-color',       value: land0 },
+    { layer: 'landuse',                  prop: 'fill-color',       value: land0 },
     { layer: 'land-structure-polygon',   prop: 'fill-color',       value: land1 },
-    // Water — slightly tinted so islands read as raised against the sea.
-    // Per-instance `waterColor` prop overrides the theme default; used
-    // on the Spots map to match the surrounding panel background.
+    // Water — dark ocean blue. Per-instance `waterColor` overrides the
+    // theme default; the Spots map passes a deep navy to read as ocean.
     { layer: 'water',                    prop: 'fill-color',       value: waterColor ?? c.bg },
     { layer: 'water',                    prop: 'fill-outline-color', value: coast },
-    // Roads — muted; this map is about ocean conditions, not driving.
-    { layer: 'road-primary',             prop: 'line-color',       value: c.surface2 },
-    { layer: 'road-secondary-tertiary',  prop: 'line-color',       value: c.surface2 },
-    { layer: 'road-street',              prop: 'line-color',       value: c.surface2 },
-    { layer: 'road-minor',               prop: 'line-color',       value: c.surface2 },
-    // Labels — text3/text4 so KaiCast pins stay the visual focal point.
-    { layer: 'country-label',            prop: 'text-color',       value: c.text3 },
-    { layer: 'settlement-major-label',   prop: 'text-color',       value: c.text3 },
-    { layer: 'settlement-minor-label',   prop: 'text-color',       value: c.text4 },
-    { layer: 'water-point-label',        prop: 'text-color',       value: c.text4 },
-    { layer: 'water-line-label',         prop: 'text-color',       value: c.text4 },
+    // Roads — muted to the land tone; this map is about ocean
+    // conditions, not driving. `road-simple` is the real road fill
+    // layer in dark-v11 (the old `road-primary`/… IDs don't exist).
+    { layer: 'road-simple',              prop: 'line-color',       value: land1 },
+    // Labels — muted; markers stay the visual focal point.
+    { layer: 'country-label',            prop: 'text-color',       value: label },
+    { layer: 'state-label',              prop: 'text-color',       value: label },
+    { layer: 'settlement-major-label',   prop: 'text-color',       value: label },
+    { layer: 'settlement-minor-label',   prop: 'text-color',       value: label },
+    { layer: 'settlement-subdivision-label', prop: 'text-color',   value: label },
+    { layer: 'water-point-label',        prop: 'text-color',       value: label },
+    { layer: 'water-line-label',         prop: 'text-color',       value: label },
     // POIs (businesses, parks, etc.) don't belong on an ocean-
     // conditions map — hide them outright. City/settlement labels
-    // (Lihue, Wailuku, …) are kept but muted via the text3/text4
-    // overrides above so they read as faint geographic context.
+    // (Lihue, Wailuku, …) are kept but muted above as faint context.
     { layer: 'poi-label',                prop: 'visibility',       value: 'none' },
   ];
 };
@@ -167,6 +174,12 @@ export function KaiCastMap({
   waterColorRef.current = waterColor;
   const landColorRef = useRef<string | undefined>(landColor);
   landColorRef.current = landColor;
+  // Tracks the basemap style URL currently applied to the live map.
+  // The init effect seeds it when it constructs the map, so the theme
+  // effect can tell "already on this style" (mount / remount) from a
+  // genuine theme flip and only call setStyle for the latter — see the
+  // theme effect for why a redundant same-style setStyle is harmful.
+  const appliedStyleRef = useRef<string | null>(null);
   useMapLayers(mapRef.current, layerState);
 
   // Init once. Subsequent prop changes are handled by the targeted
@@ -189,6 +202,11 @@ export function KaiCastMap({
       attributionControl: false,
       cooperativeGestures: false,
     });
+    // Record the style this map was built with so the theme effect
+    // won't redundantly re-apply it (which would wipe our overrides).
+    // Seeded here (not in the theme effect) so it resets per map
+    // instance — surviving StrictMode's mount/cleanup/remount cycle.
+    appliedStyleRef.current = baseStyleFor(themeRef.current);
 
     if (showZoomControls) {
       map.addControl(new mapboxgl.NavigationControl({ showCompass: false, visualizePitch: false }), 'top-right');
@@ -329,10 +347,27 @@ export function KaiCastMap({
   // with the new palette. Custom data layers added by useMapLayers
   // (visibility heatmap, swell, etc.) are wiped by setStyle and re-
   // added by useMapLayers's own style.load listener.
+  //
+  // CRITICAL: only setStyle on a genuine theme *change*, never to
+  // re-apply the style the map already has. The map is constructed
+  // with baseStyleFor(theme) in the init effect; a redundant same-
+  // style setStyle (which the old unconditional version fired on every
+  // mount) races the initial style.load in mapbox-gl v3 and silently
+  // wipes the paint overrides we just applied — water/land snap back
+  // to dark-v11 defaults (grey #1F1F1F / #292929). appliedStyleRef is
+  // seeded per map instance in the init effect, so this guard also
+  // survives StrictMode's mount/cleanup/remount (a persisted boolean
+  // "did mount" flag would not — it stays true for the remounted map).
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    map.setStyle(baseStyleFor(theme));
+    const want = baseStyleFor(theme);
+    if (appliedStyleRef.current === want) return;
+    appliedStyleRef.current = want;
+    // A real theme flip targets a different style URL (dark-v11 ↔
+    // light-v11), so this does a full reload and re-fires style.load,
+    // which re-applies the overrides for the new palette.
+    map.setStyle(want);
   }, [theme]);
 
   // Re-apply water + land fills when the per-instance overrides change
@@ -353,7 +388,7 @@ export function KaiCastMap({
     const land0 = landColor ?? c.surface0;
     const land1 = landColor ?? c.surface1;
     try { map.setPaintProperty('land',                   'background-color' as any, land0); } catch {}
-    try { map.setPaintProperty('landcover',              'fill-color'       as any, land0); } catch {}
+    try { map.setPaintProperty('landuse',                'fill-color'       as any, land0); } catch {}
     try { map.setPaintProperty('land-structure-polygon', 'fill-color'       as any, land1); } catch {}
   }, [landColor]);
 
