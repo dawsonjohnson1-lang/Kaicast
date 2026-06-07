@@ -47,9 +47,15 @@
       ],
       "headers": [
         {
-          "source": "**/*.@(html|css|js)",
+          "source": "**/*.@(js|css|png|jpg|jpeg|gif|svg|webp|woff|woff2|ico)",
           "headers": [
-            { "key": "Cache-Control", "value": "public, max-age=3600" }
+            { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+          ]
+        },
+        {
+          "source": "**/*.html",
+          "headers": [
+            { "key": "Cache-Control", "value": "no-cache" }
           ]
         }
       ]
