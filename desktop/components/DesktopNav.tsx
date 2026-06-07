@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { View, Text, Pressable, TextInput, Image, StyleSheet } from 'react-native';
 import { colors, fonts, radius, NAV_HEIGHT, UTIL_BAR_HEIGHT } from '../tokens';
 import type { NavigateFn, RouteKey } from '../router';
@@ -6,6 +7,7 @@ import { flags } from '../assets/figma/flags';
 import { useBreakpoint, pick } from '../hooks/useBreakpoint';
 import { initialsFromUser, useAuth } from '../hooks/useAuth';
 import { useUserProfile } from '../hooks/useUserProfile';
+import { useHawaiiAirTempF } from '../data/getReport';
 
 /**
  * Shared top nav, appears on all six desktop screens.
@@ -50,6 +52,47 @@ const BASE_NAV_ITEMS: ReadonlyArray<{ key: NavKey; label: string }> = [
 
 const CHARTER_NAV_ITEM = { key: 'charter' as const, label: 'Charter' };
 
+/**
+ * Hawaii standard time is UTC−10 year-round (no DST), so we format
+ * against the IANA zone 'Pacific/Honolulu' rather than the browser's
+ * local zone — the dev machine / users are not necessarily in Hawaii.
+ */
+const HST_TZ = 'Pacific/Honolulu';
+const HST_DATE_FMT = new Intl.DateTimeFormat('en-US', {
+  timeZone: HST_TZ,
+  weekday: 'short',
+  month: 'short',
+  day: 'numeric',
+});
+const HST_TIME_FMT = new Intl.DateTimeFormat('en-US', {
+  timeZone: HST_TZ,
+  hour: 'numeric',
+  minute: '2-digit',
+  hour12: true,
+});
+
+/** Build "WED APR 15 · 2:14 PM HST" from a Date, in Hawaii time. */
+function formatHawaiiStamp(now: Date): string {
+  const parts: Record<string, string> = {};
+  for (const p of HST_DATE_FMT.formatToParts(now)) parts[p.type] = p.value;
+  const date = `${parts.weekday} ${parts.month} ${parts.day}`.toUpperCase();
+  const time = HST_TIME_FMT.format(now); // e.g. "2:14 PM"
+  return `${date} · ${time} HST`;
+}
+
+/**
+ * Live Hawaii clock. Re-renders every 30s — enough for a minute-
+ * resolution display — and clears the interval on unmount.
+ */
+function useHawaiiStamp(): string {
+  const [stamp, setStamp] = useState(() => formatHawaiiStamp(new Date()));
+  useEffect(() => {
+    const id = setInterval(() => setStamp(formatHawaiiStamp(new Date())), 30_000);
+    return () => clearInterval(id);
+  }, []);
+  return stamp;
+}
+
 export function DesktopNav({
   active,
   onNavigate,
@@ -58,6 +101,13 @@ export function DesktopNav({
 }: DesktopNavProps) {
   const bp = useBreakpoint();
   const auth = useAuth();
+  // Live Hawaii date/time + air temp for the util bar. Temp is sampled
+  // from a representative spot's backend report (the nav isn't
+  // spot-scoped); it's null while loading, so we omit that segment
+  // rather than show a stale number.
+  const hawaiiStamp = useHawaiiStamp();
+  const airTempF = useHawaiiAirTempF();
+  const tempLabel = airTempF != null ? `${airTempF}°F` : null;
   // Prefer the canonical /users/{uid} photoURL (custom upload, kept in
   // sync with mobile) and fall back to the Firebase Auth photo
   // (typically populated for Google sign-in).
@@ -81,7 +131,9 @@ export function DesktopNav({
         <View style={[styles.utilBarOuter, { paddingHorizontal: sidePad }]}>
           <View style={styles.utilBar}>
             <Image source={{ uri: flags.HI }} style={styles.flag} resizeMode="cover" />
-            <Text style={styles.utilText}>HAWAII · 78°F · WED APR 15 · 2:14 PM HST</Text>
+            <Text style={styles.utilText}>
+              {tempLabel ? `HAWAII · ${tempLabel} · ${hawaiiStamp}` : `HAWAII · ${hawaiiStamp}`}
+            </Text>
             <View style={styles.utilSpacer} />
             <Text style={styles.utilText}>ABYSS FORECASTING MODEL</Text>
           </View>
