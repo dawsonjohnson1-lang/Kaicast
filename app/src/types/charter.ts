@@ -64,6 +64,10 @@ export const CHARTER_PERMS = {
   viewAllTrips:        (r: CharterRole) => r !== 'crew',
   viewOwnTripsOnly:    (r: CharterRole) => r === 'crew',
   createOrEditTrips:   (r: CharterRole) => r === 'owner' || r === 'manager' || r === 'captain',
+  /** Create or submit a captain's daily log. Managers and crew get
+   *  read-only access — the day-of record belongs to whoever ran the
+   *  trips, not back-office or deckhands. */
+  createDailyLog:      (r: CharterRole) => r === 'owner' || r === 'captain',
   cancelTrips:         (r: CharterRole) => r === 'owner' || r === 'manager',
   manageCrewRoster:    (r: CharterRole) => r === 'owner' || r === 'manager',
   viewCrewConnection:  (r: CharterRole) => r !== 'crew',

@@ -38,6 +38,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { useAbyssConditions } from '@/hooks/useAbyssConditions';
 import { useCharterLog } from '@/hooks/useCharterLog';
+import { useCharterRole } from '@/hooks/useCharterRole';
+import { CHARTER_PERMS } from '@/types/charter';
 import {
   emptyLightweightTrip,
   type CharterLogCrew,
@@ -61,6 +63,13 @@ export function DailyLogScreen() {
   const isCharter = profile?.accountType === 'charter';
   const orgId = profile?.orgId;
   const dateMs = useMemo(todayMs, []);
+
+  // Role gate. Owner + Captain can create / submit a daily log;
+  // Manager + Crew get the same screen rendered read-only. Hook stays
+  // mock-only for now (Stage 1) — the role-switcher in CharterDashboard
+  // is how you preview each variant in dev.
+  const { role } = useCharterRole();
+  const canCreate = CHARTER_PERMS.createDailyLog(role);
 
   // Seed payload for useCharterLog. Notably we DO NOT pull trips
   // from FareHarbor here — Phase 1 is standalone. The trips array
@@ -153,6 +162,25 @@ export function DailyLogScreen() {
           </View>
         </View>
 
+        {/* Read-only banner — only Owner + Captain can create / submit
+            a daily log. Manager + Crew see the same form rendered, but
+            interaction is blocked at the wrapper below. */}
+        {!canCreate ? (
+          <View style={styles.readonlyBanner}>
+            <Text style={styles.readonlyTitle}>Read-only</Text>
+            <Text style={styles.readonlyBody}>
+              Only owners and captains can create or submit a daily log. You can review what's been filled in so far.
+            </Text>
+          </View>
+        ) : null}
+
+        {/* The whole form body. When the viewer can't create, we kill
+            pointer events + tint to grey out — simpler than threading
+            an `editable={false}` through every input. */}
+        <View
+          pointerEvents={canCreate ? 'auto' : 'none'}
+          style={!canCreate ? styles.formBodyReadonly : undefined}
+        >
         {/* Vessel / captain header inputs — editable up-top, persisted. */}
         <SectionTitle title="Today" />
         <Card style={{ gap: spacing.sm, marginBottom: spacing.xl }} bordered>
@@ -270,8 +298,8 @@ export function DailyLogScreen() {
         />
 
         {/* Sign-off — replaces "Mark all trips Complete to submit".
-            Enabled whenever there's a vessel + captain name; trips
-            are NOT required. */}
+            Enabled whenever there's a vessel + captain name AND the
+            viewer is allowed to create logs; trips are NOT required. */}
         <Card style={{ marginTop: spacing.lg, gap: spacing.sm }} bordered>
           <View style={styles.summaryRow}>
             <SummaryStat label="Trips" value={String(tripCount)} />
@@ -281,7 +309,7 @@ export function DailyLogScreen() {
           <Button
             label={log?.signOff ? 'Signed ✓ — Re-open' : 'Sign log'}
             fullWidth
-            disabled={!canSign}
+            disabled={!canSign || !canCreate}
             onPress={async () => {
               await flush();
               if (log?.signOff) {
@@ -295,6 +323,7 @@ export function DailyLogScreen() {
             }}
           />
         </Card>
+        </View>
       </ScrollView>
     </Screen>
   );
@@ -343,10 +372,11 @@ function TripRow({
 
       {isOther ? (
         <Input
-          label="Other — describe"
-          value={trip.label ?? ''}
-          onChangeText={(v) => onChange({ label: v })}
-          placeholder="What was this trip?"
+          label="Custom trip type"
+          value={trip.tripTypeCustom ?? ''}
+          onChangeText={(v) => onChange({ tripTypeCustom: v })}
+          placeholder="e.g. Photoshoot charter, Ash scattering"
+          hint="Shows in the daily log PDF where the trip type would normally appear."
         />
       ) : null}
 
@@ -573,6 +603,30 @@ function SummaryStat({ label, value }: { label: string; value: string }) {
 
 const styles = StyleSheet.create({
   dayHeader: { marginBottom: spacing.lg },
+  readonlyBanner: {
+    marginBottom: spacing.lg,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.bgElevated,
+    gap: 2,
+  },
+  readonlyTitle: {
+    ...typography.bodySm,
+    color: colors.textPrimary,
+    fontWeight: '700',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    fontSize: 11,
+  },
+  readonlyBody: {
+    ...typography.bodySm,
+    color: colors.textSecondary,
+  },
+  formBodyReadonly: {
+    opacity: 0.6,
+  },
   dayDate: {
     ...typography.bodySm,
     color: colors.textSecondary,

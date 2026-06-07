@@ -168,6 +168,7 @@ const TRIP_TYPE_COLOR = {
   scuba:          '#09A1FB',
   freedive:       '#3DDC84',
   spearfishing:   '#A78BFA',
+  fishing:        '#2E7D32',
   private:        '#F5A623',
   ash_scattering: '#E1A19D',
   sunset:         '#F76707',
@@ -177,14 +178,15 @@ const TRIP_TYPE_COLOR = {
 
 const TRIP_TYPE_LABEL = {
   snorkel:        'Snorkel Tour',
-  scuba:          'Scuba / Dive',
+  scuba:          'Scuba Dive',
   freedive:       'Freedive',
-  spearfishing:   'Spearfishing',
+  spearfishing:   'Spearfishing Charter',
+  fishing:        'Fishing Charter',
   private:        'Private Charter',
   ash_scattering: 'Ash Scattering / Memorial',
-  sunset:         'Sunset Cruise',
+  sunset:         'Sunset / Sightseeing Cruise',
   whale_watch:    'Whale Watch',
-  other:          'Other',
+  other:          'Custom',
 };
 
 function renderHtml(log, { theme }) {
@@ -623,7 +625,13 @@ function renderConditions(abyss, observed, t, esc) {
 function renderTrip(trip, num, t, esc) {
   const type = String(trip.type || 'other');
   const accent = TRIP_TYPE_COLOR[type] || TRIP_TYPE_COLOR.other;
-  const typeLabel = TRIP_TYPE_LABEL[type] || type;
+  // For 'other' trips with a captain-supplied custom label, the
+  // custom string takes the slot the FareHarbor trip name would
+  // occupy on a synced row. Keeps "Other" out of the PDF entirely.
+  const customLabel = type === 'other'
+    && trip.tripTypeCustom
+    && String(trip.tripTypeCustom).trim();
+  const typeLabel = customLabel || TRIP_TYPE_LABEL[type] || type;
   // Title prefers the captain's free-text label; falls back to the
   // legacy title field for old logs.
   const title = (trip.label && String(trip.label).trim())

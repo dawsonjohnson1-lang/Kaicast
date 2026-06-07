@@ -11,11 +11,17 @@ export type TripType =
   | 'freedive'
   | 'scuba'
   | 'spearfishing'
+  | 'fishing'
   | 'private'
   | 'ash_scattering'
   | 'sunset'
   | 'whale_watch'
   | 'other';
+
+/** Where the trip came from. 'fareharbor' = synced from a FareHarbor
+ *  booking (Phase 2). 'manual' = captain added the row by hand. Legacy
+ *  logs that pre-date the field default to 'manual' on read. */
+export type TripSource = 'fareharbor' | 'manual';
 
 export type IncidentSeverity = 'Minor' | 'Major' | 'Critical';
 
@@ -84,6 +90,14 @@ export interface CharterLogTrip {
   tripNum: number;
   /** Trip type — the ONLY required field in the new lightweight flow. */
   type: TripType;
+  /** Where the row came from. Manual rows are captain-entered; the
+   *  FareHarbor path is reserved for Phase 2 sync. Legacy rows that
+   *  pre-date the field are treated as 'manual' on read. */
+  tripSource?: TripSource;
+  /** Free-text label used only when type === 'other'. Lets a captain
+   *  log a one-off trip type ("Photoshoot charter") without expanding
+   *  the enum. Ignored for non-'other' types. */
+  tripTypeCustom?: string | null;
 
   // ── New lightweight fields (Phase 1) ──
   /** Short text — e.g. "3:00 PM Snorkel", "Morning private". Optional. */
@@ -226,30 +240,35 @@ export const INCIDENT_TYPES: string[] = [
 
 export const TRIP_TYPE_LABEL: Record<TripType, string> = {
   snorkel:        'Snorkel Tour',
-  scuba:          'Scuba / Dive',
+  scuba:          'Scuba Dive',
   freedive:       'Freedive',
-  spearfishing:   'Spearfishing',
+  spearfishing:   'Spearfishing Charter',
+  fishing:        'Fishing Charter',
   private:        'Private Charter',
   ash_scattering: 'Ash Scattering / Memorial',
-  sunset:         'Sunset Cruise',
+  sunset:         'Sunset / Sightseeing Cruise',
   whale_watch:    'Whale Watch',
-  other:          'Other',
+  other:          'Custom',
 };
 
 /** Picker order for the new lightweight trip-row Type select.
  *  Edit this list to add/remove options without touching code in
  *  DailyLogScreen. The order here is the order rendered in the chip
- *  list. */
+ *  list.
+ *
+ *  Legacy types (e.g. `ash_scattering`) stay in the TripType union and
+ *  in TRIP_TYPE_LABEL so old logs render — but are intentionally absent
+ *  from the picker. Niche one-offs go through `other` + `tripTypeCustom`. */
 export const TRIP_TYPE_OPTIONS: ReadonlyArray<{ id: TripType; label: string }> = [
   { id: 'snorkel',        label: 'Snorkel Tour' },
-  { id: 'scuba',          label: 'Scuba / Dive' },
+  { id: 'scuba',          label: 'Scuba Dive' },
   { id: 'freedive',       label: 'Freedive' },
-  { id: 'spearfishing',   label: 'Spearfishing' },
-  { id: 'private',        label: 'Private Charter' },
-  { id: 'ash_scattering', label: 'Ash Scattering / Memorial' },
-  { id: 'sunset',         label: 'Sunset Cruise' },
+  { id: 'spearfishing',   label: 'Spearfishing Charter' },
+  { id: 'fishing',        label: 'Fishing Charter' },
   { id: 'whale_watch',    label: 'Whale Watch' },
-  { id: 'other',          label: 'Other' },
+  { id: 'sunset',         label: 'Sunset / Sightseeing Cruise' },
+  { id: 'private',        label: 'Private Charter' },
+  { id: 'other',          label: 'Custom' },
 ];
 
 // ── Defaults / factories ────────────────────────────────────────────
@@ -283,6 +302,8 @@ export function emptyLightweightTrip(tripNum: number): CharterLogTrip {
     tripId: `manual_${Date.now().toString(36)}_${tripNum}`,
     tripNum,
     type: 'snorkel',
+    tripSource: 'manual',
+    tripTypeCustom: null,
     label: '',
     durationHours: undefined,
     guestCount: undefined,
