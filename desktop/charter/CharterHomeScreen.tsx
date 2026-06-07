@@ -16,6 +16,7 @@ import { colors, fonts, radius } from '../tokens';
 import { CharterShell } from './CharterShell';
 import { AlertsBanner } from './AlertsBanner';
 import { HazardStrip } from './HazardStrip';
+import { CharterOperatingAreaMap } from './CharterOperatingAreaMap';
 import { TripCard } from './TripCard';
 import { useTodayTrips } from './useTodayTrips';
 import { useAuth } from '../hooks/useAuth';
@@ -49,6 +50,10 @@ export function CharterHomeScreen({ onNavigate }: { onNavigate?: NavigateFn }) {
 
       {/* Hazard strip — composes moon-phase + NWS marine alerts. */}
       <HazardStrip />
+
+      {/* Operating-area map — saved spots colored by today's conditions,
+          plus the fleet's home berths as accent anchor pins. */}
+      <CharterOperatingAreaMap orgId={orgId} onNavigate={onNavigate} />
 
       {/* Today's trips */}
       <View style={styles.tripsSection}>
