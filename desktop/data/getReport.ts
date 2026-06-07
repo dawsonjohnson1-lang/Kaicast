@@ -120,6 +120,30 @@ export function useSpotReport(spotId: string | undefined): SpotReportState {
 
 // ─── derivers ─────────────────────────────────────────────────────────────
 
+/**
+ * Representative spot for the global "HAWAII · NN°F" util-bar readout.
+ * The top nav isn't spot-scoped, so we sample air temperature from one
+ * central, reliably-instrumented Oahu spot. Air temp barely varies
+ * island-to-island, so this stands in fine for an ambient reading.
+ */
+const STATUS_BAR_SPOT_ID = 'hanauma-bay';
+
+/**
+ * Current Hawaii air temperature in whole °F for the nav util bar, or
+ * null while the report loads / when it carries no air-temp metric.
+ * Sourced from the same backend report the forecast screens use
+ * (`now.metrics.airTempC`), converted C→F. Callers should omit the
+ * temperature segment when this is null rather than show a stale value.
+ *
+ * To show water temperature instead, read `now.metrics.waterTempC`.
+ */
+export function useHawaiiAirTempF(): number | null {
+  const { data } = useSpotReport(STATUS_BAR_SPOT_ID);
+  const c = data?.now?.metrics?.airTempC;
+  if (c == null || !Number.isFinite(c)) return null;
+  return Math.round((c * 9) / 5 + 32);
+}
+
 const TIER_FROM_SCORE = (score: number | undefined | null): 'excellent' | 'great' | 'good' | 'fair' | 'no-go' => {
   if (score == null) return 'good';
   if (score >= 80) return 'excellent';
