@@ -1595,6 +1595,12 @@ async function buildSpotReport({ spot, owHourly, buoyData, marineForecast, nowMs
     hourKey,
     sources,
     qcFlags,
+    // Top-level freshness indicator: is the current visibility estimate
+    // satellite-derived or heuristic-derived, and how stale is the
+    // satellite value? Mirrors now.visibility.dataQuality so the
+    // frontend can badge data quality without digging into the
+    // visibility object.
+    dataQuality: nowVisibility?.dataQuality ?? null,
     tide: reportTide,
     now: {
       metrics:     nowMetrics,
@@ -1879,6 +1885,9 @@ async function readCachedReport(spotId, nowMs, spot = null) {
     if (!data?.days?.[0]?.solar) continue;
     // Skip caches lacking the rationale field (latest abyss revision).
     if (!Array.isArray(data?.now?.visibility?.rationale)) continue;
+    // Skip caches from before the data-freshness indicator + calibrated
+    // cascade shipped. Self-clears within an hour as caches refill.
+    if (!data?.now?.visibility?.dataQuality) continue;
     // Same for the per-day tide events (added after days[] shipped).
     // Skip if any day in the forecast is missing tideEvents.
     if (!data.days.every((d) => Array.isArray(d?.tideEvents))) continue;

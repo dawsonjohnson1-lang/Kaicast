@@ -203,7 +203,12 @@ async function fetchErddapPoint({ dataset, varname, lat, lon, nowMs }) {
  * @returns {{ kd490, chlorophyll, spm, source, ageHours, confidence } | null}
  */
 async function fetchOceanColor({ lat, lon, nowMs, db }) {
-  // 1. Cache.
+  // 1. Cache. A cached KD490 is reused (up to CACHE_TTL_OK_MS) instead
+  // of falling back to the heuristic — a 1-3 day-old satellite reading
+  // beats a wind/swell guess. `fetchAgeHours` (time since we actually
+  // pulled the value from ERDDAP) is surfaced so the engine can apply
+  // a freshness penalty to the visibility baseline: ~0.95× at 24 h,
+  // 0.90× at 48 h, 0.85× at 72 h (see abyss.js satelliteFreshnessPenalty).
   const cached = await getCached(db, lat, lon);
   if (cached && cached.kd490 != null) {
     const cacheAgeHours = (Date.now() - cached.fetchedAt) / 3600000;
@@ -213,6 +218,8 @@ async function fetchOceanColor({ lat, lon, nowMs, db }) {
       spm:          cached.spm ?? null,
       source:       cached.source || 'cache',
       ageHours:     Math.round((cached.ageHours || 24) + cacheAgeHours),
+      fetchAgeHours: Math.round(cacheAgeHours * 10) / 10,
+      fromCache:    true,
       confidence:   Math.max(0.3, (cached.confidence || 0.85) - cacheAgeHours * 0.02),
     };
   }
@@ -239,14 +246,18 @@ async function fetchOceanColor({ lat, lon, nowMs, db }) {
   const payload = {
     kd490:        kd490Res.value,
     chlorophyll:  chlRes?.value ?? null,
-    spm:          null,                    // not served by these datasets
+    // SPM is not served by these datasets. The engine derives an SPM
+    // *proxy* downstream from chlorophyll + bottom orbital velocity —
+    // see the Layer 6 block in abyss.js. Kept null here so a future
+    // direct-SPM dataset can slot in without an engine change.
+    spm:          null,
     source:       'noaa-coastwatch-viirs',
     ageHours:     24 + kd490Res.ageDays * 24,
     confidence:   Math.max(0.5, 0.85 - kd490Res.ageDays * 0.10),
   };
 
   await setCache(db, lat, lon, payload);
-  return payload;
+  return { ...payload, fetchAgeHours: 0, fromCache: false };
 }
 
 /**
