@@ -218,7 +218,14 @@ exports.submitDiveLog = onCall(
       if (isRecent) {
         const visFt = input.observed?.visibility_ft;
         const ratingNum = RATING_NUM[input.observed?.overall_rating];
-        const prev = overlayCurrent || {
+        // The overlay is a rolling ~6 h window, but the counters only
+        // ever incremented — recent_log_count grew forever and the
+        // "recent" average was actually all-time. If the previous log
+        // is older than the window, start the rolling stats fresh.
+        const prevLastLogMs = overlayCurrent?.last_log_at?.toMillis?.() ?? null;
+        const windowExpired = prevLastLogMs != null &&
+          (nowMs - prevLastLogMs) > COMMUNITY_OVERLAY_WINDOW_MS;
+        const prev = (overlayCurrent && !windowExpired) ? overlayCurrent : {
           recent_log_count: 0,
           avg_observed_visibility_ft: null,
           avg_observed_rating: null,

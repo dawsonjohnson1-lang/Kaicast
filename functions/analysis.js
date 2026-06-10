@@ -1201,11 +1201,18 @@ function _describeWind(windKt, windDirDeg, seed = 0) {
     ], seed);
   }
   if (windKt < 12) {
-    return _pick([
-      dirTxt ? `moderate ${dirTxt} trades` : 'moderate trades',
+    // "Trades" language only when the wind actually IS trade flow
+    // (NE quadrant) — a 10-kt kona breeze is not the trades.
+    const isTrades = dir && ['NE', 'ENE', 'E'].includes(dir);
+    return _pick(isTrades ? [
+      'trade winds holding steady',
+      `moderate ${dirTxt} trades`,
       `trades doing their thing at ${kt}`,
-      dirTxt ? `${kt}-kt ${dirTxt} breeze` : `${kt}-kt breeze`,
       'trades are present but not pushy',
+    ] : [
+      dirTxt ? `${kt}-kt ${dirTxt} breeze` : `${kt}-kt breeze`,
+      dirTxt ? `light-moderate wind out of the ${dirTxt}` : 'a light-moderate breeze',
+      `${kt} kt of wind, nothing dramatic`,
     ], seed);
   }
   if (windKt < 18) {
@@ -1227,7 +1234,20 @@ function _describeWind(windKt, windDirDeg, seed = 0) {
   ], seed);
 }
 
-function _describeSwell(swellFt, periodS, swellDirDeg, seed = 0) {
+// Swell-wrap context: when the swell direction faces the spot's coast,
+// a local would name it ("south swell wrapping into the bay") instead
+// of reciting degrees. Returns null when there's no clean match.
+function _swellWrapName(coast, swellDirDeg) {
+  if (!coast || !Number.isFinite(swellDirDeg)) return null;
+  const d = ((swellDirDeg % 360) + 360) % 360; // direction swell comes FROM
+  if (coast === 'south' && d >= 135 && d <= 247) return 'south swell';
+  if (coast === 'north' && (d >= 292 || d <= 67)) return 'north swell';
+  if (coast === 'west'  && d >= 202 && d <= 337) return 'west swell';
+  if (coast === 'east'  && d >= 45  && d <= 135) return 'trade swell';
+  return null;
+}
+
+function _describeSwell(swellFt, periodS, swellDirDeg, seed = 0, coast = null) {
   if (swellFt == null) return null;
   const dir = _compass(swellDirDeg);
   const dirTxt = dir ? dir : null;
@@ -1241,11 +1261,13 @@ function _describeSwell(swellFt, periodS, swellDirDeg, seed = 0) {
       'knee-high mush at best',
     ], seed);
   }
+  const wrap = _swellWrapName(coast, swellDirDeg);
   if (swellFt < 3) {
     return _pick([
       dirTxt ? `mellow ${ft}-ft swell from ${dirTxt}` : `mellow ${ft}-ft swell`,
       dirTxt ? `${ft} ft of ${dirTxt} groundswell` : `${ft} ft of groundswell`,
       `${ft} ft, easy`,
+      ...(wrap ? [`a little ${wrap} wrapping in, ${ft} ft`] : []),
     ], seed);
   }
   if (swellFt < 5) {
@@ -1253,6 +1275,7 @@ function _describeSwell(swellFt, periodS, swellDirDeg, seed = 0) {
       dirTxt ? `${ft}-ft swell out of ${dirTxt}` : `${ft}-ft swell`,
       `${ft} ft pushing in`,
       dirTxt ? `${ft} ft from the ${dirTxt}` : `${ft} ft of swell`,
+      ...(wrap ? [`${wrap} wrapping into the bay at ${ft} ft`] : []),
     ], seed);
   }
   if (swellFt < 8) {
@@ -1260,12 +1283,14 @@ function _describeSwell(swellFt, periodS, swellDirDeg, seed = 0) {
       dirTxt ? `solid ${ft}-ft ${dirTxt} groundswell` : `solid ${ft}-ft groundswell`,
       `${ft} ft is moving real water`,
       dirTxt ? `${ft}-ft swell out of ${dirTxt}, plenty of push` : `${ft}-ft swell with plenty of push`,
+      ...(wrap ? [`solid ${wrap} filling in — ${ft} ft of it`] : []),
     ], seed);
   }
   return _pick([
     dirTxt ? `head-high+ from ${dirTxt}` : 'head-high+ swell',
     `${ft} ft pounding the coast`,
     `swell is overhead and angry`,
+    ...(wrap ? [`${wrap} is pumping — ${ft} ft and draining the bay`] : []),
   ], seed);
 }
 
@@ -1313,7 +1338,7 @@ function _goodLead(seed, headlineHurtPhrase) {
     // Capitalize first letter of the dominant-factor phrase
     const cap = headlineHurtPhrase.charAt(0).toUpperCase() + headlineHurtPhrase.slice(1);
     return _pick([
-      `${cap} is the catch, but it's still go-able.`,
+      `${cap} — that's the catch, but it's still go-able.`,
       `${cap}. Still diveable if you're flexible.`,
       `${cap} — but you can work around it.`,
     ], seed);
@@ -1332,7 +1357,7 @@ function _fairLead(seed, headlineHurtPhrase) {
     const cap = headlineHurtPhrase.charAt(0).toUpperCase() + headlineHurtPhrase.slice(1);
     return _pick([
       `${cap}. Locals-only kind of day.`,
-      `${cap} is making this a stretch.`,
+      `${cap} — making this one a stretch.`,
       `${cap} — borderline.`,
       `${cap}. Only worth it if you really know this spot.`,
     ], seed);
@@ -1393,25 +1418,38 @@ function humanizeReason({
   visibilityFeet,
   tide,
   runoff,
+  rainLast24hMM = null,
+  coast = null,           // spot's open-ocean coast — drives swell-wrap phrasing
+  // Rotates sentence structure between consecutive reports for the
+  // same spot. Pass something that changes per report (the hourKey):
+  // without it, two identical-condition hours render identical text.
+  variantSalt = 0,
+  // Community ground truth from community_overlays/{spotId} when fresh
+  // (≤6 h): { avgVisFt, count, ageHours }. Divers actually in the
+  // water outrank any model output — surface them.
+  community = null,
 }) {
   const tier = String(rating || '').toLowerCase();
   const hurts = _pickStrongestHurts(details);
   const headlineHurt = hurts[0] && hurts[0][0];
   const secondHurt = hurts[1] && hurts[1][0];
 
-  // Per-report seed — stable across reads, varies by conditions.
+  // Per-report seed — stable across reads of the same report, varies
+  // by conditions AND by variantSalt so back-to-back hours rotate
+  // sentence structure even when conditions hold steady.
   const seed = _seed(
     Math.round((visibilityFeet ?? 0) * 1),
     Math.round((windKnots ?? 0) * 1),
     Math.round((swellFeet ?? 0) * 10),
     Math.round((windDirDeg ?? 0) / 22.5),
+    Math.round(variantSalt ?? 0),
   );
 
   // Helper: get the dominant-factor phrase (positive on excellent/great,
   // negative on good/fair/no-go).
   const visTxt   = _describeVisibility(visibilityFeet, seed);
   const windTxt  = _describeWind(windKnots, windDirDeg, seed >> 3);
-  const swellTxt = _describeSwell(swellFeet, swellPeriodSec, swellDirDeg, seed >> 6);
+  const swellTxt = _describeSwell(swellFeet, swellPeriodSec, swellDirDeg, seed >> 6, coast);
 
   // What's the dominant negative factor's plain-language phrase, if any?
   // Used to construct problem-first leads on bad days.
@@ -1420,11 +1458,19 @@ function humanizeReason({
   else if (headlineHurt === 'vis' && visTxt)    headlinePhrase = visTxt;
   else if ((headlineHurt === 'swell' || headlineHurt === 'swellSpot' || headlineHurt === 'swellSpotHard') && swellTxt) headlinePhrase = swellTxt;
   else if (headlineHurt === 'rain' || headlineHurt === 'runoff') {
-    headlinePhrase = _pick([
-      'runoff has muddied things up',
-      'recent rain is still flushing through',
-      'runoff plume is sitting in the bay',
-    ], seed);
+    // Match the phrase to how bad the runoff actually is — "plume
+    // sitting in the bay" over a low-severity call oversells it.
+    headlinePhrase = (runoff?.severity === 'high' || runoff?.severity === 'extreme')
+      ? _pick([
+          'runoff plume is sitting in the bay',
+          'the water is brown from runoff',
+          'runoff has muddied things up',
+        ], seed)
+      : _pick([
+          'recent rain is still flushing through',
+          'a bit of leftover runoff in the water',
+          'runoff has the water a little milky',
+        ], seed);
   } else if (headlineHurt === 'current') {
     headlinePhrase = "current's strong enough to push you around";
   } else if (headlineHurt === 'period') {
@@ -1514,6 +1560,41 @@ function humanizeReason({
     }
   }
 
+  // Post-rain recovery note: it rained, but the runoff model says the
+  // water has mostly let go of it — a local would mention that. Skip
+  // when runoff is already the headline problem (saying "the murk is
+  // the issue" and "the murk is clearing" in one breath reads wrong).
+  if (runoff && runoff.severity === 'low' &&
+      Number.isFinite(rainLast24hMM) && rainLast24hMM > 5 &&
+      headlineHurt !== 'runoff' && headlineHurt !== 'rain' &&
+      tier !== 'no-go') {
+    pieces.push(_pick([
+      'Post-rain runoff is clearing out.',
+      "Yesterday's rain is mostly flushed through already.",
+      'The brown water from the rain is on its way out.',
+    ], seed >> 2));
+  }
+
+  // Community ground truth — divers actually in the water in the last
+  // few hours beat any model line, so give them the last word.
+  if (community && Number.isFinite(community.avgVisFt) && (community.count ?? 0) > 0) {
+    const n = community.count;
+    const ft = Math.round(community.avgVisFt);
+    const ageH = Number.isFinite(community.ageHours) ? Math.max(0, Math.round(community.ageHours)) : null;
+    const when = ageH == null ? 'recently'
+      : ageH <= 1 ? 'within the last hour'
+      : `about ${ageH} hours ago`;
+    pieces.push(_pick(n === 1 ? [
+      `A diver in the water ${when} called it ~${ft} ft.`,
+      `One report from the water ${when}: ~${ft} ft.`,
+      `Someone just dove it ${when} and saw ~${ft} ft.`,
+    ] : [
+      `${n} divers in the water ${when} averaged ~${ft} ft.`,
+      `Word from ${n} divers ${when}: ~${ft} ft of viz.`,
+      `${n} recent reports put it around ${ft} ft.`,
+    ], seed >> 4));
+  }
+
   return pieces.filter(Boolean).join(' ');
 }
 
@@ -1551,6 +1632,13 @@ function generateSnorkelRating({
   confidenceScore = 1, // 0–1, from calling code if desired
   runoff = null, // from estimateRunoffRisk / assessRunoffRisk
   runoffPenalty = null, // optional explicit penalty
+
+  // Summary-variation salt (e.g. the report hourKey) so consecutive
+  // reports for the same spot rotate sentence structure, and fresh
+  // community overlay data ({ avgVisFt, count, ageHours }) so the
+  // summary can cite divers who were actually in the water.
+  variantSalt = 0,
+  community = null,
 } = {}) {
   if (crowdOverride) {
     return {
@@ -1855,6 +1943,10 @@ function generateSnorkelRating({
     visibilityFeet,
     tide,
     runoff,
+    rainLast24hMM,
+    coast: spotContext?.coast ?? null,
+    variantSalt,
+    community,
   });
 
   const caution = [];

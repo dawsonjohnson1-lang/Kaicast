@@ -1381,6 +1381,34 @@ async function buildSpotReport({ spot, owHourly, buoyData, marineForecast, nowMs
   // time of day / runoff select which bias buckets blend in).
   const spotCalibration = await loadSpotCalibration(db, spot.id);
 
+  // Community overlay: recent observed visibility from divers actually
+  // in the water. Only cited in the summary when the last log is
+  // within the overlay's 6 h window — stale reports mislead.
+  let communityRecent = null;
+  try {
+    const overlaySnap = await db.collection('community_overlays').doc(spot.id).get();
+    if (overlaySnap.exists) {
+      const ov = overlaySnap.data();
+      const lastLogMs = ov?.last_log_at?.toMillis?.() ?? null;
+      const ageHours = lastLogMs != null ? (nowMs - lastLogMs) / 3600000 : null;
+      if (ageHours != null && ageHours >= 0 && ageHours <= 6 &&
+          Number.isFinite(ov.avg_observed_visibility_ft)) {
+        communityRecent = {
+          avgVisFt: ov.avg_observed_visibility_ft,
+          count: ov.recent_log_count || 1,
+          ageHours,
+        };
+      }
+    }
+  } catch (err) {
+    logger.warn('buildSpotReport: community overlay read failed', { spotId: spot.id, error: err.message });
+  }
+
+  // Summary-variation salt: changes every hourly report so consecutive
+  // summaries for the same spot rotate sentence structure even when
+  // conditions hold perfectly steady.
+  const summarySalt = Number(hourKey) % 997;
+
   // Abyss: data-grounded layered visibility model. Falls back to the
   // legacy heuristic internally when satellite ocean-color isn't
   // configured, but ALWAYS layers on the solar + topographic-shadow
@@ -1448,6 +1476,8 @@ async function buildSpotReport({ spot, owHourly, buoyData, marineForecast, nowMs
     chopMultiplier: nowVisibility?.wind?.chopMultiplier ?? 1,
     exposureFactor: nowVisibility?.exposure?.factor ?? 1,
     confidenceScore,
+    variantSalt: summarySalt,
+    community:   communityRecent,
     spotContext: {
       runoffSensitivity: spot.runoffSensitivity,
       maxCleanSwellFt:   spot.maxCleanSwellFt,
@@ -1564,6 +1594,11 @@ async function buildSpotReport({ spot, owHourly, buoyData, marineForecast, nowMs
 
       // Use report-level confidence (keeps conservative if buoy missing)
       confidenceScore,
+
+      // Rotate phrasing per window; community overlay is only cited on
+      // the "now" rating — it describes the water right now, not a
+      // window two days out.
+      variantSalt: summarySalt + new Date(w.startIso).getUTCHours(),
 
       spotContext: {
         runoffSensitivity: spot.runoffSensitivity,

@@ -243,17 +243,21 @@ async function estimateVisibilityAbyss(opts) {
     visM = Math.min(heurDepthCeilingM, visM);
     const visMRounded = Math.max(2, Math.round(visM));
 
+    // Plain-English lines — same convention as the satellite path: the
+    // (±N%) token is what the mobile client colorizes on.
     const heurRationale = [];
     const lightPct = Math.round((lightMultiplier - 1) * 100);
-    if (Math.abs(lightPct) >= 5) {
-      heurRationale.push(`Solar light + shadow: ${lightPct > 0 ? '+' : ''}${lightPct}%`);
+    if (lightPct <= -5) {
+      heurRationale.push(`Low sun and shadow are cutting the light underwater (${lightPct}%)`);
     }
     const windPct = Math.round((windChopMultiplier - 1) * 100);
-    if (Math.abs(windPct) >= 5) {
-      heurRationale.push(`Surface chop / wind: ${windPct > 0 ? '+' : ''}${windPct}%`);
+    if (windPct <= -5) {
+      heurRationale.push(`Wind chop is churning the surface layer (${windPct}%)`);
+    } else if (windPct >= 5) {
+      heurRationale.push(`Offshore breeze is smoothing out the surface (+${windPct}%)`);
     }
     if (Number.isFinite(exposureFactor) && exposureFactor < 0.85) {
-      heurRationale.push(`Sheltered from swell: ${Math.round((exposureFactor - 1) * 100)}%`);
+      heurRationale.push(`Terrain is blocking most of this swell (${Math.round((exposureFactor - 1) * 100)}%)`);
     }
 
     return {
@@ -413,21 +417,32 @@ async function estimateVisibilityAbyss(opts) {
   const layerWind = vis;
 
   // ── Build rationale so users see WHY visibility is what it is ──────────────
+  // Plain-English sentences, not "Factor: -23%" readouts — these render
+  // directly in the apps' "WHY X FT?" card. The trailing (±N%) token is
+  // load-bearing: the mobile client regexes it to colorize each line.
   const rationale = [];
-  const pushDelta = (label, before, after) => {
+  const pushDelta = (phrases, before, after) => {
     if (!Number.isFinite(before) || !Number.isFinite(after)) return;
     const pct = Math.round(((after - before) / Math.max(0.5, before)) * 100);
     if (Math.abs(pct) < 5) return; // skip noise
+    const phrase = pct > 0 ? phrases.up : phrases.down;
+    if (!phrase) return;
     const sign = pct > 0 ? '+' : '';
-    rationale.push(`${label}: ${sign}${pct}%`);
+    rationale.push(`${phrase} (${sign}${pct}%)`);
   };
-  pushDelta('Wave energy / sediment', layerBaseline, layerWave);
-  pushDelta('Tide flushing',          layerWave,     layerTidal);
-  pushDelta('Runoff plume',           layerTidal,    layerRunoff);
-  pushDelta('Algal bloom',            layerRunoff,   layerBloom);
-  pushDelta('Suspended particulate',  layerBloom,    layerSpm);
-  pushDelta('Solar light + shadow',   layerSpm,      layerLight);
-  pushDelta('Surface chop / wind',    layerLight,    layerWind);
+  pushDelta({ down: 'Surge is stirring sediment off the bottom' }, layerBaseline, layerWave);
+  pushDelta({
+    up:   'Incoming tide is pulling in clean ocean water',
+    down: 'Falling tide is dragging cloudy nearshore water through',
+  }, layerWave, layerTidal);
+  pushDelta({ down: 'Runoff from recent rain is clouding the water' }, layerTidal, layerRunoff);
+  pushDelta({ down: 'An algae bloom is tinting the water' }, layerRunoff, layerBloom);
+  pushDelta({ down: 'Fine particulate is hanging in the water column' }, layerBloom, layerSpm);
+  pushDelta({ down: 'Low sun and shadow are cutting the light underwater' }, layerSpm, layerLight);
+  pushDelta({
+    up:   'Offshore breeze is smoothing out the surface',
+    down: 'Wind chop is churning the surface layer',
+  }, layerLight, layerWind);
 
   // ── Final clamping & rating ────────────────────────────────────────────────
   // You can't see further horizontally than the bottom depth in real
