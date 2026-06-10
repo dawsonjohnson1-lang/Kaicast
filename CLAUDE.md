@@ -34,7 +34,7 @@ semantics into the existing infrastructure:
 | current_conditions     | `kaicast_reports/{spotId}_{hourKey}.now`         | `getReport`, hourly `scheduler`  |
 | forecast               | `kaicast_reports/{spotId}_{hourKey}.windows + .days` | same                         |
 | community_overlay      | `community_overlays/{spotId}`                    | `submitDiveLog` (txn)            |
-| calibration            | `abyss_calibration/{spotId}`                     | (future nightly job)             |
+| calibration            | `abyss_calibration/{spotId}` + `…/buckets/{bucketKey}` | `nightlyCalibration` (03:10 HST) |
 | spot_stats daily       | `spot_stats/{spotId}/daily/{yyyy-mm-dd}`         | (future nightly job)             |
 
 `community_overlays` is a separate stable doc — NOT a sub-object of
@@ -94,17 +94,33 @@ After path-B switch:
 - `users` and its subcollections (favorites, following, followers,
   devices) — unchanged.
 
-## Next steps (deliberately out of scope on the snapshot-on-submit task)
+## Calibration loop (SHIPPED — no longer a next step)
 
-- **Nightly calibration job.** Reads `diveLogs` from the previous N
-  days, groups by spot, computes mean signed delta + conditional
-  biases (low-light, onshore-trade-15kt+, etc.), writes
-  `abyss_calibration/{spotId}.bias_offsets` + `conditional_biases`.
-  Then `buildSpotReport` calls `applyCalibration` from
-  `abyss/calibration.js` before returning the report.
+`functions/nightlyCalibration.js` (03:10 HST) reads the last 60 days
+of `diveLogs`, computes per-spot bias / MAE / R² / confidence
+(recency- and observation-quality-weighted) plus condition buckets
+(`swell_*`, `tide_*`, `tod_*`, `runoff_*`) and writes
+`abyss_calibration/{spotId}` + `…/buckets/{bucketKey}`.
+`buildSpotReport` applies them via `abyss/calibrate.js`
+(`applyCalibrationToVisibility`) to the now-visibility and all 56
+windows BEFORE writing `kaicast_reports` — so future deltas measure
+the calibrated model and the loop self-stabilizes. Corrections are
+confidence-scaled and capped (±50% of prediction, ±15 ft).
+`deltas.rating_mismatch` (boolean) was replaced by signed
+`deltas.rating_delta` (−3..+3). The legacy `abyss/calibration.js`
+and `abyss/spotConfig.js` were deleted — `abyss/calibrate.js` and
+`SPOTS` in `index.js` are the only calibration/spot-config sources.
+Tests: `npm test` inside `functions/`.
+
+`kaicast_reports` docs now carry a top-level `dataQuality` block
+(satellite vs heuristic + freshness tier) mirrored from
+`now.visibility.dataQuality`.
+
+## Next steps (deliberately out of scope)
+
 - **Monthly recalibration window.** Slower-moving conditional biases
   (seasonal effects, runoff calibration) recomputed from the full
-  ~30-day window vs. nightly's rolling 7-day.
+  ~30-day window vs. the nightly job's recency-weighted 60-day window.
 - **Anonymous-log claim flow** (`claimAnonymousLogs` callable). The
   `submitDiveLog` callable already accepts an `anonymous_claim_token`
   and tags logs with `uid: 'anon:{token}'`. The claim flow would
