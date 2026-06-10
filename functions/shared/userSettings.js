@@ -42,6 +42,11 @@ const SETTINGS_PATHS = Object.freeze({
   preferredDiveType: 'profile.preferredDiveType',
   homeSpotId:        'profile.homeSpotId',
 
+  // Captain's license number — top-level on the user doc (like phone).
+  // Gates filling out a captain's log (see firestore.rules
+  // hasCaptainsLicense + the charter trips/charter_logs write rules).
+  captainLicense: 'captainLicense',
+
   pushEnabled:                  'prefs.pushNotifications.enabled',
   pushCategoryConditionAlerts:  'prefs.pushNotifications.categories.conditionAlerts',
   pushCategoryFriendReports:    'prefs.pushNotifications.categories.friendReports',
@@ -119,6 +124,18 @@ function validateSettingsWrite(path, value) {
       // just shape-check it's a non-empty string.
       if (typeof value !== 'string' || value.length === 0) {
         return { ok: false, message: 'homeSpotId must be a non-empty spotId string' };
+      }
+      return { ok: true };
+
+    case SETTINGS_PATHS.captainLicense:
+      // Free-form license/credential number. Empty string is allowed so
+      // a user can clear it. Capped so the rule-level get() stays cheap
+      // and nobody stuffs arbitrary data onto the user doc.
+      if (typeof value !== 'string') {
+        return { ok: false, message: 'captainLicense must be a string' };
+      }
+      if (value.length > 64) {
+        return { ok: false, message: 'captainLicense must be 64 characters or fewer' };
       }
       return { ok: true };
 

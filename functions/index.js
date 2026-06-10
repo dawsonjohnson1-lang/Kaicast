@@ -2226,6 +2226,13 @@ exports.fareharborWebhook             = require('./charter/fareharbor/webhook').
 //     lands; until then the in-app submit returns the HTML preview.
 exports.generateCaptainsLog = require('./charter/generateCaptainsLog').generateCaptainsLog;
 
+//   - captureStandaloneLogSnapshot — Firestore onCreate trigger that
+//     resolves the immutable conditions snapshot for desktop
+//     standalone-v1 charter_logs docs (server-trusted, mirrors dive logs
+//     via functions/snapshotResolver.js). The mobile rich-log shape gets
+//     its snapshot at finalize via generateCaptainsLog instead.
+exports.captureStandaloneLogSnapshot = require('./charter/standaloneLogSnapshot').captureStandaloneLogSnapshot;
+
 // Legacy onDiveLogCreated trigger removed — its responsibilities
 // (ingesting reported_vis vs predicted_vis into abyss_diver_reports)
 // are now part of the submitDiveLog callable, with the same data

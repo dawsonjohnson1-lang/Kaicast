@@ -64,6 +64,14 @@
         { "fieldPath": "proSource", "order": "ASCENDING" },
         { "fieldPath": "proExpiresAt", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "trips",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "date", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": [
