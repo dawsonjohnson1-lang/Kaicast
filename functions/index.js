@@ -720,8 +720,11 @@ const SPOTS = [
     siteType: 'reef',
     maxDepthM: 12,
     typicalDiveDepthM: 6,
-    sedimentType: 'reef',
-    sedimentSensitivity: 'low',
+    // The namesake reef tables sit amid sand/rubble channels that
+    // stir on any real north swell — carried over from the retired
+    // abyss/spotConfig.js, which characterized this correctly.
+    sedimentType: 'coral_rubble',
+    sedimentSensitivity: 'medium',
   },
   {
     id: 'pupukea-beach',
