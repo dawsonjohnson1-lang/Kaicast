@@ -84,16 +84,18 @@ export function TripLogScreen() {
     if (!isCharter || !orgId || fhLoading) return null;
     return {
       operatorId: orgId,
+      authorId: user?.id ?? '',
       vesselId: orgId,
       vesselName: profile?.handle ?? 'Vessel',
       captainName: profile?.name ?? '',
       captainLicense: '',
       harborDeparture: '',
       dailyAlerts: '',
+      primarySpotId: profile?.homeSpot ?? null,
       trips: fhTrips,
       crew: [] as CharterLogCrew[],
     };
-  }, [isCharter, orgId, fhLoading, fhTrips, profile?.handle, profile?.name]);
+  }, [isCharter, orgId, fhLoading, fhTrips, user?.id, profile?.handle, profile?.name, profile?.homeSpot]);
 
   const { log, patchTrip, flush } = useCharterLog(dateMs, seed);
 
