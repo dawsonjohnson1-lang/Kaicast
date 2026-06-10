@@ -10,6 +10,7 @@ import { TripCard } from '@/components/charter/TripCard';
 import { CrewRoster } from '@/components/charter/CrewRoster';
 import { AlertBanner, type CharterAlert } from '@/components/charter/AlertBanner';
 import { Icon } from '@/components/Icon';
+import { CharterTwoDayForecast } from '../CharterTwoDayForecast';
 import type { Vessel, Trip, CrewMember } from '@/types/charter';
 
 const MOCK_HAZARD: CharterAlert = {
@@ -49,6 +50,10 @@ export function CaptainDashboard({
             <Text style={emptyStyles.sub}>Enjoy the offshore day. Tomorrow's prep loads from the upcoming list below.</Text>
           </View>
         )}
+      </Section>
+
+      <Section title="Conditions outlook" meta="today + tomorrow">
+        <CharterTwoDayForecast vessel={vessel} trips={trips} />
       </Section>
 
       {todayTrip && (

@@ -34,12 +34,36 @@ export interface CrewMember {
   certificationLevel?: string;
 }
 
+// Vessel hull-behavior profile — drives the seasickness modifier + the
+// max-operable thresholds in @/charter/vesselFactors. Mirrors the
+// desktop VesselType (desktop/charter/types.ts): nine canonical classes
+// plus legacy values folded by normalizeVesselType().
+export type VesselType =
+  | 'catamaran'
+  | 'sailing_catamaran'
+  | 'monohull'
+  | 'sailing_monohull'
+  | 'adventure_small'
+  | 'sportfishing'
+  | 'dive_boat'
+  | 'pontoon'
+  | 'fishing_rib'
+  // legacy
+  | 'mono_sail'
+  | 'center_console'
+  | 'rib_inflatable'
+  | 'cabin_cruiser'
+  | 'other';
+
 export interface Vessel {
   id: string;
   name: string;         // "Hana Kai II"
   homePort: string;     // "Lahaina Harbor, Maui"
   captainId: string;
   crew: CrewMember[];
+  /** Hull behavior class — null/undefined on legacy mock vessels until
+   *  the org owner sets it. The dashboard prompts rather than guessing. */
+  vesselType?: VesselType;
 }
 
 export interface Trip {
@@ -77,6 +101,27 @@ export const CHARTER_PERMS = {
   viewHazardAlerts:    (_r: CharterRole) => true,
   editVesselProfile:   (r: CharterRole) => r === 'owner',
 } as const;
+
+// ─── Captain's-log permission ────────────────────────────────────────
+//
+// Filling out / submitting a captain's log is gated on a license, NOT a
+// role: the org owner can always file, and anyone else (captain,
+// manager, crew, deckhand) can file ONLY if they have a captain's
+// license number recorded on their account. Mirrored server-side in
+// firestore.rules (hasCaptainsLicense) so UI hiding isn't the only gate.
+
+/** True when the user has a non-empty captain's license on file. */
+export function hasCaptainsLicense(license: string | null | undefined): boolean {
+  return typeof license === 'string' && license.trim().length > 0;
+}
+
+/** canFillCaptainLog = owner OR has a captain's license. */
+export function canFillCaptainLog(
+  role: CharterRole,
+  license: string | null | undefined,
+): boolean {
+  return role === 'owner' || hasCaptainsLicense(license);
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────
 

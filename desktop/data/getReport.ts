@@ -61,6 +61,15 @@ export type BackendReport = {
     runoff?: { severity?: string; safeToEnter?: boolean; healthRisk?: string };
     tide?: Record<string, unknown>;
     analysis?: Record<string, unknown>;
+    /** Subsurface temp/thermocline profile (PacIOOS/CMEMS/heuristic), or
+     *  null when no provider can serve this spot. Powers the dive-boat
+     *  thermocline + water-temp-for-exposure chips. */
+    subsurface?: {
+      thermoclineDepthM?: number | null;
+      surfaceTempC?: number | null;
+      source?: string;
+      confidence?: number | null;
+    } | null;
   };
   windows: BackendWindow[];
   days?: BackendDay[];

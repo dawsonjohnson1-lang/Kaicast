@@ -24,12 +24,15 @@ import type { Trip, TripStatus } from './types';
 // changes; the +10 hour shift below works year-round.
 const HST_OFFSET_HOURS = -10;
 
-/** Start of "today" in HST, expressed as a UTC Date. */
-function hstTodayStartUTC(): Date {
+/** Start of the HST calendar day `dayOffset` days from today (0 =
+ *  today, 1 = tomorrow), expressed as a UTC Date. */
+function hstDayStartUTC(dayOffset = 0): Date {
   const now = new Date();
-  // Shift "now" into HST clock space, zero the time, then shift back.
+  // Shift "now" into HST clock space, zero the time, advance by offset,
+  // then shift back.
   const hstNow = new Date(now.getTime() + HST_OFFSET_HOURS * 3600 * 1000);
   hstNow.setUTCHours(0, 0, 0, 0);
+  hstNow.setUTCDate(hstNow.getUTCDate() + dayOffset);
   return new Date(hstNow.getTime() - HST_OFFSET_HOURS * 3600 * 1000);
 }
 
@@ -43,6 +46,16 @@ export type TodayTripsState = {
 };
 
 export function useTodayTrips(orgId: string | null | undefined): TodayTripsState {
+  return useTripsForDayOffset(orgId, 0);
+}
+
+/** Live subscription to all trips for the HST calendar day `dayOffset`
+ *  days from today. `useTodayTrips` is the offset-0 case; the charter
+ *  dashboard uses offset 1 for the "Tomorrow" forecast section. */
+export function useTripsForDayOffset(
+  orgId: string | null | undefined,
+  dayOffset: number,
+): TodayTripsState {
   const [state, setState] = React.useState<TodayTripsState>({
     trips: [],
     loading: !!orgId,
@@ -54,7 +67,7 @@ export function useTodayTrips(orgId: string | null | undefined): TodayTripsState
       setState({ trips: [], loading: false, error: null });
       return;
     }
-    const startUTC = hstTodayStartUTC();
+    const startUTC = hstDayStartUTC(dayOffset);
     const endUTC = new Date(startUTC.getTime() + 24 * 3600 * 1000);
     const q = query(
       collection(db, 'charter_accounts', orgId, 'trips'),
@@ -80,7 +93,7 @@ export function useTodayTrips(orgId: string | null | undefined): TodayTripsState
       },
     );
     return unsub;
-  }, [orgId]);
+  }, [orgId, dayOffset]);
 
   return state;
 }

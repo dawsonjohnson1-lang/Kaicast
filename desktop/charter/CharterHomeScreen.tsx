@@ -16,14 +16,27 @@ import { colors, fonts, radius } from '../tokens';
 import { CharterShell } from './CharterShell';
 import { AlertsBanner } from './AlertsBanner';
 import { HazardStrip } from './HazardStrip';
+import { CharterMap } from './CharterMap';
 import { TripCard } from './TripCard';
-import { useTodayTrips } from './useTodayTrips';
+import { DayForecastSection } from './DayForecastSection';
+import { useTodayTrips, useTripsForDayOffset } from './useTodayTrips';
+import { useCharterAccount, useCharterSpots } from './useCharterData';
 import { useAuth } from '../hooks/useAuth';
 import type { NavigateFn } from '../router';
+
+function hstDateLabel(dayOffset: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + dayOffset);
+  return d.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', timeZone: 'Pacific/Honolulu' });
+}
 
 export function CharterHomeScreen({ onNavigate }: { onNavigate?: NavigateFn }) {
   const { user, orgId } = useAuth();
   const { trips, loading, error } = useTodayTrips(orgId);
+  const tomorrow = useTripsForDayOffset(orgId, 1);
+  const { account } = useCharterAccount(orgId);
+  const { spots: charterSpots } = useCharterSpots(orgId);
+  const goSettings = () => onNavigate?.('charter-settings');
 
   return (
     <CharterShell active="charter-home" onNavigate={onNavigate}>
@@ -49,6 +62,42 @@ export function CharterHomeScreen({ onNavigate }: { onNavigate?: NavigateFn }) {
 
       {/* Hazard strip — composes moon-phase + NWS marine alerts. */}
       <HazardStrip />
+
+      {/* Operating area — harbor + operating-spot map. Harbor marker
+          hover/tap lists the vessels docked there. */}
+      {orgId ? (
+        <View style={styles.mapSection}>
+          <Text style={styles.sectionTitle}>Operating area</Text>
+          <CharterMap orgId={orgId} />
+        </View>
+      ) : null}
+
+      {/* Two-day per-vessel forecast — for each operating spot, a
+          vessel-type-sensitive condition read for every boat. */}
+      {orgId ? (
+        <View style={styles.forecastStack}>
+          <DayForecastSection
+            label="Today"
+            dateLabel={hstDateLabel(0)}
+            dayOffset={0}
+            trips={trips}
+            tripsLoading={loading}
+            account={account}
+            charterSpots={charterSpots}
+            onSetVesselType={goSettings}
+          />
+          <DayForecastSection
+            label="Tomorrow"
+            dateLabel={hstDateLabel(1)}
+            dayOffset={1}
+            trips={tomorrow.trips}
+            tripsLoading={tomorrow.loading}
+            account={account}
+            charterSpots={charterSpots}
+            onSetVesselType={goSettings}
+          />
+        </View>
+      ) : null}
 
       {/* Today's trips */}
       <View style={styles.tripsSection}>
@@ -139,6 +188,8 @@ const styles = StyleSheet.create({
   qaText: { fontFamily: fonts.body, fontSize: 13, fontWeight: '600', color: colors.text1 },
   qaTextEmphasis: { color: colors.bg },
 
+  forecastStack: { gap: 28 },
+  mapSection: { gap: 12 },
   tripsSection: { gap: 14 },
   tripsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   sectionTitle: {
