@@ -145,9 +145,13 @@
  * @property {number|null} visibility_ft
  * @property {number|null} water_temp_f
  *
- * // Categorical mismatch flags — true when predicted vs observed
- * // differ on rating-level enums. Used by the nightly calibration job.
- * @property {boolean|null} rating_mismatch     predicted.visibility_rating !== observed.overall_rating
+ * // Signed rating-level delta on the shared 4-level scale
+ * // (1=poor … 4=excellent): predicted level − observed level, −3..+3.
+ * // Positive = model rated conditions better than the diver did.
+ * // Used by the nightly calibration job to detect systematic
+ * // over/under-prediction (replaced the old boolean rating_mismatch,
+ * // which discarded direction and magnitude).
+ * @property {number|null} rating_delta
  */
 
 /**

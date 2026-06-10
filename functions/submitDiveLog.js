@@ -108,8 +108,13 @@ function computeDeltas(predicted, observed) {
     visibility_ft: sub(predicted.visibility_ft, observed?.visibility_ft),
     water_temp_f:  sub(predicted.water_temp_f,
                        observed?.water_temp_bottom_f ?? observed?.water_temp_surface_f ?? null),
-    rating_mismatch: (predRatingNum != null && obsRatingNum != null)
-      ? predRatingNum !== obsRatingNum
+    // Signed rating delta on the shared 4-level scale (1=poor … 4=excellent):
+    // predicted level − observed level, range −3..+3. Positive = model
+    // over-predicted conditions. Replaces the old boolean rating_mismatch,
+    // which threw away direction and magnitude — the nightly calibration
+    // job needs both to detect systematic over/under-prediction.
+    rating_delta: (predRatingNum != null && obsRatingNum != null)
+      ? predRatingNum - obsRatingNum
       : null,
   };
 }
