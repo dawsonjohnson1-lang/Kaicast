@@ -72,6 +72,10 @@ const ObservedSchema = z.object({
   overall_rating:       z.enum(['poor', 'fair', 'good', 'excellent']).nullable().optional(),
   water_temp_surface_f: z.number().min(20).max(110).nullable().optional(),
   water_temp_bottom_f:  z.number().min(20).max(110).nullable().optional(),
+  // Explicit thermocline flag. When the client doesn't send it, the
+  // calibration job infers one from the surface/bottom temp split.
+  thermocline_detected: z.boolean().nullable().optional(),
+  reef_health:          z.enum(['pristine', 'healthy', 'stressed', 'bleached']).nullable().optional(),
   max_depth_ft:         z.number().min(0).max(500).nullable().optional(),
   duration_min:         z.number().min(0).max(1440).nullable().optional(),
   hazards:              z.array(z.string()).max(20).optional(),

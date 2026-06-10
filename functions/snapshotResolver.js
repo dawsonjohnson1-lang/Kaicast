@@ -96,6 +96,9 @@ function extractPredictionFields(report) {
     in_shadow:           v.shadow?.shadowed ?? null,
     light_factor:        v.light?.factor ?? null,
     confidence_score:    Number.isFinite(now.confidenceScore) ? now.confidenceScore : null,
+    // Runoff severity at prediction time — the nightly calibration job
+    // stratifies bias buckets on it (runoff_none … runoff_extreme).
+    runoff_severity:     now.analysis?.runoff?.severity ?? null,
   };
 }
 

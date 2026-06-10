@@ -132,12 +132,18 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // Per-spot calibration bias offsets (server-managed by future
-    // nightly job). Public read so the client can show "model
-    // calibration: ±2 ft at this spot" later.
+    // Per-spot calibration bias offsets + condition-stratified bias
+    // buckets (subcollection), written nightly by the
+    // nightlyCalibration job from diveLogs deltas. Public read so the
+    // client can show "model calibration: ±2 ft at this spot".
     match /abyss_calibration/{spotId} {
       allow read:  if true;
       allow write: if false;
+
+      match /buckets/{bucketKey} {
+        allow read:  if true;
+        allow write: if false;
+      }
     }
 
     // Per-spot daily rollup stats. Server-managed, public read.

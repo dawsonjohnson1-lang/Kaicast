@@ -6,7 +6,8 @@
     "node": "22"
   },
   "scripts": {
-    "deploy": "firebase deploy --only functions"
+    "deploy": "firebase deploy --only functions",
+    "test": "node __test__/submitDiveLog.unit.js && node __test__/calibration.unit.js"
   },
   "dependencies": {
     "@fontsource/dm-sans": "^5.2.8",

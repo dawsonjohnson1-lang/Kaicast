@@ -154,6 +154,7 @@ function applyExposureToMaps(spot, maps) {
 }
 const { pushAllReportsToWebflow } = require('./webflow');
 const { estimateVisibilityAbyss } = require('./abyss/abyss');
+const { loadSpotCalibration, applyCalibrationToVisibility } = require('./abyss/calibrate');
 const { fetchOceanColor } = require('./abyss/kd490');
 const { computeDaySolarEvents } = require('./abyss/solar');
 const { getHorizonProfile } = require('./abyss/horizon');
@@ -1374,11 +1375,17 @@ async function buildSpotReport({ spot, owHourly, buoyData, marineForecast, nowMs
     logger.warn('buildSpotReport: fetchOceanColor threw', { spotId: spot.id, error: err.message });
   }
 
+  // Per-spot calibration from the nightly dive-log job — fetched once
+  // and applied to the "now" visibility and every forecast window
+  // below, each with its own condition context (tide phase / swell /
+  // time of day / runoff select which bias buckets blend in).
+  const spotCalibration = await loadSpotCalibration(db, spot.id);
+
   // Abyss: data-grounded layered visibility model. Falls back to the
   // legacy heuristic internally when satellite ocean-color isn't
   // configured, but ALWAYS layers on the solar + topographic-shadow
   // calc since those don't need any external feeds.
-  const nowVisibility = await estimateVisibilityAbyss({
+  const nowVisibilityRaw = await estimateVisibilityAbyss({
     spot,
     lat: spot.lat,
     lon: spot.lon,
@@ -1395,6 +1402,16 @@ async function buildSpotReport({ spot, owHourly, buoyData, marineForecast, nowMs
     hourLocal:         nowLocalHour,
     db,
     oceanColor:        spotOceanColor,
+  });
+
+  // Calibrated visibility: dive-log-derived bias correction applied
+  // before anything downstream (rating, report doc) sees the number.
+  const nowVisibility = applyCalibrationToVisibility(nowVisibilityRaw, spotCalibration, {
+    waveHeightFt:   nowMetrics.waveHeightM != null ? nowMetrics.waveHeightM * 3.28084 : null,
+    tideState:      nowTideCycle?.currentTideState ?? null,
+    nowMs,
+    runoffSeverity: nowRunoff?.severity ?? null,
+    spot,
   });
 
   const moonData     = await fetchMoonPhase(nowDate, spot.lat, spot.lon, spot.tz);
@@ -1488,7 +1505,7 @@ async function buildSpotReport({ spot, owHourly, buoyData, marineForecast, nowMs
     // so a 6 PM window correctly shows depressed visibility from
     // mountain shadow / low light, while a 9 AM window shows full sun.
     const winMidMsForVis = new Date(w.startIso).getTime() + 1.5 * 3600000;
-    const winVisibility = await estimateVisibilityAbyss({
+    const winVisibilityRaw = await estimateVisibilityAbyss({
       spot,
       lat: spot.lat,
       lon: spot.lon,
@@ -1507,6 +1524,16 @@ async function buildSpotReport({ spot, owHourly, buoyData, marineForecast, nowMs
       hourLocal:         winLocalHour,
       db,
       oceanColor:        spotOceanColor,
+    });
+
+    // Same dive-log calibration as "now", with this window's own
+    // condition context selecting the bias buckets.
+    const winVisibility = applyCalibrationToVisibility(winVisibilityRaw, spotCalibration, {
+      waveHeightFt:   w.avg.waveHeightM != null ? w.avg.waveHeightM * 3.28084 : null,
+      tideState:      winTideCycle?.currentTideState ?? null,
+      nowMs:          winMidMsForVis,
+      runoffSeverity: winRunoff?.severity ?? null,
+      spot,
     });
 
     const winEffectiveSwellFt =
@@ -2150,6 +2177,12 @@ exports.deleteUserAccount = onCall(
 exports.submitDiveLog  = require('./submitDiveLog').submitDiveLog;
 exports.deleteDiveLog  = require('./submitDiveLog').deleteDiveLog;
 exports.archiveHourly        = require('./archiveHourly').archiveHourly;
+
+// Nightly calibration — closes the Abyss loop: reads diveLogs deltas
+// per spot, writes per-spot bias/MAE/R²/confidence + condition buckets
+// to abyss_calibration/{spotId}; buildSpotReport applies them on the
+// next pipeline run. See functions/nightlyCalibration.js.
+exports.nightlyCalibration   = require('./nightlyCalibration').nightlyCalibration;
 exports.boxJellyForecaster   = require('./notifications').boxJellyForecaster;
 exports.spotOfDayPublisher   = require('./notifications').spotOfDayPublisher;
 
