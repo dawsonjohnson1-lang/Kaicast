@@ -3,8 +3,10 @@
 // spot(s), records observed conditions + crew + an optional trip count,
 // and files. No trip picker, no dependency on a FareHarbor booking.
 //
-// Replaces the trip-coupled CaptainsLogFiler as the entry point. The
-// legacy filer stays in the tree for already-filed trip logs.
+// The ONLY filer — the trip-coupled CaptainsLogFiler is gone. Screens
+// with trip context (e.g. the crew trip brief) pass `initial` to
+// prefill day/spots/crew and link the log via tripId; the log itself
+// never requires the trip.
 
 import React from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet, Modal } from 'react-native';
@@ -37,12 +39,15 @@ interface Props {
   spots: CharterSpot[];
   crew: CrewMember[];
   filedBy: { uid: string; name: string };
+  /** Prefill from surrounding context (e.g. a trip brief: day, spots,
+   *  crew, tripId link). The log stays valid without any of it. */
+  initial?: Partial<StandaloneLogDraft>;
   onClose: () => void;
   onFiled?: (logId: string) => void;
 }
 
-export function StandaloneLogFiler({ orgId, vessels, spots, crew, filedBy, onClose, onFiled }: Props) {
-  const [draft, setDraft] = React.useState<StandaloneLogDraft>(() => emptyLogDraft());
+export function StandaloneLogFiler({ orgId, vessels, spots, crew, filedBy, initial, onClose, onFiled }: Props) {
+  const [draft, setDraft] = React.useState<StandaloneLogDraft>(() => ({ ...emptyLogDraft(), ...initial }));
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -84,6 +89,14 @@ export function StandaloneLogFiler({ orgId, vessels, spots, crew, filedBy, onClo
     const label = n === 0 ? 'Today' : n === 1 ? 'Yesterday' : new Date(ms).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'Pacific/Honolulu' });
     return { id: String(ms), label };
   });
+  // A prefilled date older than the quick-pick window still needs a chip,
+  // or the selection would be invisible and unselectable.
+  if (!dayChoices.some((c) => c.id === String(draft.date))) {
+    dayChoices.push({
+      id: String(draft.date),
+      label: new Date(draft.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'Pacific/Honolulu' }),
+    });
+  }
 
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>

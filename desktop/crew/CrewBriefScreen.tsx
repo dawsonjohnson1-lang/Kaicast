@@ -11,9 +11,12 @@
 //   - Manifest: dive boats only; full guest list visible to captains
 //     and the admin, hidden for other roles.
 //
-// Captain-only buttons (file float plan, log trip) are placeholders
-// in this slice — the captain writes ship in D4 along with the
-// captain-scoped trip rule.
+// Captain actions: the float plan files onto the trip doc (captainUid-
+// scoped rule). The captain's log is STANDALONE — "Log this day" opens
+// the StandaloneLogFiler prefilled from the trip (day, spots, crew,
+// tripId link) and writes to the top-level charter_logs collection.
+// Logs never require the trip; the prefill is a convenience. Gated on
+// canFillCaptainLog (license, not role) to match the charter_logs rule.
 //
 // "Log my dive →" appears for ALL roles on completed trips. Routes to
 // /log-dive with tripId + orgId query params; LogDiveScreen reads
@@ -26,7 +29,11 @@ import { useAuth, type OrgRole } from '../hooks/useAuth';
 import { CrewShell } from './CrewShell';
 import { useActiveMembership } from './useActiveMembership';
 import { useTripBrief } from './useTripBrief';
-import { CaptainsLogFiler } from '../charter/CaptainsLogFiler';
+import { StandaloneLogFiler } from '../charter/StandaloneLogFiler';
+import { useCharterAccount } from '../charter/useCharterData';
+import { useUserSettings } from '../hooks/useUserSettings';
+import { canFillCaptainLog } from '../charter/permissions';
+import { hstStartOfDay } from '../charter/standaloneLog';
 import { saveFloatPlan } from '../charter/saveFloatPlan';
 import type {
   CharterSpot, CrewMember, Trip, TripStatus, TripType,
@@ -155,11 +162,20 @@ function BriefBody({
   const isPlanned = trip.status === 'planned';
   const isCompleted = trip.status === 'completed';
 
+  // Captain's-log gate — license, not trip assignment. The standalone
+  // log writes to charter_logs, whose rule checks owner-or-license,
+  // not captainUid (that only scopes trip-doc writes like float plan).
+  const { settings } = useUserSettings(auth.user?.uid ?? null);
+  const canFileLog = canFillCaptainLog(auth.accountType === 'charter', settings?.captainLicense);
+  // Fleet for the filer's vessel picker — trips don't carry a vessel.
+  const { account } = useCharterAccount(orgId);
+
   // Modal state for the captain actions.
   const [showFloatPlanConfirm, setShowFloatPlanConfirm] = React.useState(false);
   const [filingFloatPlan, setFilingFloatPlan] = React.useState(false);
   const [floatPlanError, setFloatPlanError] = React.useState<string | null>(null);
   const [showLogFiler, setShowLogFiler] = React.useState(false);
+  const [filedLogId, setFiledLogId] = React.useState<string | null>(null);
 
   const onConfirmFloatPlan = async () => {
     if (!orgId) return;
@@ -286,9 +302,11 @@ function BriefBody({
       {isSelfCaptain ? (
         <Section
           title="Captain actions"
-          sub={canFileAsCaptain
-            ? 'Writes scoped to your trips'
-            : 'Awaiting admin re-save to enable writes (legacy trip)'}
+          sub={!canFileLog
+            ? "Log filing needs a captain's license on your profile"
+            : canFileAsCaptain
+              ? 'Float plan scoped to your trips — the log files standalone'
+              : 'Float plan locked until admin re-save (legacy trip) — the log files standalone'}
         >
           <View style={styles.actionsRow}>
             {/* File float plan — visible on planned trips, before
@@ -309,19 +327,21 @@ function BriefBody({
               </View>
             ) : null}
 
-            {/* Log trip — visible on completed trips. Locked on legacy
-                trips. */}
-            {isCompleted && !trip.captainsLog ? (
+            {/* Log this day — opens the standalone filer prefilled from
+                this trip. License-gated (charter_logs rule), NOT
+                captainUid-gated: the log is its own doc, not a trip
+                write. trip.captainsLog only exists on legacy trips. */}
+            {isCompleted && !trip.captainsLog && !filedLogId ? (
               <Pressable
-                disabled={!canFileAsCaptain || !orgId}
+                disabled={!canFileLog || !orgId}
                 onPress={() => setShowLogFiler(true)}
-                style={[canFileAsCaptain ? styles.captainBtn : styles.disabledBtn]}
+                style={[canFileLog ? styles.captainBtn : styles.disabledBtn]}
               >
-                <Text style={canFileAsCaptain ? styles.captainBtnText : styles.disabledBtnText}>
-                  Log trip
+                <Text style={canFileLog ? styles.captainBtnText : styles.disabledBtnText}>
+                  Log this day
                 </Text>
               </Pressable>
-            ) : trip.captainsLog ? (
+            ) : trip.captainsLog || filedLogId ? (
               <View style={styles.filedBadge}>
                 <Text style={styles.filedBadgeText}>Captain's Log on file ✓</Text>
               </View>
@@ -382,13 +402,34 @@ function BriefBody({
         </Modal>
       ) : null}
 
-      {/* ── Captain's Log filer modal ── */}
+      {/* ── Captain's Log filer modal — standalone, prefilled from this
+             trip. The log doesn't need the trip; tripId is a soft link. ── */}
       {showLogFiler && orgId ? (
-        <CaptainsLogFiler
+        <StandaloneLogFiler
           orgId={orgId}
-          trip={trip}
+          vessels={account?.fleet ?? []}
+          spots={Array.from(spotsById.values())}
+          crew={Array.from(crewById.values())}
+          filedBy={{
+            uid: auth.user?.uid ?? '',
+            name: auth.user?.displayName ?? auth.user?.email ?? 'Captain',
+          }}
+          initial={{
+            date: hstStartOfDay(
+              trip.date instanceof Date && !Number.isNaN(trip.date.getTime())
+                ? trip.date.getTime()
+                : Date.now(),
+            ),
+            spotIds: trip.spots,
+            crew: trip.crew
+              .map((id) => crewById.get(id))
+              .filter((m): m is CrewMember => !!m)
+              .map((m) => ({ id: m.id, name: m.name, role: m.role })),
+            tripCount: 1,
+            tripId: trip.id,
+          }}
           onClose={() => setShowLogFiler(false)}
-          onFiled={() => setShowLogFiler(false)}
+          onFiled={(logId) => { setFiledLogId(logId); setShowLogFiler(false); }}
         />
       ) : null}
 
