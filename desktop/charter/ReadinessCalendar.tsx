@@ -55,7 +55,7 @@ export function ReadinessCalendar({ spots }: { spots: CharterSpot[] }) {
       <View style={styles.headerRow}>
         <View style={styles.spotCol} />
         {days.map((d) => {
-          const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+          const isWeekend = d.getUTCDay() === 0 || d.getUTCDay() === 6;
           return (
             <View key={d.toISOString()} style={[styles.dayCol, isWeekend && styles.dayColWeekend]}>
               <Text style={styles.dayLabel}>{d.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'Pacific/Honolulu' }).toUpperCase()}</Text>
@@ -104,7 +104,7 @@ function CalendarRow({ spot, days }: { spot: CharterSpot; days: Date[] }) {
               ? tierFromRating(reportDays[forecastIdx].rating)
               : 'unknown')
           : 'unknown';
-        const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+        const isWeekend = d.getUTCDay() === 0 || d.getUTCDay() === 6;
         const beyondHorizon = i >= reportDays.length;
         return (
           <View
@@ -134,16 +134,18 @@ function LegendDot({ tier, label }: { tier: Tier; label: string }) {
   );
 }
 
+// HST is fixed at UTC-10; Hawaii doesn't observe DST.
+const HST_OFFSET_HOURS = -10;
+
 function buildDays(n: number): Date[] {
-  const today = new Date();
   // Anchor at HST midnight so weekday rendering matches the captain's
   // local mental model.
   const result: Date[] = [];
   for (let i = 0; i < n; i++) {
-    const d = new Date(today);
-    d.setDate(d.getDate() + i);
-    d.setHours(0, 0, 0, 0);
-    result.push(d);
+    const d = new Date(Date.now() + HST_OFFSET_HOURS * 3600 * 1000);
+    d.setUTCHours(0, 0, 0, 0);
+    d.setUTCDate(d.getUTCDate() + i);
+    result.push(new Date(d.getTime() - HST_OFFSET_HOURS * 3600 * 1000));
   }
   return result;
 }
