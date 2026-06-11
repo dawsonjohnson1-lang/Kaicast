@@ -1242,6 +1242,13 @@ function buildHorizonHourly({ owHourly, buoyData, marineForecast, nowMs, horizon
   return horizon;
 }
 
+// HST wall-clock hour (UTC-10, no DST — all spots are in Hawaii).
+// Feeds the diurnal visibility profile, which expects local hours.
+const HST_OFFSET_MS = -10 * 3600000;
+function hstHourOf(ms) {
+  return new Date(ms + HST_OFFSET_MS).getUTCHours();
+}
+
 function buildWindows(hourlyItems, nowMs, count = 8) {
   const WINDOW_MS = 3 * 3600000;
   const windows   = [];
@@ -1360,7 +1367,7 @@ async function buildSpotReport({ spot, owHourly, buoyData, marineForecast, nowMs
 
   const confidenceScore = computeConfidenceScore({ nowMetrics, buoyData, closestHour });
 
-  const nowLocalHour = nowDate.getUTCHours(); // TODO: convert to spot tz when needed
+  const nowLocalHour = hstHourOf(nowMs);
   const nowSwellFt   = nowMetrics.waveHeightM != null ? nowMetrics.waveHeightM * 3.28084 : null;
 
   // Fetch satellite ocean-color ONCE for the whole spot. The "now"
@@ -1532,7 +1539,7 @@ async function buildSpotReport({ spot, owHourly, buoyData, marineForecast, nowMs
     });
 
     const winSwellFt   = w.avg.waveHeightM != null ? w.avg.waveHeightM * 3.28084 : null;
-    const winLocalHour = new Date(w.startIso).getUTCHours();
+    const winLocalHour = hstHourOf(winStartMs);
 
     // Per-window abyss: re-runs solar+shadow at the window's midpoint
     // so a 6 PM window correctly shows depressed visibility from
