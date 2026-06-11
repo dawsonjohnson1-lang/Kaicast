@@ -22,11 +22,12 @@ export async function saveStandaloneLog(
   }
   const ref = doc(collection(db, 'charter_logs'));
   const now = Date.now();
-  const log: StandaloneLog = {
+  const log: StandaloneLog & { finalized: true } = {
     ...draft,
     logId: ref.id,
     operatorId: orgId,
     schema: 'standalone-v1',
+    finalized: true,
     filedByUid: filedBy.uid,
     filedByName: filedBy.name,
     createdAt: now,

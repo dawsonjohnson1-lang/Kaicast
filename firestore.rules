@@ -409,6 +409,8 @@ service cloud.firestore {
       allow update: if hasOrgAccess(resource.data.operatorId)
                     && (isCharterMember(resource.data.operatorId)
                         || hasCaptainsLicense())
+                    && resource.data.get('finalized', false) != true
+                    && resource.data.get('schema', '') != 'standalone-v1'
                     && snapshotUntouchedOnUpdate();
       allow delete: if false;
     }
