@@ -11,7 +11,7 @@
 import React from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet, Modal } from 'react-native';
 import { colors, fonts, radius } from '../tokens';
-import { ChipSelect, NumberStepper, FreeTextArea } from './inputs';
+import { ChipSelect, NumberStepper, NumberField, TextField, FreeTextArea } from './inputs';
 import { saveStandaloneLog } from './saveStandaloneLog';
 import {
   emptyLogDraft, hstStartOfDay,
@@ -55,7 +55,10 @@ export function StandaloneLogFiler({ orgId, vessels, spots, crew, filedBy, initi
 
   const pickVessel = (vesselId: string) => {
     const v = vessels.find((x) => x.vesselId === vesselId);
-    patch({ vesselId, vesselName: v?.name ?? '' });
+    const single = v?.engineConfig === 'single_outboard' || v?.engineConfig === 'sail';
+    // Hidden fields must not file silently — drop stbd hours when the
+    // picked vessel collapses the engine pair to one field.
+    patch({ vesselId, vesselName: v?.name ?? '', ...(single ? { stbdEngineHours: null } : null) });
   };
   const toggleSpot = (id: string) =>
     patch({ spotIds: draft.spotIds.includes(id) ? draft.spotIds.filter((s) => s !== id) : [...draft.spotIds, id] });
@@ -63,6 +66,15 @@ export function StandaloneLogFiler({ orgId, vessels, spots, crew, filedBy, initi
     const has = draft.crew.some((c) => c.id === m.id);
     patch({ crew: has ? draft.crew.filter((c) => c.id !== m.id) : [...draft.crew, { id: m.id, name: m.name, role: m.role }] });
   };
+
+  // Single-engine vessels get one "Engine hours" field instead of
+  // port/stbd. The fleet model carries engineConfig (no engine count);
+  // 'inboard' and 'other' can be twins, so only configs that are
+  // unambiguously one engine collapse the pair. No vessel picked yet →
+  // show both.
+  const selectedVessel = vessels.find((v) => v.vesselId === draft.vesselId);
+  const singleEngine = selectedVessel != null
+    && (selectedVessel.engineConfig === 'single_outboard' || selectedVessel.engineConfig === 'sail');
 
   const valid = isValid(draft);
 
@@ -149,6 +161,7 @@ export function StandaloneLogFiler({ orgId, vessels, spots, crew, filedBy, initi
                 <ChipSelect options={WINDS} value={draft.windObserved || undefined} onChange={(v) => patch({ windObserved: v })} />
               </Field>
               <NumberStepper label="Visibility (ft)" value={draft.visibilityFt} onChange={(v) => patch({ visibilityFt: v })} step={5} min={0} max={150} unit="ft" />
+              <TextField label="Snorkel site" value={draft.snorkelSite ?? ''} onChange={(v) => patch({ snorkelSite: v })} placeholder="As written on the paper log — free text" />
             </Block>
 
             <Block label="⑤ Crew on duty">
@@ -189,7 +202,31 @@ export function StandaloneLogFiler({ orgId, vessels, spots, crew, filedBy, initi
             </Block>
 
             <Block label="⑧ Notes">
+              <FreeTextArea label="Trip comments" value={draft.tripComments ?? ''} onChange={(v) => patch({ tripComments: v })} placeholder="Optional — how the trip went, guests, route…" rows={2} />
               <FreeTextArea label="Anything else worth recording" value={draft.notes} onChange={(v) => patch({ notes: v })} placeholder="Optional — gear notes, guest notes, things to flag for tomorrow…" rows={4} />
+            </Block>
+
+            {/* Paper-form parity (MANA daily log). Capture-and-store only —
+                nothing downstream derives runtimes, fuel rates, or deltas
+                from these; they are saved flat on the log doc as entered. */}
+            <Block label="⑨ Vessel">
+              <View style={styles.row2}>
+                <NumberField
+                  label={singleEngine ? 'Engine hours' : 'Port engine hours'}
+                  value={draft.portEngineHours}
+                  onChange={(v) => patch({ portEngineHours: v })}
+                  unit="hrs"
+                />
+                {singleEngine ? null : (
+                  <NumberField label="Stbd engine hours" value={draft.stbdEngineHours} onChange={(v) => patch({ stbdEngineHours: v })} unit="hrs" />
+                )}
+              </View>
+              <View style={styles.row2}>
+                <NumberField label="Fuel added" value={draft.fuelAdded} onChange={(v) => patch({ fuelAdded: v })} unit="gal" />
+                <NumberField label="Fuel remaining" value={draft.fuelRemaining} onChange={(v) => patch({ fuelRemaining: v })} unit="gal / %" />
+              </View>
+              <FreeTextArea label="Boat comments" value={draft.boatComments ?? ''} onChange={(v) => patch({ boatComments: v })} placeholder="Optional — engine, hull, gear condition…" rows={2} />
+              <FreeTextArea label="Inventory needed" value={draft.inventoryNeeded ?? ''} onChange={(v) => patch({ inventoryNeeded: v })} placeholder="Optional — supplies to restock…" rows={2} />
             </Block>
 
             {error ? (

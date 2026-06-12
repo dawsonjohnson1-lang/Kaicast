@@ -102,6 +102,27 @@ export interface StandaloneLog {
   /** Optional link to a trip doc if one exists for the day. NOT required. */
   tripId: string | null;
 
+  // ── Paper-form parity (MANA Cruises daily log). CAPTURE-AND-STORE
+  //    ONLY: nothing reads these back — no runtime/fuel-rate math, no
+  //    prior-log lookups, no dashboard surface. They exist so the form
+  //    matches the paper log captains already fill out. Optional so
+  //    pre-existing docs without them stay valid reads. ──
+  portEngineHours?: number | null;
+  /** Hidden in the UI for single-engine vessels (engineConfig). */
+  stbdEngineHours?: number | null;
+  /** Gallons added today. */
+  fuelAdded?: number | null;
+  /** Stored exactly as entered — the field is labeled gal / % and we do
+   *  no unit interpretation. */
+  fuelRemaining?: number | null;
+  /** Boat condition / maintenance comments — distinct from tripComments. */
+  boatComments?: string;
+  inventoryNeeded?: string;
+  /** Trip-level comments — distinct from boatComments AND from `notes`. */
+  tripComments?: string;
+  /** Snorkel site as written on the paper form — free text, NOT a spot id. */
+  snorkelSite?: string;
+
   // ── Server-resolved snapshot (filled by the captureStandaloneLogSnapshot
   //    trigger; clients never write these — locked in firestore.rules). ──
   /** Operating spot used for the snapshot — the first spot visited
@@ -153,5 +174,13 @@ export function emptyLogDraft(): StandaloneLogDraft {
     durationHours: null,
     tripCount: null,
     tripId: null,
+    portEngineHours: null,
+    stbdEngineHours: null,
+    fuelAdded: null,
+    fuelRemaining: null,
+    boatComments: '',
+    inventoryNeeded: '',
+    tripComments: '',
+    snorkelSite: '',
   };
 }
