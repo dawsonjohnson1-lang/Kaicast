@@ -36,23 +36,40 @@ export function useUserDiveLogs(uid: string | undefined, max = 50): State {
       return;
     }
     if (firebaseConfigured && db) {
-      const q = query(
-        collection(db, 'diveLogs'),
-        where('uid', '==', uid),
-        orderBy('loggedAt', 'desc'),
-        fbLimit(max),
+      // The submitDiveLog callable writes snake_case docs ordered by
+      // logged_at; pre-path-B client writes used camelCase loggedAt.
+      // orderBy silently drops docs missing its field, so a single
+      // query can only ever see one generation — subscribe to both
+      // shapes and merge until the legacy docs are migrated.
+      const col = collection(db, 'diveLogs');
+      const queries = [
+        query(col, where('uid', '==', uid), orderBy('logged_at', 'desc'), fbLimit(max)),
+        query(col, where('uid', '==', uid), orderBy('loggedAt', 'desc'), fbLimit(max)),
+      ];
+      const buckets: DiveLogRecord[][] = [[], []];
+      const publish = () => {
+        const seen = new Set<string>();
+        const merged = buckets
+          .flat()
+          .filter((l) => (seen.has(l.id) ? false : (seen.add(l.id), true)))
+          .sort((a, b) => (b.loggedAt?.getTime() ?? 0) - (a.loggedAt?.getTime() ?? 0))
+          .slice(0, max);
+        setState({ logs: merged, loading: false });
+      };
+      const unsubs = queries.map((q, i) =>
+        onSnapshot(
+          q,
+          (snap) => {
+            buckets[i] = snap.docs.map((d) => normalize(d.id, d.data()));
+            publish();
+          },
+          () => {
+            buckets[i] = [];
+            publish();
+          },
+        ),
       );
-      const unsub = onSnapshot(
-        q,
-        (snap) => {
-          setState({
-            loading: false,
-            logs: snap.docs.map((d) => normalize(d.id, d.data())),
-          });
-        },
-        () => setState({ logs: [], loading: false }),
-      );
-      return unsub;
+      return () => unsubs.forEach((u) => u());
     }
     // Stub fallback.
     listDiveLogsForUser(uid, max).then((logs) => setState({ logs, loading: false }));
@@ -147,7 +164,42 @@ export function useSpotDiveLogs(spotId: string | undefined, max = 50): State {
   return state;
 }
 
+// Server (snake_case) → legacy card vocab. surface_state and
+// water_color are the structured fields; the cards still speak
+// safe/choppy/rough and clean/green/murky.
+const SURFACE_FROM_STATE: Record<string, string> = {
+  glassy: 'safe', light_chop: 'choppy', whitecaps: 'rough', breaking: 'rough',
+};
+const VIS_FROM_COLOR: Record<string, string> = {
+  blue: 'clean', green: 'green', brown: 'murky', silty: 'murky',
+};
+
 function normalize(id: string, data: any): DiveLogRecord {
+  if (data.spot_id != null) {
+    // Path-B doc written by the submitDiveLog callable.
+    const o = data.observed ?? {};
+    return {
+      id,
+      uid: data.uid,
+      spotId: data.spot_id,
+      customSpot: data.custom_spot ?? undefined,
+      diveType: data.dive_type,
+      groupSize: data.group_size ?? undefined,
+      durationMin: o.duration_min ?? null,
+      depthFt: o.max_depth_ft ?? null,
+      surface: SURFACE_FROM_STATE[o.surface_state] ?? undefined,
+      current: o.current_strength ?? undefined,
+      visibility: VIS_FROM_COLOR[o.water_color] ?? undefined,
+      waterTempF: o.water_temp_surface_f ?? o.water_temp_bottom_f ?? null,
+      notes: data.notes ?? undefined,
+      privacy: data.privacy,
+      photos: data.photos ?? [],
+      conditionsSnapshot: data.conditionsSnapshot ?? null,
+      // logged_at is a serverTimestamp — null on the local latency
+      // snapshot until the write commits; dive_at stands in.
+      loggedAt: data.logged_at?.toDate?.() ?? data.dive_at?.toDate?.() ?? null,
+    };
+  }
   const ts = data.loggedAt;
   return {
     id,

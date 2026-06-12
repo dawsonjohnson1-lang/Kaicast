@@ -3,8 +3,8 @@
 // Derives a list of `ConditionAlert` rows from the spot's BackendReport
 // — specifically the analysis fields the server already emits
 // (`runoff`, `jellyfish`, plus a few thresholds on the metrics
-// snapshot). Falls back to the static `mockData.conditionAlerts` when
-// no live report is available so the dashboard never goes blank.
+// snapshot). Falls back to a neutral "checking…" row when no live
+// report is available so the dashboard never goes blank.
 //
 // Once a notification pipeline is wired (FCM + Firestore), this same
 // derivation can run server-side and push the highest-severity alert
@@ -14,12 +14,23 @@
 import { useMemo } from 'react';
 
 import type { BackendReport } from '@/api/kaicast';
-import { conditionAlerts as fallback } from '@/api/mockData';
 import type { ConditionAlert } from '@/types';
 
 export function useAlerts(spotName: string | undefined, report: BackendReport | null): ConditionAlert[] {
   return useMemo(() => {
-    if (!report) return fallback;
+    if (!report) {
+      // No live report yet (initial mount or fetch failure). Never show
+      // mock alerts here — a fabricated hazard for a real spot reads as
+      // live data. A single neutral row keeps the section non-blank.
+      return [
+        {
+          id: 'alerts_loading',
+          spotName: spotName ?? '',
+          severity: 'info',
+          message: 'Checking live conditions…',
+        },
+      ];
+    }
     const alerts: ConditionAlert[] = [];
     const now = report.now;
     const runoff = now?.analysis?.runoff;

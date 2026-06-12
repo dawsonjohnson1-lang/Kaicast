@@ -340,28 +340,26 @@ export function useCharterLog(
     const cur = logRef.current;
     if (!id || !cur || !db) return { pdfUrl: null, darkPdfUrl: null, lightPdfUrl: null };
     // Status flip happens server-side so the PDF render sees the final
-    // state. Falls back to a local flip if the callable is unavailable.
+    // state. A failed callable must leave the log in draft — the error
+    // propagates to the screen (SubmitLogScreen shows the alert and the
+    // button stays enabled for retry). Only the unconfigured/mock case
+    // (no firebaseApp) falls through to the local flip.
     let darkPdfUrl: string | null = null;
     let lightPdfUrl: string | null = null;
     if (firebaseApp) {
-      try {
-        const fns = getFunctions(firebaseApp, 'us-central1');
-        const fn = httpsCallable<
-          { logDocId: string },
-          {
-            pdfUrl: string | null;
-            darkPdfUrl?: string | null;
-            lightPdfUrl?: string | null;
-          }
-        >(fns, 'generateCaptainsLog');
-        const res = await fn({ logDocId: id });
-        // darkPdfUrl is the modern key; pdfUrl is the legacy alias.
-        darkPdfUrl  = res.data?.darkPdfUrl  ?? res.data?.pdfUrl ?? null;
-        lightPdfUrl = res.data?.lightPdfUrl ?? null;
-      } catch {
-        // The callable will also flip status; if it failed, we still
-        // mark locally so the captain can't get stuck.
-      }
+      const fns = getFunctions(firebaseApp, 'us-central1');
+      const fn = httpsCallable<
+        { logDocId: string },
+        {
+          pdfUrl: string | null;
+          darkPdfUrl?: string | null;
+          lightPdfUrl?: string | null;
+        }
+      >(fns, 'generateCaptainsLog');
+      const res = await fn({ logDocId: id });
+      // darkPdfUrl is the modern key; pdfUrl is the legacy alias.
+      darkPdfUrl  = res.data?.darkPdfUrl  ?? res.data?.pdfUrl ?? null;
+      lightPdfUrl = res.data?.lightPdfUrl ?? null;
     }
     const submittedAt = Date.now();
     const next: CharterLog = { ...cur, status: 'submitted' as CharterLogStatus, submittedAt };

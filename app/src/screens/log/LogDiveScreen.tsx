@@ -303,7 +303,9 @@ export function LogDiveScreen() {
 
   const [type, setType] = useState<DiveType>('scuba');
   const [group, setGroup] = useState('Solo');
-  const [date, setDate] = useState('04/16/2026');
+  const [date, setDate] = useState(() =>
+    new Date().toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }),
+  );
   const [time, setTime] = useState('--:-- --');
   const [duration, setDuration] = useState('');
   const [spotPick, setSpotPick] = useState<PickedSpot | null>(null);

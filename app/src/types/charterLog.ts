@@ -340,6 +340,13 @@ export function emptyAbyssConditions(): AbyssConditions {
   };
 }
 
+/** True when every Abyss field is blank — i.e. the seeded placeholder
+ *  from buildEmptyLog, which must not shadow live Abyss conditions. */
+export function isAbyssEmpty(a: AbyssConditions | null | undefined): boolean {
+  if (!a) return true;
+  return Object.values(a).every((v) => typeof v !== 'string' || v.trim() === '');
+}
+
 export function emptyObservedConditions(): ObservedConditions {
   return {
     visibility: '', feltTemp: '', seaState: '', swellDirObserved: '',

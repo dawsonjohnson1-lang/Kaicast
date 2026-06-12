@@ -17,11 +17,14 @@ function load(spotId: string): Promise<BackendReport> {
   if (hit && Date.now() - hit.at < CACHE_MS) return Promise.resolve(hit.data);
   const existing = inflight.get(spotId);
   if (existing) return existing;
-  const p = fetchSpotReport(spotId).then((data) => {
-    cache.set(spotId, { at: Date.now(), data });
-    inflight.delete(spotId);
-    return data;
-  });
+  const p = fetchSpotReport(spotId)
+    .then((data) => {
+      cache.set(spotId, { at: Date.now(), data });
+      return data;
+    })
+    // Clear on both settle paths — a rejected promise left in `inflight`
+    // would be returned to every future caller, permanently breaking the spot.
+    .finally(() => { inflight.delete(spotId); });
   inflight.set(spotId, p);
   return p;
 }
