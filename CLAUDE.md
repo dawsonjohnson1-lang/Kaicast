@@ -8,11 +8,10 @@ this before making structural changes.
 ## Source of truth for deployable code
 
 `firebase.json` sets `"functions": { "source": "functions" }`. **Only
-`functions/` deploys.** The repo-root copies of `analysis.js`,
-`buoy_Version2.js`, `index.js`, `tides.js`, `webflow.js` are stale —
-their content has drifted from `functions/`'s. **Do not edit them.**
-A future commit should delete the root copies but the cleanup is
-explicitly out of scope on every active task to keep diffs reviewable.
+`functions/` deploys.** The stale repo-root copies of `analysis.js`,
+`buoy_Version2.js`, `index.js`, `tides.js`, `webflow.js` were deleted
+in 864405c — if one reappears (bad merge, stray editor save), delete
+it; never edit it.
 
 ## Firebase Functions: v2, Node 20, us-central1
 
@@ -133,8 +132,6 @@ uid after sign-up (token = proof of ownership; stamps
   token client-side, log with it pre-auth, and call the claim callable
   on sign-up. (The post-log "your report updated live conditions"
   feedback and the dataQuality badge are already wired in both clients.)
-- **Delete repo-root duplicate files** (`/analysis.js`, `/index.js`,
-  etc.) once everyone confirms nothing local references them.
 
 ## Spot list — four canonical mirrors, keep in sync
 
