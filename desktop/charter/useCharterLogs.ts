@@ -65,6 +65,7 @@ function logFromDoc(id: string, data: Record<string, unknown>): StandaloneLog {
     crew: Array.isArray(data.crew) ? (data.crew as StandaloneLog['crew']) : [],
     durationHours: typeof data.durationHours === 'number' ? data.durationHours : null,
     tripCount: typeof data.tripCount === 'number' ? data.tripCount : null,
+    trips: Array.isArray(data.trips) ? (data.trips as StandaloneLog['trips']) : [],
     tripId: typeof data.tripId === 'string' && data.tripId.length > 0 ? data.tripId : null,
     primarySpotId: typeof data.primarySpotId === 'string' ? data.primarySpotId : null,
     conditionsSnapshot: (data.conditionsSnapshot as StandaloneLog['conditionsSnapshot']) ?? null,

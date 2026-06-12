@@ -21,7 +21,7 @@ import { useCharterLogs } from './useCharterLogs';
 import { useAuth } from '../hooks/useAuth';
 import { useUserSettings } from '../hooks/useUserSettings';
 import { canFillCaptainLog } from './permissions';
-import type { StandaloneLog } from './standaloneLog';
+import { TRIP_TYPE_LABEL, type StandaloneLog } from './standaloneLog';
 import type { NavigateFn } from '../router';
 
 export function CharterLogScreen({ onNavigate }: { onNavigate?: NavigateFn }) {
@@ -91,8 +91,9 @@ export function CharterLogScreen({ onNavigate }: { onNavigate?: NavigateFn }) {
             <>
               <Text style={styles.fileTitle}>Log today's operation</Text>
               <Text style={styles.fileBody}>
-                One entry covers the whole day for a vessel — even if you ran several trips. Trip-level
-                detail can be linked later when FareHarbor sync lands.
+                One entry covers the whole day for a vessel. Add a lightweight row per trip — type,
+                hours, guests — or file with none for a weather-out day. FareHarbor sync will pre-fill
+                rows when it lands.
               </Text>
               <Pressable style={styles.primaryCta} onPress={() => setFiling(true)}>
                 <Text style={styles.primaryCtaText}>Start a new log →</Text>
@@ -192,6 +193,13 @@ function ArchiveTab({
               {l.durationHours != null ? `  ·  ${l.durationHours}h` : ''}
               {l.crew.length ? `  ·  ${l.crew.length} crew` : ''}
             </Text>
+            {l.trips.length > 0 ? (
+              <Text style={styles.logTrips}>
+                {l.trips
+                  .map((t) => (t.type === 'other' ? t.tripTypeCustom || 'Custom' : TRIP_TYPE_LABEL[t.type]))
+                  .join('  ·  ')}
+              </Text>
+            ) : null}
             {l.seaState || l.windObserved || l.visibilityFt != null ? (
               <Text style={styles.logCond}>
                 {[l.seaState && `Sea: ${l.seaState}`, l.windObserved && `Wind: ${l.windObserved}`, l.visibilityFt != null && `Vis: ${l.visibilityFt}ft`].filter(Boolean).join('   ')}
@@ -239,6 +247,7 @@ const styles = StyleSheet.create({
   incidentBadge: { fontFamily: fonts.mono, fontSize: 10, fontWeight: '800', color: '#F5A623', backgroundColor: 'rgba(245,166,35,0.12)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8, textTransform: 'uppercase' },
   incidentBadgeSerious: { color: '#F73726', backgroundColor: 'rgba(247,55,38,0.12)' },
   logMeta: { fontFamily: fonts.mono, fontSize: 11, color: colors.text3 },
+  logTrips: { fontFamily: fonts.body, fontSize: 11, color: colors.text2 },
   logCond: { fontFamily: fonts.mono, fontSize: 11, color: colors.text2 },
   logNotes: { fontFamily: fonts.body, fontSize: 12, color: colors.text2, lineHeight: 18 },
   logFiledBy: { fontFamily: fonts.mono, fontSize: 10, color: colors.text4, marginTop: 2 },
