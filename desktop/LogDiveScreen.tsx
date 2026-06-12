@@ -15,6 +15,13 @@ import { CertEligibilityBadge } from './components/CertEligibilityBadge';
 import { PhotoUpload } from './components/PhotoUpload';
 import { useBreakpoint, pick } from './hooks/useBreakpoint';
 import { db, firebaseConfigured } from './firebase';
+import { useAuth } from './hooks/useAuth';
+import { SPOTS } from './data/spots';
+import {
+  countUserDiveLogs,
+  submitDiveLog,
+  type SubmitDiveLogResult,
+} from './api/diveLogs';
 import type { NavigateFn, RouteParams } from './router';
 
 // Subset of known Hawaii dive spots — used by the Step 01 map picker.
@@ -32,8 +39,11 @@ const PICKER_SPOTS: Array<{ name: string; lat: number; lng: number }> = [
   { name: 'Black Rock',     lat: 20.9333, lng: -156.6920 },
   { name: 'Kealakekua Bay', lat: 19.4791, lng: -155.9197 },
   { name: 'Two Step',       lat: 19.4187, lng: -155.9099 },
-  { name: 'Tunnels Beach',  lat: 22.2233, lng: -159.5705 },
-  { name: 'Poipu Beach',    lat: 21.8736, lng: -159.4537 },
+  // Names must resolve against the canonical SPOTS list (data/spots.ts)
+  // or publishing fails — 'Tunnels Beach'/'Poipu Beach' were renamed to
+  // their canonical spot names.
+  { name: 'Tunnels Reef',   lat: 22.2233, lng: -159.5705 },
+  { name: 'Koloa Landing',  lat: 21.8736, lng: -159.4537 },
 ];
 
 /**
@@ -44,9 +54,11 @@ const PICKER_SPOTS: Array<{ name: string; lat: number; lng: number }> = [
  *   - 2-col: left 380px (live preview card + Publish CTA — sticky in real
  *     life, static here) | right 860px (7-step form)
  *
- * Form state is local React state (no Firestore wiring yet — the desktop
- * preview doesn't bundle Firebase). Publishing transitions to the success
- * view with whatever the user entered; persistence is a follow-up.
+ * Form state is local React state. Publishing routes through the
+ * server-side `submitDiveLog` callable (same pipeline as mobile —
+ * snapshot resolution + community overlay happen server-trusted) and
+ * only transitions to the success view after the callable returns.
+ * A failed write keeps the form on screen with an actionable error.
  */
 
 // ─── Form state ───────────────────────────────────────────────────────────
@@ -390,15 +402,65 @@ interface PrefillBanner {
   fieldsApplied: string[];
 }
 
+// Publish lifecycle. The success view only renders from the
+// 'published' phase — i.e. after the submitDiveLog callable has
+// actually returned. 'error' keeps the form mounted with the message
+// surfaced next to the Publish CTA so the user can fix and retry.
+type PublishState =
+  | { phase: 'idle' }
+  | { phase: 'submitting' }
+  | { phase: 'error'; message: string }
+  | {
+      phase: 'published';
+      result: SubmitDiveLogResult;
+      spotId: string;
+      /** Authed user's total log count (incl. this one), or null when
+       *  the count query failed — the success copy hides the line. */
+      totalDives: number | null;
+    };
+
 export function LogDiveScreen({ activeNav = 'log', onNavigate, params }: LogDiveScreenProps) {
   const bp = useBreakpoint();
   const sidePad = pick(bp, 28, 16);
   const colGap = pick(bp, 28, 16);
   const leftColW = pick(bp, 323, 260);
-  const [published, setPublished] = React.useState(false);
+  const { user } = useAuth();
+  const [publishState, setPublishState] = React.useState<PublishState>({ phase: 'idle' });
   const [form, setForm] = React.useState<FormState>(INITIAL_FORM);
   const [draftSavedAt, setDraftSavedAt] = React.useState<number | null>(null);
   const [prefillBanner, setPrefillBanner] = React.useState<PrefillBanner | null>(null);
+
+  const handlePublish = React.useCallback(async () => {
+    if (publishState.phase === 'submitting') return;
+    if (!user) {
+      setPublishState({
+        phase: 'error',
+        message: 'You need to be signed in to publish a dive log. Sign in and try again — your entries are still here.',
+      });
+      return;
+    }
+    const spotId = resolveSpotId(form.spot);
+    if (!spotId) {
+      setPublishState({
+        phase: 'error',
+        message: `"${form.spot}" isn't a KaiCast spot yet, so the dive can't be saved against it. Pick a spot from the search list or the map pins.`,
+      });
+      return;
+    }
+    setPublishState({ phase: 'submitting' });
+    try {
+      const result = await submitDiveLog(buildCallablePayload(form, spotId));
+      // Count AFTER the write so the total includes this dive.
+      const totalDives = await countUserDiveLogs(user.uid);
+      setPublishState({ phase: 'published', result, spotId, totalDives });
+    } catch (err) {
+      const raw = err instanceof Error ? err.message : String(err);
+      setPublishState({
+        phase: 'error',
+        message: `Your dive wasn't saved — ${raw}. Your entries are still here; fix the issue (or check your connection) and publish again.`,
+      });
+    }
+  }, [form, user, publishState.phase]);
 
   // Single update helper — every field accepts a key + value pair so we don't
   // hand each child a typed setter just to flip one property.
@@ -481,12 +543,15 @@ export function LogDiveScreen({ activeNav = 'log', onNavigate, params }: LogDive
       <DesktopNav active={activeNav} onNavigate={onNavigate} />
 
       <View style={styles.maxWidth}>
-        {published ? (
+        {publishState.phase === 'published' ? (
           <PublishedView
             form={form}
+            result={publishState.result}
+            spotId={publishState.spotId}
+            totalDives={publishState.totalDives}
             onAnother={() => {
               setForm(INITIAL_FORM);
-              setPublished(false);
+              setPublishState({ phase: 'idle' });
             }}
             onNavigate={onNavigate}
           />
@@ -520,7 +585,9 @@ export function LogDiveScreen({ activeNav = 'log', onNavigate, params }: LogDive
                 <LeftPreview
                   form={form}
                   draftSavedAt={draftSavedAt}
-                  onPublish={() => setPublished(true)}
+                  publishing={publishState.phase === 'submitting'}
+                  publishError={publishState.phase === 'error' ? publishState.message : null}
+                  onPublish={handlePublish}
                   onSaveDraft={() => setDraftSavedAt(Date.now())}
                   onShareToggle={() => update('shareToCommunity', !form.shareToCommunity)}
                 />
@@ -534,30 +601,207 @@ export function LogDiveScreen({ activeNav = 'log', onNavigate, params }: LogDive
   );
 }
 
+// ─── Publish pipeline ─────────────────────────────────────────────────────
+
+/**
+ * Map the form's free-text spot name onto a canonical spot id. The
+ * `submitDiveLog` callable rejects unknown spot_ids, so an unresolvable
+ * name is a pre-flight error, not a payload. Matching is lenient about
+ * case and the "(the Mokes)"-style parentheticals so the Step-01 map
+ * picker labels resolve against the canonical names.
+ */
+function resolveSpotId(spotName: string): string | null {
+  const norm = (s: string) =>
+    s.toLowerCase().replace(/\(.*?\)/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+  const target = norm(spotName);
+  if (!target) return null;
+  for (const s of SPOTS) {
+    if (s.id === spotName.trim() || norm(s.name) === target) return s.id;
+  }
+  const loose = SPOTS.filter((s) => {
+    const n = norm(s.name);
+    return n.startsWith(target) || target.startsWith(n);
+  });
+  return loose.length === 1 ? loose[0].id : null;
+}
+
+/**
+ * Parse the Step-01 "MM / DD / YYYY" date + military "HHMM" entry time
+ * into unix ms (local time). Mirrors mobile's parseDiveAt: unparseable
+ * date falls back to now; a parseable date with no time assumes noon.
+ * The server clamps dive_at to [now − 1 yr, now + 24 h].
+ */
+function parseDiveAt(dateStr: string, entryTime: string): number {
+  const m = dateStr.match(/(\d{1,2})\s*\/\s*(\d{1,2})\s*\/\s*(\d{4})/);
+  if (!m) return Date.now();
+  const t = entryTime.replace(/\D/g, '').padStart(4, '0').match(/^(\d{2})(\d{2})$/);
+  const hh = t && entryTime.trim() !== '' ? Number(t[1]) : 12;
+  const mm = t && entryTime.trim() !== '' ? Number(t[2]) : 0;
+  const ms = new Date(Number(m[3]), Number(m[1]) - 1, Number(m[2]), hh, mm).getTime();
+  return Number.isFinite(ms) ? ms : Date.now();
+}
+
+// Desktop chip labels → server enums (functions/submitDiveLog.js
+// ObservedSchema). Unmapped labels fall through to null rather than
+// failing zod validation server-side.
+const SURFACE_STATE_MAP: Record<string, string> = {
+  'Calm': 'glassy', 'Light chop': 'light_chop', 'Choppy': 'whitecaps', 'Rough': 'breaking',
+};
+const CURRENT_MAP: Record<string, string> = {
+  None: 'none', Mild: 'light', Moderate: 'moderate', Strong: 'strong', Ripping: 'strong',
+};
+const SURGE_MAP: Record<string, string> = {
+  None: 'none', Mild: 'mild', Moderate: 'mild', Strong: 'strong',
+};
+const REEF_HEALTH_MAP: Record<string, string> = {
+  Pristine: 'pristine', Healthy: 'healthy', Stressed: 'stressed', Bleached: 'bleached',
+};
+const DIVE_TYPE_MAP: Record<string, string> = {
+  Scuba: 'scuba', Freediving: 'freedive', Snorkel: 'snorkel', Spearfishing: 'spear',
+};
+
+/** Form numerics use 0 as "not entered" (INITIAL_FORM). Send null for
+ *  those so the server never stores a fake zero reading. */
+function numOrNull(n: number): number | null {
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+function strNumOrNull(s: string): number | null {
+  const n = Number(s);
+  return s.trim() !== '' && Number.isFinite(n) && n > 0 ? n : null;
+}
+/** Server bounds water temps to 20–110 °F; out-of-range → null. */
+function tempOrNull(n: number): number | null {
+  return Number.isFinite(n) && n >= 20 && n <= 110 ? n : null;
+}
+
+/**
+ * FormState → snake_case payload for the submitDiveLog callable.
+ * Counterpart of toCallablePayload in app/src/api/diveLogs.ts; stays
+ * in sync with the zod schema in functions/submitDiveLog.js.
+ */
+function buildCallablePayload(form: FormState, spotId: string): Record<string, unknown> {
+  const stars = form.ratingStars;
+  const observed = {
+    visibility_ft:        numOrNull(form.visibility),
+    surface_state:        SURFACE_STATE_MAP[form.surfaceConditions] ?? null,
+    current_strength:     CURRENT_MAP[form.currentStrength] ?? null,
+    surge_at_depth:       SURGE_MAP[form.surgeSwell] ?? null,
+    species_seen:         form.speciesSeen.slice(0, 64),
+    overall_rating:
+      stars >= 5 ? 'excellent' : stars >= 4 ? 'good' : stars >= 3 ? 'fair' : stars >= 1 ? 'poor' : null,
+    water_temp_surface_f: tempOrNull(form.waterTemp),
+    water_temp_bottom_f:  tempOrNull(form.waterTempDepth),
+    thermocline_detected: form.thermoclinePresent,
+    reef_health:          REEF_HEALTH_MAP[form.reefHealth] ?? null,
+    max_depth_ft:         strNumOrNull(form.depthMax),
+    duration_min:         strNumOrNull(form.bottomTime),
+  };
+
+  // Free-form scuba blob — camelCase, shape owned by the client (the
+  // server only bounds its size). Mirrors the mobile scuba block.
+  const scuba = form.diveType === 'Scuba'
+    ? {
+        diveSubTypes:        form.scubaSubtypes.map((s) => s.toLowerCase().replace(/ & /g, '_').replace(/\s+/g, '_')),
+        maxDepthFt:          strNumOrNull(form.depthMax),
+        avgDepthFt:          strNumOrNull(form.depthAvg),
+        visibilityFt:        numOrNull(form.visibility),
+        waterTempSurfaceF:   tempOrNull(form.waterTemp),
+        waterTempBottomF:    tempOrNull(form.waterTempDepth),
+        gasMix:              form.gasMix,
+        tankStartPsi:        numOrNull(form.startPressure),
+        tankEndPsi:          numOrNull(form.endPressure),
+        weightLbs:           numOrNull(form.weightUsed),
+        wetsuitThickness:    form.wetsuitThickness,
+        buddyName:           form.buddy || null,
+        isOfficial:          form.isOfficial,
+        ...(form.isOfficial
+          ? {
+              verificationType:       form.verificationType,
+              verifierName:           form.verifierName || null,
+              verifierAgency:         form.verifierAgency,
+              verifierCertNumber:     form.verifierCertNumber || null,
+              verifierSignatureTyped: form.verifierSignatureTyped || null,
+            }
+          : null),
+        ...(form.scubaSubtypes.includes('Night')
+          ? { night: { lightSource: form.nightLightSource, ambientLight: form.nightAmbientLight, visibilityFt: numOrNull(form.nightVisibility) } }
+          : null),
+        ...(form.scubaSubtypes.includes('Deep')
+          ? { deep: { confirmedFromComputer: form.deepConfirmedFromComputer, narcosisExperienced: form.deepNarcosisExperienced, narcosisNotes: form.deepNarcosisNotes || null, gasPlan: form.deepGasPlan || null } }
+          : null),
+      }
+    : null;
+
+  const notes = [form.notes.trim(), form.sightingNotes.trim() ? `Sightings: ${form.sightingNotes.trim()}` : '']
+    .filter(Boolean)
+    .join('\n\n');
+
+  return {
+    spot_id:   spotId,
+    dive_at:   parseDiveAt(form.date, form.entryTime),
+    dive_type: DIVE_TYPE_MAP[form.diveType] ?? 'scuba',
+    privacy:   form.shareToCommunity ? 'public' : 'private',
+    observed,
+    scuba,
+    photos:    form.photos.slice(0, 20),
+    notes:     notes ? notes.slice(0, 4000) : null,
+    client_platform: 'web',
+    client_version:  '1.0.0',
+  };
+}
+
 // ─── Post-publish success view ────────────────────────────────────────────
 
-const PUBLISHED_DIVE = {
-  id: 'd148',
-  spot: 'Electric Beach',
-  region: "O'AHU · LEEWARD COAST",
-  diveType: '🤿 Scuba',
-  date: 'Wed, Apr 15',
-  time: '2:30 PM → 3:28 PM',
-  // Realistic post-publish values (not the placeholder dashes from the form)
-  depthFt: 68,
-  durationMin: 58,
-  vizFt: 56,
-  waterTempF: 79,
-  stars: 4,
-  totalDives: 148, // bumped from 147 by this entry
-};
+interface Achievement {
+  emoji: string;
+  title: string;
+  description: string;
+  tier: 'gold' | 'silver';
+}
 
-const UNLOCKED_ACHIEVEMENT = {
-  emoji: '👁',
-  title: 'Glass-off',
-  description: '60ft+ visibility logged · 1st time this month',
-  tier: 'gold' as const,
-};
+/** Glass-off earn bar. Previously the success screen rendered the
+ *  Glass-off card unconditionally (it "fired" on a 44 ft log); the
+ *  achievement requires at least this much logged visibility. */
+const GLASS_OFF_MIN_VISIBILITY_FT = 60;
+
+/**
+ * Evaluate achievements against the dive that was actually published.
+ * Glass-off is the only achievement defined today — anything added
+ * here must gate on the logged data, never render unconditionally.
+ */
+function evaluateAchievements(form: FormState): Achievement[] {
+  const earned: Achievement[] = [];
+  if (form.visibility >= GLASS_OFF_MIN_VISIBILITY_FT) {
+    earned.push({
+      emoji: '👁',
+      title: 'Glass-off',
+      description: `${GLASS_OFF_MIN_VISIBILITY_FT}ft+ visibility logged (${form.visibility} ft)`,
+      tier: 'gold',
+    });
+  }
+  return earned;
+}
+
+/** 148 → "148th", handling 1st/2nd/3rd and the 11th–13th exceptions. */
+function ordinal(n: number): string {
+  const mod100 = n % 100;
+  if (mod100 >= 11 && mod100 <= 13) return `${n}th`;
+  switch (n % 10) {
+    case 1: return `${n}st`;
+    case 2: return `${n}nd`;
+    case 3: return `${n}rd`;
+    default: return `${n}th`;
+  }
+}
+
+/** Success-screen metric formatting: a field the user never filled in
+ *  (blank string, or 0 — the numeric fields' "not entered" sentinel)
+ *  renders as N/A rather than a fake zero reading. */
+function fmtMetric(v: string | number): string {
+  const n = typeof v === 'number' ? v : Number(v);
+  if ((typeof v === 'string' && v.trim() === '') || !Number.isFinite(n) || n <= 0) return 'N/A';
+  return String(n);
+}
 
 const NOTIFICATIONS_SENT = [
   { initials: 'KM', name: 'Kai M.',     reason: 'follows Electric Beach' },
@@ -568,13 +812,25 @@ const NOTIFICATIONS_SENT = [
 
 function PublishedView({
   form,
+  result,
+  spotId,
+  totalDives,
   onAnother,
   onNavigate,
 }: {
   form: FormState;
+  result: SubmitDiveLogResult;
+  spotId: string;
+  totalDives: number | null;
   onAnother: () => void;
   onNavigate?: NavigateFn;
 }) {
+  const earned = evaluateAchievements(form);
+  const achievement = earned[0] ?? null;
+  const timeRange =
+    form.entryTime && form.exitTime ? ` · ${form.entryTime} → ${form.exitTime}`
+    : form.entryTime ? ` · ${form.entryTime}`
+    : '';
   return (
     <View style={styles.publishedRoot}>
       {/* Success hero */}
@@ -586,27 +842,29 @@ function PublishedView({
         </View>
         <Text style={styles.successHeadline}>Dive logged</Text>
         <Text style={styles.successSub}>
-          {diveTypeWithEmoji(form.diveType)} at <Text style={styles.successSubAccent}>{form.spot}</Text> · {form.date} · {form.entryTime} → {form.exitTime}
+          {diveTypeWithEmoji(form.diveType)} at <Text style={styles.successSubAccent}>{form.spot}</Text> · {form.date}{timeRange}
         </Text>
-        <Text style={styles.successTotal}>
-          That's your <Text style={styles.successTotalAccent}>{PUBLISHED_DIVE.totalDives}th dive</Text> on KaiCast
-        </Text>
+        {totalDives !== null && totalDives > 0 ? (
+          <Text style={styles.successTotal}>
+            That's your <Text style={styles.successTotalAccent}>{ordinal(totalDives)} dive</Text> on KaiCast
+          </Text>
+        ) : null}
       </View>
 
       {/* Summary card */}
       <View style={styles.summaryCard}>
         <View style={styles.summaryHeader}>
           <Text style={styles.summaryHeaderTitle}>Dive summary</Text>
-          <Text style={styles.summaryHeaderId}>#{PUBLISHED_DIVE.id}</Text>
+          <Text style={styles.summaryHeaderId}>#{result.logId}</Text>
         </View>
         <View style={styles.summaryMetricsRow}>
-          <SummaryMetric label="Max depth"  value={form.depthMax || '—'}     unit="FT" />
+          <SummaryMetric label="Max depth"  value={fmtMetric(form.depthMax)}   unit="FT" />
           <SummaryMetricDivider />
-          <SummaryMetric label="Bottom time" value={form.bottomTime || '—'}   unit="MIN" />
+          <SummaryMetric label="Bottom time" value={fmtMetric(form.bottomTime)} unit="MIN" />
           <SummaryMetricDivider />
-          <SummaryMetric label="Visibility"  value={String(form.visibility)}  unit="FT" accent />
+          <SummaryMetric label="Visibility"  value={fmtMetric(form.visibility)} unit="FT" accent />
           <SummaryMetricDivider />
-          <SummaryMetric label="Water temp"  value={String(form.waterTemp)}   unit="°F" />
+          <SummaryMetric label="Water temp"  value={fmtMetric(form.waterTemp)}  unit="°F" />
           <SummaryMetricDivider />
           <View style={styles.summaryRatingWrap}>
             <Text style={styles.summaryMetricLabel}>RATING</Text>
@@ -622,24 +880,27 @@ function PublishedView({
         </View>
       </View>
 
-      {/* Two side-by-side cards: achievement + notifications */}
+      {/* Two side-by-side cards: achievement (only when actually earned)
+          + notifications */}
       <View style={styles.afterRow}>
-        <View style={styles.achievementCard}>
-          <View style={styles.achievementHeader}>
-            <View style={styles.achievementPulseDot} />
-            <Text style={styles.achievementHeaderText}>ACHIEVEMENT UNLOCKED</Text>
-          </View>
-          <View style={styles.achievementBody}>
-            <Text style={styles.achievementEmoji}>{UNLOCKED_ACHIEVEMENT.emoji}</Text>
-            <View style={styles.achievementTextWrap}>
-              <Text style={styles.achievementTitle}>{UNLOCKED_ACHIEVEMENT.title}</Text>
-              <Text style={styles.achievementDesc}>{UNLOCKED_ACHIEVEMENT.description}</Text>
+        {achievement ? (
+          <View style={styles.achievementCard}>
+            <View style={styles.achievementHeader}>
+              <View style={styles.achievementPulseDot} />
+              <Text style={styles.achievementHeaderText}>ACHIEVEMENT UNLOCKED</Text>
             </View>
+            <View style={styles.achievementBody}>
+              <Text style={styles.achievementEmoji}>{achievement.emoji}</Text>
+              <View style={styles.achievementTextWrap}>
+                <Text style={styles.achievementTitle}>{achievement.title}</Text>
+                <Text style={styles.achievementDesc}>{achievement.description}</Text>
+              </View>
+            </View>
+            <Pressable style={styles.achievementShareBtn}>
+              <Text style={styles.achievementShareText}>Share to feed</Text>
+            </Pressable>
           </View>
-          <Pressable style={styles.achievementShareBtn}>
-            <Text style={styles.achievementShareText}>Share to feed</Text>
-          </Pressable>
-        </View>
+        ) : null}
 
         <View style={styles.notifyCard}>
           <View style={styles.notifyHeader}>
@@ -674,7 +935,7 @@ function PublishedView({
       <View style={styles.actionsRow}>
         <Pressable
           style={[styles.actionBtn, styles.actionBtnPrimary]}
-          onPress={() => onNavigate?.('spot-detail', { spotId: 'electric-beach' })}
+          onPress={() => onNavigate?.('spot-detail', { spotId })}
         >
           <Text style={styles.actionBtnPrimaryIcon}>↗</Text>
           <Text style={styles.actionBtnPrimaryText}>View on spot page</Text>
@@ -732,12 +993,16 @@ function SummaryMetricDivider() {
 function LeftPreview({
   form,
   draftSavedAt,
+  publishing,
+  publishError,
   onPublish,
   onSaveDraft,
   onShareToggle,
 }: {
   form: FormState;
   draftSavedAt: number | null;
+  publishing: boolean;
+  publishError: string | null;
   onPublish: () => void;
   onSaveDraft: () => void;
   onShareToggle: () => void;
@@ -845,22 +1110,28 @@ function LeftPreview({
           separately by computeMissingOfficialFields. */}
       {(() => {
         const missingSpot = form.spot.trim() === '';
+        const blocked = missingSpot || publishing;
         return (
           <>
             <Pressable
-              style={[styles.publishBtn, missingSpot && styles.publishBtnDisabled]}
-              onPress={missingSpot ? undefined : onPublish}
-              disabled={missingSpot}
+              style={[styles.publishBtn, blocked && styles.publishBtnDisabled]}
+              onPress={blocked ? undefined : onPublish}
+              disabled={blocked}
             >
               <Text style={styles.publishBtnIcon}>↑</Text>
               <Text style={styles.publishBtnText}>
-                {form.diveType === 'Scuba' && form.isOfficial ? 'Sign and publish' : 'Publish dive log'}
+                {publishing
+                  ? 'Publishing…'
+                  : form.diveType === 'Scuba' && form.isOfficial ? 'Sign and publish' : 'Publish dive log'}
               </Text>
             </Pressable>
             {missingSpot ? (
               <Text style={styles.publishHint}>
                 Pick a dive spot (or drop a pin) before publishing.
               </Text>
+            ) : null}
+            {publishError && !publishing ? (
+              <Text style={styles.publishErrorText}>⚠ {publishError}</Text>
             ) : null}
           </>
         );
@@ -3182,6 +3453,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.text3,
     textAlign: 'center',
+    marginTop: -4,
+  },
+  publishErrorText: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.nogo,
     marginTop: -4,
   },
   publishBtnIcon: {
