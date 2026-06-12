@@ -37,6 +37,12 @@ service cloud.firestore {
                     && !request.resource.data.diff(resource.data).affectedKeys()
                          .hasAny([
                            'profile', 'prefs', 'meta', 'phone',
+                           // captainLicense gates captain's-log writes
+                           // (see hasCaptainsLicense below) — it must be
+                           // server-only so a client can't self-grant the
+                           // ability to file logs. Written via the
+                           // updateUserSetting callable (Admin SDK).
+                           'captainLicense',
                            'accountType', 'orgId', 'orgMemberships',
                            'activeOrgIds',
                            'proAccess', 'proSource', 'proExpiresAt',
@@ -126,12 +132,18 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // Per-spot calibration bias offsets (server-managed by future
-    // nightly job). Public read so the client can show "model
-    // calibration: ±2 ft at this spot" later.
+    // Per-spot calibration bias offsets + condition-stratified bias
+    // buckets (subcollection), written nightly by the
+    // nightlyCalibration job from diveLogs deltas. Public read so the
+    // client can show "model calibration: ±2 ft at this spot".
     match /abyss_calibration/{spotId} {
       allow read:  if true;
       allow write: if false;
+
+      match /buckets/{bucketKey} {
+        allow read:  if true;
+        allow write: if false;
+      }
     }
 
     // Per-spot daily rollup stats. Server-managed, public read.
@@ -198,6 +210,20 @@ service cloud.firestore {
       return isCharterMember(orgId) || hasActiveCrewMembership(orgId);
     }
 
+    // Whether the requesting user has a captain's license number on
+    // their user doc. Gates filling out / submitting a captain's log:
+    //   canFillCaptainLog = isOwner(org admin) || hasCaptainsLicense()
+    // Mirrors the client-side predicate. captainLicense is server-only
+    // (written via the updateUserSetting callable) so this can't be
+    // self-granted. A captain/deckhand with a license can file; without
+    // one they cannot — incident-flag logs need a real credential.
+    function hasCaptainsLicense() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.captainLicense is string
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.captainLicense.size() > 0;
+    }
+
     match /charter_accounts/{orgId} {
       // Org doc — read by admin OR any active crew member (crew need
       // the org name + harbor info to render their dashboard). Writes
@@ -251,13 +277,25 @@ service cloud.firestore {
         //   the float plan, append the captain's log, and the trip
         //   status (saveCaptainsLog flips status to 'completed' as
         //   part of filing). All other fields stay admin-controlled.
+        //
+        //   Filling out the captain's log additionally requires a
+        //   captain's license on the writer's user doc — the log
+        //   carries USCG/DLNR incident flags, so a deckhand-captain
+        //   without a recorded credential can file the float plan but
+        //   not the log itself. The org admin (isCharterMember) is the
+        //   owner and is always allowed.
         allow read: if hasOrgAccess(orgId);
         allow create, delete: if isCharterMember(orgId);
         allow update: if isCharterMember(orgId)
                       || (hasActiveCrewMembership(orgId)
                           && resource.data.captainUid == request.auth.uid
                           && request.resource.data.diff(resource.data).affectedKeys()
-                               .hasOnly(['floatPlanFiled', 'captainsLog', 'status']));
+                               .hasOnly(['floatPlanFiled', 'captainsLog', 'status'])
+                          && (
+                            !request.resource.data.diff(resource.data).affectedKeys()
+                               .hasAny(['captainsLog'])
+                            || hasCaptainsLicense()
+                          ));
       }
 
       match /alerts/{alertId} {
@@ -329,6 +367,52 @@ service cloud.firestore {
       match /boats/{boatId} {
         allow read, write: if isCharterMember(orgId);
       }
+    }
+
+    // ── Captain's daily logs (mobile Phase-1 path) ──────────────────────
+    //
+    // charter_logs/{logId} — one doc per (operatorId, date, vesselId),
+    // written client-side by the mobile app's useCharterLog hook (the
+    // desktop path keeps the log on the trip doc instead). The doc
+    // carries `operatorId` (the org id).
+    //
+    // Reads: any member of the org. Writes (create + update): the org
+    // admin (owner) OR a member with a captain's license on their user
+    // doc — same canFillCaptainLog predicate enforced in the UI, since
+    // these logs carry USCG/DLNR incident flags and UI hiding alone is
+    // not a real gate. Deletes are denied (logs are an audit record;
+    // archival is a status flip, not a delete).
+    //
+    // conditionsSnapshot is the immutable, server-resolved record of what
+    // the ocean was doing that day (mirrors diveLogs.predicted_at_time).
+    // It feeds the bias-calibration flywheel, so a buggy or malicious
+    // client must not be able to write or alter it: the only writer is the
+    // generateCaptainsLog callable (Admin SDK, bypasses these rules).
+    // Clients may create the doc with no snapshot (or an explicit null)
+    // and may keep re-writing the server-set value unchanged on autosave,
+    // but may never introduce a different value.
+    function snapshotUntouchedOnCreate() {
+      return !('conditionsSnapshot' in request.resource.data)
+             || request.resource.data.conditionsSnapshot == null;
+    }
+    function snapshotUntouchedOnUpdate() {
+      return !('conditionsSnapshot' in request.resource.data)
+             || request.resource.data.conditionsSnapshot
+                  == resource.data.get('conditionsSnapshot', null);
+    }
+    match /charter_logs/{logId} {
+      allow read: if hasOrgAccess(resource.data.operatorId);
+      allow create: if hasOrgAccess(request.resource.data.operatorId)
+                    && (isCharterMember(request.resource.data.operatorId)
+                        || hasCaptainsLicense())
+                    && snapshotUntouchedOnCreate();
+      allow update: if hasOrgAccess(resource.data.operatorId)
+                    && (isCharterMember(resource.data.operatorId)
+                        || hasCaptainsLicense())
+                    && resource.data.get('finalized', false) != true
+                    && resource.data.get('schema', '') != 'standalone-v1'
+                    && snapshotUntouchedOnUpdate();
+      allow delete: if false;
     }
 
     // Global harbor reference data. Public read so an unauthenticated

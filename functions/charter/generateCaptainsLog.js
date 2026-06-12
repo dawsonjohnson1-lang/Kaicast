@@ -33,12 +33,61 @@ const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const logger = require('firebase-functions/logger');
 const admin = require('firebase-admin');
 
+// Same server-trusted resolver the dive-log pipeline uses, so the
+// captain's-log conditionsSnapshot is a faithful mirror feeding the
+// SAME bias-calibration flywheel.
+const { resolveConditionsSnapshot } = require('../snapshotResolver');
+
 if (admin.apps.length === 0) {
   admin.initializeApp();
 }
 
 const BUCKET_NAME = process.env.CAPTAINS_LOG_BUCKET || 'kaicast-charter-logs';
 const SIGNED_URL_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+const MIDDAY_OFFSET_MS = 12 * 3600 * 1000; // noon HST — representative operating hour.
+
+/**
+ * Resolve the operating spot used for the day's conditions snapshot.
+ * Prefers the spot the client seeded (`log.primarySpotId`, defaulted to
+ * the captain's home spot); falls back to the org's first operating spot
+ * so a log seeded without a home spot still anchors to a real location.
+ * Returns null when the org has no operating spots — the snapshot is then
+ * skipped (mirrors dive logs: a null snapshot is valid, calibration skips it).
+ */
+async function resolvePrimarySpotId(db, log) {
+  if (log.primarySpotId) return log.primarySpotId;
+  try {
+    const snap = await db
+      .collection('charter_accounts').doc(log.operatorId)
+      .collection('spots').orderBy('name').limit(1).get();
+    if (!snap.empty) {
+      // Translate to the PUBLIC spot id kaicast_reports is keyed by — the
+      // charter spot's own (auto-id) doc-id would never resolve a report.
+      const d = snap.docs[0];
+      const linked = d.data()?.linkedPublicSpotId;
+      return typeof linked === 'string' && linked.length > 0 ? linked : d.id;
+    }
+  } catch (err) {
+    logger.warn('[captains-log] primary-spot lookup failed', {
+      operatorId: log.operatorId, error: err?.message || String(err),
+    });
+  }
+  return null;
+}
+
+/**
+ * One snapshot per day at the operating spot. We resolve at noon HST of
+ * the log's date — a representative operating hour — but never in the
+ * future (a log finalized mid-morning resolves against `now` instead so
+ * a report actually exists). Per-trip snapshots are out of scope: trips
+ * don't yet carry spot + time. Once they do, this can resolve per trip.
+ */
+function snapshotTimeFor(dateMs) {
+  const nowMs = Date.now();
+  const midday = (Number.isFinite(dateMs) ? dateMs : nowMs) + MIDDAY_OFFSET_MS;
+  return Math.min(nowMs, midday);
+}
 
 exports.generateCaptainsLog = onCall(
   {
@@ -69,15 +118,48 @@ exports.generateCaptainsLog = onCall(
       throw new HttpsError('permission-denied', 'Not a member of this charter.');
     }
 
+    // ── Capture the immutable conditions snapshot (once) ───────────
+    // Mirrors the dive-log pipeline: server-resolved (never
+    // client-supplied) so a buggy or malicious client can't corrupt the
+    // calibration dataset. One snapshot per day at the operating spot,
+    // captured at finalize and immutable thereafter (a re-render keeps
+    // the original; only an absent snapshot is backfilled). A null
+    // snapshot is valid — the nightly calibration job skips it, exactly
+    // as it does for dive logs that couldn't resolve.
+    const writes = {};
+    if (!log.conditionsSnapshot) {
+      const primarySpotId = await resolvePrimarySpotId(db, log);
+      let snapshot = null;
+      if (primarySpotId) {
+        try {
+          snapshot = await resolveConditionsSnapshot(primarySpotId, snapshotTimeFor(log.date));
+        } catch (err) {
+          // A resolver failure must never block finalize / PDF render.
+          logger.warn('[captains-log] snapshot resolution failed', {
+            logDocId, primarySpotId, error: err?.message || String(err),
+          });
+        }
+      }
+      writes.primarySpotId = primarySpotId || null;
+      writes.conditionsSnapshot = snapshot;
+      log.primarySpotId = writes.primarySpotId;
+      log.conditionsSnapshot = snapshot;
+    }
+
+    // zeroTripDay — a finalized log with no trips is valid (weather-out,
+    // maintenance day). Recorded explicitly so the calibration job can
+    // distinguish "ran nothing" from "forgot to log".
+    writes.zeroTripDay = (Array.isArray(log.trips) ? log.trips.length : 0) === 0;
+
     // Flip status if still draft. (The client also flips locally; this
     // is the authoritative write so the rendered document sees the
     // final state.)
     if (log.status === 'draft') {
-      await ref.set({
-        status: 'submitted',
-        submittedAt: admin.firestore.FieldValue.serverTimestamp(),
-      }, { merge: true });
+      writes.status = 'submitted';
+      writes.submittedAt = admin.firestore.FieldValue.serverTimestamp();
     }
+
+    await ref.set(writes, { merge: true });
 
     // ── Render both themes ─────────────────────────────────────────
     const darkHtml  = renderHtml(log, { theme: 'dark'  });

@@ -176,12 +176,57 @@ export interface CharterLogSignOff {
   signedAt: number;   // epoch ms
 }
 
+/**
+ * Immutable conditions snapshot — the SAME shape the dive-log pipeline
+ * stores at `diveLogs.predicted_at_time` (functions/types/schema.js
+ * DivePredicted). Resolved SERVER-SIDE at finalize (generateCaptainsLog)
+ * for `primarySpotId` on the log's date, then never mutated. It is the
+ * historical record of what the ocean was doing that day and feeds the
+ * bias-calibration flywheel exactly like dive logs.
+ *
+ * Server-written only — clients never set this (enforced in
+ * firestore.rules). `null` is a valid value (nothing resolved within the
+ * match window); the calibration job skips null snapshots.
+ */
+export interface ConditionsSnapshot {
+  snapshot_source: 'forecast' | 'cold_storage';
+  snapshot_at_iso: string;
+  resolved_within_min: number;
+  hour_key: string;
+  sources: string[];
+  qc_flags: string[];
+  visibility_ft: number | null;
+  visibility_rating: 'Poor' | 'Fair' | 'Good' | 'Excellent' | null;
+  wave_height_ft: number | null;
+  wave_period_s: number | null;
+  wave_direction_deg: number | null;
+  wind_speed_kt: number | null;
+  wind_gust_kt: number | null;
+  wind_direction_deg: number | null;
+  wind_relation: 'onshore' | 'offshore' | 'cross' | 'unknown' | null;
+  tide_state: 'rising' | 'falling' | 'high' | 'low' | 'unknown' | null;
+  tide_height_ft: number | null;
+  water_temp_f: number | null;
+  air_temp_f: number | null;
+  surge_rating: number | null;
+  sun_altitude_deg: number | null;
+  sun_azimuth_deg: number | null;
+  in_shadow: boolean | null;
+  light_factor: number | null;
+  confidence_score: number | null;
+}
+
 export interface CharterLog {
   logId: string;
   date: number;          // epoch ms — start-of-day in HST
   operatorId: string;
   vesselId: string;
   vesselName: string;
+  /** uid of the member who created the log (denormalized for provenance —
+   *  the write gate is license-based, see firestore.rules). */
+  authorId?: string;
+  /** Display name of the author at create time. Mirrors captainName. */
+  authorName?: string;
   captainName: string;
   captainLicense: string;
   harborDeparture: string;
@@ -190,6 +235,20 @@ export interface CharterLog {
   trips: CharterLogTrip[];
   crew: CharterLogCrew[];
   dailyAlerts: string;
+
+  /** Operating spot used for the conditions snapshot. Seeded from the
+   *  captain's home spot; the server falls back to the org's first
+   *  operating spot if unset. Canonical KaiCast spot id. */
+  primarySpotId?: string | null;
+  /** Immutable, server-resolved conditions snapshot (see type doc).
+   *  Written by generateCaptainsLog at finalize; null until then or when
+   *  nothing resolved. Clients never write this. */
+  conditionsSnapshot?: ConditionsSnapshot | null;
+  /** True when a finalized log has zero trips (weather-out / maintenance
+   *  day). A valid, finalizable state — set server-side at finalize. */
+  zeroTripDay?: boolean;
+  /** serverTimestamp epoch ms — set once when the doc is first seeded. */
+  createdAt?: number;
 
   // ── New Phase 1 day-level fields ──
   /** Side-by-side conditions matrix — Abyss auto-fill on the left,

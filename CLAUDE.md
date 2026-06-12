@@ -8,11 +8,10 @@ this before making structural changes.
 ## Source of truth for deployable code
 
 `firebase.json` sets `"functions": { "source": "functions" }`. **Only
-`functions/` deploys.** The repo-root copies of `analysis.js`,
-`buoy_Version2.js`, `index.js`, `tides.js`, `webflow.js` are stale —
-their content has drifted from `functions/`'s. **Do not edit them.**
-A future commit should delete the root copies but the cleanup is
-explicitly out of scope on every active task to keep diffs reviewable.
+`functions/` deploys.** The stale repo-root copies of `analysis.js`,
+`buoy_Version2.js`, `index.js`, `tides.js`, `webflow.js` were deleted
+in 864405c — if one reappears (bad merge, stray editor save), delete
+it; never edit it.
 
 ## Firebase Functions: v2, Node 20, us-central1
 
@@ -34,8 +33,8 @@ semantics into the existing infrastructure:
 | current_conditions     | `kaicast_reports/{spotId}_{hourKey}.now`         | `getReport`, hourly `scheduler`  |
 | forecast               | `kaicast_reports/{spotId}_{hourKey}.windows + .days` | same                         |
 | community_overlay      | `community_overlays/{spotId}`                    | `submitDiveLog` (txn)            |
-| calibration            | `abyss_calibration/{spotId}`                     | (future nightly job)             |
-| spot_stats daily       | `spot_stats/{spotId}/daily/{yyyy-mm-dd}`         | (future nightly job)             |
+| calibration            | `abyss_calibration/{spotId}` + `…/buckets/{bucketKey}` | `nightlyCalibration` (03:10 HST) |
+| spot_stats daily       | `spot_stats/{spotId}/daily/{yyyy-mm-dd}`         | `nightlyCalibration` (03:10 HST) |
 
 `community_overlays` is a separate stable doc — NOT a sub-object of
 `kaicast_reports.now` — because the hourly scheduler rewrites
@@ -94,30 +93,45 @@ After path-B switch:
 - `users` and its subcollections (favorites, following, followers,
   devices) — unchanged.
 
-## Next steps (deliberately out of scope on the snapshot-on-submit task)
+## Calibration loop (SHIPPED — no longer a next step)
 
-- **Nightly calibration job.** Reads `diveLogs` from the previous N
-  days, groups by spot, computes mean signed delta + conditional
-  biases (low-light, onshore-trade-15kt+, etc.), writes
-  `abyss_calibration/{spotId}.bias_offsets` + `conditional_biases`.
-  Then `buildSpotReport` calls `applyCalibration` from
-  `abyss/calibration.js` before returning the report.
+`functions/nightlyCalibration.js` (03:10 HST) reads the last 60 days
+of `diveLogs`, computes per-spot bias / MAE / R² / confidence
+(recency- and observation-quality-weighted) plus condition buckets
+(`swell_*`, `tide_*`, `tod_*`, `runoff_*`) and writes
+`abyss_calibration/{spotId}` + `…/buckets/{bucketKey}`.
+`buildSpotReport` applies them via `abyss/calibrate.js`
+(`applyCalibrationToVisibility`) to the now-visibility and all 56
+windows BEFORE writing `kaicast_reports` — so future deltas measure
+the calibrated model and the loop self-stabilizes. Corrections are
+confidence-scaled and capped (±50% of prediction, ±15 ft).
+`deltas.rating_mismatch` (boolean) was replaced by signed
+`deltas.rating_delta` (−3..+3). The legacy `abyss/calibration.js`
+and `abyss/spotConfig.js` were deleted — `abyss/calibrate.js` and
+`SPOTS` in `index.js` are the only calibration/spot-config sources.
+Tests: `npm test` inside `functions/`.
+
+`kaicast_reports` docs now carry a top-level `dataQuality` block
+(satellite vs heuristic + freshness tier) mirrored from
+`now.visibility.dataQuality`.
+
+The same nightly job also writes `spot_stats/{spotId}/daily/{date}`
+descriptive rollups (unweighted, whole window recomputed nightly), and
+`claimAnonymousLogs` rewrites `anon:{token}` dive logs to the authed
+uid after sign-up (token = proof of ownership; stamps
+`claimed_from_anon` + `claimed_at`).
+
+## Next steps (deliberately out of scope)
+
 - **Monthly recalibration window.** Slower-moving conditional biases
   (seasonal effects, runoff calibration) recomputed from the full
-  ~30-day window vs. nightly's rolling 7-day.
-- **Anonymous-log claim flow** (`claimAnonymousLogs` callable). The
-  `submitDiveLog` callable already accepts an `anonymous_claim_token`
-  and tags logs with `uid: 'anon:{token}'`. The claim flow would
-  rewrite those uids to the authed Firebase uid once the user signs up.
-- **RN client refactor**. The compat wrapper in
-  `app/src/api/diveLogs.ts` keeps the existing flow working but
-  doesn't fully take advantage of the server response (which now
-  returns `snapshot_source`, `resolved_within_min`,
-  `community_overlay_updated`). A future refactor could surface
-  "your report just updated the community overlay for this spot" in
-  the post-log success screen.
-- **Delete repo-root duplicate files** (`/analysis.js`, `/index.js`,
-  etc.) once everyone confirms nothing local references them.
+  ~30-day window vs. the nightly job's recency-weighted 60-day window.
+- **Anonymous logging UI.** The backend claim flow is live
+  (`claimAnonymousLogs` + `anonymous_claim_token` on submit), but the
+  RN app has no anonymous logging mode — when one ships, generate a
+  token client-side, log with it pre-auth, and call the claim callable
+  on sign-up. (The post-log "your report updated live conditions"
+  feedback and the dataQuality badge are already wired in both clients.)
 
 ## Spot list — four canonical mirrors, keep in sync
 

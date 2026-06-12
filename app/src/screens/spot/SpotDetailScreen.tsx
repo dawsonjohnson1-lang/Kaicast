@@ -215,23 +215,50 @@ function OverviewTab({
       </Row>
 
 
-      {!!backend?.now?.visibility?.rationale?.length && (
+      {!!(backend?.now?.visibility?.rationale?.length || backend?.now?.visibility?.dataQuality) && (
         <Card>
           <Text style={typography.caption}>WHY {backend.now.visibility.estimatedVisibilityFeet ?? r.visibilityFt} FT?</Text>
-          <View style={{ marginTop: spacing.sm, gap: 6 }}>
-            {backend.now.visibility.rationale.map((line, idx) => {
-              const sign = line.match(/-(\d+)%/) ? '-' : line.match(/\+(\d+)%/) ? '+' : null;
-              const color =
-                sign === '+' ? colors.excellent :
-                sign === '-' ? '#FFB347' :
-                colors.textSecondary;
-              return (
-                <Text key={idx} style={{ ...typography.bodySm, color }}>
-                  {line}
-                </Text>
+          {!!backend.now.visibility.rationale?.length && (
+            <View style={{ marginTop: spacing.sm, gap: 6 }}>
+              {backend.now.visibility.rationale.map((line, idx) => {
+                const sign = line.match(/-(\d+)%/) ? '-' : line.match(/\+(\d+)%/) ? '+' : null;
+                const color =
+                  sign === '+' ? colors.excellent :
+                  sign === '-' ? '#FFB347' :
+                  colors.textSecondary;
+                return (
+                  <Text key={idx} style={{ ...typography.bodySm, color }}>
+                    {line}
+                  </Text>
+                );
+              })}
+            </View>
+          )}
+          {(() => {
+            // Data-quality footer: satellite vs heuristic, plus the
+            // dive-log calibration note when corrections are active.
+            const dq = backend.now.visibility.dataQuality;
+            const cal = backend.now.visibility.calibration;
+            const parts: string[] = [];
+            if (dq?.source === 'satellite') {
+              parts.push(
+                dq.freshness === 'aging' || dq.freshness === 'stale'
+                  ? `Satellite-derived · refresh ${Math.round(dq.satelliteFetchAgeHours ?? 0)}h ago`
+                  : 'Satellite-derived (KD490)',
               );
-            })}
-          </View>
+            } else if (dq?.source === 'heuristic') {
+              parts.push('Estimated from wind, swell & tide — no recent satellite data');
+            }
+            if (cal?.applied && cal.sampleCount) {
+              parts.push(`tuned by ${cal.sampleCount} diver report${cal.sampleCount === 1 ? '' : 's'}`);
+            }
+            if (!parts.length) return null;
+            return (
+              <Text style={{ ...typography.bodySm, color: colors.textSecondary, marginTop: spacing.sm, opacity: 0.8 }}>
+                {parts.join(' · ')}
+              </Text>
+            );
+          })()}
         </Card>
       )}
 

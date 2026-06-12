@@ -40,12 +40,17 @@ const AUTOSAVE_DEBOUNCE_MS = 2000;
 
 type HydrationSeed = {
   operatorId: string;
+  /** uid of the creating member — recorded as the log author. */
+  authorId: string;
   vesselId: string;
   vesselName: string;
   captainName: string;
   captainLicense: string;
   harborDeparture: string;
   dailyAlerts: string;
+  /** Operating spot for the conditions snapshot (captain's home spot).
+   *  null lets the server fall back to the org's first operating spot. */
+  primarySpotId: string | null;
   trips: CharterLogTrip[];
   crew: CharterLogCrew[];
 };
@@ -72,6 +77,8 @@ function buildEmptyLog(dateMs: number, seed: HydrationSeed): CharterLog {
     logId: buildLogIdLabel(dateMs, seed.vesselId),
     date: dateMs,
     operatorId: seed.operatorId,
+    authorId: seed.authorId,
+    authorName: seed.captainName,
     vesselId: seed.vesselId,
     vesselName: seed.vesselName,
     captainName: seed.captainName,
@@ -82,6 +89,11 @@ function buildEmptyLog(dateMs: number, seed: HydrationSeed): CharterLog {
     trips,
     crew: seed.crew,
     dailyAlerts: seed.dailyAlerts,
+    // Snapshot fields — primarySpotId is seeded; conditionsSnapshot is
+    // resolved server-side at finalize (generateCaptainsLog), never here.
+    primarySpotId: seed.primarySpotId,
+    conditionsSnapshot: null,
+    zeroTripDay: trips.length === 0,
     // Day-level Phase 1 fields seeded empty — captain fills in.
     conditions: {
       abyss:    emptyAbyssConditions(),
@@ -95,6 +107,22 @@ function buildEmptyLog(dateMs: number, seed: HydrationSeed): CharterLog {
     totalTrips: trips.length,
     incidents: 0,
   };
+}
+
+/**
+ * Strip server-owned snapshot fields before a client merge-write.
+ *
+ * `conditionsSnapshot` (and the `primarySpotId` it's anchored to) are
+ * resolved + written server-side at finalize and are immutable / locked
+ * in firestore.rules. They're seeded once on create; the debounced
+ * autosaves must NOT echo them back — if onSnapshot hasn't yet delivered
+ * the server-set snapshot, a stale value would be rejected by the rules
+ * and surface as a spurious save error. merge:true leaves the existing
+ * server values untouched when the keys are absent.
+ */
+function toWritablePatch(log: CharterLog): Record<string, unknown> {
+  const { conditionsSnapshot: _s, primarySpotId: _p, ...rest } = log;
+  return rest;
 }
 
 type State = {
@@ -159,7 +187,11 @@ export function useCharterLog(
         if (!initial.exists()) {
           // First open of the day — seed the doc.
           const seeded = buildEmptyLog(dateMs, seed);
-          await setDoc(ref, { ...seeded, updatedAt: serverTimestamp() });
+          await setDoc(ref, {
+            ...seeded,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
         }
       } catch (err) {
         if (!cancelled) {
@@ -208,7 +240,7 @@ export function useCharterLog(
       try {
         await setDoc(
           doc(db, 'charter_logs', id),
-          { ...next, updatedAt: serverTimestamp() },
+          { ...toWritablePatch(next), updatedAt: serverTimestamp() },
           { merge: true },
         );
         setState((s) => ({ ...s, saving: false }));
@@ -234,7 +266,7 @@ export function useCharterLog(
       if (!id || !next || !db) return;
       void setDoc(
         doc(db, 'charter_logs', id),
-        { ...next, updatedAt: serverTimestamp() },
+        { ...toWritablePatch(next), updatedAt: serverTimestamp() },
         { merge: true },
       );
     };
@@ -249,6 +281,7 @@ export function useCharterLog(
     next.totalGuests = totalGuestsOf(next.trips);
     next.totalTrips  = next.trips.length;
     next.incidents   = incidentsOf(next);
+    next.zeroTripDay = next.trips.length === 0;
     logRef.current = next;
     setState((s) => ({ ...s, log: next }));
     scheduleWrite();
@@ -291,7 +324,7 @@ export function useCharterLog(
     setState((s) => ({ ...s, saving: true }));
     await setDoc(
       doc(db, 'charter_logs', id),
-      { ...next, updatedAt: serverTimestamp() },
+      { ...toWritablePatch(next), updatedAt: serverTimestamp() },
       { merge: true },
     );
     setState((s) => ({ ...s, saving: false }));

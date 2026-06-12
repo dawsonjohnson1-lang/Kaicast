@@ -111,7 +111,7 @@ function waveOrbitalVelocityAtDepth(H, T, d, z) {
  * @param {number} opts.siteDepthM - total water depth at site (m)
  * @param {number} opts.targetDepthM - diver's target depth (m)
  * @param {string} [opts.sedimentType='coral_rubble'] - bottom type
- * @returns {{ orbitalVelocityMps, sedimentRisk, surgeRating, visibilityImpactM }}
+ * @returns {{ orbitalVelocityMps, bottomOrbitalVelocityMps, resuspensionThresholdMps, sedimentRisk, surgeRating, visibilityImpactM }}
  */
 function computeWaveImpactAtSite({
   waveHeightM,
@@ -122,6 +122,8 @@ function computeWaveImpactAtSite({
 } = {}) {
   const defaults = {
     orbitalVelocityMps: 0,
+    bottomOrbitalVelocityMps: 0,
+    resuspensionThresholdMps: RESUSPENSION_THRESHOLDS[sedimentType] || RESUSPENSION_THRESHOLDS.coral_rubble,
     sedimentRisk: 'none',
     surgeRating: 0,
     visibilityImpactM: 0,
@@ -165,6 +167,8 @@ function computeWaveImpactAtSite({
 
   return {
     orbitalVelocityMps: Math.round(orbVel * 1000) / 1000,
+    bottomOrbitalVelocityMps: Math.round(bottomVel * 1000) / 1000,
+    resuspensionThresholdMps: threshold,
     sedimentRisk,
     surgeRating,
     visibilityImpactM: visImpactM,

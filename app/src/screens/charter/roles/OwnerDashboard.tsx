@@ -12,6 +12,7 @@ import { TripCard } from '@/components/charter/TripCard';
 import { CrewRoster } from '@/components/charter/CrewRoster';
 import { AlertBanner, type CharterAlert } from '@/components/charter/AlertBanner';
 import { TRIP_CONDITION_TO_TIER } from '@/types/charter';
+import { CharterTwoDayForecast } from '../CharterTwoDayForecast';
 import type { Vessel, Trip, CrewMember } from '@/types/charter';
 
 const MOCK_ALERTS: CharterAlert[] = [
@@ -67,6 +68,10 @@ export function OwnerDashboard({
             );
           })}
         </View>
+      </Section>
+
+      <Section title="Conditions outlook" meta="today + tomorrow · per vessel">
+        <CharterTwoDayForecast vessel={vessel} trips={trips} />
       </Section>
 
       <Section title="Upcoming trips" meta={`${trips.length} scheduled`}>

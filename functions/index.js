@@ -154,6 +154,7 @@ function applyExposureToMaps(spot, maps) {
 }
 const { pushAllReportsToWebflow } = require('./webflow');
 const { estimateVisibilityAbyss } = require('./abyss/abyss');
+const { loadSpotCalibration, applyCalibrationToVisibility } = require('./abyss/calibrate');
 const { fetchOceanColor } = require('./abyss/kd490');
 const { computeDaySolarEvents } = require('./abyss/solar');
 const { getHorizonProfile } = require('./abyss/horizon');
@@ -719,8 +720,11 @@ const SPOTS = [
     siteType: 'reef',
     maxDepthM: 12,
     typicalDiveDepthM: 6,
-    sedimentType: 'reef',
-    sedimentSensitivity: 'low',
+    // The namesake reef tables sit amid sand/rubble channels that
+    // stir on any real north swell — carried over from the retired
+    // abyss/spotConfig.js, which characterized this correctly.
+    sedimentType: 'coral_rubble',
+    sedimentSensitivity: 'medium',
   },
   {
     id: 'pupukea-beach',
@@ -1238,6 +1242,13 @@ function buildHorizonHourly({ owHourly, buoyData, marineForecast, nowMs, horizon
   return horizon;
 }
 
+// HST wall-clock hour (UTC-10, no DST — all spots are in Hawaii).
+// Feeds the diurnal visibility profile, which expects local hours.
+const HST_OFFSET_MS = -10 * 3600000;
+function hstHourOf(ms) {
+  return new Date(ms + HST_OFFSET_MS).getUTCHours();
+}
+
 function buildWindows(hourlyItems, nowMs, count = 8) {
   const WINDOW_MS = 3 * 3600000;
   const windows   = [];
@@ -1356,7 +1367,7 @@ async function buildSpotReport({ spot, owHourly, buoyData, marineForecast, nowMs
 
   const confidenceScore = computeConfidenceScore({ nowMetrics, buoyData, closestHour });
 
-  const nowLocalHour = nowDate.getUTCHours(); // TODO: convert to spot tz when needed
+  const nowLocalHour = hstHourOf(nowMs);
   const nowSwellFt   = nowMetrics.waveHeightM != null ? nowMetrics.waveHeightM * 3.28084 : null;
 
   // Fetch satellite ocean-color ONCE for the whole spot. The "now"
@@ -1374,11 +1385,45 @@ async function buildSpotReport({ spot, owHourly, buoyData, marineForecast, nowMs
     logger.warn('buildSpotReport: fetchOceanColor threw', { spotId: spot.id, error: err.message });
   }
 
+  // Per-spot calibration from the nightly dive-log job — fetched once
+  // and applied to the "now" visibility and every forecast window
+  // below, each with its own condition context (tide phase / swell /
+  // time of day / runoff select which bias buckets blend in).
+  const spotCalibration = await loadSpotCalibration(db, spot.id);
+
+  // Community overlay: recent observed visibility from divers actually
+  // in the water. Only cited in the summary when the last log is
+  // within the overlay's 6 h window — stale reports mislead.
+  let communityRecent = null;
+  try {
+    const overlaySnap = await db.collection('community_overlays').doc(spot.id).get();
+    if (overlaySnap.exists) {
+      const ov = overlaySnap.data();
+      const lastLogMs = ov?.last_log_at?.toMillis?.() ?? null;
+      const ageHours = lastLogMs != null ? (nowMs - lastLogMs) / 3600000 : null;
+      if (ageHours != null && ageHours >= 0 && ageHours <= 6 &&
+          Number.isFinite(ov.avg_observed_visibility_ft)) {
+        communityRecent = {
+          avgVisFt: ov.avg_observed_visibility_ft,
+          count: ov.recent_log_count || 1,
+          ageHours,
+        };
+      }
+    }
+  } catch (err) {
+    logger.warn('buildSpotReport: community overlay read failed', { spotId: spot.id, error: err.message });
+  }
+
+  // Summary-variation salt: changes every hourly report so consecutive
+  // summaries for the same spot rotate sentence structure even when
+  // conditions hold perfectly steady.
+  const summarySalt = Number(hourKey) % 997;
+
   // Abyss: data-grounded layered visibility model. Falls back to the
   // legacy heuristic internally when satellite ocean-color isn't
   // configured, but ALWAYS layers on the solar + topographic-shadow
   // calc since those don't need any external feeds.
-  const nowVisibility = await estimateVisibilityAbyss({
+  const nowVisibilityRaw = await estimateVisibilityAbyss({
     spot,
     lat: spot.lat,
     lon: spot.lon,
@@ -1395,6 +1440,16 @@ async function buildSpotReport({ spot, owHourly, buoyData, marineForecast, nowMs
     hourLocal:         nowLocalHour,
     db,
     oceanColor:        spotOceanColor,
+  });
+
+  // Calibrated visibility: dive-log-derived bias correction applied
+  // before anything downstream (rating, report doc) sees the number.
+  const nowVisibility = applyCalibrationToVisibility(nowVisibilityRaw, spotCalibration, {
+    waveHeightFt:   nowMetrics.waveHeightM != null ? nowMetrics.waveHeightM * 3.28084 : null,
+    tideState:      nowTideCycle?.currentTideState ?? null,
+    nowMs,
+    runoffSeverity: nowRunoff?.severity ?? null,
+    spot,
   });
 
   const moonData     = await fetchMoonPhase(nowDate, spot.lat, spot.lon, spot.tz);
@@ -1431,6 +1486,8 @@ async function buildSpotReport({ spot, owHourly, buoyData, marineForecast, nowMs
     chopMultiplier: nowVisibility?.wind?.chopMultiplier ?? 1,
     exposureFactor: nowVisibility?.exposure?.factor ?? 1,
     confidenceScore,
+    variantSalt: summarySalt,
+    community:   communityRecent,
     spotContext: {
       runoffSensitivity: spot.runoffSensitivity,
       maxCleanSwellFt:   spot.maxCleanSwellFt,
@@ -1482,13 +1539,13 @@ async function buildSpotReport({ spot, owHourly, buoyData, marineForecast, nowMs
     });
 
     const winSwellFt   = w.avg.waveHeightM != null ? w.avg.waveHeightM * 3.28084 : null;
-    const winLocalHour = new Date(w.startIso).getUTCHours();
+    const winLocalHour = hstHourOf(winStartMs);
 
     // Per-window abyss: re-runs solar+shadow at the window's midpoint
     // so a 6 PM window correctly shows depressed visibility from
     // mountain shadow / low light, while a 9 AM window shows full sun.
     const winMidMsForVis = new Date(w.startIso).getTime() + 1.5 * 3600000;
-    const winVisibility = await estimateVisibilityAbyss({
+    const winVisibilityRaw = await estimateVisibilityAbyss({
       spot,
       lat: spot.lat,
       lon: spot.lon,
@@ -1507,6 +1564,16 @@ async function buildSpotReport({ spot, owHourly, buoyData, marineForecast, nowMs
       hourLocal:         winLocalHour,
       db,
       oceanColor:        spotOceanColor,
+    });
+
+    // Same dive-log calibration as "now", with this window's own
+    // condition context selecting the bias buckets.
+    const winVisibility = applyCalibrationToVisibility(winVisibilityRaw, spotCalibration, {
+      waveHeightFt:   w.avg.waveHeightM != null ? w.avg.waveHeightM * 3.28084 : null,
+      tideState:      winTideCycle?.currentTideState ?? null,
+      nowMs:          winMidMsForVis,
+      runoffSeverity: winRunoff?.severity ?? null,
+      spot,
     });
 
     const winEffectiveSwellFt =
@@ -1537,6 +1604,11 @@ async function buildSpotReport({ spot, owHourly, buoyData, marineForecast, nowMs
 
       // Use report-level confidence (keeps conservative if buoy missing)
       confidenceScore,
+
+      // Rotate phrasing per window; community overlay is only cited on
+      // the "now" rating — it describes the water right now, not a
+      // window two days out.
+      variantSalt: summarySalt + new Date(w.startIso).getUTCHours(),
 
       spotContext: {
         runoffSensitivity: spot.runoffSensitivity,
@@ -1595,6 +1667,12 @@ async function buildSpotReport({ spot, owHourly, buoyData, marineForecast, nowMs
     hourKey,
     sources,
     qcFlags,
+    // Top-level freshness indicator: is the current visibility estimate
+    // satellite-derived or heuristic-derived, and how stale is the
+    // satellite value? Mirrors now.visibility.dataQuality so the
+    // frontend can badge data quality without digging into the
+    // visibility object.
+    dataQuality: nowVisibility?.dataQuality ?? null,
     tide: reportTide,
     now: {
       metrics:     nowMetrics,
@@ -1879,6 +1957,9 @@ async function readCachedReport(spotId, nowMs, spot = null) {
     if (!data?.days?.[0]?.solar) continue;
     // Skip caches lacking the rationale field (latest abyss revision).
     if (!Array.isArray(data?.now?.visibility?.rationale)) continue;
+    // Skip caches from before the data-freshness indicator + calibrated
+    // cascade shipped. Self-clears within an hour as caches refill.
+    if (!data?.now?.visibility?.dataQuality) continue;
     // Same for the per-day tide events (added after days[] shipped).
     // Skip if any day in the forecast is missing tideEvents.
     if (!data.days.every((d) => Array.isArray(d?.tideEvents))) continue;
@@ -2140,7 +2221,19 @@ exports.deleteUserAccount = onCall(
 
 exports.submitDiveLog  = require('./submitDiveLog').submitDiveLog;
 exports.deleteDiveLog  = require('./submitDiveLog').deleteDiveLog;
+
+// Anonymous-log claim flow: rewrites diveLogs tagged uid 'anon:{token}'
+// to the authed uid once the user signs up. The token (already accepted
+// by submitDiveLog) is the proof of ownership.
+exports.claimAnonymousLogs = require('./claimAnonymousLogs').claimAnonymousLogs;
+
 exports.archiveHourly        = require('./archiveHourly').archiveHourly;
+
+// Nightly calibration — closes the Abyss loop: reads diveLogs deltas
+// per spot, writes per-spot bias/MAE/R²/confidence + condition buckets
+// to abyss_calibration/{spotId}; buildSpotReport applies them on the
+// next pipeline run. See functions/nightlyCalibration.js.
+exports.nightlyCalibration   = require('./nightlyCalibration').nightlyCalibration;
 exports.boxJellyForecaster   = require('./notifications').boxJellyForecaster;
 exports.spotOfDayPublisher   = require('./notifications').spotOfDayPublisher;
 
@@ -2225,6 +2318,13 @@ exports.fareharborWebhook             = require('./charter/fareharbor/webhook').
 //     Puppeteer PDF render plugs in once the printable template
 //     lands; until then the in-app submit returns the HTML preview.
 exports.generateCaptainsLog = require('./charter/generateCaptainsLog').generateCaptainsLog;
+
+//   - captureStandaloneLogSnapshot — Firestore onCreate trigger that
+//     resolves the immutable conditions snapshot for desktop
+//     standalone-v1 charter_logs docs (server-trusted, mirrors dive logs
+//     via functions/snapshotResolver.js). The mobile rich-log shape gets
+//     its snapshot at finalize via generateCaptainsLog instead.
+exports.captureStandaloneLogSnapshot = require('./charter/standaloneLogSnapshot').captureStandaloneLogSnapshot;
 
 // Legacy onDiveLogCreated trigger removed — its responsibilities
 // (ingesting reported_vis vs predicted_vis into abyss_diver_reports)

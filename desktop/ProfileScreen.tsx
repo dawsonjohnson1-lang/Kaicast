@@ -1169,6 +1169,7 @@ function SettingsTabBody({
   const diveTypeVal = read(SETTINGS_PATHS.preferredDiveType, 'scuba');
   const unitsVal = read(SETTINGS_PATHS.units, 'imperial');
   const homeSpotIdVal = read(SETTINGS_PATHS.homeSpotId, '');
+  const captainLicenseVal = read(SETTINGS_PATHS.captainLicense, '');
   const phoneVal = read(SETTINGS_PATHS.phone, '');
   const emailVal = settings?.email || auth.user?.email || '';
   const homeSpotLabel = labelForSpotId(homeSpotIdVal) || 'Pick a spot';
@@ -1232,6 +1233,8 @@ function SettingsTabBody({
           />
         </SettingsSection>
 
+        <CharterSection onNavigate={onNavigate} />
+
         <AccountSwitcherSection onNavigate={onNavigate} />
 
         <SettingsSection title="Diver profile">
@@ -1267,6 +1270,18 @@ function SettingsTabBody({
             value={homeSpotLabel}
             actionLabel="Edit"
             onAction={() => setPicker({ kind: 'spot', current: homeSpotIdVal })}
+          />
+          <SettingsRow
+            label="Captain's license number"
+            value={captainLicenseVal || 'Add license'}
+            actionLabel="Edit"
+            onAction={() => setPicker({
+              kind: 'text',
+              path: SETTINGS_PATHS.captainLicense,
+              title: "Captain's license number",
+              placeholder: 'USCG / credential number',
+              current: captainLicenseVal,
+            })}
             isLast
           />
         </SettingsSection>
@@ -1378,6 +1393,7 @@ function readSettingsField(
   switch (path) {
     case SETTINGS_PATHS.email:                       return s.email;
     case SETTINGS_PATHS.phone:                       return s.phone;
+    case SETTINGS_PATHS.captainLicense:              return s.captainLicense;
     case SETTINGS_PATHS.certification:               return s.profile.certification;
     case SETTINGS_PATHS.preferredDiveType:           return s.profile.preferredDiveType;
     case SETTINGS_PATHS.homeSpotId:                  return s.profile.homeSpotId;
@@ -1626,6 +1642,32 @@ const ROLE_LABELS: Record<OrgRole, string> = {
   manager: 'Manager',
   deckhand: 'Deckhand',
 };
+
+// Charter entry point — moved here out of the top nav. Surfaced only to
+// users who belong to a charter org: the admin/owner (accountType ===
+// 'charter') OR anyone with an active crew membership (captain, manager,
+// crew, deckhand). Free/Pro users with no org never see it, so the row
+// never dead-ends. Admins land on the ops dashboard (charter-home); crew
+// land on their crew shell (crew-home).
+function CharterSection({ onNavigate }: { onNavigate?: NavigateFn }) {
+  const auth = useAuth();
+  const isCharterAdmin = auth.accountType === 'charter';
+  const activeMemberships = auth.orgMemberships.filter((m) => m.status === 'active');
+  const isCharterMember = isCharterAdmin || activeMemberships.length > 0;
+
+  if (!isCharterMember) return null;
+
+  const orgLabel = isCharterAdmin
+    ? (auth.orgId ?? undefined)
+    : activeMemberships[0]?.orgName;
+  const go = () => onNavigate?.(isCharterAdmin ? 'charter-home' : 'crew-home');
+
+  return (
+    <SettingsSection title="Charter">
+      <SettingsRow label="Charter" value={orgLabel} actionLabel="Open" onAction={go} isLast />
+    </SettingsSection>
+  );
+}
 
 function AccountSwitcherSection({ onNavigate }: { onNavigate?: NavigateFn }) {
   const auth = useAuth();

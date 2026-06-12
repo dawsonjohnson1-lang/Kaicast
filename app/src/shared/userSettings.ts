@@ -76,6 +76,11 @@ export const SETTINGS_PATHS = {
   preferredDiveType: 'profile.preferredDiveType',
   homeSpotId:        'profile.homeSpotId',
 
+  // Captain's license number — top-level on the user doc (like phone).
+  // Gates filling out a captain's log (see firestore.rules
+  // hasCaptainsLicense + the charter trips/charter_logs write rules).
+  captainLicense: 'captainLicense',
+
   pushEnabled:                  'prefs.pushNotifications.enabled',
   pushCategoryConditionAlerts:  'prefs.pushNotifications.categories.conditionAlerts',
   pushCategoryFriendReports:    'prefs.pushNotifications.categories.friendReports',

@@ -1,47 +1,56 @@
-// CharterLogScreen — Phase 4: real file-a-log picker + archive list +
-// per-trip forecast-vs-reality delta panel.
+// CharterLogScreen — standalone captain's log (Phase 1 rework).
 //
-//  File tab — lists trips that have departed but don't yet have a
-//    captainsLog. Click → CaptainsLogFiler modal walks the 8 blocks.
-//  Archive tab — list of completed trips with logs. Click a card to
-//    inline-expand the delta panel below.
+//  File tab  — one button: start a new log. The StandaloneLogFiler walks
+//    the day/vessel/spot/conditions blocks. NO trip picker — a log no
+//    longer requires a trip to exist.
+//  Archive tab — the org's filed standalone logs (top-level charter_logs
+//    filtered to this operator), newest first, with an incident filter.
+//
+// Who can file is gated on canFillCaptainLog (charter/permissions.ts):
+// the org owner (accountType === 'charter') always can; everyone else
+// needs a captain's license number on their user settings. Mirrored in
+// firestore.rules (hasCaptainsLicense) — UI hiding isn't the only gate.
 
 import React from 'react';
 import { View, Text, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
 import { colors, fonts, radius } from '../tokens';
 import { CharterShell } from './CharterShell';
-import { CaptainsLogFiler } from './CaptainsLogFiler';
-import { TripDetailDelta } from './TripDetailDelta';
-import {
-  useCharterSpots, useTripsAwaitingLog, useTripsWithLog,
-} from './useCharterData';
+import { StandaloneLogFiler } from './StandaloneLogFiler';
+import { useCharterAccount, useCharterSpots, useCharterCrew } from './useCharterData';
+import { useCharterLogs } from './useCharterLogs';
 import { useAuth } from '../hooks/useAuth';
-import type { Trip } from './types';
+import { useUserSettings } from '../hooks/useUserSettings';
+import { canFillCaptainLog } from './permissions';
+import type { StandaloneLog } from './standaloneLog';
 import type { NavigateFn } from '../router';
 
 export function CharterLogScreen({ onNavigate }: { onNavigate?: NavigateFn }) {
-  const { orgId } = useAuth();
+  const auth = useAuth();
+  const { orgId, user } = auth;
   const [view, setView] = React.useState<'file' | 'archive'>('file');
-  const [filingTrip, setFilingTrip] = React.useState<Trip | null>(null);
-  const [expandedTripId, setExpandedTripId] = React.useState<string | null>(null);
-
-  // Archive filters
-  const [accuracyFilter, setAccuracyFilter] = React.useState<'all' | 'matched' | 'better' | 'worse'>('all');
+  const [filing, setFiling] = React.useState(false);
   const [incidentFilter, setIncidentFilter] = React.useState<'all' | 'none' | 'minor' | 'serious'>('all');
 
-  const awaiting = useTripsAwaitingLog(orgId);
-  const archived = useTripsWithLog(orgId);
-  const { spots: orgSpots } = useCharterSpots(orgId);
+  // License gate — owner (charter admin) always; everyone else needs a
+  // captain's license on their user settings. Same predicate as the
+  // firestore.rules charter_logs rule.
+  const { settings } = useUserSettings(user?.uid ?? null);
+  const canFill = canFillCaptainLog(auth.accountType === 'charter', settings?.captainLicense);
 
-  const filteredArchive = React.useMemo(() => {
-    return archived.trips.filter((t) => {
-      const log = t.captainsLog;
-      if (!log) return false;
-      if (accuracyFilter !== 'all' && log.forecastAccuracy !== accuracyFilter) return false;
-      if (incidentFilter !== 'all' && log.incidentFlag !== incidentFilter) return false;
-      return true;
-    });
-  }, [archived.trips, accuracyFilter, incidentFilter]);
+  const { account } = useCharterAccount(orgId);
+  const { spots } = useCharterSpots(orgId);
+  const { crew } = useCharterCrew(orgId);
+  const { logs, loading, error } = useCharterLogs(orgId);
+
+  const filteredLogs = React.useMemo(
+    () => (incidentFilter === 'all' ? logs : logs.filter((l) => l.incident === incidentFilter)),
+    [logs, incidentFilter],
+  );
+
+  const filedBy = {
+    uid: user?.uid ?? '',
+    name: user?.displayName ?? user?.email ?? 'Captain',
+  };
 
   return (
     <CharterShell active="charter-log" onNavigate={onNavigate}>
@@ -49,242 +58,152 @@ export function CharterLogScreen({ onNavigate }: { onNavigate?: NavigateFn }) {
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>Captain's Log</Text>
           <Text style={styles.subtitle}>
-            File post-trip notes; the delta against the original forecast becomes ground-truth for
-            the abyss scoring pipeline.
+            Standalone day logs — record what ran, the conditions you saw, crew on duty, and any
+            incidents. No trip required.
           </Text>
         </View>
         <View style={styles.tabRow}>
-          <Pressable onPress={() => setView('file')}    style={[styles.tabBtn, view === 'file' && styles.tabBtnActive]}>
-            <Text style={[styles.tabText, view === 'file' && styles.tabTextActive]}>
-              File a log {awaiting.trips.length > 0 ? <Text style={styles.tabBadge}>{awaiting.trips.length}</Text> : null}
-            </Text>
+          <Pressable onPress={() => setView('file')} style={[styles.tabBtn, view === 'file' && styles.tabBtnActive]}>
+            <Text style={[styles.tabText, view === 'file' && styles.tabTextActive]}>File a log</Text>
           </Pressable>
           <Pressable onPress={() => setView('archive')} style={[styles.tabBtn, view === 'archive' && styles.tabBtnActive]}>
-            <Text style={[styles.tabText, view === 'archive' && styles.tabTextActive]}>Archive</Text>
+            <Text style={[styles.tabText, view === 'archive' && styles.tabTextActive]}>
+              Archive {logs.length > 0 ? <Text style={styles.tabBadge}>{logs.length}</Text> : null}
+            </Text>
           </Pressable>
         </View>
       </View>
 
       {view === 'file' ? (
-        <FileTab
-          loading={awaiting.loading}
-          error={awaiting.error}
-          trips={awaiting.trips}
-          orgSpots={orgSpots}
-          onPickTrip={(t) => setFilingTrip(t)}
-        />
+        <View style={styles.fileCard}>
+          {!canFill ? (
+            <>
+              <Text style={styles.fileTitle}>Captain's license required</Text>
+              <Text style={styles.fileBody}>
+                Filing a captain's log requires a captain's license number on your profile. Add yours
+                in Profile, then come back — or ask the org owner to file.
+              </Text>
+              <Pressable style={styles.secondaryCta} onPress={() => onNavigate?.('profile')}>
+                <Text style={styles.secondaryCtaText}>Open profile settings →</Text>
+              </Pressable>
+            </>
+          ) : (
+            <>
+              <Text style={styles.fileTitle}>Log today's operation</Text>
+              <Text style={styles.fileBody}>
+                One entry covers the whole day for a vessel — even if you ran several trips. Trip-level
+                detail can be linked later when FareHarbor sync lands.
+              </Text>
+              <Pressable style={styles.primaryCta} onPress={() => setFiling(true)}>
+                <Text style={styles.primaryCtaText}>Start a new log →</Text>
+              </Pressable>
+            </>
+          )}
+        </View>
       ) : (
         <ArchiveTab
-          loading={archived.loading}
-          error={archived.error}
-          trips={filteredArchive}
-          totalCount={archived.trips.length}
-          orgSpots={orgSpots}
-          accuracy={accuracyFilter}
+          loading={loading}
+          error={error}
+          logs={filteredLogs}
+          total={logs.length}
+          spotName={(id) => spots.find((s) => s.id === id)?.name ?? id}
           incident={incidentFilter}
-          onAccuracy={setAccuracyFilter}
           onIncident={setIncidentFilter}
-          expandedTripId={expandedTripId}
-          onExpand={(id) => setExpandedTripId((prev) => (prev === id ? null : id))}
         />
       )}
 
-      {filingTrip && orgId ? (
-        <CaptainsLogFiler
+      {filing && orgId && canFill ? (
+        <StandaloneLogFiler
           orgId={orgId}
-          trip={filingTrip}
-          onClose={() => setFilingTrip(null)}
-          onFiled={() => setFilingTrip(null)}
+          vessels={account?.fleet ?? []}
+          spots={spots}
+          crew={crew}
+          filedBy={filedBy}
+          onClose={() => setFiling(false)}
+          onFiled={() => { setFiling(false); setView('archive'); }}
         />
       ) : null}
     </CharterShell>
   );
 }
 
-// ─── File-a-log tab ──────────────────────────────────────────────────
-
-function FileTab({
-  loading, error, trips, orgSpots, onPickTrip,
-}: {
-  loading: boolean;
-  error: string | null;
-  trips: Trip[];
-  orgSpots: ReturnType<typeof useCharterSpots>['spots'];
-  onPickTrip: (t: Trip) => void;
-}) {
-  if (loading) {
-    return (
-      <View style={styles.loadingCard}>
-        <ActivityIndicator color={colors.accent} />
-        <Text style={styles.loadingText}>Reading trips awaiting a log…</Text>
-      </View>
-    );
-  }
-  if (error) {
-    return (
-      <View style={styles.errCard}>
-        <Text style={styles.errTitle}>Could not load trips</Text>
-        <Text style={styles.errBody}>{error}</Text>
-      </View>
-    );
-  }
-  if (trips.length === 0) {
-    return (
-      <View style={styles.emptyCard}>
-        <Text style={styles.emptyTitle}>Nothing to log right now.</Text>
-        <Text style={styles.emptyBody}>
-          Trips show up here once they've departed and don't yet have a captain's log filed. Plan a
-          trip from /charter/trips first, then come back after departure.
-        </Text>
-      </View>
-    );
-  }
-  return (
-    <View style={{ gap: 10 }}>
-      <Text style={styles.sectionMeta}>{trips.length} {trips.length === 1 ? 'trip' : 'trips'} awaiting a log</Text>
-      {trips.map((t) => (
-        <Pressable key={t.id} onPress={() => onPickTrip(t)} style={styles.fileRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.fileRowTitle}>{formatTripName(t, orgSpots)}</Text>
-            <Text style={styles.fileRowMeta}>
-              {t.tripType.toUpperCase()} · {t.headcount} {t.headcount === 1 ? 'passenger' : 'passengers'}
-              {t.crew.length > 0 ? ` · ${t.crew.length} crew` : ''}
-            </Text>
-          </View>
-          <View style={styles.fileRowCta}>
-            <Text style={styles.fileRowCtaText}>File log →</Text>
-          </View>
-        </Pressable>
-      ))}
-    </View>
-  );
-}
-
-// ─── Archive tab ─────────────────────────────────────────────────────
-
 function ArchiveTab({
-  loading, error, trips, totalCount, orgSpots,
-  accuracy, incident, onAccuracy, onIncident,
-  expandedTripId, onExpand,
+  loading, error, logs, total, spotName, incident, onIncident,
 }: {
   loading: boolean;
   error: string | null;
-  trips: Trip[];
-  totalCount: number;
-  orgSpots: ReturnType<typeof useCharterSpots>['spots'];
-  accuracy: 'all' | 'matched' | 'better' | 'worse';
+  logs: StandaloneLog[];
+  total: number;
+  spotName: (id: string) => string;
   incident: 'all' | 'none' | 'minor' | 'serious';
-  onAccuracy: (v: 'all' | 'matched' | 'better' | 'worse') => void;
   onIncident: (v: 'all' | 'none' | 'minor' | 'serious') => void;
-  expandedTripId: string | null;
-  onExpand: (id: string) => void;
 }) {
   if (loading) {
     return (
       <View style={styles.loadingCard}>
         <ActivityIndicator color={colors.accent} />
-        <Text style={styles.loadingText}>Reading archived logs…</Text>
+        <Text style={styles.loadingText}>Reading filed logs…</Text>
       </View>
     );
   }
   if (error) {
     return (
       <View style={styles.errCard}>
-        <Text style={styles.errTitle}>Could not load archive</Text>
+        <Text style={styles.errTitle}>Could not load logs</Text>
         <Text style={styles.errBody}>{error}</Text>
       </View>
     );
   }
-
   return (
     <View style={{ gap: 12 }}>
-      {/* Filter row */}
       <View style={styles.filterRow}>
-        <FilterChip label="Forecast" options={[
-          { id: 'all', label: 'All' },
-          { id: 'matched', label: 'Matched' },
-          { id: 'better', label: 'Better' },
-          { id: 'worse', label: 'Worse' },
-        ]} value={accuracy} onChange={onAccuracy} />
-        <FilterChip label="Incident" options={[
-          { id: 'all', label: 'All' },
-          { id: 'none', label: 'None' },
-          { id: 'minor', label: 'Minor' },
-          { id: 'serious', label: 'Serious' },
-        ]} value={incident} onChange={onIncident} />
-        <Text style={styles.filterMeta}>{trips.length} of {totalCount} logs</Text>
+        {(['all', 'none', 'minor', 'serious'] as const).map((id) => (
+          <Pressable key={id} onPress={() => onIncident(id)} style={[styles.filterChip, incident === id && styles.filterChipActive]}>
+            <Text style={[styles.filterChipText, incident === id && styles.filterChipTextActive]}>
+              {id === 'all' ? 'All' : id === 'none' ? 'No incident' : `${id[0].toUpperCase()}${id.slice(1)} incident`}
+            </Text>
+          </Pressable>
+        ))}
+        <Text style={styles.filterMeta}>{logs.length} of {total}</Text>
       </View>
 
-      {trips.length === 0 ? (
+      {logs.length === 0 ? (
         <View style={styles.emptyCard}>
-          <Text style={styles.emptyTitle}>{totalCount === 0 ? 'Archive is empty.' : 'No logs match the current filters.'}</Text>
+          <Text style={styles.emptyTitle}>{total === 0 ? 'Archive is empty.' : 'No logs match the filter.'}</Text>
           <Text style={styles.emptyBody}>
-            {totalCount === 0
-              ? 'File your first log from the "File a log" tab to start building the archive.'
-              : 'Loosen the filters above to see more entries.'}
+            {total === 0 ? 'File your first log from the "File a log" tab.' : 'Loosen the filter to see more.'}
           </Text>
         </View>
       ) : (
-        trips.map((t) => (
-          <View key={t.id} style={styles.archiveCard}>
-            <Pressable onPress={() => onExpand(t.id)} style={styles.archiveHeader}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.archiveTitle}>{formatTripName(t, orgSpots)}</Text>
-                <Text style={styles.archiveMeta}>
-                  {t.tripType.toUpperCase()} ·{' '}
-                  forecast {t.captainsLog?.forecastAccuracy ?? '—'}
-                  {t.captainsLog?.incidentFlag && t.captainsLog.incidentFlag !== 'none'
-                    ? ` · ${t.captainsLog.incidentFlag} incident`
-                    : ''}
-                </Text>
-              </View>
-              <Text style={styles.archiveExpand}>{expandedTripId === t.id ? '▲' : '▼'}</Text>
-            </Pressable>
-            {expandedTripId === t.id ? (
-              <View style={{ marginTop: 12 }}>
-                <TripDetailDelta trip={t} />
-              </View>
+        logs.map((l) => (
+          <View key={l.logId} style={styles.logCard}>
+            <View style={styles.logHeader}>
+              <Text style={styles.logTitle}>
+                {new Date(l.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'Pacific/Honolulu' })}
+                {'  ·  '}{l.vesselName || '—'}
+              </Text>
+              {l.incident !== 'none' ? (
+                <Text style={[styles.incidentBadge, l.incident === 'serious' && styles.incidentBadgeSerious]}>{l.incident}</Text>
+              ) : null}
+            </View>
+            <Text style={styles.logMeta}>
+              {l.spotIds.map(spotName).join(', ') || 'No spots'}
+              {l.tripCount != null ? `  ·  ${l.tripCount} ${l.tripCount === 1 ? 'trip' : 'trips'}` : ''}
+              {l.durationHours != null ? `  ·  ${l.durationHours}h` : ''}
+              {l.crew.length ? `  ·  ${l.crew.length} crew` : ''}
+            </Text>
+            {l.seaState || l.windObserved || l.visibilityFt != null ? (
+              <Text style={styles.logCond}>
+                {[l.seaState && `Sea: ${l.seaState}`, l.windObserved && `Wind: ${l.windObserved}`, l.visibilityFt != null && `Vis: ${l.visibilityFt}ft`].filter(Boolean).join('   ')}
+              </Text>
             ) : null}
+            {l.notes ? <Text style={styles.logNotes} numberOfLines={2}>{l.notes}</Text> : null}
+            <Text style={styles.logFiledBy}>Filed by {l.filedByName}</Text>
           </View>
         ))
       )}
     </View>
   );
-}
-
-function FilterChip<T extends string>({
-  label, options, value, onChange,
-}: {
-  label: string;
-  options: ReadonlyArray<{ id: T; label: string }>;
-  value: T;
-  onChange: (next: T) => void;
-}) {
-  return (
-    <View style={styles.filterChipGroup}>
-      <Text style={styles.filterChipLabel}>{label}</Text>
-      <View style={{ flexDirection: 'row', gap: 4 }}>
-        {options.map((o) => {
-          const active = o.id === value;
-          return (
-            <Pressable
-              key={o.id}
-              onPress={() => onChange(o.id)}
-              style={[styles.filterChipBtn, active && styles.filterChipBtnActive]}
-            >
-              <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>{o.label}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
-    </View>
-  );
-}
-
-function formatTripName(t: Trip, orgSpots: ReturnType<typeof useCharterSpots>['spots']): string {
-  const dateStr = t.date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-  const primary = orgSpots.find((s) => s.id === t.spots[0])?.name ?? t.spots[0] ?? '—';
-  return `${dateStr} · ${t.departureTime} · ${primary}`;
 }
 
 const styles = StyleSheet.create({
@@ -297,37 +216,33 @@ const styles = StyleSheet.create({
   tabBtnActive: { backgroundColor: colors.surface2 },
   tabText: { fontFamily: fonts.body, fontSize: 13, fontWeight: '600', color: colors.text3 },
   tabTextActive: { color: colors.text1 },
-  tabBadge: {
-    fontFamily: fonts.mono, fontSize: 10, fontWeight: '800',
-    color: colors.bg, backgroundColor: colors.accent,
-    paddingHorizontal: 6, paddingVertical: 1, borderRadius: 8, marginLeft: 6,
-  },
+  tabBadge: { fontFamily: fonts.mono, fontSize: 10, fontWeight: '800', color: colors.bg, backgroundColor: colors.accent, paddingHorizontal: 6, paddingVertical: 1, borderRadius: 8, marginLeft: 6 },
 
-  // file tab
-  sectionMeta: { fontFamily: fonts.mono, fontSize: 11, color: colors.text3, letterSpacing: 0.5 },
-  fileRow: { flexDirection: 'row', alignItems: 'center', gap: 16, padding: 16, borderRadius: radius.md, borderWidth: 1, borderColor: colors.hairlineStrong, backgroundColor: colors.surface0 },
-  fileRowTitle: { fontFamily: fonts.display, fontSize: 15, fontWeight: '700', color: colors.text1 },
-  fileRowMeta: { fontFamily: fonts.mono, fontSize: 11, color: colors.text3, marginTop: 4, letterSpacing: 0.3 },
-  fileRowCta: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: radius.sm, backgroundColor: colors.accent },
-  fileRowCtaText: { fontFamily: fonts.body, fontSize: 12, fontWeight: '700', color: colors.bg },
+  fileCard: { padding: 22, borderRadius: radius.md, backgroundColor: colors.surface0, borderWidth: 1, borderColor: colors.hairlineStrong, gap: 10, alignItems: 'flex-start' },
+  fileTitle: { fontFamily: fonts.display, fontSize: 18, fontWeight: '700', color: colors.text1 },
+  fileBody: { fontFamily: fonts.body, fontSize: 13, color: colors.text2, lineHeight: 20, maxWidth: 560 },
+  primaryCta: { marginTop: 6, paddingHorizontal: 16, paddingVertical: 11, borderRadius: radius.sm, backgroundColor: colors.accent },
+  primaryCtaText: { fontFamily: fonts.body, fontSize: 13, fontWeight: '700', color: colors.bg },
+  secondaryCta: { marginTop: 6, paddingHorizontal: 14, paddingVertical: 9, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.hairlineStrong },
+  secondaryCtaText: { fontFamily: fonts.body, fontSize: 12, fontWeight: '700', color: colors.text1 },
 
-  // archive
-  filterRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 14, paddingHorizontal: 4 },
-  filterChipGroup: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  filterChipLabel: { fontFamily: fonts.mono, fontSize: 10, color: colors.text3, fontWeight: '700', letterSpacing: 1 },
-  filterChipBtn: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, borderWidth: 1, borderColor: colors.hairlineStrong, backgroundColor: colors.surface0 },
-  filterChipBtnActive: { backgroundColor: colors.surface1, borderColor: colors.accent },
+  filterRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, paddingHorizontal: 4 },
+  filterChip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, borderWidth: 1, borderColor: colors.hairlineStrong, backgroundColor: colors.surface0 },
+  filterChipActive: { backgroundColor: colors.surface1, borderColor: colors.accent },
   filterChipText: { fontFamily: fonts.body, fontSize: 11, fontWeight: '600', color: colors.text3 },
   filterChipTextActive: { color: colors.text1 },
   filterMeta: { fontFamily: fonts.mono, fontSize: 11, color: colors.text3, marginLeft: 'auto' },
 
-  archiveCard: { padding: 14, borderRadius: radius.md, borderWidth: 1, borderColor: colors.hairlineStrong, backgroundColor: colors.surface0 },
-  archiveHeader: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  archiveTitle: { fontFamily: fonts.display, fontSize: 14, fontWeight: '700', color: colors.text1 },
-  archiveMeta: { fontFamily: fonts.mono, fontSize: 11, color: colors.text3, marginTop: 4 },
-  archiveExpand: { fontFamily: fonts.mono, fontSize: 14, color: colors.text3 },
+  logCard: { padding: 14, borderRadius: radius.md, borderWidth: 1, borderColor: colors.hairlineStrong, backgroundColor: colors.surface0, gap: 5 },
+  logHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  logTitle: { fontFamily: fonts.display, fontSize: 15, fontWeight: '700', color: colors.text1 },
+  incidentBadge: { fontFamily: fonts.mono, fontSize: 10, fontWeight: '800', color: '#F5A623', backgroundColor: 'rgba(245,166,35,0.12)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8, textTransform: 'uppercase' },
+  incidentBadgeSerious: { color: '#F73726', backgroundColor: 'rgba(247,55,38,0.12)' },
+  logMeta: { fontFamily: fonts.mono, fontSize: 11, color: colors.text3 },
+  logCond: { fontFamily: fonts.mono, fontSize: 11, color: colors.text2 },
+  logNotes: { fontFamily: fonts.body, fontSize: 12, color: colors.text2, lineHeight: 18 },
+  logFiledBy: { fontFamily: fonts.mono, fontSize: 10, color: colors.text4, marginTop: 2 },
 
-  // shared
   loadingCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 18, borderRadius: radius.md, backgroundColor: colors.surface0, borderWidth: 1, borderColor: colors.hairline },
   loadingText: { fontFamily: fonts.body, fontSize: 13, color: colors.text3 },
   errCard: { padding: 18, borderRadius: radius.md, backgroundColor: 'rgba(247,55,38,0.10)', borderWidth: 1, borderColor: '#F73726' },

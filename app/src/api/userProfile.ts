@@ -70,6 +70,13 @@ export type UserProfile = {
    * to scope all per-vessel reads (fh_trips, charter_logs).
    */
   orgId?: string;
+  /**
+   * Captain's license / credential number. Non-empty unlocks filling
+   * out a captain's log (see DailyLogScreen's canFillCaptainLog +
+   * firestore.rules hasCaptainsLicense). Edited in Profile → Settings;
+   * written server-only via the updateUserSetting callable.
+   */
+  captainLicense?: string;
   updatedAt?: Date | null;
   createdAt?: Date | null;
 };
@@ -103,6 +110,7 @@ function fromFirestore(uid: string, data: any): UserProfile {
     onboardingComplete: data.onboardingComplete === true,
     accountType: data.accountType === 'charter' ? 'charter' : 'consumer',
     orgId: typeof data.orgId === 'string' ? data.orgId : undefined,
+    captainLicense: typeof data.captainLicense === 'string' ? data.captainLicense : undefined,
     updatedAt: data.updatedAt?.toDate?.() ?? null,
     createdAt: data.createdAt?.toDate?.() ?? null,
   };

@@ -33,20 +33,17 @@ const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const logger = require('firebase-functions/logger');
 const admin = require('firebase-admin');
 const { z } = require('zod');
-const zlib = require('zlib');
-const { promisify } = require('util');
 
-const gunzip = promisify(zlib.gunzip);
+// Snapshot resolution lives in the shared resolver so the captain's-log
+// pipeline (generateCaptainsLog) resolves against the SAME data the same
+// way — the two calibration datasets must not drift.
+const { resolveConditionsSnapshot } = require('./snapshotResolver');
 
 // Use the lazily-initialized admin app exported elsewhere — index.js
 // calls admin.initializeApp() at module load so the SDK is ready.
 const db = () => admin.firestore();
-const storage = () => admin.storage();
 
 // ─── Constants ──────────────────────────────────────────────────────
-
-/** Match window: snapshot's generatedAt must be within this many ms of dive_at. */
-const SNAPSHOT_MATCH_WINDOW_MS = 30 * 60 * 1000;
 
 /** Recent-dive window for the community overlay (last 6 hours). */
 const COMMUNITY_OVERLAY_WINDOW_MS = 6 * 3600 * 1000;
@@ -54,11 +51,6 @@ const COMMUNITY_OVERLAY_WINDOW_MS = 6 * 3600 * 1000;
 /** Sanity bounds on dive_at. */
 const MAX_FUTURE_MS = 24 * 3600 * 1000;       // 1 day in the future
 const MAX_PAST_MS   = 365 * 24 * 3600 * 1000; // 1 year in the past
-
-/** Cold-storage bucket. Run `gsutil mb` if absent — see deliverable. */
-const COLD_STORAGE_BUCKET = 'kaicast-historical';
-
-const HST_OFFSET_MS = -10 * 3600 * 1000; // Hawaii is fixed UTC-10 (no DST).
 
 // ─── Validation schemas ─────────────────────────────────────────────
 
@@ -80,6 +72,10 @@ const ObservedSchema = z.object({
   overall_rating:       z.enum(['poor', 'fair', 'good', 'excellent']).nullable().optional(),
   water_temp_surface_f: z.number().min(20).max(110).nullable().optional(),
   water_temp_bottom_f:  z.number().min(20).max(110).nullable().optional(),
+  // Explicit thermocline flag. When the client doesn't send it, the
+  // calibration job infers one from the surface/bottom temp split.
+  thermocline_detected: z.boolean().nullable().optional(),
+  reef_health:          z.enum(['pristine', 'healthy', 'stressed', 'bleached']).nullable().optional(),
   max_depth_ft:         z.number().min(0).max(500).nullable().optional(),
   duration_min:         z.number().min(0).max(1440).nullable().optional(),
   hazards:              z.array(z.string()).max(20).optional(),
@@ -103,160 +99,8 @@ const SubmitDiveLogSchema = z.object({
 
 // ─── Helpers ────────────────────────────────────────────────────────
 
-/** YYYYMMDDHH in UTC — matches index.js:buildHourKey conventions. */
-function buildHourKey(d) {
-  const x = d instanceof Date ? d : new Date(d);
-  return (
-    String(x.getUTCFullYear()) +
-    String(x.getUTCMonth() + 1).padStart(2, '0') +
-    String(x.getUTCDate()).padStart(2, '0') +
-    String(x.getUTCHours()).padStart(2, '0')
-  );
-}
-
-/** YYYY-MM-DD in HST. Day boundary for cold-storage archive files. */
-function formatHstDate(ms) {
-  const d = new Date(ms + HST_OFFSET_MS);
-  return (
-    String(d.getUTCFullYear()) + '-' +
-    String(d.getUTCMonth() + 1).padStart(2, '0') + '-' +
-    String(d.getUTCDate()).padStart(2, '0')
-  );
-}
-
 const RATING_NUM = { poor: 1, fair: 2, good: 3, excellent: 4 };
 const PREDICTED_RATING_NUM = { Poor: 1, Fair: 2, Good: 3, Excellent: 4 };
-
-/** Pull the dive-relevant fields out of a kaicast_reports `now` block. */
-function extractPredictionFields(report) {
-  const now = report?.now ?? {};
-  const v = now.visibility ?? {};
-  const m = now.metrics ?? {};
-  const tide = now.tide ?? {};
-  const C_TO_F = (c) => (c == null ? null : Math.round((c * 9) / 5 + 32));
-  const M_TO_FT = 3.28084;
-  return {
-    visibility_ft:       Number.isFinite(v.estimatedVisibilityFeet) ? v.estimatedVisibilityFeet
-                          : (Number.isFinite(v.estimatedVisibilityMeters)
-                              ? Math.round(v.estimatedVisibilityMeters * M_TO_FT) : null),
-    visibility_rating:   v.rating ?? null,
-    wave_height_ft:      Number.isFinite(m.waveHeightM) ? Math.round(m.waveHeightM * M_TO_FT * 10) / 10 : null,
-    wave_period_s:       Number.isFinite(m.wavePeriodS) ? m.wavePeriodS : null,
-    wave_direction_deg:  Number.isFinite(v.exposure?.swellFromDeg) ? v.exposure.swellFromDeg : null,
-    wind_speed_kt:       Number.isFinite(m.windSpeedKts) ? m.windSpeedKts : null,
-    wind_gust_kt:        Number.isFinite(m.windGustKts) ? m.windGustKts : null,
-    wind_direction_deg:  Number.isFinite(m.windDeg) ? m.windDeg : null,
-    wind_relation:       v.wind?.relation ?? null,
-    tide_state:          tide?.currentTideState ?? null,
-    tide_height_ft:      Number.isFinite(tide?.currentTideHeight) ? tide.currentTideHeight : null,
-    water_temp_f:        C_TO_F(m.waterTempC),
-    air_temp_f:          C_TO_F(m.airTempC),
-    surge_rating:        Number.isFinite(v.waveImpact?.surgeRating) ? v.waveImpact.surgeRating : null,
-    sun_altitude_deg:    v.sun?.altitudeDeg ?? null,
-    sun_azimuth_deg:     v.sun?.azimuthDeg ?? null,
-    in_shadow:           v.shadow?.shadowed ?? null,
-    light_factor:        v.light?.factor ?? null,
-    confidence_score:    Number.isFinite(now.confidenceScore) ? now.confidenceScore : null,
-  };
-}
-
-/**
- * Attempt to resolve a prediction snapshot at dive_at by walking through
- * hourly kaicast_reports docs at and adjacent to dive_at's hour.
- */
-async function resolveFromHourlyReports(spotId, diveAtMs) {
-  let best = null;
-  let bestDeltaMs = Infinity;
-
-  for (let h = -1; h <= 1; h++) {
-    const hourKey = buildHourKey(new Date(diveAtMs + h * 3600000));
-    const docId = `${spotId}_${hourKey}`;
-    const docRef = db().collection('kaicast_reports').doc(docId);
-    const snap = await docRef.get();
-    if (!snap.exists) continue;
-    const data = snap.data();
-    if (!data?.generatedAt) continue;
-    const snapshotAtMs = new Date(data.generatedAt).getTime();
-    if (!Number.isFinite(snapshotAtMs)) continue;
-    const delta = Math.abs(snapshotAtMs - diveAtMs);
-    if (delta < bestDeltaMs && delta <= SNAPSHOT_MATCH_WINDOW_MS) {
-      bestDeltaMs = delta;
-      best = { data, snapshotAtMs, hourKey };
-    }
-  }
-  if (!best) return null;
-
-  return {
-    snapshot_source: 'forecast',
-    snapshot_at_iso: best.data.generatedAt,
-    resolved_within_min: Math.round(bestDeltaMs / 60000),
-    hour_key: best.hourKey,
-    sources: Array.isArray(best.data.sources) ? best.data.sources : [],
-    qc_flags: Array.isArray(best.data.qcFlags) ? best.data.qcFlags : [],
-    ...extractPredictionFields(best.data),
-  };
-}
-
-/**
- * Cold-storage fallback. Reads gs://kaicast-historical/{spotId}/{yyyy-mm-dd-HST}.json.gz
- * which the archiveHourly job produces, then matches against the
- * closest hourly snapshot within SNAPSHOT_MATCH_WINDOW_MS.
- *
- * Returns null when bucket / file missing or no snapshot is within window.
- */
-async function resolveFromColdStorage(spotId, diveAtMs) {
-  const hstDate = formatHstDate(diveAtMs);
-  const filename = `${spotId}/${hstDate}.json.gz`;
-  let bucket;
-  try {
-    bucket = storage().bucket(COLD_STORAGE_BUCKET);
-  } catch {
-    return null;
-  }
-  const file = bucket.file(filename);
-  let exists = false;
-  try {
-    [exists] = await file.exists();
-  } catch (err) {
-    logger.warn('submitDiveLog: cold-storage exists() failed', { spotId, hstDate, error: err.message });
-    return null;
-  }
-  if (!exists) return null;
-
-  let entries;
-  try {
-    const [buf] = await file.download();
-    const text = (await gunzip(buf)).toString('utf8');
-    entries = JSON.parse(text);
-  } catch (err) {
-    logger.warn('submitDiveLog: cold-storage read failed', { spotId, hstDate, error: err.message });
-    return null;
-  }
-  if (!Array.isArray(entries) || entries.length === 0) return null;
-
-  let best = null;
-  let bestDeltaMs = Infinity;
-  for (const entry of entries) {
-    const snapshotAtMs = new Date(entry.generatedAt).getTime();
-    if (!Number.isFinite(snapshotAtMs)) continue;
-    const delta = Math.abs(snapshotAtMs - diveAtMs);
-    if (delta < bestDeltaMs && delta <= SNAPSHOT_MATCH_WINDOW_MS) {
-      bestDeltaMs = delta;
-      best = entry;
-    }
-  }
-  if (!best) return null;
-
-  return {
-    snapshot_source: 'cold_storage',
-    snapshot_at_iso: best.generatedAt,
-    resolved_within_min: Math.round(bestDeltaMs / 60000),
-    hour_key: best.hourKey || buildHourKey(new Date(best.generatedAt)),
-    sources: Array.isArray(best.sources) ? best.sources : [],
-    qc_flags: Array.isArray(best.qcFlags) ? best.qcFlags : [],
-    ...extractPredictionFields(best),
-  };
-}
 
 /** Signed deltas: predicted − observed. */
 function computeDeltas(predicted, observed) {
@@ -268,8 +112,13 @@ function computeDeltas(predicted, observed) {
     visibility_ft: sub(predicted.visibility_ft, observed?.visibility_ft),
     water_temp_f:  sub(predicted.water_temp_f,
                        observed?.water_temp_bottom_f ?? observed?.water_temp_surface_f ?? null),
-    rating_mismatch: (predRatingNum != null && obsRatingNum != null)
-      ? predRatingNum !== obsRatingNum
+    // Signed rating delta on the shared 4-level scale (1=poor … 4=excellent):
+    // predicted level − observed level, range −3..+3. Positive = model
+    // over-predicted conditions. Replaces the old boolean rating_mismatch,
+    // which threw away direction and magnitude — the nightly calibration
+    // job needs both to detect systematic over/under-prediction.
+    rating_delta: (predRatingNum != null && obsRatingNum != null)
+      ? predRatingNum - obsRatingNum
       : null,
   };
 }
@@ -317,11 +166,9 @@ exports.submitDiveLog = onCall(
     const spot = spotSnap.data();
 
     // ── Resolve prediction snapshot at dive_at ──
-    let predicted = await resolveFromHourlyReports(input.spot_id, input.dive_at);
-    if (!predicted) {
-      predicted = await resolveFromColdStorage(input.spot_id, input.dive_at);
-    }
+    // Shared resolver: live hourly reports, then cold storage, then null.
     // null means we genuinely couldn't resolve. Log still gets written.
+    const predicted = await resolveConditionsSnapshot(input.spot_id, input.dive_at);
 
     const deltas = computeDeltas(predicted, input.observed);
 
@@ -371,7 +218,14 @@ exports.submitDiveLog = onCall(
       if (isRecent) {
         const visFt = input.observed?.visibility_ft;
         const ratingNum = RATING_NUM[input.observed?.overall_rating];
-        const prev = overlayCurrent || {
+        // The overlay is a rolling ~6 h window, but the counters only
+        // ever incremented — recent_log_count grew forever and the
+        // "recent" average was actually all-time. If the previous log
+        // is older than the window, start the rolling stats fresh.
+        const prevLastLogMs = overlayCurrent?.last_log_at?.toMillis?.() ?? null;
+        const windowExpired = prevLastLogMs != null &&
+          (nowMs - prevLastLogMs) > COMMUNITY_OVERLAY_WINDOW_MS;
+        const prev = (overlayCurrent && !windowExpired) ? overlayCurrent : {
           recent_log_count: 0,
           avg_observed_visibility_ft: null,
           avg_observed_rating: null,

@@ -35,13 +35,31 @@ export interface Harbor {
 
 // ─── Onboarding-driven shapes ────────────────────────────────────────
 
+// Vessel hull-behavior profile. Drives the seasickness modifier + the
+// max-operable thresholds in charter/vesselFactors.ts — conditions
+// affect different hulls very differently, so this is NOT cosmetic.
+//
+// The first block is the canonical set (nine behavior classes the
+// condition engine reasons about). The second block is LEGACY values
+// kept in the union so pre-existing fleet docs + the onboarding picker
+// still parse; vesselFactors.normalizeVesselType() folds each legacy
+// value onto its closest canonical class.
 export type VesselType =
-  | 'catamaran'
-  | 'mono_sail'
-  | 'center_console'
-  | 'rib_inflatable'
-  | 'pontoon'
-  | 'cabin_cruiser'
+  // ── Canonical behavior classes ──
+  | 'catamaran'          // power catamaran — wide beam, twin hull, very stable
+  | 'sailing_catamaran'  // cruising sail cat — same forgiveness, sail trim matters
+  | 'monohull'           // 40–50ft motor cruiser / adventure-large, deep-V
+  | 'sailing_monohull'   // traditional/cruising mono — heels, rolls in beam seas
+  | 'adventure_small'    // RIB / center console <28ft — light, spray-exposed
+  | 'sportfishing'       // 32–50ft deep-V offshore — swell-period sensitive
+  | 'dive_boat'          // 35–65ft purpose-built dive platform — low-motion
+  | 'pontoon'            // flat-bottom deck boat — punishing in any chop
+  | 'fishing_rib'        // high-HP rigid inflatable — bow-slam + spray
+  // ── Legacy values (mapped via normalizeVesselType) ──
+  | 'mono_sail'          // → sailing_monohull
+  | 'center_console'     // → adventure_small
+  | 'rib_inflatable'     // → fishing_rib
+  | 'cabin_cruiser'      // → monohull
   | 'other';
 
 export type EngineConfig =

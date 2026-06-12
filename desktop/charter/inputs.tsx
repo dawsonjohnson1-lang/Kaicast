@@ -164,6 +164,91 @@ export function NumberStepper({
   );
 }
 
+// ─── Number field (no stepper) ───────────────────────────────────────
+//
+// Plain keyboard-entry numeric input for paper-form values where a
+// stepper is the wrong tool (engine hours like 2847.6, fuel gallons).
+// Same transient-text handling as the stepper: partial input like "2."
+// or "" must not get clobbered by a re-stringified parent value.
+
+export function NumberField({
+  label,
+  value,
+  onChange,
+  unit,
+  placeholder,
+}: {
+  label: string;
+  value: number | null | undefined;
+  onChange: (next: number | null) => void;
+  unit?: string;
+  placeholder?: string;
+}) {
+  const [text, setText] = React.useState<string>(value == null ? '' : String(value));
+  const editingRef = React.useRef(false);
+  React.useEffect(() => {
+    if (editingRef.current) return;
+    setText(value == null ? '' : String(value));
+  }, [value]);
+
+  const commit = (v: string) => {
+    editingRef.current = true;
+    const cleaned = v.replace(/[^0-9.]/g, '');
+    setText(cleaned);
+    if (cleaned === '' || cleaned === '.') {
+      onChange(null);
+      return;
+    }
+    const n = parseFloat(cleaned);
+    if (Number.isFinite(n)) onChange(n);
+  };
+
+  return (
+    <View style={styles.numberFieldWrap}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <View style={styles.stepInputWrap}>
+        <TextInput
+          value={text}
+          onChangeText={commit}
+          onBlur={() => { editingRef.current = false; }}
+          keyboardType="decimal-pad"
+          placeholder={placeholder ?? '—'}
+          placeholderTextColor={colors.text4}
+          style={styles.stepInput}
+        />
+        {unit ? <Text style={styles.stepUnit}>{unit}</Text> : null}
+      </View>
+    </View>
+  );
+}
+
+// ─── Single-line text field ──────────────────────────────────────────
+
+export function TextField({
+  label,
+  value,
+  onChange,
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  onChange: (next: string) => void;
+  placeholder?: string;
+}) {
+  return (
+    <View style={{ gap: 6 }}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <TextInput
+        value={value}
+        onChangeText={onChange}
+        placeholder={placeholder}
+        placeholderTextColor={colors.text4}
+        style={styles.textField}
+      />
+    </View>
+  );
+}
+
 // ─── Star rating ─────────────────────────────────────────────────────
 
 export function StarRating({
@@ -262,6 +347,16 @@ const styles = StyleSheet.create({
   },
   stepInput: { flex: 1, fontFamily: fonts.mono, fontSize: 14, color: colors.text1, padding: 0 },
   stepUnit: { fontFamily: fonts.mono, fontSize: 11, color: colors.text3 },
+
+  numberFieldWrap: { gap: 6, flex: 1 },
+
+  textField: {
+    backgroundColor: colors.surface1,
+    borderRadius: radius.sm,
+    borderWidth: 1, borderColor: colors.hairlineStrong,
+    paddingHorizontal: 12, paddingVertical: 10,
+    fontFamily: fonts.body, fontSize: 13, color: colors.text1,
+  },
 
   starsRow: { flexDirection: 'row', gap: 6 },
   starBtn: { padding: 4 },

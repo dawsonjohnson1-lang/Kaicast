@@ -8,7 +8,7 @@
  * collection the server reads / writes so contributors don't have to
  * grep across handlers to discover field names. No runtime code lives
  * here; the canonical writers live in submitDiveLog.js, archiveHourly.js,
- * index.js, abyss/calibration.js.
+ * index.js, nightlyCalibration.js.
  *
  * Naming conventions (NEW collections + sub-objects added in the
  * snapshot-on-submit pipeline):
@@ -31,7 +31,7 @@
  *   current_conditions       → kaicast_reports/{spotId}_{hourKey}.now (existing)
  *   forecast                 → kaicast_reports/{spotId}_{hourKey}.windows + .days (existing)
  *   community_overlay        → community_overlays/{spotId}       (NEW separate doc — survives hourly rewrites)
- *   calibration              → abyss_calibration/{spotId}        (existing — populated by future nightly job)
+ *   calibration              → abyss_calibration/{spotId} + …/buckets/{bucketKey} (populated by nightlyCalibration)
  *   spot_stats               → spot_stats/{spotId}/daily/{yyyy-mm-dd} (NEW — populated by future nightly job)
  */
 
@@ -145,9 +145,13 @@
  * @property {number|null} visibility_ft
  * @property {number|null} water_temp_f
  *
- * // Categorical mismatch flags — true when predicted vs observed
- * // differ on rating-level enums. Used by the nightly calibration job.
- * @property {boolean|null} rating_mismatch     predicted.visibility_rating !== observed.overall_rating
+ * // Signed rating-level delta on the shared 4-level scale
+ * // (1=poor … 4=excellent): predicted level − observed level, −3..+3.
+ * // Positive = model rated conditions better than the diver did.
+ * // Used by the nightly calibration job to detect systematic
+ * // over/under-prediction (replaced the old boolean rating_mismatch,
+ * // which discarded direction and magnitude).
+ * @property {number|null} rating_delta
  */
 
 /**
@@ -164,31 +168,62 @@
 
 // ─── abyss_calibration/{spotId}  (the calibration in path-B mapping) ─
 //
-// Per-spot bias offsets, populated by a future nightly job (not in scope
-// of this commit). Existing helpers in abyss/calibration.js already
-// read this shape — extending here for documentation only.
+// Per-spot bias offsets, recomputed nightly by nightlyCalibration.js
+// from the last 60 days of diveLogs deltas (recency-half-life and
+// observation-quality weighted). Applied by buildSpotReport via
+// abyss/calibrate.js before reports land in kaicast_reports.
 //
 /**
  * @typedef {Object} SpotCalibration
  * @property {string} spot_id
+ * @property {string} schema                'calibration-v2'
  *
- * @property {Object} bias_offsets
- * @property {number} bias_offsets.visibility_ft   Signed; SUBTRACT from predictions to correct.
+ * @property {Object} bias_offsets          All signed; SUBTRACT from predictions to correct.
+ * @property {number} bias_offsets.visibility_ft
+ * @property {number|null} bias_offsets.water_temp_f
+ * @property {number|null} bias_offsets.rating_level   Mean signed rating_delta (−3..+3).
  *
- * @property {Object<string, Object>} conditional_biases
- *           Conditional bias offsets keyed by context bucket — e.g.
- *           { 'low_light':            { visibility_ft: 4.2 },
- *             'onshore_trades_15kt+': { visibility_ft: 6.1 } }
- *
+ * @property {number} mae_visibility_ft     Mean absolute error.
+ * @property {number|null} r2_visibility    1 − SSres/SStot; null when observations had no variance.
  * @property {number} sample_count
- * @property {number} confidence_score     0..1. Grows with sample_count.
+ * @property {number} effective_sample_count  Kish effective N under weighting.
+ * @property {number} confidence_score      0..1. Saturates with effective N.
+ * @property {number} window_days
+ * @property {Object} observed_aggregates   { thermocline_rate, thermocline_reports }
+ * @property {FirebaseFirestore.Timestamp} last_updated_at
+ */
+
+// ─── abyss_calibration/{spotId}/buckets/{bucketKey} ──────────────────
+//
+// Condition-stratified visibility bias. bucketKey is one of:
+//   swell_{calm|small|moderate|large}      from predicted wave_height_ft
+//   tide_{rising|falling|slack|high|low}   from predicted tide_state
+//   tod_{dawn|morning|midday|afternoon|dusk|night}  dive hour (HST)
+//   runoff_{none|low|moderate|high|extreme}
+// Only buckets with ≥3 samples are written; stale buckets are deleted
+// on the next nightly run.
+//
+/**
+ * @typedef {Object} SpotCalibrationBucket
+ * @property {string} spot_id
+ * @property {string} bucket_key
+ * @property {string} dimension             'swell' | 'tide' | 'tod' | 'runoff'
+ * @property {number} bias_visibility_ft    Signed; SUBTRACT to correct.
+ * @property {number} mae_visibility_ft
+ * @property {number|null} r2_visibility
+ * @property {number} sample_count
+ * @property {number} effective_sample_count
+ * @property {number} confidence            0..1
  * @property {FirebaseFirestore.Timestamp} last_updated_at
  */
 
 // ─── spot_stats/{spotId}/daily/{yyyy-mm-dd} ──────────────────────────
 //
-// Daily rollup of dives at a spot. Populated by the same future
-// nightly job that updates calibration. NOT WRITTEN IN THIS COMMIT.
+// Daily descriptive rollup of dives at a spot, written by
+// nightlyCalibration (computeDailyRollups in abyss/calibrate.js).
+// Unweighted, unlike calibration — these describe what happened that
+// day, not how much to trust it. Recomputed for the whole 60-day
+// window nightly, so late backdated logs self-heal.
 //
 /**
  * @typedef {Object} SpotDailyStats

@@ -75,6 +75,8 @@ export function useUserProfile(uid: string | undefined): State & { refresh: () =
               certification: data.certification,
               onboardingComplete: data.onboardingComplete === true,
               accountType: data.accountType === 'charter' ? 'charter' : 'consumer',
+              orgId: typeof data.orgId === 'string' ? data.orgId : undefined,
+              captainLicense: typeof data.captainLicense === 'string' ? data.captainLicense : undefined,
               updatedAt: data.updatedAt?.toDate?.() ?? null,
               createdAt: data.createdAt?.toDate?.() ?? null,
             } as UserProfile,

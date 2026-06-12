@@ -9,6 +9,7 @@ import { LoadingView } from '@/components/LoadingView';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { usePushRegistration } from '@/hooks/usePushRegistration';
+import { CharterRoleProvider } from '@/hooks/useCharterRole';
 
 import { LoginScreen } from '@/screens/auth/LoginScreen';
 import { CreateAccountScreen } from '@/screens/auth/CreateAccountScreen';
@@ -158,7 +159,16 @@ export function AppNavigator() {
       ? 'main'
       : 'onboarding';
 
+  // CharterRoleProvider sits above NavigationContainer so the single
+  // role useState instance is shared across every screen — the dev
+  // role-switcher in CharterDashboard, the read-only gate in
+  // DailyLogScreen, and any future consumer all read from the same
+  // store. Wrapping each RootStack.Screen individually would give
+  // them isolated state and silently re-introduce the bug this
+  // refactor fixes. Auth + onboarding phases don't consume the
+  // context but mounting it there is free (no consumers, no renders).
   return (
+    <CharterRoleProvider>
     <NavigationContainer theme={navTheme} linking={linking}>
       <RootStack.Navigator
         screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}
@@ -197,5 +207,6 @@ export function AppNavigator() {
         )}
       </RootStack.Navigator>
     </NavigationContainer>
+    </CharterRoleProvider>
   );
 }

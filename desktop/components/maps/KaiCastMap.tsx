@@ -21,7 +21,7 @@
  * pin grows + gets a halo; hovered pin grows subtly.
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 
@@ -46,12 +46,49 @@ export interface MapMarker {
   /** Color by 5-tier condition. Omit for neutral pin. */
   tier?: ConditionTier;
   label?: string;
+  /** Raw hex color override for the pin (wins over `tier`). Used for
+   *  non-condition markers like a charter harbor. */
+  color?: string;
+  /** Optional hover/tap popup. When set, hovering the pin (desktop) or
+   *  tapping it (touch) opens a popup with this title + lines. */
+  popupTitle?: string;
+  popupLines?: string[];
+}
+
+// Dark-themed popup chrome — injected once. Mapbox's default popup is a
+// white bubble; this restyles `.mapboxgl-popup-content`/tip to the
+// KaiCast surface palette for any popup tagged with `kc-popup`.
+let popupCssInjected = false;
+function injectPopupCssOnce() {
+  if (popupCssInjected || typeof document === 'undefined') return;
+  popupCssInjected = true;
+  const style = document.createElement('style');
+  style.textContent = `
+.kc-popup .mapboxgl-popup-content{background:${RAW_COLORS_DARK.surface1};color:#F8F8F8;border:1px solid ${RAW_COLORS_DARK.surface2};border-radius:8px;padding:10px 12px;box-shadow:0 4px 16px rgba(0,0,0,0.5);}
+.kc-popup .mapboxgl-popup-tip{border-top-color:${RAW_COLORS_DARK.surface1};border-bottom-color:${RAW_COLORS_DARK.surface1};}
+.kc-popup .kc-popup-title{font-size:13px;font-weight:700;margin-bottom:2px;}
+.kc-popup .kc-popup-line{font-size:12px;opacity:0.82;}
+`;
+  document.head.appendChild(style);
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (c) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string),
+  );
 }
 
 export interface KaiCastMapProps {
   markers?: MapMarker[];
   center?: [number, number];
   zoom?: number;
+  /** Fit the viewport to a bounding box `[[swLng, swLat], [neLng, neLat]]`.
+   *  When set, takes precedence over center/zoom — used to frame a
+   *  company's whole operating area (spots + harbor) rather than centering
+   *  on one point. */
+  bounds?: [[number, number], [number, number]];
+  /** Padding (px) applied around `bounds` when fitting. */
+  boundsPadding?: number;
   /** Selected marker id — grows pin + adds halo. */
   selectedId?: string;
   /** Hovered marker id — subtle grow. */
@@ -141,6 +178,8 @@ export function KaiCastMap({
   markers = [],
   center = HAWAII_CENTER,
   zoom = HAWAII_ZOOM,
+  bounds,
+  boundsPadding = 56,
   selectedId,
   hoveredId,
   onMarkerClick,
@@ -156,6 +195,14 @@ export function KaiCastMap({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const markersRef = useRef<Record<string, mapboxgl.Marker>>({});
+  // Popup support — one shared Popup instance reused across markers.
+  // Latest popup data per marker id lives in popupDataRef so the
+  // hover/tap handlers (attached once at marker creation) always read
+  // current content even after markers re-sync.
+  const popupRef = useRef<mapboxgl.Popup | null>(null);
+  const popupDataRef = useRef<
+    Record<string, { title?: string; lines?: string[]; lng: number; lat: number }>
+  >({});
   // Layer toggle state lives here so KaiCastMap can drive the layer
   // controller via useMapLayers (which adds/removes Mapbox sources).
   const [layerState, setLayerState] = React.useState<LayerState>(INITIAL_LAYER_STATE);
@@ -208,6 +255,12 @@ export function KaiCastMap({
     // instance — surviving StrictMode's mount/cleanup/remount cycle.
     appliedStyleRef.current = baseStyleFor(themeRef.current);
 
+    // Frame the operating area immediately when bounds are supplied so
+    // the first paint already shows the whole spread (no center→fit jump).
+    if (bounds) {
+      map.fitBounds(bounds, { padding: boundsPadding, duration: 0 });
+    }
+
     if (showZoomControls) {
       map.addControl(new mapboxgl.NavigationControl({ showCompass: false, visualizePitch: false }), 'top-right');
     }
@@ -248,6 +301,8 @@ export function KaiCastMap({
     map.on('click', (e) => {
       const target = e.originalEvent.target as HTMLElement | null;
       if (target?.closest('.kaicast-marker')) return;
+      // Empty-map click dismisses any open marker popup (touch + mouse).
+      popupRef.current?.remove();
       onMapClick?.(e.lngLat.lng, e.lngLat.lat);
     });
 
@@ -294,11 +349,44 @@ export function KaiCastMap({
 
     return () => {
       if (resizeObs) resizeObs.disconnect();
+      popupRef.current?.remove();
+      popupRef.current = null;
       map.remove();
       mapRef.current = null;
       markersRef.current = {};
+      popupDataRef.current = {};
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Show/hide the shared popup for a given marker id. No-op when the
+  // marker carries no popup content. Reads from popupDataRef so the
+  // content stays current across re-syncs.
+  const showPopup = useCallback((id: string) => {
+    const map = mapRef.current;
+    const d = popupDataRef.current[id];
+    if (!map || !d) return;
+    const hasContent = !!d.title || (d.lines?.length ?? 0) > 0;
+    if (!hasContent) return;
+    injectPopupCssOnce();
+    const html =
+      `<div class="kc-popup-body">` +
+      (d.title ? `<div class="kc-popup-title">${escapeHtml(d.title)}</div>` : '') +
+      (d.lines ?? []).map((l) => `<div class="kc-popup-line">${escapeHtml(l)}</div>`).join('') +
+      `</div>`;
+    if (!popupRef.current) {
+      popupRef.current = new mapboxgl.Popup({
+        closeButton: false,
+        closeOnClick: false,
+        offset: 14,
+        className: 'kc-popup',
+      });
+    }
+    popupRef.current.setLngLat([d.lng, d.lat]).setHTML(html).addTo(map);
+  }, []);
+
+  const hidePopup = useCallback(() => {
+    popupRef.current?.remove();
   }, []);
 
   // Sync markers — add new, remove stale, restyle existing.
@@ -311,10 +399,13 @@ export function KaiCastMap({
       if (!incoming.has(id)) {
         markersRef.current[id].remove();
         delete markersRef.current[id];
+        delete popupDataRef.current[id];
       }
     }
 
     for (const m of markers) {
+      // Keep popup content current for this id (handlers read this ref).
+      popupDataRef.current[m.id] = { title: m.popupTitle, lines: m.popupLines, lng: m.lng, lat: m.lat };
       const existing = markersRef.current[m.id];
       if (existing) {
         existing.setLngLat([m.lng, m.lat]);
@@ -325,22 +416,35 @@ export function KaiCastMap({
         applyMarkerStyle(el, m, selectedId === m.id, hoveredId === m.id);
         el.addEventListener('click', (e) => {
           e.stopPropagation();
+          // Touch parity for hover: tapping a popup-bearing marker opens
+          // its popup. Empty-map click (below) dismisses it.
+          showPopup(m.id);
           onMarkerClick?.(m.id);
         });
+        el.addEventListener('mouseenter', () => showPopup(m.id));
+        el.addEventListener('mouseleave', () => hidePopup());
         const marker = new mapboxgl.Marker({ element: el, anchor: 'center' })
           .setLngLat([m.lng, m.lat])
           .addTo(map);
         markersRef.current[m.id] = marker;
       }
     }
-  }, [markers, selectedId, hoveredId, onMarkerClick]);
+  }, [markers, selectedId, hoveredId, onMarkerClick, showPopup, hidePopup]);
 
   // Sync center/zoom when they change externally (e.g. focus on cluster).
+  // Skipped while `bounds` is driving the viewport — the two would fight.
   useEffect(() => {
     const map = mapRef.current;
-    if (!map) return;
+    if (!map || bounds) return;
     map.easeTo({ center, zoom, duration: 600 });
-  }, [center, zoom]);
+  }, [center, zoom, bounds]);
+
+  // Re-fit when the operating-area bounds change (spots/harbor load in).
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !bounds) return;
+    map.fitBounds(bounds, { padding: boundsPadding, duration: 600 });
+  }, [bounds, boundsPadding]);
 
   // Theme change → swap the Mapbox style. setStyle fires another
   // style.load, which our handler above uses to reapply overrides
@@ -430,7 +534,7 @@ function applyMarkerStyle(
   selected: boolean,
   hovered: boolean,
 ) {
-  const base = m.tier ? TIER_COLORS[m.tier] : colors.text3;
+  const base = m.color ?? (m.tier ? TIER_COLORS[m.tier] : colors.text3);
   const size = selected ? 18 : hovered ? 16 : 13;
   el.style.width = `${size}px`;
   el.style.height = `${size}px`;

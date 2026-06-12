@@ -1,0 +1,14 @@
+{
+  "name": "kaicast-firestore-tests",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Firestore security-rules tests (run against the emulator).",
+  "scripts": {
+    "test": "cd .. && firebase emulators:exec --only firestore --project demo-kaicast \"node --test firestore-tests/\""
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^4.0.1",
+    "firebase": "^11.0.0"
+  }
+}

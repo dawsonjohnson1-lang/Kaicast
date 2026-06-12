@@ -18,6 +18,8 @@ import {
 export interface UserSettings {
   email: string;
   phone: string;
+  /** Captain's license number — gates filling out a captain's log. */
+  captainLicense: string;
   profile: {
     certification: Certification;
     preferredDiveType: PreferredDiveType;
@@ -47,6 +49,7 @@ type State = {
 
 const EMPTY: UserSettings = {
   email: '',
+  captainLicense: '',
   ...DEFAULT_USER_SETTINGS,
   meta: { updatedAt: null, updatedBy: null },
 };
@@ -95,6 +98,7 @@ function hydrate(data: any): UserSettings {
   return {
     email: typeof data.email === 'string' ? data.email : '',
     phone: typeof data.phone === 'string' ? data.phone : DEFAULT_USER_SETTINGS.phone,
+    captainLicense: typeof data.captainLicense === 'string' ? data.captainLicense : '',
     profile: {
       certification: profile.certification ?? DEFAULT_USER_SETTINGS.profile.certification,
       preferredDiveType:

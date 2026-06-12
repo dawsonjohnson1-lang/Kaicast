@@ -39,7 +39,7 @@ import { useUserProfile } from '@/hooks/useUserProfile';
 import { useAbyssConditions } from '@/hooks/useAbyssConditions';
 import { useCharterLog } from '@/hooks/useCharterLog';
 import { useCharterRole } from '@/hooks/useCharterRole';
-import { CHARTER_PERMS } from '@/types/charter';
+import { canFillCaptainLog } from '@/types/charter';
 import {
   emptyLightweightTrip,
   type CharterLogCrew,
@@ -64,12 +64,17 @@ export function DailyLogScreen() {
   const orgId = profile?.orgId;
   const dateMs = useMemo(todayMs, []);
 
-  // Role gate. Owner + Captain can create / submit a daily log;
-  // Manager + Crew get the same screen rendered read-only. Hook stays
-  // mock-only for now (Stage 1) — the role-switcher in CharterDashboard
-  // is how you preview each variant in dev.
+  // Permission gate — keyed on LICENSE, not role. The owner can always
+  // file; everyone else (captain, manager, crew, deckhand) can file only
+  // with a captain's license recorded on their account. Mirrored in
+  // firestore.rules (hasCaptainsLicense) so the form being hidden isn't
+  // the only enforcement. Role still comes from the mock hook (Stage 1);
+  // the license comes from the real user doc.
   const { role } = useCharterRole();
-  const canCreate = CHARTER_PERMS.createDailyLog(role);
+  const canCreate = canFillCaptainLog(role, profile?.captainLicense);
+  // A captain expected to file but with no license yet — prompt to add
+  // one rather than silently blocking.
+  const needsLicense = !canCreate;
 
   // Seed payload for useCharterLog. Notably we DO NOT pull trips
   // from FareHarbor here — Phase 1 is standalone. The trips array
@@ -79,21 +84,26 @@ export function DailyLogScreen() {
     if (!isCharter || !orgId) return null;
     return {
       operatorId: orgId,
+      authorId: user?.id ?? '',
       vesselId: orgId,
       vesselName: profile?.handle ?? 'Vessel',
       captainName: profile?.name ?? '',
-      captainLicense: '',
+      captainLicense: profile?.captainLicense ?? '',
       harborDeparture: '',
       dailyAlerts: '',
+      // Conditions snapshot anchors to the captain's home spot; the server
+      // falls back to the org's first operating spot when this is null.
+      primarySpotId: profile?.homeSpot ?? null,
       trips: [] as CharterLogTrip[],
       crew: [] as CharterLogCrew[],
     };
-  }, [isCharter, orgId, profile?.handle, profile?.name]);
+  }, [isCharter, orgId, user?.id, profile?.handle, profile?.name, profile?.captainLicense, profile?.homeSpot]);
 
   const {
     log,
     loading: logLoading,
     saving,
+    error: logError,
     patch,
     setCrew,
     addManualTrip,
@@ -162,15 +172,24 @@ export function DailyLogScreen() {
           </View>
         </View>
 
-        {/* Read-only banner — only Owner + Captain can create / submit
-            a daily log. Manager + Crew see the same form rendered, but
-            interaction is blocked at the wrapper below. */}
-        {!canCreate ? (
+        {/* Read-only banner — filling out a log needs a captain's
+            license (the owner is exempt). Without one the form is
+            rendered but interaction is blocked at the wrapper below. */}
+        {needsLicense ? (
           <View style={styles.readonlyBanner}>
             <Text style={styles.readonlyTitle}>Read-only</Text>
             <Text style={styles.readonlyBody}>
-              Only owners and captains can create or submit a daily log. You can review what's been filled in so far.
+              Add your captain's license number in profile to fill out logs. You can review what's been filled in so far.
             </Text>
+          </View>
+        ) : null}
+
+        {/* Save / load error — autosave runs silently, so surface failures
+            here so a captain knows their entries didn't persist. */}
+        {logError ? (
+          <View style={styles.errorBanner}>
+            <Text style={styles.errorTitle}>Couldn't save</Text>
+            <Text style={styles.errorBody}>{logError}</Text>
           </View>
         ) : null}
 
@@ -626,6 +645,27 @@ const styles = StyleSheet.create({
   },
   formBodyReadonly: {
     opacity: 0.6,
+  },
+  errorBanner: {
+    marginBottom: spacing.lg,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: '#F73726',
+    backgroundColor: 'rgba(247,55,38,0.10)',
+    gap: 2,
+  },
+  errorTitle: {
+    ...typography.bodySm,
+    color: '#F73726',
+    fontWeight: '700',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    fontSize: 11,
+  },
+  errorBody: {
+    ...typography.bodySm,
+    color: colors.textSecondary,
   },
   dayDate: {
     ...typography.bodySm,

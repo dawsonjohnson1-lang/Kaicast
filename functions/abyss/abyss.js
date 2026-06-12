@@ -53,6 +53,53 @@ const BLOOM_THRESHOLD = 2.0;
 // Clear tropical: <1 g/m³, turbid: >5 g/m³
 const SPM_CLEAR_THRESHOLD = 5.0;
 
+// SPM proxy (the ERDDAP datasets we use don't serve SPM directly):
+// chlorophyll above this level + wave-stirred bottom = suspended
+// particulate load. See the Layer 6 block for the full rationale.
+const SPM_PROXY_CHL_THRESHOLD = 1.5;     // mg/m³ — elevated for Hawaii nearshore
+const SPM_PROXY_ORBITAL_FRACTION = 0.6;  // of the sediment resuspension threshold
+const SPM_PROXY_MAX_PENALTY = 0.35;      // cap: proxy is inferred, never as harsh as direct SPM
+
+// Per-layer floor: no single layer may cut visibility below this
+// fraction of its input. Stacked worst-cases (runoff 0.30 × bloom 0.6
+// × wave 0.16) used to compound to implausible sub-meter intermediates
+// that only the final max(1, …) clamp papered over; clamping each
+// layer keeps every intermediate physically plausible AND keeps the
+// per-layer rationale deltas honest.
+const LAYER_FLOOR = 0.2;
+
+/**
+ * Apply one multiplicative layer with a confidence weight and a floor.
+ *
+ * `weight` (0..1) is how much we trust the inputs driving this layer —
+ * a layer fed by low-confidence or missing data is damped toward 1.0
+ * (no-op) rather than applied at full strength:
+ *
+ *   effective = 1 + (multiplier − 1) × weight,  clamped to ≥ LAYER_FLOOR
+ *
+ * Returns { vis, multiplier } where multiplier is the effective one
+ * (post-damping, post-floor) actually applied.
+ */
+function applyLayer(vis, multiplier, weight = 1) {
+  const w = Math.max(0, Math.min(1, Number.isFinite(weight) ? weight : 1));
+  const m = 1 + (multiplier - 1) * w;
+  const floored = Math.max(LAYER_FLOOR, m);
+  return { vis: vis * floored, multiplier: floored };
+}
+
+/**
+ * Freshness penalty for reusing a cached satellite KD490 value rather
+ * than falling back to the heuristic. Time since the value was pulled
+ * from ERDDAP (NOT the composite's own age — that's already priced
+ * into oceanColor.confidence): 1.0 fresh → 0.95 at 24 h → 0.90 at
+ * 48 h → 0.85 at 72 h, then keeps decaying at the same slope to a
+ * 0.75 floor while the 7-day cache TTL still serves it.
+ */
+function satelliteFreshnessPenalty(fetchAgeHours) {
+  if (!Number.isFinite(fetchAgeHours) || fetchAgeHours <= 0) return 1.0;
+  return Math.max(0.75, 1 - 0.05 * (fetchAgeHours / 24));
+}
+
 // ─── Main Abyss visibility function ──────────────────────────────────────────
 
 /**
@@ -196,17 +243,21 @@ async function estimateVisibilityAbyss(opts) {
     visM = Math.min(heurDepthCeilingM, visM);
     const visMRounded = Math.max(2, Math.round(visM));
 
+    // Plain-English lines — same convention as the satellite path: the
+    // (±N%) token is what the mobile client colorizes on.
     const heurRationale = [];
     const lightPct = Math.round((lightMultiplier - 1) * 100);
-    if (Math.abs(lightPct) >= 5) {
-      heurRationale.push(`Solar light + shadow: ${lightPct > 0 ? '+' : ''}${lightPct}%`);
+    if (lightPct <= -5) {
+      heurRationale.push(`Low sun and shadow are cutting the light underwater (${lightPct}%)`);
     }
     const windPct = Math.round((windChopMultiplier - 1) * 100);
-    if (Math.abs(windPct) >= 5) {
-      heurRationale.push(`Surface chop / wind: ${windPct > 0 ? '+' : ''}${windPct}%`);
+    if (windPct <= -5) {
+      heurRationale.push(`Wind chop is churning the surface layer (${windPct}%)`);
+    } else if (windPct >= 5) {
+      heurRationale.push(`Offshore breeze is smoothing out the surface (+${windPct}%)`);
     }
     if (Number.isFinite(exposureFactor) && exposureFactor < 0.85) {
-      heurRationale.push(`Sheltered from swell: ${Math.round((exposureFactor - 1) * 100)}%`);
+      heurRationale.push(`Terrain is blocking most of this swell (${Math.round((exposureFactor - 1) * 100)}%)`);
     }
 
     return {
@@ -221,7 +272,15 @@ async function estimateVisibilityAbyss(opts) {
       kd490: null,
       chlorophyll: null,
       spm: null,
+      spmProxy: null,
       dataAgeHours: null,
+      dataQuality: {
+        source: 'heuristic',
+        freshness: 'none',
+        satelliteFetchAgeHours: null,
+        compositeAgeDays: null,
+        freshnessPenalty: null,
+      },
       layers: { baseline: null, wave: null, tidal: null, runoff: null, bloom: null, spm: null, light: visMRounded },
       waveImpact: null,
       sun: { altitudeDeg: sun.altitudeDeg, azimuthDeg: sun.azimuthDeg },
@@ -235,11 +294,17 @@ async function estimateVisibilityAbyss(opts) {
   }
 
   // ── Layer 1: Satellite baseline ────────────────────────────────────────────
+  // The cached-KD490 freshness penalty lands here too: a value pulled
+  // from ERDDAP 48 h ago is still far better than the heuristic, but
+  // the water has had two days to drift from what the satellite saw.
   const kd490Data = kd490ToVisibility(oceanColor.kd490);
-  let vis = kd490Data.visibilityEstimateM || 15;
+  const freshnessPenalty = satelliteFreshnessPenalty(oceanColor.fetchAgeHours);
+  let vis = (kd490Data.visibilityEstimateM || 15) * freshnessPenalty;
   const layerBaseline = vis;
 
   // ── Layer 2: Wave energy correction ────────────────────────────────────────
+  // Weight: wave height/period come straight from buoy/forecast — when
+  // both are finite we trust them fully; the layer is skipped otherwise.
   let waveImpact = null;
   if (Number.isFinite(waveHeightM) && Number.isFinite(wavePeriodS)) {
     waveImpact = computeWaveImpactAtSite({
@@ -259,34 +324,77 @@ async function estimateVisibilityAbyss(opts) {
     const threshold = { sand: 0.15, coral_rubble: 0.20, reef: 0.30, silt: 0.10 }[sedimentType] || 0.20;
     const orbVel = waveImpact.orbitalVelocityMps;
     const sedimentFactor = 1 / (1 + Math.exp(-10 * (orbVel - threshold)));
-    vis *= (1 - sedimentFactor * 0.6 * sensitivityScale);
+    vis = applyLayer(vis, 1 - sedimentFactor * 0.6 * sensitivityScale, 1).vis;
   }
   const layerWave = vis;
 
   // ── Layer 3: Tidal flushing ────────────────────────────────────────────────
-  const tidalMult = TIDAL_MULTIPLIER[tidePhase] || 1.0;
-  vis *= tidalMult;
+  // 'unknown' phase maps to 1.0 already; no extra damping needed.
+  vis = applyLayer(vis, TIDAL_MULTIPLIER[tidePhase] || 1.0, 1).vis;
   const layerTidal = vis;
 
   // ── Layer 4: Runoff plume ──────────────────────────────────────────────────
+  // Weight: the runoff assessment carries its own confidence (rain
+  // rollups may be partly estimated) — a shaky "extreme" call gets
+  // damped instead of slashing visibility at full strength.
   const runoffSeverity = runoff?.severity || 'none';
   const runoffPenalty = RUNOFF_PENALTY[runoffSeverity] || 0;
-  vis *= (1 - runoffPenalty);
+  const runoffWeight = Number.isFinite(runoff?.confidence) ? runoff.confidence : 0.7;
+  vis = applyLayer(vis, 1 - runoffPenalty, runoffWeight).vis;
   const layerRunoff = vis;
 
   // ── Layer 5: Chlorophyll/algae bloom ───────────────────────────────────────
+  // Weight: chlorophyll rides the same satellite product as KD490, so
+  // inherit the ocean-color confidence.
   const chl = oceanColor.chlorophyll;
+  const oceanColorWeight = Number.isFinite(oceanColor.confidence) ? oceanColor.confidence : 0.7;
   if (Number.isFinite(chl) && chl > 0) {
     const bloomFactor = Math.min(1, chl / BLOOM_THRESHOLD);
-    vis *= (1 - bloomFactor * 0.4);
+    vis = applyLayer(vis, 1 - bloomFactor * 0.4, oceanColorWeight).vis;
   }
   const layerBloom = vis;
 
-  // ── Layer 6: SPM direct ────────────────────────────────────────────────────
+  // ── Layer 6: Suspended particulate matter ──────────────────────────────────
+  // Direct SPM when a dataset serves it (none of ours currently do);
+  // otherwise a DERIVED PROXY instead of skipping the layer:
+  //
+  //   In Hawaii nearshore water, elevated chlorophyll co-occurs with
+  //   elevated particulate load (plankton + the organic detritus that
+  //   travels with it), and wave-driven near-bottom orbital motion is
+  //   what actually lofts that material into the water column. So when
+  //   BOTH chl > 1.5 mg/m³ AND the bottom orbital velocity exceeds 60%
+  //   of the sediment resuspension threshold — i.e. the bottom is being
+  //   stirred even if not fully resuspended — we apply a penalty
+  //   proportional to both excesses, capped at 35% (a proxy should
+  //   never bite as hard as a direct measurement could).
+  //
+  //   spmProxyIndex = clamp01((chl − 1.5) / 3) × clamp01((velRatio − 0.6) / 0.6)
+  //
+  // Weight: chl confidence × 0.8 — it's an inference, not a reading.
   const spm = oceanColor.spm;
+  let spmProxy = null;
   if (Number.isFinite(spm) && spm > 0) {
     const spmPenalty = Math.min(0.6, spm / SPM_CLEAR_THRESHOLD);
-    vis *= (1 - spmPenalty);
+    vis = applyLayer(vis, 1 - spmPenalty, oceanColorWeight).vis;
+  } else if (
+    Number.isFinite(chl) && chl > SPM_PROXY_CHL_THRESHOLD &&
+    waveImpact && waveImpact.resuspensionThresholdMps > 0
+  ) {
+    const velRatio = waveImpact.bottomOrbitalVelocityMps / waveImpact.resuspensionThresholdMps;
+    if (velRatio > SPM_PROXY_ORBITAL_FRACTION) {
+      const clamp01 = (x) => Math.max(0, Math.min(1, x));
+      const chlExcess = clamp01((chl - SPM_PROXY_CHL_THRESHOLD) / 3.0);
+      const stirExcess = clamp01((velRatio - SPM_PROXY_ORBITAL_FRACTION) / SPM_PROXY_ORBITAL_FRACTION);
+      const proxyIndex = chlExcess * stirExcess;
+      const applied = applyLayer(vis, 1 - proxyIndex * SPM_PROXY_MAX_PENALTY, oceanColorWeight * 0.8);
+      vis = applied.vis;
+      spmProxy = {
+        index: Math.round(proxyIndex * 100) / 100,
+        velocityRatio: Math.round(velRatio * 100) / 100,
+        chlorophyll: chl,
+        appliedMultiplier: Math.round(applied.multiplier * 100) / 100,
+      };
+    }
   }
   const layerSpm = vis;
 
@@ -295,32 +403,46 @@ async function estimateVisibilityAbyss(opts) {
   // light, until we drop into actual twilight/shadow. Floor at 0.55
   // so a cloudy mid-morning still reads near full vis; only deep
   // twilight (factor<0.15) drives the multiplier down hard.
+  // Weight stays 1 even when cloud cover is missing: the dominant
+  // driver (sun altitude + horizon shadow) is deterministic, and
+  // damping the layer would wrongly brighten twilight/night estimates.
   const lightMultiplier = light.factor < 0.15
     ? 0.25 + light.factor * 2.0
     : 0.55 + 0.45 * Math.min(1.0, light.factor);
-  vis *= lightMultiplier;
+  vis = applyLayer(vis, lightMultiplier, 1).vis;
   const layerLight = vis;
 
   // ── Layer 8: Surface chop from wind direction ──────────────────────────────
-  vis *= windChopMultiplier;
+  vis = applyLayer(vis, windChopMultiplier, 1).vis;
   const layerWind = vis;
 
   // ── Build rationale so users see WHY visibility is what it is ──────────────
+  // Plain-English sentences, not "Factor: -23%" readouts — these render
+  // directly in the apps' "WHY X FT?" card. The trailing (±N%) token is
+  // load-bearing: the mobile client regexes it to colorize each line.
   const rationale = [];
-  const pushDelta = (label, before, after) => {
+  const pushDelta = (phrases, before, after) => {
     if (!Number.isFinite(before) || !Number.isFinite(after)) return;
     const pct = Math.round(((after - before) / Math.max(0.5, before)) * 100);
     if (Math.abs(pct) < 5) return; // skip noise
+    const phrase = pct > 0 ? phrases.up : phrases.down;
+    if (!phrase) return;
     const sign = pct > 0 ? '+' : '';
-    rationale.push(`${label}: ${sign}${pct}%`);
+    rationale.push(`${phrase} (${sign}${pct}%)`);
   };
-  pushDelta('Wave energy / sediment', layerBaseline, layerWave);
-  pushDelta('Tide flushing',          layerWave,     layerTidal);
-  pushDelta('Runoff plume',           layerTidal,    layerRunoff);
-  pushDelta('Algal bloom',            layerRunoff,   layerBloom);
-  pushDelta('Suspended particulate',  layerBloom,    layerSpm);
-  pushDelta('Solar light + shadow',   layerSpm,      layerLight);
-  pushDelta('Surface chop / wind',    layerLight,    layerWind);
+  pushDelta({ down: 'Surge is stirring sediment off the bottom' }, layerBaseline, layerWave);
+  pushDelta({
+    up:   'Incoming tide is pulling in clean ocean water',
+    down: 'Falling tide is dragging cloudy nearshore water through',
+  }, layerWave, layerTidal);
+  pushDelta({ down: 'Runoff from recent rain is clouding the water' }, layerTidal, layerRunoff);
+  pushDelta({ down: 'An algae bloom is tinting the water' }, layerRunoff, layerBloom);
+  pushDelta({ down: 'Fine particulate is hanging in the water column' }, layerBloom, layerSpm);
+  pushDelta({ down: 'Low sun and shadow are cutting the light underwater' }, layerSpm, layerLight);
+  pushDelta({
+    up:   'Offshore breeze is smoothing out the surface',
+    down: 'Wind chop is churning the surface layer',
+  }, layerLight, layerWind);
 
   // ── Final clamping & rating ────────────────────────────────────────────────
   // You can't see further horizontally than the bottom depth in real
@@ -345,6 +467,15 @@ async function estimateVisibilityAbyss(opts) {
   if (runoff && runoff.confidence < 0.6) confidence *= 0.9;
   confidence = Math.round(confidence * 100) / 100;
 
+  // Freshness tier shown to users: how directly the satellite is
+  // driving this number. 'live' = fetched this pipeline run, 'recent'
+  // = cached <24 h, 'aging' = cached 24-72 h, 'stale' = older cache.
+  const fetchAge = Number.isFinite(oceanColor.fetchAgeHours) ? oceanColor.fetchAgeHours : 0;
+  const freshness =
+    !oceanColor.fromCache ? 'live' :
+    fetchAge < 24  ? 'recent' :
+    fetchAge <= 72 ? 'aging' : 'stale';
+
   return {
     estimatedVisibilityMeters: Math.round(visM),
     estimatedVisibilityFeet: visFt,
@@ -354,7 +485,15 @@ async function estimateVisibilityAbyss(opts) {
     kd490: oceanColor.kd490,
     chlorophyll: oceanColor.chlorophyll,
     spm: oceanColor.spm,
+    spmProxy,
     dataAgeHours: oceanColor.ageHours,
+    dataQuality: {
+      source: 'satellite',
+      freshness,
+      satelliteFetchAgeHours: Math.round(fetchAge * 10) / 10,
+      compositeAgeDays: Number.isFinite(oceanColor.ageHours) ? Math.round(oceanColor.ageHours / 24) : null,
+      freshnessPenalty: Math.round(freshnessPenalty * 100) / 100,
+    },
     layers: {
       baseline: Math.round(layerBaseline * 10) / 10,
       wave: Math.round(layerWave * 10) / 10,

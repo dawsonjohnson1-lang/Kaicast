@@ -120,6 +120,7 @@ export function ProfileSettingsScreen() {
   const diveTypeVal = read<PreferredDiveType>(SETTINGS_PATHS.preferredDiveType, 'scuba' as PreferredDiveType);
   const unitsVal = read<Units>(SETTINGS_PATHS.units, 'imperial' as Units);
   const homeSpotIdVal = read<string>(SETTINGS_PATHS.homeSpotId, '');
+  const captainLicenseVal = read<string>(SETTINGS_PATHS.captainLicense, '');
   const phoneVal = read<string>(SETTINGS_PATHS.phone, '');
   const emailVal = settings?.email ?? user?.email ?? '';
 
@@ -210,6 +211,20 @@ export function ProfileSettingsScreen() {
           value={homeSpotIdVal || 'Pick a spot'}
           onPress={() => setPicker({ kind: 'spot', current: homeSpotIdVal })}
         />
+        <Row
+          icon="shield"
+          label="Captain's license number"
+          value={captainLicenseVal || 'Add license'}
+          onPress={() =>
+            setPicker({
+              kind: 'text',
+              path: SETTINGS_PATHS.captainLicense,
+              title: "Captain's license number",
+              placeholder: 'USCG / credential number',
+              current: captainLicenseVal,
+            })
+          }
+        />
       </Card>
 
       <SectionHeader>PREFERENCES</SectionHeader>
@@ -270,7 +285,7 @@ export function ProfileSettingsScreen() {
           <Card padding={0}>
             <Row
               icon="compass"
-              label="Charter dashboard"
+              label="Charter"
               value="Vessel · Crew · Trips"
               onPress={() => nav.navigate('Charter')}
             />
@@ -302,6 +317,7 @@ function readFromSettings(s: NonNullable<ReturnType<typeof useUserSettings>['set
   switch (path) {
     case SETTINGS_PATHS.email:                       return s.email;
     case SETTINGS_PATHS.phone:                       return s.phone;
+    case SETTINGS_PATHS.captainLicense:              return s.captainLicense;
     case SETTINGS_PATHS.certification:               return s.profile.certification;
     case SETTINGS_PATHS.preferredDiveType:           return s.profile.preferredDiveType;
     case SETTINGS_PATHS.homeSpotId:                  return s.profile.homeSpotId;

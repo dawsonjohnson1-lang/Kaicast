@@ -196,25 +196,47 @@ export type DiveLogRecord = DiveLogInput & {
   loggedAt: Date | null;
 };
 
+export type SubmitDiveLogResult = {
+  logId: string;
+  /** 'forecast' (live hourly report) | 'cold_storage' | null (unresolved). */
+  snapshotSource: string | null;
+  resolvedWithinMin: number | null;
+  /** True when this log updated community_overlays/{spotId} — i.e. the
+   *  diver's report is now live for everyone checking the spot. */
+  communityOverlayUpdated: boolean;
+};
+
 /**
- * Persist a dive log. Returns the new record's id.
+ * Persist a dive log.
  *
- * Now routes through the server-side `submitDiveLog` callable so the
+ * Routes through the server-side `submitDiveLog` callable so the
  * prediction snapshot is resolved server-trusted (not client-supplied).
  * The client never writes to `diveLogs/` directly anymore — rules deny it.
  *
- * - Firebase configured: invoke the callable; it returns { log_id }.
+ * - Firebase configured: invoke the callable and surface its full
+ *   response (snapshot provenance + community-overlay flag) so the
+ *   success screen can tell the diver their report went live.
  * - Otherwise: append to local AsyncStorage queue (demo mode unchanged).
  */
-export async function submitDiveLog(input: DiveLogInput): Promise<string> {
+export async function submitDiveLog(input: DiveLogInput): Promise<SubmitDiveLogResult> {
   if (firebaseConfigured && app) {
-    const fn = httpsCallable<unknown, { log_id: string }>(
+    const fn = httpsCallable<unknown, {
+      log_id: string;
+      snapshot_source: string | null;
+      resolved_within_min: number | null;
+      community_overlay_updated: boolean;
+    }>(
       getFunctions(app, 'us-central1'),
       'submitDiveLog',
     );
     const payload = toCallablePayload(input);
     const res = await fn(payload);
-    return res.data.log_id;
+    return {
+      logId: res.data.log_id,
+      snapshotSource: res.data.snapshot_source ?? null,
+      resolvedWithinMin: res.data.resolved_within_min ?? null,
+      communityOverlayUpdated: res.data.community_overlay_updated === true,
+    };
   }
   // Stub fallback.
   const id = `stub_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -223,7 +245,7 @@ export async function submitDiveLog(input: DiveLogInput): Promise<string> {
   const queue: DiveLogRecord[] = raw ? JSON.parse(raw) : [];
   queue.unshift(record);
   await AsyncStorage.setItem(STUB_QUEUE_KEY, JSON.stringify(queue.slice(0, 200)));
-  return id;
+  return { logId: id, snapshotSource: null, resolvedWithinMin: null, communityOverlayUpdated: false };
 }
 
 /**

@@ -50,8 +50,6 @@ const BASE_NAV_ITEMS: ReadonlyArray<{ key: NavKey; label: string }> = [
   { key: 'log',       label: 'Log Dive' },
 ];
 
-const CHARTER_NAV_ITEM = { key: 'charter' as const, label: 'Charter' };
-
 /**
  * Hawaii standard time is UTC−10 year-round (no DST), so we format
  * against the IANA zone 'Pacific/Honolulu' rather than the browser's
@@ -117,14 +115,12 @@ export function DesktopNav({
   const signedIn = auth.user != null;
   const resolvedInitials = userInitials ?? initialsFromUser(auth.user, 'KC');
   const resolvedPhotoURL = profile?.photoURL ?? auth.user?.photoURL ?? null;
-  // Charter-affiliated accounts get a "Charter" entry to the right of
-  // Log Dive so they can jump to the ops dashboard even when their
-  // activeContext is 'consumer' (Personal mode). Surfaced for
-  // accountType === 'charter' (the admin role); crew users have their
-  // own /crew nav under the crew shell.
-  const navItems = auth.accountType === 'charter'
-    ? [...BASE_NAV_ITEMS, CHARTER_NAV_ITEM]
-    : BASE_NAV_ITEMS;
+  // Charter is intentionally NOT surfaced in the top nav anymore — it
+  // moved into Profile → Settings (a "Charter" row, membership-gated)
+  // so the global nav stays focused on the consumer surface. Charter
+  // members reach the ops dashboard from there (or the account
+  // switcher). See desktop/ProfileScreen.tsx.
+  const navItems = BASE_NAV_ITEMS;
   return (
     <View style={styles.root}>
       {showUtilBar ? (

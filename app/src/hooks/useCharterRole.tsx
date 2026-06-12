@@ -2,18 +2,23 @@
 // vessel + crew + trips.
 //
 // Stage 1 (current): returns mock data so the UI can be built and
-// previewed in the simulator. The role is read from a local override
-// (default 'captain') so you can swap roles in dev via the
-// CharterDashboard role-switcher developer affordance.
+// previewed in the simulator. The mutable role lives in
+// CharterRoleContext so the dev role-switcher in CharterDashboard
+// propagates to other screens (e.g. DailyLogScreen reads it to gate
+// the read-only banner). Without the provider every consumer would
+// have its own useState — flipping the switcher in one screen would
+// silently no-op everywhere else.
 //
 // Stage 2 (TODO): replace mock data with Firestore reads:
 //   /charter_vessels/{vesselId}
 //   /charter_vessels/{vesselId}/crew/{userId}  ← carries role
 //   /charter_trips where vesselId == vessel.id
 // Plus an onSnapshot subscription on each so connection-state pings
-// from the boat's mesh propagate within seconds.
+// from the boat's mesh propagate within seconds. The context wrapper
+// stays — Stage 2 just swaps the provider's internals from useState
+// to onSnapshot subscriptions.
 
-import { useState } from 'react';
+import React, { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
 import {
   type CharterRole,
   type CrewMember,
@@ -71,6 +76,11 @@ const MOCK_VESSEL: Vessel = {
   homePort: 'Lahaina Harbor, Maui',
   captainId: 'u_kai',
   crew: MOCK_CREW,
+  // Stage 2 (real Firestore fleet) will carry the owner-set vesselType.
+  // Until then the mock is a purpose-built dive platform so the two-day
+  // forecast renders a real vessel-sensitive read instead of the
+  // "set vessel type" prompt.
+  vesselType: 'dive_boat',
 };
 
 function inHours(h: number): Date {
@@ -144,6 +154,31 @@ const MOCK_TRIPS: Trip[] = [
   },
 ];
 
+// ─── Context + provider ─────────────────────────────────────────────────
+
+// Only the mutable role lives in the context value — the mock vessel /
+// crew / trips are frozen constants that don't need to be re-rendered
+// from. Keeping the value narrow means setRole stays the only
+// invalidation source. Stage 2 will broaden this to carry the live
+// Firestore data, at which point the provider becomes the snapshot
+// subscriber.
+type CharterRoleContextValue = {
+  role: CharterRole;
+  setRole: (r: CharterRole) => void;
+};
+
+const CharterRoleContext = createContext<CharterRoleContextValue | null>(null);
+
+export function CharterRoleProvider({ children }: { children: ReactNode }) {
+  const [role, setRole] = useState<CharterRole>('captain');
+  const value = useMemo<CharterRoleContextValue>(() => ({ role, setRole }), [role]);
+  return (
+    <CharterRoleContext.Provider value={value}>
+      {children}
+    </CharterRoleContext.Provider>
+  );
+}
+
 // ─── Hook ────────────────────────────────────────────────────────────────
 
 export type CharterRoleState = {
@@ -156,12 +191,17 @@ export type CharterRoleState = {
 };
 
 export function useCharterRole(): CharterRoleState {
-  const [role, setRole] = useState<CharterRole>('captain');
+  const ctx = useContext(CharterRoleContext);
+  if (!ctx) {
+    throw new Error(
+      'useCharterRole must be used inside <CharterRoleProvider>. Mount the provider around the main-phase navigator.',
+    );
+  }
   return {
-    role,
+    role: ctx.role,
+    setRole: ctx.setRole,
     vessel: MOCK_VESSEL,
     crew: MOCK_CREW,
     trips: MOCK_TRIPS,
-    setRole,
   };
 }

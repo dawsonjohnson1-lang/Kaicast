@@ -44,12 +44,24 @@ export type BackendDay = {
   rainTotalMM?: number | null;
 };
 
+export type BackendDataQuality = {
+  /** Is the visibility estimate satellite-derived or heuristic-derived? */
+  source?: 'satellite' | 'heuristic';
+  /** live = fetched this run, recent <24h cache, aging 24-72h, stale older, none = heuristic */
+  freshness?: 'live' | 'recent' | 'aging' | 'stale' | 'none';
+  satelliteFetchAgeHours?: number | null;
+  compositeAgeDays?: number | null;
+  freshnessPenalty?: number | null;
+};
+
 export type BackendReport = {
   spotId: string;
   generatedAt: string;
   confidence?: number | null;
   sources?: string[];
   qcFlags?: string[];
+  /** Top-level mirror of now.visibility.dataQuality — see functions/abyss/abyss.js */
+  dataQuality?: BackendDataQuality | null;
   now: {
     metrics: Record<string, number | null>;
     visibility?: {
@@ -61,6 +73,15 @@ export type BackendReport = {
     runoff?: { severity?: string; safeToEnter?: boolean; healthRisk?: string };
     tide?: Record<string, unknown>;
     analysis?: Record<string, unknown>;
+    /** Subsurface temp/thermocline profile (PacIOOS/CMEMS/heuristic), or
+     *  null when no provider can serve this spot. Powers the dive-boat
+     *  thermocline + water-temp-for-exposure chips. */
+    subsurface?: {
+      thermoclineDepthM?: number | null;
+      surfaceTempC?: number | null;
+      source?: string;
+      confidence?: number | null;
+    } | null;
   };
   windows: BackendWindow[];
   days?: BackendDay[];
@@ -218,15 +239,33 @@ export function aggregateDayScore(day: BackendDay): number {
   return clampScore(score);
 }
 
+/** YYYY-MM-DD for `ms` in Hawaii-local time, viewer-tz independent. */
+function hstDateOf(ms: number): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Pacific/Honolulu',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date(ms));
+}
+
+/** 0-23 hour for `ms` in Hawaii-local time. */
+function hstHourOf(ms: number): number {
+  return Number(new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Pacific/Honolulu', hour: 'numeric', hour12: false,
+  }).format(new Date(ms))) % 24;
+}
+
 /**
- * Bucket the report's windows by 3-hour slot for a single day. Index
- * 0 = 00-03, 1 = 03-06, ..., 7 = 21-24. Returns undefined for slots
- * the backend didn't return a window for (e.g. truncated reports).
+ * Bucket the report's windows by 3-hour slot for a single HST day.
+ * Index 0 = 00-03, 1 = 03-06, ..., 7 = 21-24. Returns undefined for
+ * slots the backend didn't return a window for (e.g. truncated
+ * reports).
  *
  * `dayOffset` is days from today (0 today, 1 tomorrow, ...).
  *
- * This is the SAME slicing logic the hourly card uses, so the day
- * card's bars and the hourly badges literally read the same scores.
+ * Day membership and slot hours are Hawaii-local (matching the hourly
+ * card and the backend's HST day keys) — NOT the viewer's tz, and NOT
+ * the raw UTC date in startIso, both of which shift evening windows
+ * into the wrong day card.
  */
 export function windowsForDayOffset(
   allWindows: BackendWindow[] | undefined,
@@ -234,18 +273,12 @@ export function windowsForDayOffset(
 ): Array<BackendWindow | undefined> {
   const out = new Array<BackendWindow | undefined>(8);
   if (!Array.isArray(allWindows) || allWindows.length === 0) return out;
-  const target = new Date();
-  target.setHours(0, 0, 0, 0);
-  target.setDate(target.getDate() + dayOffset);
-  const yyyy = target.getFullYear();
-  const mm = String(target.getMonth() + 1).padStart(2, '0');
-  const dd = String(target.getDate()).padStart(2, '0');
-  const datePrefix = `${yyyy}-${mm}-${dd}`;
+  const targetHstDate = hstDateOf(Date.now() + dayOffset * 86400000);
   for (const w of allWindows) {
-    if (!w.startIso?.startsWith(datePrefix)) continue;
-    const ms = Date.parse(w.startIso);
+    const ms = Date.parse(w.startIso ?? '');
     if (!Number.isFinite(ms)) continue;
-    const idx = Math.floor(new Date(ms).getHours() / 3);
+    if (hstDateOf(ms) !== targetHstDate) continue;
+    const idx = Math.floor(hstHourOf(ms) / 3);
     if (idx >= 0 && idx < 8) out[idx] = w;
   }
   return out;
@@ -422,13 +455,6 @@ export function backendReportToHours(
   // browser's tz), and compare each window's startIso in Hawaii-local
   // time. Otherwise a viewer in EST sees Hawaii's evening windows
   // attributed to "tomorrow" in their browser tz.
-  const hstDateOf = (ms: number): string => {
-    const fmt = new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'Pacific/Honolulu',
-      year: 'numeric', month: '2-digit', day: '2-digit',
-    });
-    return fmt.format(new Date(ms));
-  };
   const targetMs = Date.now() + dayOffset * 86400000;
   const targetHstDate = hstDateOf(targetMs);
 

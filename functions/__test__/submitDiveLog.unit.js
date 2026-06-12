@@ -182,7 +182,8 @@ function seedKaicastReport(spotId, hourKeyMs, prediction) {
   assert.strictEqual(log.predicted_at_time.visibility_ft, 39);
   // Signed delta: predicted (39) − observed (25) = +14
   assert.strictEqual(log.deltas.visibility_ft, 14, 'delta should be signed predicted−observed');
-  assert.strictEqual(log.deltas.rating_mismatch, true, 'Good predicted vs fair observed → mismatch');
+  // Good predicted (3) vs fair observed (2) → signed +1 (over-prediction)
+  assert.strictEqual(log.deltas.rating_delta, 1, 'rating_delta should be signed predicted−observed level');
 
   // Overlay updated
   const overlay = fakeDocs.get('community_overlays/hanauma-bay');

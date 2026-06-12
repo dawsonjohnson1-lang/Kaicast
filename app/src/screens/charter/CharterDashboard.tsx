@@ -19,6 +19,8 @@ import { colors, radius, spacing, typography } from '@/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { useCharterRole } from '@/hooks/useCharterRole';
+import { useCharterAccount } from '@/hooks/useCharterAccount';
+import { CharterMap } from '@/components/charter/CharterMap';
 import type { CharterRole } from '@/types/charter';
 import { ROLE_LABEL } from '@/types/charter';
 
@@ -43,6 +45,9 @@ export function CharterDashboard() {
   const { profile, loading: profileLoading } = useUserProfile(user?.id);
   const isCharter = profile?.accountType === 'charter';
   const { role, vessel, crew, trips, setRole } = useCharterRole();
+  // Real org data (harbor / vessels / operating spots) for the map —
+  // null/empty until the account has an orgId + provisioned doc.
+  const { account: charterAccount, spots: charterSpots } = useCharterAccount(profile?.orgId);
 
   // While the profile snapshot is still loading we render nothing —
   // showing the upgrade screen prematurely would flash for charter
@@ -106,6 +111,13 @@ export function CharterDashboard() {
         ))}
       </View>
 
+      {/* Charter map — operating spots + harbor (with docked vessels on
+          tap). Pulls the real charter_accounts/{orgId} doc; renders a
+          Hawaii overview when no harbor is set yet. */}
+      <View style={mapStyles.mapWrap}>
+        <CharterMap account={charterAccount} spots={charterSpots} />
+      </View>
+
       {role === 'owner' && (
         <OwnerDashboard vessel={vessel} trips={trips} crew={crew} onSpotTap={onSpotTap} />
       )}
@@ -156,6 +168,13 @@ const devStyles = StyleSheet.create({
   chipOn: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
   chipText: { ...typography.caption, color: colors.textSecondary, fontWeight: '700', letterSpacing: 1 },
   chipTextOn: { color: colors.accent },
+});
+
+const mapStyles = StyleSheet.create({
+  mapWrap: {
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.md,
+  },
 });
 
 const gateStyles = StyleSheet.create({
