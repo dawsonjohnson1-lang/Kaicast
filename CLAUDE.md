@@ -35,7 +35,7 @@ semantics into the existing infrastructure:
 | forecast               | `kaicast_reports/{spotId}_{hourKey}.windows + .days` | same                         |
 | community_overlay      | `community_overlays/{spotId}`                    | `submitDiveLog` (txn)            |
 | calibration            | `abyss_calibration/{spotId}` + `…/buckets/{bucketKey}` | `nightlyCalibration` (03:10 HST) |
-| spot_stats daily       | `spot_stats/{spotId}/daily/{yyyy-mm-dd}`         | (future nightly job)             |
+| spot_stats daily       | `spot_stats/{spotId}/daily/{yyyy-mm-dd}`         | `nightlyCalibration` (03:10 HST) |
 
 `community_overlays` is a separate stable doc — NOT a sub-object of
 `kaicast_reports.now` — because the hourly scheduler rewrites
@@ -116,15 +116,17 @@ Tests: `npm test` inside `functions/`.
 (satellite vs heuristic + freshness tier) mirrored from
 `now.visibility.dataQuality`.
 
+The same nightly job also writes `spot_stats/{spotId}/daily/{date}`
+descriptive rollups (unweighted, whole window recomputed nightly), and
+`claimAnonymousLogs` rewrites `anon:{token}` dive logs to the authed
+uid after sign-up (token = proof of ownership; stamps
+`claimed_from_anon` + `claimed_at`).
+
 ## Next steps (deliberately out of scope)
 
 - **Monthly recalibration window.** Slower-moving conditional biases
   (seasonal effects, runoff calibration) recomputed from the full
   ~30-day window vs. the nightly job's recency-weighted 60-day window.
-- **Anonymous-log claim flow** (`claimAnonymousLogs` callable). The
-  `submitDiveLog` callable already accepts an `anonymous_claim_token`
-  and tags logs with `uid: 'anon:{token}'`. The claim flow would
-  rewrite those uids to the authed Firebase uid once the user signs up.
 - **RN client refactor**. The compat wrapper in
   `app/src/api/diveLogs.ts` keeps the existing flow working but
   doesn't fully take advantage of the server response (which now

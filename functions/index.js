@@ -2221,6 +2221,12 @@ exports.deleteUserAccount = onCall(
 
 exports.submitDiveLog  = require('./submitDiveLog').submitDiveLog;
 exports.deleteDiveLog  = require('./submitDiveLog').deleteDiveLog;
+
+// Anonymous-log claim flow: rewrites diveLogs tagged uid 'anon:{token}'
+// to the authed uid once the user signs up. The token (already accepted
+// by submitDiveLog) is the proof of ownership.
+exports.claimAnonymousLogs = require('./claimAnonymousLogs').claimAnonymousLogs;
+
 exports.archiveHourly        = require('./archiveHourly').archiveHourly;
 
 // Nightly calibration — closes the Abyss loop: reads diveLogs deltas
