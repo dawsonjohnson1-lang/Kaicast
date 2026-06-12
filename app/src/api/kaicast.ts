@@ -77,12 +77,33 @@ export type BackendWindRel = {
   chopMultiplier: number;
 };
 
+export type BackendDataQuality = {
+  /** Is the visibility estimate satellite-derived or heuristic-derived? */
+  source?: 'satellite' | 'heuristic';
+  /** live = fetched this run, recent <24h cache, aging 24-72h, stale older, none = heuristic */
+  freshness?: 'live' | 'recent' | 'aging' | 'stale' | 'none';
+  satelliteFetchAgeHours?: number | null;
+  compositeAgeDays?: number | null;
+  freshnessPenalty?: number | null;
+};
+
+export type BackendCalibration = {
+  applied: boolean;
+  correctionFt?: number;
+  bucketsUsed?: string[];
+  sampleCount?: number | null;
+  confidence?: number;
+  uncalibrated?: { visibilityFt: number; rating: string };
+};
+
 export type BackendVisibility = {
   estimatedVisibilityMeters: number;
   estimatedVisibilityFeet?: number;
   rating?: string;
   source?: 'satellite' | 'heuristic' | 'cache';
   confidence?: number;
+  dataQuality?: BackendDataQuality | null;
+  calibration?: BackendCalibration | null;
   rationale?: string[];
   sun?: BackendSun;
   shadow?: BackendShadow;
@@ -102,6 +123,8 @@ export type BackendReport = {
   hourKey: string;
   sources: string[];
   qcFlags: string[];
+  /** Top-level mirror of now.visibility.dataQuality. */
+  dataQuality?: BackendDataQuality | null;
   tide: any;
   now: {
     metrics: {

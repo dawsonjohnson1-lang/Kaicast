@@ -44,12 +44,24 @@ export type BackendDay = {
   rainTotalMM?: number | null;
 };
 
+export type BackendDataQuality = {
+  /** Is the visibility estimate satellite-derived or heuristic-derived? */
+  source?: 'satellite' | 'heuristic';
+  /** live = fetched this run, recent <24h cache, aging 24-72h, stale older, none = heuristic */
+  freshness?: 'live' | 'recent' | 'aging' | 'stale' | 'none';
+  satelliteFetchAgeHours?: number | null;
+  compositeAgeDays?: number | null;
+  freshnessPenalty?: number | null;
+};
+
 export type BackendReport = {
   spotId: string;
   generatedAt: string;
   confidence?: number | null;
   sources?: string[];
   qcFlags?: string[];
+  /** Top-level mirror of now.visibility.dataQuality — see functions/abyss/abyss.js */
+  dataQuality?: BackendDataQuality | null;
   now: {
     metrics: Record<string, number | null>;
     visibility?: {

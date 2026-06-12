@@ -292,11 +292,22 @@ function Hero({ onNavigate }: { onNavigate?: NavigateFn }) {
     ? `Updated ${relativeTime(Date.parse(report.generatedAt))}`
     : loading ? 'Loading…' : STATIC_NARRATIVE.updatedAt;
 
+  // Data-quality badge: is this visibility number satellite-grounded
+  // or the wind/swell heuristic? (Top-level dataQuality field shipped
+  // with the Abyss calibration work — absent on pre-rollout reports.)
+  const dq = report?.dataQuality;
+  const dataQualityLabel = !dq?.source ? null
+    : dq.source === 'heuristic' ? 'Modeled estimate'
+    : dq.freshness === 'aging' || dq.freshness === 'stale'
+      ? 'Satellite data (aging)'
+      : 'Satellite data';
+
   const metaParts = [
     coordsLabel(spot.lat, spot.lon),
     spot.region,
     updatedAt,
-  ].filter(Boolean);
+    dataQualityLabel,
+  ].filter((m): m is string => Boolean(m));
 
   return (
     <View style={styles.heroOuter}>
