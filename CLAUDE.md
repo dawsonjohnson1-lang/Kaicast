@@ -127,13 +127,12 @@ uid after sign-up (token = proof of ownership; stamps
 - **Monthly recalibration window.** Slower-moving conditional biases
   (seasonal effects, runoff calibration) recomputed from the full
   ~30-day window vs. the nightly job's recency-weighted 60-day window.
-- **RN client refactor**. The compat wrapper in
-  `app/src/api/diveLogs.ts` keeps the existing flow working but
-  doesn't fully take advantage of the server response (which now
-  returns `snapshot_source`, `resolved_within_min`,
-  `community_overlay_updated`). A future refactor could surface
-  "your report just updated the community overlay for this spot" in
-  the post-log success screen.
+- **Anonymous logging UI.** The backend claim flow is live
+  (`claimAnonymousLogs` + `anonymous_claim_token` on submit), but the
+  RN app has no anonymous logging mode — when one ships, generate a
+  token client-side, log with it pre-auth, and call the claim callable
+  on sign-up. (The post-log "your report updated live conditions"
+  feedback and the dataQuality badge are already wired in both clients.)
 - **Delete repo-root duplicate files** (`/analysis.js`, `/index.js`,
   etc.) once everyone confirms nothing local references them.
 
