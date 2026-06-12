@@ -45,6 +45,9 @@ const SETTINGS_PATHS = Object.freeze({
   // Captain's license number — top-level on the user doc (like phone).
   // Gates filling out a captain's log (see firestore.rules
   // hasCaptainsLicense + the charter trips/charter_logs write rules).
+  // Self-attested via the Settings UI — the callable validates shape
+  // and records it for the audit trail, but does NOT verify the
+  // credential; org membership is still required to file logs.
   captainLicense: 'captainLicense',
 
   pushEnabled:                  'prefs.pushNotifications.enabled',

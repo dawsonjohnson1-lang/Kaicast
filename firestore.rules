@@ -32,16 +32,34 @@ service cloud.firestore {
       // `activeContext` IS client-writable — it's the per-user
       // last-used context toggle from the global account switcher and
       // can be flipped on every navigation.
-      allow create: if request.auth != null && request.auth.uid == uid;
+      // CREATE must enforce the same server-only blocklist as update —
+      // otherwise a new signup (or owner-allowed delete + recreate)
+      // could seed accountType/orgId/activeOrgIds/captainLicense/pro*
+      // directly and self-grant charter-org access or Pro. Desktop
+      // signup (seedUserDocIfNew in desktop/hooks/useAuth.tsx) seeds
+      // some of these keys on the initial create, so they're allowed
+      // ONLY at their harmless defaults.
+      allow create: if request.auth != null && request.auth.uid == uid
+                    && !request.resource.data.keys().hasAny([
+                         'profile', 'prefs', 'meta', 'phone',
+                         'captainLicense', 'activeOrgIds', 'proExpiresAt',
+                       ])
+                    && request.resource.data.get('accountType', 'consumer') == 'consumer'
+                    && request.resource.data.get('orgId', null) == null
+                    && request.resource.data.get('orgMemberships', []).size() == 0
+                    && request.resource.data.get('proAccess', false) == false
+                    && request.resource.data.get('proSource', null) == null;
       allow update: if request.auth != null && request.auth.uid == uid
                     && !request.resource.data.diff(resource.data).affectedKeys()
                          .hasAny([
                            'profile', 'prefs', 'meta', 'phone',
                            // captainLicense gates captain's-log writes
-                           // (see hasCaptainsLicense below) — it must be
-                           // server-only so a client can't self-grant the
-                           // ability to file logs. Written via the
-                           // updateUserSetting callable (Admin SDK).
+                           // (see hasCaptainsLicense below). It is
+                           // self-attested by design — any user can set it
+                           // from Settings via the updateUserSetting
+                           // callable (Admin SDK); routing through the
+                           // callable only enforces validation + audit
+                           // trail, not credential verification.
                            'captainLicense',
                            'accountType', 'orgId', 'orgMemberships',
                            'activeOrgIds',
@@ -213,10 +231,13 @@ service cloud.firestore {
     // Whether the requesting user has a captain's license number on
     // their user doc. Gates filling out / submitting a captain's log:
     //   canFillCaptainLog = isOwner(org admin) || hasCaptainsLicense()
-    // Mirrors the client-side predicate. captainLicense is server-only
-    // (written via the updateUserSetting callable) so this can't be
-    // self-granted. A captain/deckhand with a license can file; without
-    // one they cannot — incident-flag logs need a real credential.
+    // Mirrors the client-side predicate. captainLicense is self-attested
+    // via the updateUserSetting callable (Settings UI on both clients);
+    // this rule blocks direct doc writes so the value always passes
+    // server validation, but it is NOT a verified credential. The gate
+    // is attestation + audit trail (the entered number is recorded on
+    // the user doc), and the charter_logs / trips rules still require
+    // org membership (hasOrgAccess) on top of this check.
     function hasCaptainsLicense() {
       return request.auth != null
         && exists(/databases/$(database)/documents/users/$(request.auth.uid))
@@ -299,14 +320,17 @@ service cloud.firestore {
       }
 
       match /alerts/{alertId} {
-        // Good Window alerts — readable by any member of the org so
-        // the dashboard banner surfaces them; writes restricted to
-        // (1) the charterGoodWindowAlerter Cloud Function (Admin SDK
-        // bypasses rules) which CREATES alerts, and (2) any org
-        // member toggling read/unread state from the dashboard.
-        // Direct create from a client is denied so a bad actor can't
-        // synthesize fake alerts; the rule below only allows updates
-        // to specific harmless fields.
+        // Good Window alerts — ADMIN-ONLY today (isCharterMember, not
+        // hasOrgAccess like sibling subcollections): the only consumer
+        // is the desktop CharterHomeScreen's AlertsBanner, an
+        // admin-only surface. If crew ever get an alerts surface,
+        // broaden read + update to hasOrgAccess deliberately.
+        // Writes restricted to (1) the charterGoodWindowAlerter Cloud
+        // Function (Admin SDK bypasses rules) which CREATES alerts,
+        // and (2) the org admin toggling read/unread state from the
+        // dashboard. Direct create from a client is denied so a bad
+        // actor can't synthesize fake alerts; the rule below only
+        // allows updates to specific harmless fields.
         allow read:   if isCharterMember(orgId);
         allow update: if isCharterMember(orgId)
                       && request.resource.data.diff(resource.data).affectedKeys()
