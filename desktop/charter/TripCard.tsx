@@ -145,12 +145,12 @@ function findWindowForDeparture(
   const tripStart = new Date(tripDate);
   tripStart.setHours(hour, minute, 0, 0);
   const targetMs = tripStart.getTime();
-  const windows = (report.windows as Array<{ startsAt?: string; rating?: unknown }> | undefined) ?? [];
+  const windows = (report.windows as Array<{ startIso?: string; rating?: unknown }> | undefined) ?? [];
   if (windows.length === 0) return null;
   let best: { delta: number; w: unknown } | null = null;
   for (const w of windows) {
-    if (!w.startsAt) continue;
-    const wStart = new Date(w.startsAt).getTime();
+    if (!w.startIso) continue;
+    const wStart = Date.parse(w.startIso);
     const delta = Math.abs(wStart - targetMs);
     if (!best || delta < best.delta) best = { delta, w };
   }

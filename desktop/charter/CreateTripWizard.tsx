@@ -14,8 +14,9 @@
 //      but surfaces the warning so the captain makes the call.
 //   4. Manifest — dive trips only. Add divers one at a time with
 //      cert level, agency, expiry, emergency contact.
-//   5. Review — read-only summary + "File float plan" button which
-//      writes to Firestore.
+//   5. Review — read-only summary + "Create trip" button which
+//      writes to Firestore; float-plan filing happens later on the
+//      crew brief screen.
 
 import React from 'react';
 import { View, Text, Pressable, TextInput, ScrollView, StyleSheet, Modal } from 'react-native';
@@ -162,7 +163,7 @@ export function CreateTripWizard({ orgId, org, onClose, onSaved }: Props) {
                 style={[styles.footerBtn, styles.footerBtnPrimary, (!stepValid('Review') || saving) && styles.footerBtnDisabled]}
               >
                 <Text style={[styles.footerBtnText, styles.footerBtnTextPrimary]}>
-                  {saving ? 'Saving…' : 'File float plan'}
+                  {saving ? 'Saving…' : 'Create trip'}
                 </Text>
               </Pressable>
             ) : (
@@ -258,7 +259,7 @@ function BasicsStep({ draft, setDraft, org }: { draft: DraftTrip; setDraft: Reac
     const departureTime = profile.typicalDepartureTimes[0] ?? draft.departureTime;
     const returnTime = profile.typicalDurationHrs > 0
       ? addHoursToHHmm(departureTime, profile.typicalDurationHrs)
-      : draft.departureTime;
+      : draft.returnTime;
     setDraft((d) => ({
       ...d,
       tripType,
@@ -268,7 +269,7 @@ function BasicsStep({ draft, setDraft, org }: { draft: DraftTrip; setDraft: Reac
         ? { name: harbor.name, lat: String(harbor.lat), lng: String(harbor.lng) }
         : d.departureHarbor,
     }));
-  }, [org, draft.departureTime, setDraft]);
+  }, [org, draft.departureTime, draft.returnTime, setDraft]);
 
   const onPickTripType = (t: TripType) => {
     const matchingProfile = findMatchingProfile(org, t);

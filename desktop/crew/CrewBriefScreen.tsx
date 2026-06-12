@@ -165,8 +165,13 @@ function BriefBody({
   // Captain's-log gate — license, not trip assignment. The standalone
   // log writes to charter_logs, whose rule checks owner-or-license,
   // not captainUid (that only scopes trip-doc writes like float plan).
+  // Owner path is org-scoped to match isCharterMember in the rule: a
+  // charter admin crewing for ANOTHER org still needs a license here.
   const { settings } = useUserSettings(auth.user?.uid ?? null);
-  const canFileLog = canFillCaptainLog(auth.accountType === 'charter', settings?.captainLicense);
+  const canFileLog = canFillCaptainLog(
+    auth.accountType === 'charter' && auth.orgId === orgId,
+    settings?.captainLicense,
+  );
   // Fleet for the filer's vessel picker — trips don't carry a vessel.
   const { account } = useCharterAccount(orgId);
 
