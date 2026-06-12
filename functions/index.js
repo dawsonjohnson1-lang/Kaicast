@@ -130,7 +130,7 @@ function localShelterFactor(spot) {
 }
 
 /**
- * Apply per-spot exposure correction to wave-height maps in place.
+ * Apply per-spot exposure correction to wave-height maps.
  * Two factors combine multiplicatively:
  *   1. Directional exposure (does the swell's compass bearing reach
  *      the spot, or is it shadowed by an island/headland?)
@@ -138,19 +138,26 @@ function localShelterFactor(spot) {
  *      knocks down the open-coast reading regardless of direction?)
  * Heights for hours with no direction get only the local-shelter
  * factor applied (no directional correction possible without dir).
+ *
+ * Non-destructive: returns a new object with a cloned waveHMap.
+ * The input maps come straight out of fetch caches (marineForecast /
+ * pacioos / buoy) that hand the SAME object to every caller within
+ * the TTL — mutating in place would compound the correction across
+ * spots sharing a cache entry. Callers must use the return value.
  */
 function applyExposureToMaps(spot, maps) {
   if (!maps || !maps.waveHMap) return maps;
   const shelter = localShelterFactor(spot);
-  for (const [iso, h] of maps.waveHMap.entries()) {
+  const scaledH = new Map(maps.waveHMap);
+  for (const [iso, h] of scaledH.entries()) {
     const dir = maps.waveDirMap?.get(iso);
     const dirFactor = Number.isFinite(dir) ? exposureFactor(spot, dir) : 1;
     const factor = dirFactor * shelter;
     if (factor < 1) {
-      maps.waveHMap.set(iso, Math.round(h * factor * 100) / 100);
+      scaledH.set(iso, Math.round(h * factor * 100) / 100);
     }
   }
-  return maps;
+  return { ...maps, waveHMap: scaledH };
 }
 const { pushAllReportsToWebflow } = require('./webflow');
 const { estimateVisibilityAbyss } = require('./abyss/abyss');
@@ -206,7 +213,7 @@ const ALL_SECRETS = [
 // even if surf looks manageable.
 
 // Auto-generated from Webflow CMS by scripts/generate-spots.js
-// 26 spots — re-run when Webflow gains new entries.
+// 39 spots — re-run when Webflow gains new entries.
 const SPOTS = [
   {
     id: 'airport-beach',
@@ -391,8 +398,8 @@ const SPOTS = [
   {
     id: 'kealakekua-bay',
     name: "Kealakekua Bay",
-    lat: 19.4789,
-    lon: -156.0004,
+    lat: 19.479,
+    lon: -155.928,
     tz: 'Pacific/Honolulu',
     coast: 'west',
     island: "Big Island",
@@ -1249,6 +1256,17 @@ function hstHourOf(ms) {
   return new Date(ms + HST_OFFSET_MS).getUTCHours();
 }
 
+// Circular mean for direction (degrees) — compass bearings can't be
+// averaged arithmetically (350° and 10° must yield 0°, not 180°).
+function dirAvg(degs) {
+  if (!degs.length) return null;
+  const rads = degs.map((d) => (d * Math.PI) / 180);
+  const sx = rads.reduce((a, r) => a + Math.cos(r), 0);
+  const sy = rads.reduce((a, r) => a + Math.sin(r), 0);
+  const m = (Math.atan2(sy, sx) * 180) / Math.PI;
+  return Math.round((m + 360) % 360);
+}
+
 function buildWindows(hourlyItems, nowMs, count = 8) {
   const WINDOW_MS = 3 * 3600000;
   const windows   = [];
@@ -1271,7 +1289,7 @@ function buildWindows(hourlyItems, nowMs, count = 8) {
         airTempC:          avgField(inWindow, 'airTempC'),
         windSpeedKts:      avgField(inWindow, 'windSpeedKts'),
         windGustKts:       avgField(inWindow, 'windGustKts'),
-        windDeg:           avgField(inWindow, 'windDeg'),
+        windDeg:           dirAvg(inWindow.map((h) => h.windDeg).filter(Number.isFinite)),
         cloudCoverPercent: avgField(inWindow, 'cloudCoverPercent'),
         rainLast1hMM:      avgField(inWindow, 'rainLast1hMM'),
         waveHeightM:       avgField(inWindow, 'waveHeightM'),
@@ -1545,6 +1563,9 @@ async function buildSpotReport({ spot, owHourly, buoyData, marineForecast, nowMs
     // so a 6 PM window correctly shows depressed visibility from
     // mountain shadow / low light, while a 9 AM window shows full sun.
     const winMidMsForVis = new Date(w.startIso).getTime() + 1.5 * 3600000;
+    // marineForecast maps key entries as "YYYY-MM-DDTHH:00"; the
+    // window's startIso is the full ISO with .000Z, so slice down.
+    const winWaveDirDegFrom = marineForecast?.waveDirMap?.get(w.startIso.slice(0, 13) + ':00') ?? null;
     const winVisibilityRaw = await estimateVisibilityAbyss({
       spot,
       lat: spot.lat,
@@ -1554,9 +1575,7 @@ async function buildSpotReport({ spot, owHourly, buoyData, marineForecast, nowMs
       windDirectionDegFrom: w.avg.windDeg,
       waveHeightM:          w.avg.waveHeightM,
       wavePeriodS:          w.avg.wavePeriodS,
-      // marineForecast maps key entries as "YYYY-MM-DDTHH:00"; the
-      // window's startIso is the full ISO with .000Z, so slice down.
-      waveDirectionDegFrom: marineForecast?.waveDirMap?.get(w.startIso.slice(0, 13) + ':00') ?? null,
+      waveDirectionDegFrom: winWaveDirDegFrom,
       tidePhase:            winTideCycle?.currentTideState ?? 'unknown',
       rainRollups:       winRainRollups,
       runoff:            winRunoff,
@@ -1587,7 +1606,7 @@ async function buildSpotReport({ spot, owHourly, buoyData, marineForecast, nowMs
       windDirDeg:       w.avg.windDeg,
       swellFeet:        winEffectiveSwellFt,
       swellPeriodSec:   w.avg.wavePeriodS,
-      swellDirDeg:      w.avg.waveDirectionDegFrom,
+      swellDirDeg:      winWaveDirDegFrom,
       currentKnots:     estimateCurrentFromWind(w.avg.windSpeedKts),
       waterTempC:       w.avg.waterTempC,
       rainLast24hMM:    winRainRollups.rain24hMM,
@@ -1762,16 +1781,6 @@ function buildDailyForecast({ marineForecast, owHourly, spot, nowMs, tideSeries 
   const avg = (arr) => (arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null);
   const sum = (arr) => (arr.length ? arr.reduce((a, b) => a + b, 0) : null);
 
-  // Circular mean for direction (degrees)
-  function dirAvg(degs) {
-    if (!degs.length) return null;
-    const rads = degs.map((d) => (d * Math.PI) / 180);
-    const sx = rads.reduce((a, r) => a + Math.cos(r), 0);
-    const sy = rads.reduce((a, r) => a + Math.sin(r), 0);
-    const m = (Math.atan2(sy, sx) * 180) / Math.PI;
-    return Math.round((m + 360) % 360);
-  }
-
   const round1 = (n) => (n == null ? null : Math.round(n * 10) / 10);
   const round0 = (n) => (n == null ? null : Math.round(n));
 
@@ -1870,7 +1879,7 @@ async function runPipeline({ apiKey, publish = false }) {
       // Hawaii NDBC stations rather than relying on a single buoy that
       // may sit on the wrong side of the island from the spot.
       const buoys = defaultBuoysForSpot(spot);
-      const buoyData = buoys.length > 0
+      let buoyData = buoys.length > 0
         ? await fetchMultiBuoy({ stations: buoys }).catch(() => null)
         : null;
       // A1: PacIOOS WW3 (5 km Hawaii-regional) preferred over global
@@ -1880,14 +1889,14 @@ async function runPipeline({ apiKey, publish = false }) {
         .catch(() => null);
       const openMeteoForecast = await fetchMarineForecast({ lat: spot.lat, lon: spot.lon, days: 7 })
         .catch(() => null);
-      const marineForecast = (pacioosForecast && pacioosForecast.waveHMap?.size > 0)
+      let marineForecast = (pacioosForecast && pacioosForecast.waveHMap?.size > 0)
         ? pacioosForecast
         : openMeteoForecast;
 
       // A3: apply per-spot swell-window exposure correction. A 6 ft
       // south swell shows ~1.5 ft at a north-shore spot, not 6 ft.
-      applyExposureToMaps(spot, buoyData);
-      applyExposureToMaps(spot, marineForecast);
+      buoyData = applyExposureToMaps(spot, buoyData);
+      marineForecast = applyExposureToMaps(spot, marineForecast);
 
       const report = await buildSpotReport({ spot, owHourly, buoyData, marineForecast, nowMs });
       reports.push(report);
@@ -2022,7 +2031,7 @@ exports.getReport = onRequest(
       // Hawaii NDBC stations rather than relying on a single buoy that
       // may sit on the wrong side of the island from the spot.
       const buoys = defaultBuoysForSpot(spot);
-      const buoyData = buoys.length > 0
+      let buoyData = buoys.length > 0
         ? await fetchMultiBuoy({ stations: buoys }).catch(() => null)
         : null;
       // A1: PacIOOS WW3 (5 km Hawaii-regional) preferred over global
@@ -2032,14 +2041,14 @@ exports.getReport = onRequest(
         .catch(() => null);
       const openMeteoForecast = await fetchMarineForecast({ lat: spot.lat, lon: spot.lon, days: 7 })
         .catch(() => null);
-      const marineForecast = (pacioosForecast && pacioosForecast.waveHMap?.size > 0)
+      let marineForecast = (pacioosForecast && pacioosForecast.waveHMap?.size > 0)
         ? pacioosForecast
         : openMeteoForecast;
 
       // A3: apply per-spot swell-window exposure correction. A 6 ft
       // south swell shows ~1.5 ft at a north-shore spot, not 6 ft.
-      applyExposureToMaps(spot, buoyData);
-      applyExposureToMaps(spot, marineForecast);
+      buoyData = applyExposureToMaps(spot, buoyData);
+      marineForecast = applyExposureToMaps(spot, marineForecast);
       const report = await buildSpotReport({ spot, owHourly, buoyData, marineForecast, nowMs });
 
       // Cache the freshly-computed report so the next request is fast.
@@ -2081,7 +2090,11 @@ exports.scheduler = onSchedule(
     schedule:      'every 1 hours',
     timeZone:      'Pacific/Honolulu',
     secrets:       ALL_SECRETS,
-    timeoutSeconds:300,
+    // 540 s: 39 sequential spots × worst-case upstream timeouts (e.g.
+    // 6 s ERDDAP abort per spot on a cold ocean-color cache) can blow
+    // past 300 s, killing the run mid-loop and leaving later spots
+    // with no kaicast_reports doc (and no archive entry) for the hour.
+    timeoutSeconds:540,
     memory:        '512MiB',
   },
   async () => {

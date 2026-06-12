@@ -189,6 +189,8 @@ function seedKaicastReport(spotId, hourKeyMs, prediction) {
   const overlay = fakeDocs.get('community_overlays/hanauma-bay');
   assert.ok(overlay, 'overlay written');
   assert.strictEqual(overlay.recent_log_count, 1);
+  assert.strictEqual(overlay.vis_n, 1, 'one vis-bearing log');
+  assert.strictEqual(overlay.rating_n, 1, 'one rating-bearing log');
   assert.strictEqual(overlay.avg_observed_visibility_ft, 25);
   assert.strictEqual(overlay.avg_observed_rating, 2);
   console.log('✓ Test 1 passed.');
@@ -275,7 +277,40 @@ function seedKaicastReport(spotId, hourKeyMs, prediction) {
   assert.ok(threw, 'no auth + no claim token must throw');
 
   console.log('✓ Test 3 passed.');
-  console.log('\nAll 3 tests passed.');
+
+// ── Test 4: mixed overlay window — vis-less logs must not skew avg ─
+
+  console.log('--- Test 4: overlay averages ignore logs missing the field ---');
+  reset();
+  seedSpot('hanauma-bay');
+  const now4 = Date.now();
+  const submit = (observed) => submitDiveLog({
+    auth: { uid: 'test-user-4' },
+    data: {
+      spot_id: 'hanauma-bay',
+      dive_at: now4 - 30 * 60 * 1000,
+      dive_type: 'scuba',
+      privacy: 'public',
+      observed,
+    },
+  });
+  // Three logs without visibility, then vis=50, then vis=100.
+  await submit({ overall_rating: 'good' });
+  await submit({});
+  await submit({});
+  await submit({ visibility_ft: 50 });
+  await submit({ visibility_ft: 100 });
+
+  const overlay4 = fakeDocs.get('community_overlays/hanauma-bay');
+  assert.ok(overlay4, 'overlay written');
+  assert.strictEqual(overlay4.recent_log_count, 5, 'all logs counted');
+  assert.strictEqual(overlay4.vis_n, 2, 'only vis-bearing logs counted for vis');
+  assert.strictEqual(overlay4.rating_n, 1, 'only rating-bearing logs counted for rating');
+  // Mean over vis-bearing logs only: (50 + 100) / 2 = 75, NOT 60.
+  assert.strictEqual(overlay4.avg_observed_visibility_ft, 75, 'avg over vis-bearing logs only');
+  assert.strictEqual(overlay4.avg_observed_rating, 3, 'rating avg unaffected by rating-less logs');
+  console.log('✓ Test 4 passed.');
+  console.log('\nAll 4 tests passed.');
 })
 .catch((err) => {
   console.error('TEST FAILED:', err);

@@ -284,7 +284,9 @@ function detectStreakEvents({ spot, current, history }) {
 }
 
 function todayDateKey() {
-  const d = new Date();
+  // HST date (UTC-10, no DST) — UTC would flip at 14:00 HST and break
+  // dedupe keys mid-day for the hourly streak detectors.
+  const d = new Date(Date.now() - 10 * 3600 * 1000);
   return d.toISOString().slice(0, 10); // YYYY-MM-DD
 }
 

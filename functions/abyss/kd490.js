@@ -121,6 +121,25 @@ async function setCache(db, lat, lon, payload) {
   }
 }
 
+// ─── Circuit breaker ─────────────────────────────────────────────────────────
+
+// After this many consecutive network-level ERDDAP failures in one
+// process, skip ERDDAP for subsequent spots — a hung/down host would
+// otherwise cost every spot its own FETCH_TIMEOUT_MS in the same
+// sequential pipeline run (the failure cache is per grid point, so it
+// can't short-circuit across spots).
+const BREAKER_THRESHOLD = 3;
+let consecutiveNetworkFailures = 0;
+
+function erddapBreakerOpen() {
+  return consecutiveNetworkFailures >= BREAKER_THRESHOLD;
+}
+
+// Test-only: module state would otherwise leak between test cases.
+function _resetErddapBreaker() {
+  consecutiveNetworkFailures = 0;
+}
+
 // ─── ERDDAP CSV parser ───────────────────────────────────────────────────────
 
 /**
@@ -167,8 +186,10 @@ async function fetchErddapPoint({ dataset, varname, lat, lon, nowMs }) {
     let r;
     try {
       r = await timedFetch(url);
+      consecutiveNetworkFailures = 0;
     } catch (err) {
       firstErr = err.message;
+      consecutiveNetworkFailures++;
       // Network-level error (timeout, DNS, TLS) — likely upstream
       // outage. No point trying more dates against the same dead host.
       logger.warn(`abyss/kd490: ERDDAP ${dataset} fetch error`, { error: err.message, daysBack: d });
@@ -210,6 +231,10 @@ async function fetchOceanColor({ lat, lon, nowMs, db }) {
   // a freshness penalty to the visibility baseline: ~0.95× at 24 h,
   // 0.90× at 48 h, 0.85× at 72 h (see abyss.js satelliteFreshnessPenalty).
   const cached = await getCached(db, lat, lon);
+  // Soft-failure marker (kd490: null) still inside CACHE_TTL_FAIL_MS —
+  // getCached already enforces the 30-min TTL, so a non-expired marker
+  // means "ERDDAP was down recently, don't hammer it again yet".
+  if (cached && cached.kd490 == null) return null;
   if (cached && cached.kd490 != null) {
     const cacheAgeHours = (Date.now() - cached.fetchedAt) / 3600000;
     return {
@@ -224,11 +249,16 @@ async function fetchOceanColor({ lat, lon, nowMs, db }) {
     };
   }
 
-  // 2. Fetch KD490 + CHL from CoastWatch in parallel.
-  const [kd490Res, chlRes] = await Promise.all([
-    fetchErddapPoint({ dataset: KD490_DATASET, varname: 'kd_490', lat, lon, nowMs }),
-    fetchErddapPoint({ dataset: CHL_DATASET,   varname: 'chlor_a', lat, lon, nowMs }),
-  ]);
+  // 2. Fetch KD490 + CHL from CoastWatch in parallel — unless the
+  // circuit breaker tripped earlier in this process, in which case
+  // skip straight to the failure marker so the rest of the pipeline
+  // run doesn't pay FETCH_TIMEOUT_MS per spot against a dead host.
+  const [kd490Res, chlRes] = erddapBreakerOpen()
+    ? [null, null]
+    : await Promise.all([
+        fetchErddapPoint({ dataset: KD490_DATASET, varname: 'kd_490', lat, lon, nowMs }),
+        fetchErddapPoint({ dataset: CHL_DATASET,   varname: 'chlor_a', lat, lon, nowMs }),
+      ]);
 
   if (!kd490Res) {
     logger.info('abyss/kd490: no satellite data available', { lat, lon });
@@ -306,4 +336,7 @@ module.exports = {
   parseErddapScalarCsv,
   snapToGrid,
   erddapTimeAt,
+  fetchErddapPoint,
+  erddapBreakerOpen,
+  _resetErddapBreaker,
 };

@@ -146,24 +146,18 @@ async function resolveFromHourlyReports(spotId, atMs) {
  *
  * Returns null when bucket / file missing or no snapshot is within window.
  */
-async function resolveFromColdStorage(spotId, atMs) {
-  const hstDate = formatHstDate(atMs);
+/** Load one HST-day archive file's entries; [] on any miss or error. */
+async function loadArchiveEntries(bucket, spotId, hstDate) {
   const filename = `${spotId}/${hstDate}.json.gz`;
-  let bucket;
-  try {
-    bucket = storage().bucket(COLD_STORAGE_BUCKET);
-  } catch {
-    return null;
-  }
   const file = bucket.file(filename);
   let exists = false;
   try {
     [exists] = await file.exists();
   } catch (err) {
     logger.warn('snapshotResolver: cold-storage exists() failed', { spotId, hstDate, error: err.message });
-    return null;
+    return [];
   }
-  if (!exists) return null;
+  if (!exists) return [];
 
   let entries;
   try {
@@ -172,9 +166,32 @@ async function resolveFromColdStorage(spotId, atMs) {
     entries = JSON.parse(text);
   } catch (err) {
     logger.warn('snapshotResolver: cold-storage read failed', { spotId, hstDate, error: err.message });
+    return [];
+  }
+  return Array.isArray(entries) ? entries : [];
+}
+
+async function resolveFromColdStorage(spotId, atMs) {
+  let bucket;
+  try {
+    bucket = storage().bucket(COLD_STORAGE_BUCKET);
+  } catch {
     return null;
   }
-  if (!Array.isArray(entries) || entries.length === 0) return null;
+
+  // Archive files are bucketed by the HST date of each snapshot's
+  // generatedAt, so an in-window snapshot near HST midnight can live in
+  // the adjacent day's file. Load every date the ±30-min window touches.
+  const dates = new Set([
+    formatHstDate(atMs - SNAPSHOT_MATCH_WINDOW_MS),
+    formatHstDate(atMs),
+    formatHstDate(atMs + SNAPSHOT_MATCH_WINDOW_MS),
+  ]);
+  let entries = [];
+  for (const hstDate of dates) {
+    entries = entries.concat(await loadArchiveEntries(bucket, spotId, hstDate));
+  }
+  if (entries.length === 0) return null;
 
   let best = null;
   let bestDeltaMs = Infinity;
