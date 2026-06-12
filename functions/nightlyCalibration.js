@@ -34,6 +34,7 @@ const {
   CALIBRATION_COLLECTION,
   WINDOW_DAYS,
   computeSpotCalibration,
+  computeDailyRollups,
 } = require('./abyss/calibrate');
 
 const db = () => admin.firestore();
@@ -66,8 +67,31 @@ async function runNightlyCalibration(nowMs = Date.now()) {
 
   let spotsWritten = 0;
   let bucketsWritten = 0;
+  let rollupsWritten = 0;
 
   for (const [spotId, logs] of bySpot) {
+    // Daily descriptive rollups (spot_stats/{spotId}/daily/{date}) are
+    // written for ANY spot with logs — they don't need the calibration
+    // sample threshold, and recomputing the window nightly makes them
+    // self-healing against late-arriving backdated logs.
+    const rollups = computeDailyRollups(logs);
+    const rollupDates = Object.keys(rollups);
+    if (rollupDates.length) {
+      const statsBatch = db().batch();
+      for (const date of rollupDates) {
+        statsBatch.set(
+          db().collection('spot_stats').doc(spotId).collection('daily').doc(date),
+          {
+            ...rollups[date],
+            spot_id: spotId,
+            computed_at: admin.firestore.FieldValue.serverTimestamp(),
+          },
+        );
+      }
+      await statsBatch.commit();
+      rollupsWritten += rollupDates.length;
+    }
+
     const { overall, buckets } = computeSpotCalibration(logs, { nowMs });
     if (!overall) {
       logger.info('nightlyCalibration: below sample threshold, keeping prior doc', {
@@ -119,8 +143,9 @@ async function runNightlyCalibration(nowMs = Date.now()) {
     spotsWithLogs: bySpot.size,
     spotsWritten,
     bucketsWritten,
+    rollupsWritten,
   });
-  return { logsRead: snap.size, spotsWritten, bucketsWritten };
+  return { logsRead: snap.size, spotsWritten, bucketsWritten, rollupsWritten };
 }
 
 exports.nightlyCalibration = onSchedule(

@@ -219,8 +219,11 @@
 
 // ─── spot_stats/{spotId}/daily/{yyyy-mm-dd} ──────────────────────────
 //
-// Daily rollup of dives at a spot. Populated by the same future
-// nightly job that updates calibration. NOT WRITTEN IN THIS COMMIT.
+// Daily descriptive rollup of dives at a spot, written by
+// nightlyCalibration (computeDailyRollups in abyss/calibrate.js).
+// Unweighted, unlike calibration — these describe what happened that
+// day, not how much to trust it. Recomputed for the whole 60-day
+// window nightly, so late backdated logs self-heal.
 //
 /**
  * @typedef {Object} SpotDailyStats

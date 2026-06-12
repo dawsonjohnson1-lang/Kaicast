@@ -18,6 +18,8 @@ const {
   recencyWeight,
   computeStats,
   computeSpotCalibration,
+  computeDailyRollups,
+  hstDateKey,
   computeCorrection,
   applyCalibrationToVisibility,
   HALF_LIFE_DAYS,
@@ -262,6 +264,41 @@ function makeLog({ daysAgo = 1, predVis = 40, obsVis = 30, waveFt = 3, tide = 'r
   assert.strictEqual(passthrough.estimatedVisibilityFeet, 39);
   assert.strictEqual(passthrough.calibration.applied, false);
   console.log('✓ computeCorrection / applyCalibrationToVisibility');
+}
+
+// ── computeDailyRollups ──────────────────────────────────────────────
+
+{
+  // HST day boundary: 09:30 UTC Jun 10 = 23:30 HST Jun 9 — belongs to Jun 9.
+  assert.strictEqual(hstDateKey(Date.UTC(2026, 5, 10, 9, 30, 0)), '2026-06-09');
+  assert.strictEqual(hstDateKey(Date.UTC(2026, 5, 10, 10, 30, 0)), '2026-06-10');
+
+  const logs = [
+    // Two comparable dives on Jun 9 HST (19:00 + 21:00 UTC = 09:00/11:00 HST)
+    makeLog({ daysAgo: 1, hourUtc: 19, predVis: 40, obsVis: 30 }),
+    makeLog({ daysAgo: 1, hourUtc: 21, predVis: 36, obsVis: 38 }),
+    // One dive on Jun 8 HST with NO resolved snapshot — counts for
+    // dive_count + observed avg, contributes nothing to error stats
+    { dive_at: NOW - 2 * 86400000 + 20 * 3600000, observed: { visibility_ft: 50 }, predicted_at_time: null },
+    // One log with no usable dive_at — skipped entirely
+    { dive_at: 'bogus', observed: { visibility_ft: 10 } },
+  ];
+  const rollups = computeDailyRollups(logs);
+  const dates = Object.keys(rollups).sort();
+  assert.strictEqual(dates.length, 2, 'two HST days');
+
+  const [day8, day9] = dates.map((d) => rollups[d]);
+  assert.strictEqual(day9.dive_count, 2);
+  assert.strictEqual(day9.avg_observed_visibility_ft, 34);     // (30+38)/2
+  assert.strictEqual(day9.avg_predicted_visibility_ft, 38);    // (40+36)/2
+  assert.strictEqual(day9.mae_visibility_ft, 6);               // (|10|+|−2|)/2
+  assert.strictEqual(day9.mean_signed_delta_visibility_ft, 4); // (10 + −2)/2
+
+  assert.strictEqual(day8.dive_count, 1);
+  assert.strictEqual(day8.avg_observed_visibility_ft, 50);
+  assert.strictEqual(day8.avg_predicted_visibility_ft, null, 'no snapshot → no predicted avg');
+  assert.strictEqual(day8.mae_visibility_ft, null);
+  console.log('✓ computeDailyRollups');
 }
 
 console.log('\nAll calibration tests passed.');

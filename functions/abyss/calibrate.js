@@ -327,6 +327,65 @@ function computeSpotCalibration(logs, { nowMs } = {}) {
   return { overall, buckets };
 }
 
+// ─── Daily rollups ──────────────────────────────────────────────────
+
+/** YYYY-MM-DD in HST — matches the cold-storage day-boundary convention. */
+function hstDateKey(ms) {
+  const d = new Date(ms + HST_OFFSET_MS);
+  return (
+    String(d.getUTCFullYear()) + '-' +
+    String(d.getUTCMonth() + 1).padStart(2, '0') + '-' +
+    String(d.getUTCDate()).padStart(2, '0')
+  );
+}
+
+/**
+ * Per-day rollups for ONE spot's logs → spot_stats/{spotId}/daily docs.
+ * UNWEIGHTED, unlike calibration: these are descriptive stats of what
+ * happened that day ("4 dives, divers saw ~35 ft, model ran +6 ft
+ * hot"), so a snorkeler's log counts the same as a scuba log and
+ * recency decay would make no sense inside a single day.
+ *
+ * Logs without a resolved snapshot still count toward dive_count and
+ * the observed average — only the predicted/error fields need both
+ * sides.
+ *
+ * @param {Array<object>} logs   one spot's diveLogs docs
+ * @returns {Object<string, object>}  'YYYY-MM-DD' (HST) → SpotDailyStats body
+ */
+function computeDailyRollups(logs) {
+  const days = new Map(); // dateKey → { obs: [], pred: [], deltas: [], count }
+  for (const log of logs || []) {
+    const diveAtMs = log?.dive_at?.toMillis ? log.dive_at.toMillis()
+      : (Number.isFinite(log?.dive_at) ? log.dive_at : null);
+    if (!Number.isFinite(diveAtMs)) continue;
+    const key = hstDateKey(diveAtMs);
+    let d = days.get(key);
+    if (!d) { d = { obs: [], pred: [], deltas: [], count: 0 }; days.set(key, d); }
+    d.count++;
+    const obsVis = log.observed?.visibility_ft;
+    const predVis = log.predicted_at_time?.visibility_ft;
+    if (Number.isFinite(obsVis)) d.obs.push(obsVis);
+    if (Number.isFinite(predVis)) d.pred.push(predVis);
+    if (Number.isFinite(predVis) && Number.isFinite(obsVis)) d.deltas.push(predVis - obsVis);
+  }
+
+  const mean = (a) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : null);
+  const round1 = (x) => (x == null ? null : Math.round(x * 10) / 10);
+  const out = {};
+  for (const [date, d] of days) {
+    out[date] = {
+      date,
+      dive_count: d.count,
+      avg_observed_visibility_ft: round1(mean(d.obs)),
+      avg_predicted_visibility_ft: round1(mean(d.pred)),
+      mae_visibility_ft: round1(mean(d.deltas.map(Math.abs))),
+      mean_signed_delta_visibility_ft: round1(mean(d.deltas)),
+    };
+  }
+  return out;
+}
+
 // ─── Applying corrections ───────────────────────────────────────────
 
 /**
@@ -466,6 +525,8 @@ module.exports = {
   recencyWeight,
   computeStats,
   computeSpotCalibration,
+  computeDailyRollups,
+  hstDateKey,
   computeCorrection,
   applyCalibrationToVisibility,
   loadSpotCalibration,
