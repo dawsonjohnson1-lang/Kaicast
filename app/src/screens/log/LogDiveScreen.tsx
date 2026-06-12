@@ -15,7 +15,7 @@ import { SpotPicker, type PickedSpot } from '@/components/SpotPicker';
 import { CertEligibilityBadge } from '@/components/CertEligibilityBadge';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserDiveLogs } from '@/hooks/useDiveLogs';
-import { submitDiveLog } from '@/api/diveLogs';
+import { submitDiveLog, type SubmitDiveLogResult } from '@/api/diveLogs';
 import { fetchSpotReport } from '@/api/kaicast';
 import { colors, radius, spacing, typography } from '@/theme';
 import {
@@ -287,6 +287,9 @@ export function LogDiveScreen() {
   const { logs: userLogs } = useUserDiveLogs(user?.id);
   const [step, setStep] = useState<Step>(1);
   const [submitting, setSubmitting] = useState(false);
+  // Server response from submitDiveLog — drives the "your report is
+  // live for other divers" line on the success screen.
+  const [submitResult, setSubmitResult] = useState<SubmitDiveLogResult | null>(null);
 
   // Most recent prior log's loggedAt → drives the Surface Interval card
   // in scuba step 2. `useUserDiveLogs` returns newest-first.
@@ -531,7 +534,7 @@ export function LogDiveScreen() {
         ? toBaseTempF(scubaTempSurface, scubaTempSurfaceUnit) || null
         : waterTemp ? Number.parseFloat(waterTemp) : null;
 
-      await submitDiveLog({
+      const result = await submitDiveLog({
         uid: user.id,
         // For known spots, spotId matches the backend's SPOTS object so
         // the report cross-reference works. For custom spots we get a
@@ -659,6 +662,7 @@ export function LogDiveScreen() {
             }
           : undefined,
       });
+      setSubmitResult(result);
       setStep(5);
     } catch (err) {
       // eslint-disable-next-line no-console
@@ -1520,6 +1524,20 @@ export function LogDiveScreen() {
             Your dive has been added to your profile. Friends can see and react to your report.
           </Text>
           <View style={{ height: spacing.xxl }} />
+          {submitResult?.communityOverlayUpdated && (
+            <>
+              <Card>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+                  <Icon name="eye" size={20} color={colors.excellent} />
+                  <Text style={{ ...typography.bodySm, flex: 1 }}>
+                    Your report just updated live conditions for this spot — divers
+                    checking it right now will see what you saw.
+                  </Text>
+                </View>
+              </Card>
+              <View style={{ height: spacing.md }} />
+            </>
+          )}
           <Card>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
               <Text style={typography.body}>Share to feed</Text>
