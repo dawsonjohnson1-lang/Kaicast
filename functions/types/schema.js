@@ -197,7 +197,7 @@
 //
 // Condition-stratified visibility bias. bucketKey is one of:
 //   swell_{calm|small|moderate|large}      from predicted wave_height_ft
-//   tide_{rising|falling|slack|high|low}   from predicted tide_state
+//   tide_{rising|falling|high|low}         from predicted tide_state
 //   tod_{dawn|morning|midday|afternoon|dusk|night}  dive hour (HST)
 //   runoff_{none|low|moderate|high|extreme}
 // Only buckets with ≥3 samples are written; stale buckets are deleted

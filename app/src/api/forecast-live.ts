@@ -111,13 +111,40 @@ function tideRateAt(hour: number, events: TideEvent[]): number {
   return b.heightFt > a.heightFt ? 0.5 : -0.5;
 }
 
-// Backend windows cover [startIso, endIso). Find the index that
-// covers a given local hour offset from window 0's start.
-function windowIndexForHour(hour: number, totalWindows: number): number {
-  // Each window is 3 hours; first window starts at the report's
-  // first window start. We assume window[0] covers the current/next
-  // 3 hours; reasonable for a "today" view.
-  return Math.min(totalWindows - 1, Math.floor(hour / 3));
+// Backend windows cover [startIso, endIso) anchored at the report's
+// generation hour (NOT midnight), with startIso in true UTC. Bucket
+// today's HST windows by wall-clock 3-hour slot so hourly rows index
+// by hour-of-day instead of hours-from-now.
+function hstDateOf(ms: number): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Pacific/Honolulu',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date(ms));
+}
+function hstHourOf(ms: number): number {
+  return Number(new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Pacific/Honolulu', hour: 'numeric', hour12: false,
+  }).format(new Date(ms))) % 24;
+}
+
+function todayWindowsByHstSlot(wins: any[], anchorMs: number): any[] {
+  const todayHst = hstDateOf(anchorMs);
+  const slots: any[] = new Array(8).fill(undefined);
+  for (const w of wins) {
+    const ms = Date.parse(w?.startIso ?? '');
+    if (!Number.isFinite(ms) || hstDateOf(ms) !== todayHst) continue;
+    const idx = Math.floor(hstHourOf(ms) / 3);
+    if (idx >= 0 && idx < 8 && !slots[idx]) slots[idx] = w;
+  }
+  // Past hours (before the first live window) carry the first available
+  // window; interior/trailing gaps carry the previous slot.
+  const firstAvail = slots.find(Boolean);
+  let prev = firstAvail;
+  for (let i = 0; i < 8; i++) {
+    if (slots[i]) prev = slots[i];
+    else slots[i] = prev;
+  }
+  return slots;
 }
 
 function ratingSegmentsFromWindows(windows: any[]): ForecastDay['ratingSegments'] {
@@ -353,10 +380,12 @@ export function backendReportToForecastDay(
 
   const today = new Date(report.generatedAt ?? Date.now());
 
+  const anchorMs = Number.isFinite(today.getTime()) ? today.getTime() : Date.now();
+  const slots = todayWindowsByHstSlot(wins, anchorMs);
+
   const hourly: HourlyPoint[] = [];
   for (let h = 0; h < 24; h++) {
-    const wIdx = windowIndexForHour(h, Math.max(1, wins.length));
-    const w: any = wins[wIdx] ?? {};
+    const w: any = slots[Math.floor(h / 3)] ?? {};
     const avg = w.avg ?? {};
     const visMeters = Number(w?.visibility?.estimatedVisibilityMeters ?? 10);
     const visFt = Math.round(visMeters * M_TO_FT);

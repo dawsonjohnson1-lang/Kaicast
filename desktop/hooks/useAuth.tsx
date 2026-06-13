@@ -389,9 +389,11 @@ function tsToMs(raw: unknown): number | null {
 /** Seed defaults into users/{uid} the first time a user signs up.
  *  Idempotent guard: only runs when Firebase Auth reports `isNewUser`
  *  on the credential, so re-signing-in to an existing account is a
- *  no-op. The CREATE branch of the rule allows any fields, so writing
- *  the server-only role/entitlement defaults here is fine — later
- *  updates to those fields are blocked at the rule level. */
+ *  no-op. The CREATE branch of the rule allows the server-only
+ *  role/entitlement keys ONLY at exactly these default values
+ *  (consumer / null / [] / false), so don't add or change fields here
+ *  without updating firestore.rules — later updates to those fields
+ *  are blocked at the rule level. */
 async function seedUserDocIfNew(cred: UserCredential): Promise<void> {
   if (!db || !firebaseConfigured) return;
   const info = getAdditionalUserInfo(cred);

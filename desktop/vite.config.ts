@@ -1,5 +1,19 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { sentryVitePlugin } from '@sentry/vite-plugin';
+
+/**
+ * Sentry source-map upload is opt-in: it only runs when all three
+ * credentials are present in the build environment. Without them the
+ * build is byte-for-byte what it was before Sentry — no source maps
+ * generated, no upload step, no failure. Set these in CI / the hosting
+ * build env (NOT committed) once the Sentry project exists:
+ *   SENTRY_AUTH_TOKEN, SENTRY_ORG, SENTRY_PROJECT
+ */
+const SENTRY_AUTH_TOKEN = process.env.SENTRY_AUTH_TOKEN;
+const SENTRY_ORG = process.env.SENTRY_ORG;
+const SENTRY_PROJECT = process.env.SENTRY_PROJECT;
+const sentryUploadEnabled = !!(SENTRY_AUTH_TOKEN && SENTRY_ORG && SENTRY_PROJECT);
 
 /**
  * Vite dev harness for the KaiCast desktop screens.
@@ -17,7 +31,25 @@ import react from '@vitejs/plugin-react';
  *    you get "ReferenceError: __DEV__ is not defined" on first load.
  */
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    // Uploads source maps to Sentry on `vite build` so minified stack
+    // traces become readable, then deletes the .map files from dist so
+    // we don't ship them publicly. Inert unless the credentials above
+    // are set.
+    ...(sentryUploadEnabled
+      ? [sentryVitePlugin({
+          org: SENTRY_ORG,
+          project: SENTRY_PROJECT,
+          authToken: SENTRY_AUTH_TOKEN,
+          sourcemaps: { filesToDeleteAfterUpload: ['./dist/**/*.map'] },
+        })]
+      : []),
+  ],
+  // Only emit source maps when we're going to upload-and-delete them.
+  build: {
+    sourcemap: sentryUploadEnabled,
+  },
   resolve: {
     alias: {
       'react-native': 'react-native-web',

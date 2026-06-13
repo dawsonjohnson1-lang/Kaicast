@@ -118,7 +118,7 @@ function boxJellyFromMoon(report: BackendReport, dayOffset: number): BoxJelly | 
   const since = report.now?.analysis?.moon?.daysSinceFullMoon;
   if (since == null || !Number.isFinite(since)) return null;
   const d = since + dayOffset;
-  if (d >= 8 && d <= 10) {
+  if (d >= 8 && d < 11) {
     return { open: true, daysUntil: 0, label: `Box jelly window open (day ${Math.floor(d - 8) + 1} of 3)` };
   }
   if (d < 8 && d >= 6) {
@@ -150,7 +150,7 @@ export function dayConditions(report: BackendReport | null, dayOffset: number): 
     if (dayOffset === 0) {
       // subsurface isn't in the mobile BackendReport type but the backend
       // writes it — read defensively.
-      const sub = (report.now as { subsurface?: { surfaceTempC?: number | null } }).subsurface?.surfaceTempC;
+      const sub = (report.now as { subsurface?: { surfaceTempC?: number | null } } | undefined)?.subsurface?.surfaceTempC;
       const now = report.now?.metrics?.waterTempC;
       const c = sub ?? now;
       if (c != null) return cToF(c);
@@ -160,7 +160,7 @@ export function dayConditions(report: BackendReport | null, dayOffset: number): 
   })();
   const thermoclineFt = (() => {
     if (dayOffset !== 0) return null;
-    const m = (report.now as { subsurface?: { thermoclineDepthM?: number | null } }).subsurface?.thermoclineDepthM;
+    const m = (report.now as { subsurface?: { thermoclineDepthM?: number | null } } | undefined)?.subsurface?.thermoclineDepthM;
     return m != null && Number.isFinite(m) ? Math.round(m * M_TO_FT) : null;
   })();
 

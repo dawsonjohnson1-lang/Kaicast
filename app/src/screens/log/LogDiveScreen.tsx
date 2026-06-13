@@ -287,6 +287,7 @@ export function LogDiveScreen() {
   const { logs: userLogs } = useUserDiveLogs(user?.id);
   const [step, setStep] = useState<Step>(1);
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   // Server response from submitDiveLog — drives the "your report is
   // live for other divers" line on the success screen.
   const [submitResult, setSubmitResult] = useState<SubmitDiveLogResult | null>(null);
@@ -303,7 +304,9 @@ export function LogDiveScreen() {
 
   const [type, setType] = useState<DiveType>('scuba');
   const [group, setGroup] = useState('Solo');
-  const [date, setDate] = useState('04/16/2026');
+  const [date, setDate] = useState(() =>
+    new Date().toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }),
+  );
   const [time, setTime] = useState('--:-- --');
   const [duration, setDuration] = useState('');
   const [spotPick, setSpotPick] = useState<PickedSpot | null>(null);
@@ -504,6 +507,7 @@ export function LogDiveScreen() {
   const onSubmit = async () => {
     if (!user) return;
     setSubmitting(true);
+    setSubmitError(null);
     try {
       // For known spots, capture the BackendReport at log time so the
       // log carries an objective conditions snapshot alongside the
@@ -667,10 +671,14 @@ export function LogDiveScreen() {
     } catch (err) {
       // eslint-disable-next-line no-console
       console.warn('[LogDive] submit failed:', err);
-      // Still advance to the success screen — the stub fallback in
-      // submitDiveLog never throws, so a thrown error means a real
-      // Firebase write failed. Surface it but don't trap the user.
-      setStep(5);
+      // The stub fallback never throws, so a thrown error means the
+      // real Firebase write failed — the dive was NOT saved. Stay on
+      // step 4 with the form intact; the submit button retries.
+      setSubmitError(
+        err instanceof Error && err.message
+          ? err.message
+          : 'Could not save your dive. Check your connection and try again.',
+      );
     } finally {
       setSubmitting(false);
     }
@@ -1548,6 +1556,16 @@ export function LogDiveScreen() {
       )}
 
       <View style={{ height: spacing.xxxl }} />
+      {step === 4 && submitError && (
+        <Card style={{ marginBottom: spacing.md, borderColor: colors.hazard, borderWidth: 1 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+            <Icon name="x" size={18} color={colors.hazard} />
+            <Text style={[typography.body, { color: colors.hazard, flex: 1 }]}>
+              {submitError}
+            </Text>
+          </View>
+        </Card>
+      )}
       {step < 5 ? (
         <View style={styles.actions}>
           <Button label="Back" variant="ghost" iconLeft="chevron-left" onPress={back} />

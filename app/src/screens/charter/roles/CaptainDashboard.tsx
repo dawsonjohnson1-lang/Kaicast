@@ -11,6 +11,7 @@ import { CrewRoster } from '@/components/charter/CrewRoster';
 import { AlertBanner, type CharterAlert } from '@/components/charter/AlertBanner';
 import { Icon } from '@/components/Icon';
 import { CharterTwoDayForecast } from '../CharterTwoDayForecast';
+import { hstDateKey } from '@/types/charterLog';
 import type { Vessel, Trip, CrewMember } from '@/types/charter';
 
 const MOCK_HAZARD: CharterAlert = {
@@ -30,7 +31,8 @@ export function CaptainDashboard({
   onSpotTap?: (spotId: string) => void;
   onLogConditions?: (spotId: string) => void;
 }) {
-  const todayTrip = trips.find((t) => isSameDay(t.date, new Date()));
+  // HST day boundary — must match CharterTwoDayForecast's bucketing.
+  const todayTrip = trips.find((t) => hstDateKey(t.date.getTime()) === hstDateKey(Date.now()));
   const todayCrew = todayTrip
     ? crew.filter((c) => todayTrip.crewIds.includes(c.id))
     : [];
@@ -105,10 +107,6 @@ function Section({ title, meta, children }: { title: string; meta?: string; chil
       {children}
     </View>
   );
-}
-
-function isSameDay(a: Date, b: Date): boolean {
-  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
 
 const sectionStyles = StyleSheet.create({

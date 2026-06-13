@@ -1,7 +1,11 @@
 // StandaloneLogFiler — file a captain's log WITHOUT a trip. This is the
 // Phase 1 standalone flow: the captain picks the day, the vessel, the
-// spot(s), records observed conditions + crew + an optional trip count,
-// and files. No trip picker, no dependency on a FareHarbor booking.
+// spot(s), optionally enumerates the day's trips as lightweight rows
+// (type is the only required field per row; zero rows is a valid
+// weather-out / maintenance day), records observed conditions + crew,
+// and files. No dependency on a FareHarbor booking — rows carry
+// tripSource: 'manual' so the Phase 2 sync can add 'fareharbor' rows
+// without a migration.
 //
 // The ONLY filer — the trip-coupled CaptainsLogFiler is gone. Screens
 // with trip context (e.g. the crew trip brief) pass `initial` to
@@ -14,8 +18,9 @@ import { colors, fonts, radius } from '../tokens';
 import { ChipSelect, NumberStepper, NumberField, TextField, FreeTextArea } from './inputs';
 import { saveStandaloneLog } from './saveStandaloneLog';
 import {
-  emptyLogDraft, hstStartOfDay,
-  type StandaloneLogDraft, type ObservedSeaState, type ObservedWind, type LogIncidentLevel,
+  emptyLogDraft, hstStartOfDay, makeManualTrip, TRIP_TYPE_OPTIONS,
+  type StandaloneLogDraft, type StandaloneLogTrip,
+  type ObservedSeaState, type ObservedWind, type LogIncidentLevel,
 } from './standaloneLog';
 import type { CharterSpot, CrewMember, Vessel } from './types';
 
@@ -67,6 +72,12 @@ export function StandaloneLogFiler({ orgId, vessels, spots, crew, filedBy, initi
     patch({ crew: has ? draft.crew.filter((c) => c.id !== m.id) : [...draft.crew, { id: m.id, name: m.name, role: m.role }] });
   };
 
+  const addTrip = () => patch({ trips: [...draft.trips, makeManualTrip(draft.trips.length + 1)] });
+  const patchTrip = (tripId: string, p: Partial<StandaloneLogTrip>) =>
+    patch({ trips: draft.trips.map((t) => (t.tripId === tripId ? { ...t, ...p } : t)) });
+  const removeTrip = (tripId: string) =>
+    patch({ trips: draft.trips.filter((t) => t.tripId !== tripId).map((t, i) => ({ ...t, tripNum: i + 1 })) });
+
   // Single-engine vessels get one "Engine hours" field instead of
   // port/stbd. The fleet model carries engineConfig (no engine count);
   // 'inboard' and 'other' can be twins, so only configs that are
@@ -86,7 +97,12 @@ export function StandaloneLogFiler({ orgId, vessels, spots, crew, filedBy, initi
     setSaving(true);
     setError(null);
     try {
-      const logId = await saveStandaloneLog(orgId, draft, filedBy);
+      const logId = await saveStandaloneLog(orgId, {
+        ...draft,
+        // tripCount mirrors the rows when the captain enumerated them;
+        // a prefilled counter (or null) survives a row-less day.
+        tripCount: draft.trips.length > 0 ? draft.trips.length : draft.tripCount,
+      }, filedBy);
       onFiled?.(logId);
       onClose();
     } catch (e) {
@@ -152,7 +168,29 @@ export function StandaloneLogFiler({ orgId, vessels, spots, crew, filedBy, initi
               )}
             </Block>
 
-            <Block label="④ Observed conditions">
+            <Block label="④ Trips">
+              {draft.trips.length === 0 ? (
+                <Text style={styles.muted}>
+                  No trips logged. Zero-trip days (weather-out, maintenance) file fine without
+                  rows — add one per trip if you want the day enumerated.
+                </Text>
+              ) : (
+                draft.trips.map((t, idx) => (
+                  <TripRow
+                    key={t.tripId}
+                    trip={t}
+                    index={idx + 1}
+                    onPatch={(p) => patchTrip(t.tripId, p)}
+                    onRemove={() => removeTrip(t.tripId)}
+                  />
+                ))
+              )}
+              <Pressable onPress={addTrip} style={styles.addTripBtn}>
+                <Text style={styles.addTripText}>+ Add trip</Text>
+              </Pressable>
+            </Block>
+
+            <Block label="⑤ Observed conditions">
               <FreeTextArea label="Weather observed" value={draft.weather} onChange={(v) => patch({ weather: v })} placeholder="Sunny, scattered clouds, light trades…" rows={2} />
               <Field label="Sea state">
                 <ChipSelect options={SEA_STATES} value={draft.seaState || undefined} onChange={(v) => patch({ seaState: v })} />
@@ -164,7 +202,7 @@ export function StandaloneLogFiler({ orgId, vessels, spots, crew, filedBy, initi
               <TextField label="Snorkel site" value={draft.snorkelSite ?? ''} onChange={(v) => patch({ snorkelSite: v })} placeholder="As written on the paper log — free text" />
             </Block>
 
-            <Block label="⑤ Crew on duty">
+            <Block label="⑥ Crew on duty">
               {crew.length === 0 ? (
                 <Text style={styles.muted}>No crew on the roster yet.</Text>
               ) : (
@@ -181,14 +219,13 @@ export function StandaloneLogFiler({ orgId, vessels, spots, crew, filedBy, initi
               )}
             </Block>
 
-            <Block label="⑥ Counts">
-              <View style={styles.row2}>
-                <NumberStepper label="Duration (hrs)" value={draft.durationHours} onChange={(v) => patch({ durationHours: v })} step={0.5} min={0} max={24} unit="h" />
-                <NumberStepper label="Trips run today" value={draft.tripCount} onChange={(v) => patch({ tripCount: v })} step={1} min={0} max={20} />
-              </View>
+            <Block label="⑦ Counts">
+              {/* "Trips run today" used to live here as a manual stepper —
+                  the count now derives from the trip rows in ④ at file time. */}
+              <NumberStepper label="Duration (hrs)" value={draft.durationHours} onChange={(v) => patch({ durationHours: v })} step={0.5} min={0} max={24} unit="h" />
             </Block>
 
-            <Block label="⑦ Incident" required>
+            <Block label="⑧ Incident" required>
               <ChipSelect options={INCIDENTS} value={draft.incident} onChange={(v) => patch({ incident: v })} />
               {draft.incident !== 'none' ? (
                 <FreeTextArea
@@ -201,7 +238,7 @@ export function StandaloneLogFiler({ orgId, vessels, spots, crew, filedBy, initi
               ) : null}
             </Block>
 
-            <Block label="⑧ Notes">
+            <Block label="⑨ Notes">
               <FreeTextArea label="Trip comments" value={draft.tripComments ?? ''} onChange={(v) => patch({ tripComments: v })} placeholder="Optional — how the trip went, guests, route…" rows={2} />
               <FreeTextArea label="Anything else worth recording" value={draft.notes} onChange={(v) => patch({ notes: v })} placeholder="Optional — gear notes, guest notes, things to flag for tomorrow…" rows={4} />
             </Block>
@@ -209,7 +246,7 @@ export function StandaloneLogFiler({ orgId, vessels, spots, crew, filedBy, initi
             {/* Paper-form parity (MANA daily log). Capture-and-store only —
                 nothing downstream derives runtimes, fuel rates, or deltas
                 from these; they are saved flat on the log doc as entered. */}
-            <Block label="⑨ Vessel">
+            <Block label="⑩ Vessel">
               <View style={styles.row2}>
                 <NumberField
                   label={singleEngine ? 'Engine hours' : 'Port engine hours'}
@@ -247,6 +284,75 @@ export function StandaloneLogFiler({ orgId, vessels, spots, crew, filedBy, initi
         </View>
       </View>
     </Modal>
+  );
+}
+
+// One lightweight trip row — type chips up top, then label / hours /
+// guests inline, type-conditional species + cert fields (no collapse
+// toggle; the desktop modal has the room), and optional notes. Mirrors
+// the mobile DailyLogScreen TripRow.
+function TripRow({
+  trip, index, onPatch, onRemove,
+}: {
+  trip: StandaloneLogTrip;
+  index: number;
+  onPatch: (p: Partial<StandaloneLogTrip>) => void;
+  onRemove: () => void;
+}) {
+  const hasSpecies = trip.type === 'spearfishing' || trip.type === 'scuba';
+  const hasCertLevels = trip.type === 'scuba';
+  return (
+    <View style={styles.tripRow}>
+      <View style={styles.tripRowHeader}>
+        <Text style={styles.tripIndex}>#{index}</Text>
+        <View style={{ flex: 1 }}>
+          <ChipSelect options={TRIP_TYPE_OPTIONS} value={trip.type} onChange={(v) => onPatch({ type: v })} />
+        </View>
+        <Pressable onPress={onRemove} hitSlop={10} style={styles.tripRemoveBtn}>
+          <Text style={styles.tripRemoveText}>×</Text>
+        </Pressable>
+      </View>
+
+      {trip.type === 'other' ? (
+        <TextField
+          label="Custom trip type"
+          value={trip.tripTypeCustom ?? ''}
+          onChange={(v) => onPatch({ tripTypeCustom: v })}
+          placeholder="e.g. Photoshoot charter, Ash scattering"
+        />
+      ) : null}
+
+      <View style={styles.row2}>
+        <View style={{ flex: 3 }}>
+          <TextField label="Label / time" value={trip.label} onChange={(v) => onPatch({ label: v })} placeholder="3:00 PM Snorkel" />
+        </View>
+        <NumberField label="Hrs" value={trip.durationHours} onChange={(v) => onPatch({ durationHours: v })} unit="h" />
+        <NumberField
+          label="Guests"
+          value={trip.guestCount}
+          onChange={(v) => onPatch({ guestCount: v == null ? null : Math.round(v) })}
+        />
+      </View>
+
+      {hasSpecies ? (
+        <TextField
+          label={trip.type === 'spearfishing' ? 'Catches' : 'Species sighted'}
+          value={trip.speciesNotes}
+          onChange={(v) => onPatch({ speciesNotes: v })}
+          placeholder={trip.type === 'spearfishing' ? 'e.g. 1 ono, 2 papio' : 'e.g. 3 turtles, 1 whitetip'}
+        />
+      ) : null}
+      {hasCertLevels ? (
+        <TextField
+          label="Cert levels onboard"
+          value={trip.certLevelNotes}
+          onChange={(v) => onPatch({ certLevelNotes: v })}
+          placeholder="e.g. 2× OW, 1× AOW, 1× Rescue"
+        />
+      ) : null}
+
+      <FreeTextArea label="Trip notes" value={trip.notes} onChange={(v) => onPatch({ notes: v })} placeholder="Optional — anything that stood out" rows={2} />
+    </View>
   );
 }
 
@@ -303,6 +409,14 @@ const styles = StyleSheet.create({
   fileBtnDisabled: { opacity: 0.4 },
   fileBtnText: { fontFamily: fonts.body, fontSize: 13, fontWeight: '700', color: colors.bg },
   fileBtnTextDisabled: { color: colors.text4 },
+  tripRow: { gap: 12, padding: 12, borderRadius: radius.sm, backgroundColor: colors.surface0, borderWidth: 1, borderColor: colors.hairlineStrong },
+  tripRowHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  tripIndex: { fontFamily: fonts.mono, fontSize: 11, color: colors.text3, fontWeight: '700', paddingTop: 9 },
+  tripRemoveBtn: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
+  tripRemoveText: { fontSize: 18, color: colors.text3, lineHeight: 18 },
+  addTripBtn: { alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 8, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.accent },
+  addTripText: { fontFamily: fonts.body, fontSize: 12, fontWeight: '700', color: colors.accent },
+
   errCard: { padding: 14, borderRadius: radius.sm, backgroundColor: 'rgba(247,55,38,0.10)', borderWidth: 1, borderColor: '#F73726' },
   errTitle: { fontFamily: fonts.body, fontSize: 13, fontWeight: '700', color: '#F73726' },
   errBody: { fontFamily: fonts.body, fontSize: 12, color: colors.text2, marginTop: 4 },

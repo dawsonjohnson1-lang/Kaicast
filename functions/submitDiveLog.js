@@ -78,7 +78,8 @@ const ObservedSchema = z.object({
   reef_health:          z.enum(['pristine', 'healthy', 'stressed', 'bleached']).nullable().optional(),
   max_depth_ft:         z.number().min(0).max(500).nullable().optional(),
   duration_min:         z.number().min(0).max(1440).nullable().optional(),
-  hazards:              z.array(z.string()).max(20).optional(),
+  // Hazard ids — mirrors the client enum in app/src/api/diveLogs.ts.
+  hazards:              z.array(z.enum(['jellyfish', 'rip_current', 'boat_traffic', 'discharge_plume', 'wildlife', 'gear_failure', 'other'])).max(20).optional(),
   hazards_other_text:   z.string().max(500).nullable().optional(),
 });
 
@@ -88,8 +89,15 @@ const SubmitDiveLogSchema = z.object({
   dive_type: z.enum(['scuba', 'freedive', 'spear', 'snorkel']),
   privacy:   z.enum(['public', 'private']).default('public'),
   observed:  ObservedSchema.default({}),
-  scuba:     z.record(z.string(), z.any()).nullable().optional(),
-  photos:    z.array(z.string()).max(20).optional(),
+  // Free-form scuba blob (tanks, gas, weights…) — shape is owned by the
+  // client, but bound the serialized size so it can't bloat the doc.
+  scuba:     z.record(z.string(), z.any()).nullable().optional()
+               .superRefine((v, ctx) => {
+                 if (v && JSON.stringify(v).length > 20000) {
+                   ctx.addIssue({ code: 'custom', message: 'scuba payload too large' });
+                 }
+               }),
+  photos:    z.array(z.string().max(2048)).max(20).optional(),
   notes:     z.string().max(4000).nullable().optional(),
   client_platform: z.enum(['ios', 'android', 'web', 'unknown']).default('unknown'),
   client_version:  z.string().max(40).default(''),
@@ -110,8 +118,12 @@ function computeDeltas(predicted, observed) {
   const obsRatingNum = RATING_NUM[observed?.overall_rating] ?? null;
   return {
     visibility_ft: sub(predicted.visibility_ft, observed?.visibility_ft),
+    // predicted.water_temp_f is SST (buoy/sea-surface), so compare
+    // like-for-like: observed surface temp first, bottom only as a
+    // fallback — otherwise thermocline dives bake depth stratification
+    // into the delta as fake model bias.
     water_temp_f:  sub(predicted.water_temp_f,
-                       observed?.water_temp_bottom_f ?? observed?.water_temp_surface_f ?? null),
+                       observed?.water_temp_surface_f ?? observed?.water_temp_bottom_f ?? null),
     // Signed rating delta on the shared 4-level scale (1=poor … 4=excellent):
     // predicted level − observed level, range −3..+3. Positive = model
     // over-predicted conditions. Replaces the old boolean rating_mismatch,
@@ -203,6 +215,10 @@ exports.submitDiveLog = onCall(
         logged_at: admin.firestore.FieldValue.serverTimestamp(),
         dive_type: input.dive_type,
         privacy:   input.privacy,
+        // Rule-checkable feed flag — firestore.rules can't compare the
+        // privacy string in a query-driven read, but it can gate on a
+        // boolean. Keep in lockstep with privacy.
+        public:    input.privacy === 'public',
         verified_by_guide: null,
 
         observed: input.observed,
@@ -227,22 +243,32 @@ exports.submitDiveLog = onCall(
           (nowMs - prevLastLogMs) > COMMUNITY_OVERLAY_WINDOW_MS;
         const prev = (overlayCurrent && !windowExpired) ? overlayCurrent : {
           recent_log_count: 0,
+          vis_n: 0,
+          rating_n: 0,
           avg_observed_visibility_ft: null,
           avg_observed_rating: null,
         };
         const n = (prev.recent_log_count || 0) + 1;
+        // Per-field sample counts: a log without visibility (or rating)
+        // must not inflate that field's average divisor. Pre-counter
+        // overlay docs fall back to `|| 0`, treating an existing avg as
+        // one sample — fine, the 6 h rolling window self-resets.
+        const visN = Number.isFinite(visFt) ? (prev.vis_n || 0) + 1 : (prev.vis_n || 0);
+        const ratingN = Number.isFinite(ratingNum) ? (prev.rating_n || 0) + 1 : (prev.rating_n || 0);
         const newAvgVis = Number.isFinite(visFt)
           ? Number.isFinite(prev.avg_observed_visibility_ft)
-            ? (prev.avg_observed_visibility_ft * (n - 1) + visFt) / n
+            ? (prev.avg_observed_visibility_ft * (visN - 1) + visFt) / visN
             : visFt
           : prev.avg_observed_visibility_ft ?? null;
         const newAvgRating = Number.isFinite(ratingNum)
           ? Number.isFinite(prev.avg_observed_rating)
-            ? (prev.avg_observed_rating * (n - 1) + ratingNum) / n
+            ? (prev.avg_observed_rating * (ratingN - 1) + ratingNum) / ratingN
             : ratingNum
           : prev.avg_observed_rating ?? null;
         tx.set(overlayRef, {
           recent_log_count: n,
+          vis_n: visN,
+          rating_n: ratingN,
           window_h: COMMUNITY_OVERLAY_WINDOW_MS / 3600000,
           avg_observed_visibility_ft: newAvgVis != null ? Math.round(newAvgVis * 10) / 10 : null,
           avg_observed_rating:        newAvgRating != null ? Math.round(newAvgRating * 100) / 100 : null,

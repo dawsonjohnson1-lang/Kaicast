@@ -67,10 +67,12 @@ export function bestWindowLabel(bw: BestWindow): string {
   if (bw.daysOut == null) return 'No Good+ window in next 7 days';
   if (bw.daysOut === 0) return `Good today (${TIER_LABEL[bw.tier ?? 'good']})`;
   if (bw.daysOut === 1) return `${TIER_LABEL[bw.tier ?? 'good']} tomorrow`;
-  const d = new Date();
-  d.setDate(d.getDate() + bw.daysOut);
+  // daysOut indexes report.days, which is anchored at HST today — format
+  // in Pacific/Honolulu so mainland viewers don't see an off-by-one weekday.
+  // Adding whole 86400000-ms days is safe: HST has no DST.
+  const d = new Date(Date.now() + bw.daysOut * 86400000);
   if (bw.daysOut < 7) {
-    return `${TIER_LABEL[bw.tier ?? 'good']} ${d.toLocaleDateString('en-US', { weekday: 'long' })}`;
+    return `${TIER_LABEL[bw.tier ?? 'good']} ${d.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'Pacific/Honolulu' })}`;
   }
-  return `${TIER_LABEL[bw.tier ?? 'good']} on ${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+  return `${TIER_LABEL[bw.tier ?? 'good']} on ${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'Pacific/Honolulu' })}`;
 }

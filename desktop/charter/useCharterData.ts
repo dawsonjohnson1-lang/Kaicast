@@ -116,7 +116,8 @@ function crewFromDoc(id: string, data: Record<string, unknown>): CrewMember {
 }
 
 function crewRoleFromString(v: unknown): CrewRole {
-  if (v === 'owner' || v === 'captain' || v === 'divemaster' || v === 'deckhand') return v;
+  if (v === 'owner' || v === 'captain' || v === 'divemaster'
+      || v === 'deckhand' || v === 'manager' || v === 'instructor') return v;
   return 'deckhand';
 }
 

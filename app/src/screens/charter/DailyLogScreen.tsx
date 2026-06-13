@@ -42,6 +42,7 @@ import { useCharterRole } from '@/hooks/useCharterRole';
 import { canFillCaptainLog } from '@/types/charter';
 import {
   emptyLightweightTrip,
+  isAbyssEmpty,
   type CharterLogCrew,
   type CharterLogTrip,
   type CharterLogIncident,
@@ -120,6 +121,13 @@ export function DailyLogScreen() {
     loading:    abyssLoading,
     source:     abyssSource,
   } = useAbyssConditions(homeSpotId, dateMs);
+
+  // The log doc is seeded with an all-blank abyss block; without the
+  // isAbyssEmpty check the seed permanently shadows live Abyss data.
+  const abyssForPanel =
+    log?.conditions?.abyss && !isAbyssEmpty(log.conditions.abyss)
+      ? log.conditions.abyss
+      : abyssLive;
 
   // ── Gates ───────────────────────────────────────────────────────────
   if (profileLoading) {
@@ -233,7 +241,7 @@ export function DailyLogScreen() {
         <SectionTitle title="Conditions" />
         <View style={{ marginBottom: spacing.xl }}>
           <ConditionsPanel
-            abyss={log?.conditions?.abyss ?? abyssLive}
+            abyss={abyssForPanel}
             observed={log?.conditions?.observed ?? {
               visibility: '', feltTemp: '', seaState: '', swellDirObserved: '',
               windObserved: '', currentObserved: '', currentDirObserved: '',
@@ -245,7 +253,7 @@ export function DailyLogScreen() {
               patch((p) => ({
                 ...p,
                 conditions: {
-                  abyss:    p.conditions?.abyss ?? abyssLive,
+                  abyss:    abyssForPanel,
                   observed: next,
                 },
               }))

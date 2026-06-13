@@ -48,6 +48,9 @@ async function runNightlyCalibration(nowMs = Date.now()) {
   const snap = await db()
     .collection('diveLogs')
     .where('dive_at', '>=', cutoff)
+    // Desc order so a MAX_LOGS truncation drops the OLDEST logs, not the
+    // newest (Firestore defaults to ascending on the inequality field).
+    .orderBy('dive_at', 'desc')
     .limit(MAX_LOGS)
     .get();
 

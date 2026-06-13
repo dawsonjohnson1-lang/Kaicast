@@ -1,7 +1,9 @@
-// Canonical KaiCast spot list — mirrors the 26 spots in the live
-// Firestore `spots` collection. Embedded statically so the desktop
-// preview doesn't need a Firebase round-trip on first load. Keep this
-// in sync with `spots/` in Firestore (admin script: scripts/seedSpots.mjs).
+// Canonical KaiCast spot list — a curated 34-spot subset of the 39
+// spots in the live Firestore `spots` collection (the 5-spot delta is
+// a deliberate dedup of clustered sites; don't "fix" it by adding
+// them back). Embedded statically so the desktop preview doesn't need
+// a Firebase round-trip on first load. Keep this in sync with
+// `spots/` in Firestore (admin script: scripts/seedSpots.mjs).
 
 export type Spot = {
   id: string;

@@ -1,6 +1,22 @@
 {
   "indexes": [
     {
+      "collectionGroup": "community_reports",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "spotId", "order": "ASCENDING" },
+        { "fieldPath": "loggedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "condition_alerts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "spotId", "order": "ASCENDING" },
+        { "fieldPath": "generatedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "diveLogs",
       "queryScope": "COLLECTION",
       "fields": [
@@ -12,8 +28,52 @@
       "collectionGroup": "diveLogs",
       "queryScope": "COLLECTION",
       "fields": [
+        { "fieldPath": "uid", "order": "ASCENDING" },
+        { "fieldPath": "logged_at", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "diveLogs",
+      "queryScope": "COLLECTION",
+      "fields": [
         { "fieldPath": "spotId", "order": "ASCENDING" },
         { "fieldPath": "privacy", "order": "ASCENDING" },
+        { "fieldPath": "loggedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "diveLogs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "spot_id", "order": "ASCENDING" },
+        { "fieldPath": "public", "order": "ASCENDING" },
+        { "fieldPath": "logged_at", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "diveLogs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "spotId", "order": "ASCENDING" },
+        { "fieldPath": "public", "order": "ASCENDING" },
+        { "fieldPath": "loggedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "diveLogs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "uid", "order": "ASCENDING" },
+        { "fieldPath": "public", "order": "ASCENDING" },
+        { "fieldPath": "logged_at", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "diveLogs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "uid", "order": "ASCENDING" },
+        { "fieldPath": "public", "order": "ASCENDING" },
         { "fieldPath": "loggedAt", "order": "DESCENDING" }
       ]
     },
@@ -71,6 +131,14 @@
       "fields": [
         { "fieldPath": "status", "order": "ASCENDING" },
         { "fieldPath": "date", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "alerts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "charterSpotId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
       ]
     }
   ],

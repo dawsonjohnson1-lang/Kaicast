@@ -13,6 +13,7 @@ import { DesktopNav } from './components/DesktopNav';
 import { ConditionPill } from './components/ConditionPill';
 import { SpotConditionMap } from './components/SpotConditionMap';
 import { DiveReportCard, type DiveReportCardProps } from './components/DiveReportCard';
+import { useUserDiveLogs, type DiveLogRecord } from './hooks/useUserDiveLogs';
 import { initialsFromUser, useAuth, type ActiveContext, type OrgRole } from './hooks/useAuth';
 import { useUserProfile } from './hooks/useUserProfile';
 import { useUserStats, type UserStats } from './hooks/useUserStats';
@@ -97,8 +98,6 @@ const FAVORITES: Array<{
 }> = [];
 
 const SPECIES: Array<{ emoji: string; name: string; rare?: boolean }> = [];
-
-const DIVE_REPORTS: DiveReportCardProps[] = [];
 
 /* Mock reports retained as reference but excluded from the empty-state build.
 const _MOCK_REPORTS: DiveReportCardProps[] = [
@@ -520,19 +519,81 @@ function DashboardTabBody({
   );
 }
 
+// Live diveLogs doc → the rich report card. The card pre-dates the
+// structured dive-log schema, so blanks render as 0 / '—' rather than
+// blocking the card.
+const DIVE_TYPE_LABELS: Record<string, string> = {
+  scuba: '🤿 Scuba',
+  freedive: '🌊 Freediving',
+  spear: '🎯 Spearfishing',
+  snorkel: '🥽 Snorkel',
+};
+
+const TIER_FROM_RATING: Record<string, ConditionTier> = {
+  poor: 'no-go', fair: 'fair', good: 'good', excellent: 'excellent',
+};
+const STARS_FROM_RATING: Record<string, number> = {
+  poor: 2, fair: 3, good: 4, excellent: 5,
+};
+
+function prettyEnum(v: string | null): string {
+  if (!v) return '—';
+  const s = v.replace(/_/g, ' ');
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+type ReportItem = DiveReportCardProps & { id: string; spotId: string; knownSpot: boolean };
+
+function diveLogToReportCard(log: DiveLogRecord): ReportItem {
+  const spot = CANONICAL_SPOTS_FOR_SETTINGS.find((s) => s.id === log.spotId);
+  const when = log.diveAt ?? log.loggedAt;
+  return {
+    id: log.id,
+    spotId: log.spotId,
+    knownSpot: spot != null,
+    date: when
+      ? when.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+      : 'Pending',
+    time: when
+      ? when.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+      : undefined,
+    spot: log.customSpotName ?? spot?.name ?? log.spotId,
+    region: spot ? spot.region.toUpperCase() : 'CUSTOM SPOT',
+    diveType: DIVE_TYPE_LABELS[log.diveType ?? ''] ?? prettyEnum(log.diveType),
+    rating: TIER_FROM_RATING[log.overallRating ?? ''] ?? 'good',
+    depthFt: log.depthFt ?? 0,
+    durationMin: log.durationMin ?? 0,
+    vizFt: log.visibilityFt ?? 0,
+    waterTempF: log.waterTempF ?? 0,
+    conditions: {
+      current: prettyEnum(log.currentStrength),
+      surface: prettyEnum(log.surfaceState),
+      surge: prettyEnum(log.surgeAtDepth),
+    },
+    wildlife: log.speciesSeen.map((s) => prettyEnum(s)),
+    notes: log.notes ?? '',
+    photoCount: log.photos.length,
+    stars: STARS_FROM_RATING[log.overallRating ?? ''] ?? 0,
+  };
+}
+
 function DiveReportsTabBody({ onNavigate }: { onNavigate?: NavigateFn }) {
+  const { user } = useAuth();
+  const { logs, loading } = useUserDiveLogs(user?.uid);
   const [filter, setFilter] = React.useState<(typeof DIVE_TYPE_FILTERS)[number]>('All');
   const [sort, setSort] = React.useState<'recent' | 'deepest' | 'longest'>('recent');
 
+  const reports = React.useMemo(() => logs.map(diveLogToReportCard), [logs]);
+
   const filtered = React.useMemo(() => {
     let list = filter === 'All'
-      ? DIVE_REPORTS
-      : DIVE_REPORTS.filter((d) => d.diveType.toLowerCase().includes(filter.toLowerCase()));
+      ? reports
+      : reports.filter((d) => d.diveType.toLowerCase().includes(filter.toLowerCase()));
     if (sort === 'deepest') list = [...list].sort((a, b) => b.depthFt - a.depthFt);
     else if (sort === 'longest') list = [...list].sort((a, b) => b.durationMin - a.durationMin);
-    // 'recent' = mock order is already chronological-desc
+    // 'recent' = hook order is already loggedAt-desc
     return list;
-  }, [filter, sort]);
+  }, [reports, filter, sort]);
 
   return (
     <View style={styles.body}>
@@ -570,39 +631,54 @@ function DiveReportsTabBody({ onNavigate }: { onNavigate?: NavigateFn }) {
         </View>
 
         <View style={styles.diveReportsList}>
-          {filtered.map((r, i) => (
+          {filtered.map((r) => (
             <DiveReportCard
-              key={i}
+              key={r.id}
               {...r}
-              onPress={() => onNavigate?.('spot-detail', { spotId: slugifyName(r.spot) })}
+              onPress={
+                r.knownSpot
+                  ? () => onNavigate?.('spot-detail', { spotId: r.spotId })
+                  : undefined
+              }
             />
           ))}
           {filtered.length === 0 ? (
             <View style={styles.drEmpty}>
-              <Text style={styles.drEmptyTitle}>No dives match "{filter}"</Text>
-              <Text style={styles.drEmptySub}>Adjust the filter above or log a new dive.</Text>
+              {loading ? (
+                <Text style={styles.drEmptyTitle}>Loading dive reports…</Text>
+              ) : reports.length === 0 ? (
+                <>
+                  <Text style={styles.drEmptyTitle}>No dive reports yet</Text>
+                  <Text style={styles.drEmptySub}>Log a dive and it'll show up here.</Text>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.drEmptyTitle}>No dives match "{filter}"</Text>
+                  <Text style={styles.drEmptySub}>Adjust the filter above or log a new dive.</Text>
+                </>
+              )}
             </View>
           ) : null}
         </View>
       </View>
 
       <View style={styles.bodySidebar}>
-        <DiveTypeBreakdown />
-        <IslandBreakdown />
-        <RecentSpotsBlock onNavigate={onNavigate} />
+        <DiveTypeBreakdown reports={reports} />
+        <IslandBreakdown reports={reports} />
+        <RecentSpotsBlock reports={reports} onNavigate={onNavigate} />
       </View>
     </View>
   );
 }
 
-function DiveTypeBreakdown() {
-  // Compute from the mock list so the bars match what's rendered above.
+function DiveTypeBreakdown({ reports }: { reports: ReportItem[] }) {
+  // Compute from the live list so the bars match what's rendered above.
   const counts: Record<string, number> = {};
-  for (const d of DIVE_REPORTS) {
+  for (const d of reports) {
     const key = d.diveType.replace(/^[^\w]+\s*/, ''); // strip emoji
     counts[key] = (counts[key] ?? 0) + 1;
   }
-  const total = DIVE_REPORTS.length;
+  const total = reports.length;
   const rows = Object.entries(counts).sort((a, b) => b[1] - a[1]);
   return (
     <View style={styles.sideBlock}>
@@ -627,13 +703,13 @@ function DiveTypeBreakdown() {
   );
 }
 
-function IslandBreakdown() {
+function IslandBreakdown({ reports }: { reports: ReportItem[] }) {
   const counts: Record<string, number> = {};
-  for (const d of DIVE_REPORTS) {
+  for (const d of reports) {
     const isl = d.region.split('·')[0].trim();
     counts[isl] = (counts[isl] ?? 0) + 1;
   }
-  const total = DIVE_REPORTS.length;
+  const total = reports.length;
   const rows = Object.entries(counts).sort((a, b) => b[1] - a[1]);
   return (
     <View style={styles.sideBlock}>
@@ -655,8 +731,8 @@ function IslandBreakdown() {
   );
 }
 
-function RecentSpotsBlock({ onNavigate }: { onNavigate?: NavigateFn }) {
-  const uniqueSpots = Array.from(new Set(DIVE_REPORTS.map((d) => d.spot))).slice(0, 6);
+function RecentSpotsBlock({ reports, onNavigate }: { reports: ReportItem[]; onNavigate?: NavigateFn }) {
+  const uniqueSpots = Array.from(new Set(reports.map((d) => d.spot))).slice(0, 6);
   return (
     <View style={styles.sideBlock}>
       <View style={styles.sectionHeader}>

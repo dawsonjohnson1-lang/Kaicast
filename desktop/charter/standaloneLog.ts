@@ -23,6 +23,100 @@ export type ObservedSeaState = 'Glass' | 'Light' | 'Moderate' | 'Rough' | 'Very 
 
 export type ObservedWind = 'Calm' | 'Light' | 'Moderate' | 'Fresh' | 'Strong';
 
+// ─── Trips ───────────────────────────────────────────────────────────
+//
+// Lightweight per-trip rows, mirroring the mobile rich-log's Phase-1
+// trip model — keep TripType / TripSource / the picker list in sync
+// with app/src/types/charterLog.ts. Trip type is the only required
+// field per row; zero rows is a valid day (weather-out, maintenance).
+
+export type TripType =
+  | 'snorkel'
+  | 'freedive'
+  | 'scuba'
+  | 'spearfishing'
+  | 'fishing'
+  | 'private'
+  | 'ash_scattering'
+  | 'sunset'
+  | 'whale_watch'
+  | 'other';
+
+/** Where a trip row came from. 'manual' = captain-entered. 'fareharbor'
+ *  is reserved for the Phase 2 booking sync — nothing writes it yet,
+ *  but every row carries the field so synced rows need no migration. */
+export type TripSource = 'fareharbor' | 'manual';
+
+export const TRIP_TYPE_LABEL: Record<TripType, string> = {
+  snorkel:        'Snorkel Tour',
+  scuba:          'Scuba Dive',
+  freedive:       'Freedive',
+  spearfishing:   'Spearfishing Charter',
+  fishing:        'Fishing Charter',
+  private:        'Private Charter',
+  ash_scattering: 'Ash Scattering / Memorial',
+  sunset:         'Sunset / Sightseeing Cruise',
+  whale_watch:    'Whale Watch',
+  other:          'Custom',
+};
+
+/** Picker order for the trip-row type select. Legacy types (e.g.
+ *  `ash_scattering`) stay in the union + label map so old docs render,
+ *  but are absent here — niche one-offs go through 'other' +
+ *  tripTypeCustom. */
+export const TRIP_TYPE_OPTIONS: ReadonlyArray<{ id: TripType; label: string }> = [
+  { id: 'snorkel',        label: 'Snorkel Tour' },
+  { id: 'scuba',          label: 'Scuba Dive' },
+  { id: 'freedive',       label: 'Freedive' },
+  { id: 'spearfishing',   label: 'Spearfishing Charter' },
+  { id: 'fishing',        label: 'Fishing Charter' },
+  { id: 'whale_watch',    label: 'Whale Watch' },
+  { id: 'sunset',         label: 'Sunset / Sightseeing Cruise' },
+  { id: 'private',        label: 'Private Charter' },
+  { id: 'other',          label: 'Custom' },
+];
+
+/** One trip row. Unlike the mobile type, optional fields default to
+ *  null/'' instead of undefined — this client's Firestore init doesn't
+ *  set ignoreUndefinedProperties, so an undefined would throw on save. */
+export interface StandaloneLogTrip {
+  /** `manual_{stamp}_{n}` — or a FareHarbor booking pk once Phase 2 syncs. */
+  tripId: string;
+  /** Display index within the day, 1-based. */
+  tripNum: number;
+  /** The ONLY required field per row. */
+  type: TripType;
+  tripSource: TripSource;
+  /** Free-text label used only when type === 'other'. */
+  tripTypeCustom: string | null;
+  /** Short label/time — e.g. "3:00 PM Snorkel". */
+  label: string;
+  /** Hours, decimals allowed (2.5 = 2h 30m). */
+  durationHours: number | null;
+  guestCount: number | null;
+  notes: string;
+  /** Species tally — meaningful for spearfishing + scuba only. */
+  speciesNotes: string;
+  /** Cert-level summary — meaningful for scuba only. */
+  certLevelNotes: string;
+}
+
+export function makeManualTrip(tripNum: number): StandaloneLogTrip {
+  return {
+    tripId: `manual_${Date.now().toString(36)}_${tripNum}`,
+    tripNum,
+    type: 'snorkel',
+    tripSource: 'manual',
+    tripTypeCustom: null,
+    label: '',
+    durationHours: null,
+    guestCount: null,
+    notes: '',
+    speciesNotes: '',
+    certLevelNotes: '',
+  };
+}
+
 export interface StandaloneLogCrew {
   id: string;
   name: string;
@@ -96,8 +190,15 @@ export interface StandaloneLog {
   // Crew + counters.
   crew: StandaloneLogCrew[];
   durationHours: number | null;
-  /** Optional "ran N trips today, one log entry" counter. */
+  /** "Ran N trips today" counter — derived from trips.length at file
+   *  time when the captain enumerated rows; stays an optional manual /
+   *  prefilled value (or null) otherwise. The snapshot trigger's
+   *  zeroTripDay flag keys off it. */
   tripCount: number | null;
+  /** Lightweight per-trip rows (type + optional label/hours/guests).
+   *  Empty is a valid zero-trip day. Older standalone docs pre-date the
+   *  field — the read path defaults it to []. */
+  trips: StandaloneLogTrip[];
 
   /** Optional link to a trip doc if one exists for the day. NOT required. */
   tripId: string | null;
@@ -173,6 +274,7 @@ export function emptyLogDraft(): StandaloneLogDraft {
     crew: [],
     durationHours: null,
     tripCount: null,
+    trips: [],
     tripId: null,
     portEngineHours: null,
     stbdEngineHours: null,

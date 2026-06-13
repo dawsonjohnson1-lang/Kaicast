@@ -37,6 +37,7 @@ const admin = require('firebase-admin');
 // captain's-log conditionsSnapshot is a faithful mirror feeding the
 // SAME bias-calibration flywheel.
 const { resolveConditionsSnapshot } = require('../snapshotResolver');
+const { canFinalizeCharterLog } = require('./authz');
 
 if (admin.apps.length === 0) {
   admin.initializeApp();
@@ -111,10 +112,11 @@ exports.generateCaptainsLog = onCall(
     }
     const log = snap.data();
 
-    // Authorize — caller must belong to this log's operator.
+    // Authorize — caller must belong to this log's operator: org admin
+    // OR licensed crew, mirroring the firestore.rules charter_logs
+    // write predicate (license-not-role gating).
     const userSnap = await db.collection('users').doc(uid).get();
-    const callerOrg = userSnap.data()?.orgId;
-    if (callerOrg !== log.operatorId) {
+    if (!canFinalizeCharterLog(userSnap.data(), log.operatorId)) {
       throw new HttpsError('permission-denied', 'Not a member of this charter.');
     }
 
@@ -281,9 +283,13 @@ function renderHtml(log, { theme }) {
   const observed = cond.observed || {};
   const incident = log.incident || {};
 
+  // timeZone is required: Cloud Functions run in UTC, and mobile docs
+  // store log.date as a raw mount-time instant (not HST midnight), so
+  // without it any log first opened after 14:00 HST prints tomorrow.
   const dateLabel = log.date
     ? new Date(log.date).toLocaleDateString('en-US', {
         weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
+        timeZone: 'Pacific/Honolulu',
       })
     : '—';
 
@@ -794,10 +800,11 @@ function renderSignOff(log, esc) {
     return `<div class="signoff">Draft — not yet signed.</div>`;
   }
   const when = so.signedAt
-    ? new Date(so.signedAt).toLocaleString('en-US', {
+    ? `${new Date(so.signedAt).toLocaleString('en-US', {
         month: 'short', day: 'numeric', year: 'numeric',
         hour: 'numeric', minute: '2-digit',
-      })
+        timeZone: 'Pacific/Honolulu',
+      })} HST`
     : '';
   return `<div class="signoff">
     Signed by <strong>${esc(so.signedBy || log.captainName || 'Captain')}</strong>${when ? ` · ${esc(when)}` : ''}

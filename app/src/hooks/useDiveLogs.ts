@@ -27,6 +27,45 @@ type State = {
   loading: boolean;
 };
 
+// The submitDiveLog callable writes snake_case docs ordered by
+// logged_at; pre-path-B client writes used camelCase loggedAt.
+// orderBy silently drops docs missing its field, so a single query
+// can only ever see one generation — every hook subscribes to both
+// shapes and merges until the legacy docs are migrated.
+function subscribeMerged(
+  queries: ReturnType<typeof query>[],
+  max: number,
+  setState: (s: State) => void,
+): () => void {
+  const buckets: DiveLogRecord[][] = queries.map(() => []);
+  const publish = () => {
+    const seen = new Set<string>();
+    const merged = buckets
+      .flat()
+      .filter((l) => (seen.has(l.id) ? false : (seen.add(l.id), true)))
+      .sort((a, b) => (b.loggedAt?.getTime() ?? 0) - (a.loggedAt?.getTime() ?? 0))
+      .slice(0, max);
+    setState({ logs: merged, loading: false });
+  };
+  const unsubs = queries.map((q, i) =>
+    onSnapshot(
+      q,
+      (snap) => {
+        buckets[i] = snap.docs.map((d) => normalize(d.id, d.data()));
+        publish();
+      },
+      (err) => {
+        // Permission-denied / missing-index failures otherwise render
+        // as a silently empty list — keep them visible in the console.
+        console.warn('[useDiveLogs] subscription error', err);
+        buckets[i] = [];
+        publish();
+      },
+    ),
+  );
+  return () => unsubs.forEach((u) => u());
+}
+
 export function useUserDiveLogs(uid: string | undefined, max = 50): State {
   const [state, setState] = useState<State>({ logs: [], loading: !!uid });
 
@@ -36,23 +75,15 @@ export function useUserDiveLogs(uid: string | undefined, max = 50): State {
       return;
     }
     if (firebaseConfigured && db) {
-      const q = query(
-        collection(db, 'diveLogs'),
-        where('uid', '==', uid),
-        orderBy('loggedAt', 'desc'),
-        fbLimit(max),
+      const col = collection(db, 'diveLogs');
+      return subscribeMerged(
+        [
+          query(col, where('uid', '==', uid), orderBy('logged_at', 'desc'), fbLimit(max)),
+          query(col, where('uid', '==', uid), orderBy('loggedAt', 'desc'), fbLimit(max)),
+        ],
+        max,
+        setState,
       );
-      const unsub = onSnapshot(
-        q,
-        (snap) => {
-          setState({
-            loading: false,
-            logs: snap.docs.map((d) => normalize(d.id, d.data())),
-          });
-        },
-        () => setState({ logs: [], loading: false }),
-      );
-      return unsub;
     }
     // Stub fallback.
     listDiveLogsForUser(uid, max).then((logs) => setState({ logs, loading: false }));
@@ -87,24 +118,18 @@ export function useFriendsDiveLogs(authorUids: string[], max = 30): State {
       return;
     }
     const slice = authorUids.slice(0, 30);
-    const q = query(
-      collection(db, 'diveLogs'),
-      where('uid', 'in', slice),
-      where('privacy', 'in', ['public', 'friends']),
-      orderBy('loggedAt', 'desc'),
-      fbLimit(max),
+    // public == true is the rule-checkable flag the read rule allows;
+    // filtering on the privacy string alone gets permission-denied
+    // because rules can't prove the result set is non-private.
+    const col = collection(db, 'diveLogs');
+    return subscribeMerged(
+      [
+        query(col, where('uid', 'in', slice), where('public', '==', true), orderBy('logged_at', 'desc'), fbLimit(max)),
+        query(col, where('uid', 'in', slice), where('public', '==', true), orderBy('loggedAt', 'desc'), fbLimit(max)),
+      ],
+      max,
+      setState,
     );
-    const unsub = onSnapshot(
-      q,
-      (snap) => {
-        setState({
-          loading: false,
-          logs: snap.docs.map((d) => normalize(d.id, d.data())),
-        });
-      },
-      () => setState({ logs: [], loading: false }),
-    );
-    return unsub;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, max]);
 
@@ -120,26 +145,17 @@ export function useSpotDiveLogs(spotId: string | undefined, max = 50): State {
       return;
     }
     if (firebaseConfigured && db) {
-      // privacy in ('public','friends') — exclude private logs from
-      // the spot-wide "Friends' Reports" feed.
-      const q = query(
-        collection(db, 'diveLogs'),
-        where('spotId', '==', spotId),
-        where('privacy', 'in', ['public', 'friends']),
-        orderBy('loggedAt', 'desc'),
-        fbLimit(max),
+      // public == true matches the diveLogs read rule — private (and
+      // for now 'friends') logs never appear in the spot-wide feed.
+      const col = collection(db, 'diveLogs');
+      return subscribeMerged(
+        [
+          query(col, where('spot_id', '==', spotId), where('public', '==', true), orderBy('logged_at', 'desc'), fbLimit(max)),
+          query(col, where('spotId', '==', spotId), where('public', '==', true), orderBy('loggedAt', 'desc'), fbLimit(max)),
+        ],
+        max,
+        setState,
       );
-      const unsub = onSnapshot(
-        q,
-        (snap) => {
-          setState({
-            loading: false,
-            logs: snap.docs.map((d) => normalize(d.id, d.data())),
-          });
-        },
-        () => setState({ logs: [], loading: false }),
-      );
-      return unsub;
     }
     listDiveLogsForSpot(spotId, max).then((logs) => setState({ logs, loading: false }));
   }, [spotId, max]);
@@ -147,7 +163,42 @@ export function useSpotDiveLogs(spotId: string | undefined, max = 50): State {
   return state;
 }
 
+// Server (snake_case) → legacy card vocab. surface_state and
+// water_color are the structured fields; the cards still speak
+// safe/choppy/rough and clean/green/murky.
+const SURFACE_FROM_STATE: Record<string, string> = {
+  glassy: 'safe', light_chop: 'choppy', whitecaps: 'rough', breaking: 'rough',
+};
+const VIS_FROM_COLOR: Record<string, string> = {
+  blue: 'clean', green: 'green', brown: 'murky', silty: 'murky',
+};
+
 function normalize(id: string, data: any): DiveLogRecord {
+  if (data.spot_id != null) {
+    // Path-B doc written by the submitDiveLog callable.
+    const o = data.observed ?? {};
+    return {
+      id,
+      uid: data.uid,
+      spotId: data.spot_id,
+      customSpot: data.custom_spot ?? undefined,
+      diveType: data.dive_type,
+      groupSize: data.group_size ?? undefined,
+      durationMin: o.duration_min ?? null,
+      depthFt: o.max_depth_ft ?? null,
+      surface: SURFACE_FROM_STATE[o.surface_state] ?? undefined,
+      current: o.current_strength ?? undefined,
+      visibility: VIS_FROM_COLOR[o.water_color] ?? undefined,
+      waterTempF: o.water_temp_surface_f ?? o.water_temp_bottom_f ?? null,
+      notes: data.notes ?? undefined,
+      privacy: data.privacy,
+      photos: data.photos ?? [],
+      conditionsSnapshot: data.conditionsSnapshot ?? null,
+      // logged_at is a serverTimestamp — null on the local latency
+      // snapshot until the write commits; dive_at stands in.
+      loggedAt: data.logged_at?.toDate?.() ?? data.dive_at?.toDate?.() ?? null,
+    };
+  }
   const ts = data.loggedAt;
   return {
     id,

@@ -115,14 +115,23 @@ exports.createCrewInvitation = onCall(
       const data = doc.data();
       const existingExpiresMs = data.expiresAt?.toMillis?.() ?? 0;
       if (existingExpiresMs > nowMs) {
-        logger.info('[invite] returning existing pending invite', {
-          inviteId: doc.id, orgId, invitedEmail,
-        });
         inviteId = doc.id;
         expiresAtMs = existingExpiresMs;
         reused = true;
         effectiveDisplayName = typeof data.invitedDisplayName === 'string' ? data.invitedDisplayName : null;
         effectiveRole = typeof data.role === 'string' ? data.role : role;
+        // Honor the admin's latest submission: a re-invite with a
+        // different role/displayName is a correction, not a duplicate —
+        // update the pending doc so the email + acceptance carry it.
+        const submittedDisplayName = displayName ?? null;
+        if (effectiveRole !== role || effectiveDisplayName !== submittedDisplayName) {
+          await doc.ref.update({ role, invitedDisplayName: submittedDisplayName });
+          effectiveRole = role;
+          effectiveDisplayName = submittedDisplayName;
+        }
+        logger.info('[invite] returning existing pending invite', {
+          inviteId: doc.id, orgId, invitedEmail, role: effectiveRole,
+        });
       } else {
         // Expired pending — mark it expired so the new one is the live
         // record. We DON'T delete it — keeping the history is useful for

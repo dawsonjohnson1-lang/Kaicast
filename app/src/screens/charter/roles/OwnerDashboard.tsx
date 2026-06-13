@@ -13,6 +13,7 @@ import { CrewRoster } from '@/components/charter/CrewRoster';
 import { AlertBanner, type CharterAlert } from '@/components/charter/AlertBanner';
 import { TRIP_CONDITION_TO_TIER } from '@/types/charter';
 import { CharterTwoDayForecast } from '../CharterTwoDayForecast';
+import { hstDateKey } from '@/types/charterLog';
 import type { Vessel, Trip, CrewMember } from '@/types/charter';
 
 const MOCK_ALERTS: CharterAlert[] = [
@@ -49,7 +50,8 @@ export function OwnerDashboard({
       <Section title="Fleet health">
         <View style={{ gap: spacing.sm }}>
           {fleet.map((v) => {
-            const today = trips.find((t) => isSameDay(t.date, new Date()));
+            // HST day boundary — must match CharterTwoDayForecast's bucketing.
+            const today = trips.find((t) => hstDateKey(t.date.getTime()) === hstDateKey(Date.now()));
             const score = today?.conditionScore ?? 0;
             const tier = today ? TRIP_CONDITION_TO_TIER[today.conditionLabel] : 'no-go';
             const color = today ? RATING_COLORS[tier] : colors.textMuted;
@@ -133,10 +135,6 @@ function RevTile({ value, label }: { value: string; label: string }) {
       <Text style={revenueStyles.label}>{label.toUpperCase()}</Text>
     </View>
   );
-}
-
-function isSameDay(a: Date, b: Date): boolean {
-  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
 
 const sectionStyles = StyleSheet.create({

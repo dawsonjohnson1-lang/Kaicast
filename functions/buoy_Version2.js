@@ -137,18 +137,13 @@ async function parseNdbcRealtime2Text(text) {
     if (!acc[isoHour]) acc[isoHour] = { hv: [], per: [], dir: [], wtmp: [] };
 
     // Safe safe reads for hv/per/wtmp via indexes
+    // When WVHT is 'MM' (missing sentinel) or the column is absent, skip the
+    // row — no heuristic fallback. In the realtime2 layout tokens 5/6 are
+    // WDIR/WSPD, so guessing would record wind data as wave height.
+    // Downstream handles missing hours via lookupRecent + marine forecast.
     if (hvIdx >= 0 && tokens[hvIdx] && tokens[hvIdx] !== 'MM') {
       const hv = Number(tokens[hvIdx]);
       if (Number.isFinite(hv)) acc[isoHour].hv.push(hv);
-    } else {
-      // sometimes wave height appears later; try heuristics: pick a token that looks like a wave height (0.1..20 range)
-      for (let t = 5; t < Math.min(tokens.length, 12); t++) {
-        const v = Number(tokens[t]);
-        if (Number.isFinite(v) && v > 0 && v < 20) {
-          acc[isoHour].hv.push(v);
-          break;
-        }
-      }
     }
 
     if (perIdx >= 0 && tokens[perIdx] && tokens[perIdx] !== 'MM') {

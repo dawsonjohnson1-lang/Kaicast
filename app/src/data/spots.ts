@@ -66,11 +66,11 @@ const RICH_DATA: Record<string, Pick<Spot, 'description' | 'entryExit' | 'marine
   },
   'three-tables': {
     description:
-      "Three flat coral plateaus that surface at low tide, sheltered between Shark's Cove and Pupukea Beach. Mellow free-diving in summer, dangerous in winter.",
+      "Three Tables is the calmer north-shore sister to Shark's Cove — three flat coral plateaus that surface at low tide, sheltered between Sharks Cove and Pupukea Beach.",
     entryExit:
-      "Easy sand-and-rock entry directly from the beach. The tables are within 50 yards of shore — don't cross over them at low tide.",
+      "Easy sand-and-rock entry directly from the beach. The tables are within 50 yards of shore; don't cross over them at low tide. Summer only, like everything in the Pupukea zone.",
     marineLife: ['Green Sea Turtles', 'Reef Fish', 'Octopus'],
-    coverColor: '#0c2a4d',
+    coverColor: '#0a3a4d',
   },
   'turtle-reef-turtle-bay': {
     description:

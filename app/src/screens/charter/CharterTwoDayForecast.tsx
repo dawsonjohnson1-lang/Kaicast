@@ -94,7 +94,7 @@ function SpotBlock({
   vessel: Vessel;
   onSetVesselType?: () => void;
 }) {
-  const { data, loading } = useCharterSpotReport(spotId);
+  const { data, loading, error } = useCharterSpotReport(spotId);
   const cond = React.useMemo(() => dayConditions(data, dayOffset), [data, dayOffset]);
   const factors = vesselFactors(vessel.vesselType);
 
@@ -105,6 +105,12 @@ function SpotBlock({
         <View style={styles.inlineLoad}>
           <ActivityIndicator color={colors.accent} size="small" />
           <Text style={styles.quietText}>Loading conditions…</Text>
+        </View>
+      ) : error && !data ? (
+        // Distinct from the "No forecast in yet" copy — a fetch failure
+        // shouldn't read as "forecast not generated".
+        <View style={styles.quiet}>
+          <Text style={styles.quietText}>Couldn't load conditions for {spotName} — check your connection.</Text>
         </View>
       ) : !factors ? (
         <View style={styles.promptCard}>

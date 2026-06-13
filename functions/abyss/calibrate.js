@@ -57,7 +57,7 @@ const MAX_CORRECTION_FT = 15;
 // slashes):
 //
 //   swell_{calm|small|moderate|large|unknown}   from predicted wave_height_ft
-//   tide_{rising|falling|slack|high|low|unknown} from predicted tide_state
+//   tide_{rising|falling|high|low|unknown}      from predicted tide_state
 //   tod_{dawn|morning|midday|afternoon|dusk|night} from dive_at hour (HST)
 //   runoff_{none|low|moderate|high|extreme|unknown} from predicted runoff_severity
 
@@ -73,7 +73,7 @@ function swellBucket(waveHeightFt) {
 
 function tideBucket(tideState) {
   const t = String(tideState || '').toLowerCase();
-  return ['rising', 'falling', 'slack', 'high', 'low'].includes(t)
+  return ['rising', 'falling', 'high', 'low'].includes(t)
     ? `tide_${t}`
     : 'tide_unknown';
 }
@@ -255,7 +255,9 @@ function computeSpotCalibration(logs, { nowMs } = {}) {
       }
     }
 
-    const obsTemp = observed.water_temp_bottom_f ?? observed.water_temp_surface_f;
+    // predicted.water_temp_f is SST — prefer observed surface temp so
+    // the pair is like-for-like; bottom temp only as a fallback.
+    const obsTemp = observed.water_temp_surface_f ?? observed.water_temp_bottom_f;
     if (Number.isFinite(predicted.water_temp_f) && Number.isFinite(obsTemp)) {
       tempPairs.push({ predicted: predicted.water_temp_f, observed: obsTemp, weight });
     }

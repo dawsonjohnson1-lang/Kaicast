@@ -62,6 +62,20 @@ export function useTripsForDayOffset(
     error: null,
   });
 
+  // Current HST day, as the epoch ms of its start. Rolls over at HST
+  // midnight so a dashboard left open overnight (the dock tablet)
+  // re-subscribes to the new day's window instead of staying pinned
+  // to the day current at mount.
+  const [dayKey, setDayKey] = React.useState(() => hstDayStartUTC(0).getTime());
+
+  React.useEffect(() => {
+    const nextMidnight = hstDayStartUTC(1).getTime();
+    // +1s pad so we fire safely after the boundary, not just before it.
+    const ms = Math.max(0, nextMidnight - Date.now()) + 1000;
+    const timer = setTimeout(() => setDayKey(hstDayStartUTC(0).getTime()), ms);
+    return () => clearTimeout(timer);
+  }, [dayKey]);
+
   React.useEffect(() => {
     if (!orgId || !db || !firebaseConfigured) {
       setState({ trips: [], loading: false, error: null });
@@ -93,7 +107,9 @@ export function useTripsForDayOffset(
       },
     );
     return unsub;
-  }, [orgId, dayOffset]);
+    // dayKey isn't read directly — it changes at HST midnight so the
+    // hstDayStartUTC window above is recomputed for the new day.
+  }, [orgId, dayOffset, dayKey]);
 
   return state;
 }

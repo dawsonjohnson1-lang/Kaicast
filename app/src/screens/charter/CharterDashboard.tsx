@@ -3,8 +3,8 @@
 // the role-specific dashboard.
 //
 // Includes a small dev-only role-switcher in the header so the four
-// dashboards can be previewed without re-seeding Firestore. Remove
-// or hide-behind-__DEV__ before App Store submission.
+// dashboards can be previewed without re-seeding Firestore. Gated
+// behind __DEV__ so it is stripped from release builds.
 
 import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
@@ -95,21 +95,24 @@ export function CharterDashboard() {
   return (
     <Screen contentStyle={{ paddingTop: 0, paddingHorizontal: 0 }} edges={['top', 'left', 'right', 'bottom']}>
       {/* Dev-only role switcher — collapsed pill bar so it stays out of
-          the way but is one tap to swap roles in the sim. */}
-      <View style={devStyles.bar}>
-        <Text style={devStyles.label}>DEV · ROLE</Text>
-        {ALL_ROLES.map((r) => (
-          <Pressable
-            key={r}
-            onPress={() => setRole(r)}
-            style={[devStyles.chip, role === r && devStyles.chipOn]}
-          >
-            <Text style={[devStyles.chipText, role === r && devStyles.chipTextOn]}>
-              {ROLE_LABEL[r]}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
+          the way but is one tap to swap roles in the sim. __DEV__-gated
+          so it never ships in release builds. */}
+      {__DEV__ && (
+        <View style={devStyles.bar}>
+          <Text style={devStyles.label}>DEV · ROLE</Text>
+          {ALL_ROLES.map((r) => (
+            <Pressable
+              key={r}
+              onPress={() => setRole(r)}
+              style={[devStyles.chip, role === r && devStyles.chipOn]}
+            >
+              <Text style={[devStyles.chipText, role === r && devStyles.chipTextOn]}>
+                {ROLE_LABEL[r]}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      )}
 
       {/* Charter map — operating spots + harbor (with docked vessels on
           tap). Pulls the real charter_accounts/{orgId} doc; renders a

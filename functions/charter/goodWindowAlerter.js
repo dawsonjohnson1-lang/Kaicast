@@ -73,6 +73,10 @@ exports.charterGoodWindowAlerter = onDocumentCreated(
       }
 
       const writes = [];
+      // Spot docs that passed the cooldown — the push fan-out must use
+      // this filtered list, not subscribed.docs, or cooled-down orgs
+      // get re-pushed on every Fair→Good bounce.
+      const eligibleSpotDocs = [];
       const cooldownCutoff = admin.firestore.Timestamp.fromDate(new Date(Date.now() - ALERT_COOLDOWN_MS));
       for (const spotDoc of subscribed.docs) {
         // path: charter_accounts/{orgId}/spots/{charterSpotId}
@@ -93,6 +97,7 @@ exports.charterGoodWindowAlerter = onDocumentCreated(
           continue;
         }
 
+        eligibleSpotDocs.push(spotDoc);
         writes.push(
           db.collection('charter_accounts').doc(orgId)
             .collection('alerts')
@@ -109,12 +114,16 @@ exports.charterGoodWindowAlerter = onDocumentCreated(
         );
       }
       await Promise.all(writes);
+      if (eligibleSpotDocs.length === 0) {
+        logger.info('[good-window] all subscribers cooling down', { spotId });
+        return;
+      }
 
       // FCM push — best-effort. When a charter user has registered a
       // device token via users/{uid}/devices/{tokenId} we send a push;
       // otherwise the in-app alert doc above is the only delivery
       // mechanism (the dashboard banner reads it).
-      await fanOutPushNotifications(db, subscribed.docs, spotId);
+      await fanOutPushNotifications(db, eligibleSpotDocs, spotId);
 
       logger.info('[good-window] alerts fired', { spotId, count: writes.length });
     } catch (err) {
@@ -189,6 +198,11 @@ async function fanOutPushNotifications(db, subscribedSpotDocs, spotId) {
       .where('orgId', '==', orgId)
       .get();
     for (const userDoc of usersSnap.docs) {
+      // Honor push prefs (see functions/shared/userSettings.js).
+      // Default-allow when fields are missing, matching
+      // DEFAULT_USER_SETTINGS where both default to true.
+      const pushPrefs = userDoc.data()?.prefs?.pushNotifications;
+      if (pushPrefs?.enabled === false || pushPrefs?.categories?.conditionAlerts === false) continue;
       const devicesSnap = await db.collection('users').doc(userDoc.id)
         .collection('devices').get();
       for (const dev of devicesSnap.docs) {

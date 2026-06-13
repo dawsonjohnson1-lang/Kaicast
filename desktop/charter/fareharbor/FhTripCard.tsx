@@ -169,19 +169,19 @@ function findWindowForDeparture(
   departureTime: string,
 ): { rating?: unknown; visibility?: unknown; wind?: unknown; swell?: unknown } | null {
   // tripDate is HST date YYYY-MM-DD; we treat departureTime as HST.
-  // Reports' `startsAt` are ISO with offset, so compare on absolute ms.
+  // Reports' `startIso` are ISO with offset, so compare on absolute ms.
   const [hStr, mStr] = departureTime.split(':');
   const hour = Number.parseInt(hStr ?? '0', 10);
   const minute = Number.parseInt(mStr ?? '0', 10);
   // HST is UTC-10 with no DST.
   const tripStart = new Date(`${tripDate}T${pad2(hour)}:${pad2(minute)}:00-10:00`);
   const targetMs = tripStart.getTime();
-  const windows = (report.windows as Array<{ startsAt?: string; rating?: unknown }> | undefined) ?? [];
+  const windows = (report.windows as Array<{ startIso?: string; rating?: unknown }> | undefined) ?? [];
   if (windows.length === 0) return null;
   let best: { delta: number; w: unknown } | null = null;
   for (const w of windows) {
-    if (!w.startsAt) continue;
-    const wStart = new Date(w.startsAt).getTime();
+    if (!w.startIso) continue;
+    const wStart = Date.parse(w.startIso);
     const delta = Math.abs(wStart - targetMs);
     if (!best || delta < best.delta) best = { delta, w };
   }
