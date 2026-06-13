@@ -88,17 +88,17 @@ export function DiveReportCard(p: DiveReportCardProps) {
       </View>
 
       <View style={styles.statsStrip}>
-        <Stat label="Depth"      value={String(p.depthFt)}     unit="ft" />
+        <Stat label="Depth"      value={fmtStat(p.depthFt)}     unit="ft" />
         <StatDivider />
-        <Stat label="Time"       value={String(p.durationMin)} unit="min" />
+        <Stat label="Time"       value={fmtStat(p.durationMin)} unit="min" />
         <StatDivider />
-        <Stat label="Visibility" value={String(p.vizFt)}       unit="ft" />
+        <Stat label="Visibility" value={fmtStat(p.vizFt)}       unit="ft" />
         <StatDivider />
-        <Stat label="Water"      value={String(p.waterTempF)}  unit="°F" />
+        <Stat label="Water"      value={fmtStat(p.waterTempF)}  unit="°F" />
         {p.airTempF != null ? (
           <>
             <StatDivider />
-            <Stat label="Air"    value={String(p.airTempF)}    unit="°F" />
+            <Stat label="Air"    value={fmtStat(p.airTempF)}    unit="°F" />
           </>
         ) : null}
       </View>
@@ -148,12 +148,20 @@ export function DiveReportCard(p: DiveReportCardProps) {
   );
 }
 
+// Blank environmental fields are stored as 0 / not-entered; show "N/A"
+// rather than a misleading "0 ft". Mirrors fmtMetric in the LogDive
+// PublishedView so the success screen and the report card agree.
+function fmtStat(n: number): string {
+  return Number.isFinite(n) && n > 0 ? String(n) : 'N/A';
+}
+
 function Stat({ label, value, unit }: { label: string; value: string; unit: string }) {
+  const isNA = value === 'N/A';
   return (
     <View style={styles.stat}>
       <View style={styles.statValueRow}>
         <Text style={styles.statValue}>{value}</Text>
-        <Text style={styles.statUnit}>{unit}</Text>
+        {isNA ? null : <Text style={styles.statUnit}>{unit}</Text>}
       </View>
       <Text style={styles.statLabel}>{label.toUpperCase()}</Text>
     </View>

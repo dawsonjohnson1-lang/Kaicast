@@ -18,7 +18,7 @@
 import type { BackendReport, BackendDay } from '@/api/kaicast';
 import type { ForecastDay, HourlyPoint, TideEvent, ForecastRating } from '@/api/forecast-mock';
 import { RATING_COLORS, RATING_LABELS, type RatingTier } from '@/theme/ratingColors';
-import { scoreToTier } from '@/utils/scoreToTier';
+import { scoreToTier, visibilityScoreCapFt } from '@/utils/scoreToTier';
 
 const KTS_TO_MPH = 1.15078;
 const M_TO_FT = 3.28084;
@@ -346,7 +346,11 @@ function aggregateDayScore(day: BackendDay): number {
   // the best day in a forecast).
   if (wind < 10 && swellM < 1.2 && rain < 1) score += 6;
 
-  return Math.max(0, Math.min(100, Math.round(score)));
+  // Visibility ceiling (role 2): cap the aggregate day score by the
+  // day's estimated clarity, mirroring the backend's per-window cap so
+  // a low-vis forecast day can't render Great/Excellent on the strip.
+  const capped = Math.min(Math.round(score), visibilityScoreCapFt(estimateVisibilityFt(day)));
+  return Math.max(0, Math.min(100, capped));
 }
 
 function estimateVisibilityFt(day: BackendDay): number {

@@ -23,6 +23,7 @@
 const { fetchOceanColor, kd490ToVisibility } = require('./kd490');
 const { computeWaveImpactAtSite } = require('./wave-physics');
 const { estimateVisibility } = require('../analysis');
+const { visibilityScoreCap, ratingFromScore } = require('./ratingConfig');
 const { solarPosition, isShadowed, solarLightFactor, swellExposureFactor, classifyWindRelative } = require('./solar');
 const { getHorizonProfile } = require('./horizon');
 
@@ -623,11 +624,16 @@ function generateDiveScore({
 
   score = Math.max(0, Math.min(100, score));
 
-  let rating = 'Excellent';
-  if (score < 20) rating = 'No-Go';
-  else if (score < 40) rating = 'Fair';
-  else if (score < 60) rating = 'Good';
-  else if (score < 80) rating = 'Great';
+  // ── Visibility CEILING (role 2 of 2) ───────────────────────────────
+  // Same hard clamp as the snorkel scorer (see abyss/ratingConfig.js
+  // and the long comment in analysis.generateSnorkelRating): visibility
+  // is both the dominant INPUT above and a separate post-composite
+  // ceiling here. A calm, no-surge, no-current dive in 8 ft of murk is
+  // still a No-Go no matter how good everything else scores.
+  const visCap = visibilityScoreCap(visM);
+  if (score > visCap) { score = visCap; details.visCeiling = visCap; }
+
+  const rating = ratingFromScore(score);
 
   // Build caution note
   const cautions = [];

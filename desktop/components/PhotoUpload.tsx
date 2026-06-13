@@ -125,13 +125,32 @@ export function PhotoUpload({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Report path changes upward whenever the done-set changes.
+  // Keep the latest callback in a ref so its (usually inline) identity
+  // isn't a dependency of the report effect below. Depending on it
+  // caused an infinite setState loop: the parent passes
+  // `onPathsChange={(p) => update('photos', p)}` (new identity every
+  // render), the effect fired `update('photos', [])`, that re-rendered
+  // the parent, which handed us a fresh callback, which re-ran the
+  // effect, forever.
+  const onPathsChangeRef = React.useRef(onPathsChange);
+  React.useEffect(() => {
+    onPathsChangeRef.current = onPathsChange;
+  });
+
+  // Report path changes upward only when the resolved set actually
+  // changes — keyed on the joined paths so an unrelated `items` update
+  // (upload progress ticks) doesn't spam the parent. Depends on `items`
+  // alone, never the callback identity.
+  const lastReportedRef = React.useRef<string>('');
   React.useEffect(() => {
     const paths = items
       .filter((i) => i.status === 'done' && i.storagePath)
       .map((i) => i.storagePath!) as string[];
-    onPathsChange(paths);
-  }, [items, onPathsChange]);
+    const key = paths.join('\n');
+    if (key === lastReportedRef.current) return;
+    lastReportedRef.current = key;
+    onPathsChangeRef.current(paths);
+  }, [items]);
 
   const startUpload = React.useCallback(
     (files: File[]) => {

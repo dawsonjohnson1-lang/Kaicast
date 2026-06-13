@@ -93,6 +93,44 @@ After path-B switch:
 - `users` and its subcollections (favorites, following, followers,
   devices) — unchanged.
 
+## Rating system: visibility plays two roles (INPUT + CEILING)
+
+`functions/abyss/ratingConfig.js` is the single backend home for the
+condition-rating config. Visibility deliberately does TWO separate
+jobs and they must NOT be merged:
+
+1. **Input** — `visibilityInputPenalty()` is the dominant single
+   penalty inside `generateSnorkelRating` (analysis.js) and the
+   vis term in `generateDiveScore` (abyss.js). It's the steepest
+   factor by design so wind/swell/tide can't lift a murky spot.
+2. **Ceiling** — `visibilityScoreCap()` is a HARD clamp applied to the
+   composite score AFTER it's computed. Even a perfect composite is
+   pinned down when clarity is low. Final rating = MIN(composite,
+   visibility cap). Bands: 0–10 ft→No-Go, 10–20→Fair, 20–35→Good,
+   35–50→Great, 50+→Excellent-eligible.
+
+The two are separate mechanisms — the input weights how clean the day
+is; the ceiling guarantees bad clarity can't be bought back. Don't
+refactor the cap into the penalty.
+
+`ratingFromScore()` is the single score→tier source. Both clients
+derive their tier from the numeric `rating.score` (which is now
+capped), so map markers and the detail page can't disagree. Safety
+caps (jellyfish, runoff-unsafe, low-confidence) trim the SCORE, not
+just the label string, so all score-based clients honor them.
+
+**VIS_BANDS has THREE mirrors — keep in sync** (same reason as the
+spot list): `functions/abyss/ratingConfig.js` (canonical, has
+`maxScore` + input-penalty anchors), `desktop/data/getReport.ts`
+(`VIS_BANDS` + `clarityCaptionForFt`/`visibilityScoreCapFt`), and
+`app/src/utils/scoreToTier.ts` (`VIS_BANDS` + `visibilityScoreCapFt`).
+The clarity caption and the rating ceiling share these exact bands so
+they can never contradict (no "Good rating" next to "Poor clarity").
+The backend `visibility.rating` field stays 4-level {Poor,Fair,Good,
+Excellent} — it's INTERNAL (dive-log delta + calibration), not the
+user-facing clarity label, so it's exempt from the 5-band mirror.
+Test: `__test__/ratingCap.unit.js`.
+
 ## Calibration loop (SHIPPED — no longer a next step)
 
 `functions/nightlyCalibration.js` (03:10 HST) reads the last 60 days
