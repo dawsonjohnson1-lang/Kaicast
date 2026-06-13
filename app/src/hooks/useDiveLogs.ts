@@ -54,7 +54,10 @@ function subscribeMerged(
         buckets[i] = snap.docs.map((d) => normalize(d.id, d.data()));
         publish();
       },
-      () => {
+      (err) => {
+        // Permission-denied / missing-index failures otherwise render
+        // as a silently empty list — keep them visible in the console.
+        console.warn('[useDiveLogs] subscription error', err);
         buckets[i] = [];
         publish();
       },

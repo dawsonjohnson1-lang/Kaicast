@@ -37,7 +37,18 @@ export async function submitDiveLog(
     getFunctions(app, 'us-central1'),
     'submitDiveLog',
   );
-  const res = await fn(payload);
+  // eslint-disable-next-line no-console
+  console.log('[submitDiveLog] calling callable with payload', payload);
+  let res;
+  try {
+    res = await fn(payload);
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('[submitDiveLog] callable FAILED', err);
+    throw err;
+  }
+  // eslint-disable-next-line no-console
+  console.log('[submitDiveLog] callable returned', res.data);
   return {
     logId: res.data.log_id,
     snapshotSource: res.data.snapshot_source ?? null,

@@ -22,6 +22,8 @@ import {
   submitDiveLog,
   type SubmitDiveLogResult,
 } from './api/diveLogs';
+import { fetchFollowerPreview, type FollowerPreview } from './api/followers';
+import { captureException } from './sentry';
 import type { NavigateFn, RouteParams } from './router';
 
 // Subset of known Hawaii dive spots — used by the Step 01 map picker.
@@ -417,6 +419,9 @@ type PublishState =
       /** Authed user's total log count (incl. this one), or null when
        *  the count query failed — the success copy hides the line. */
       totalDives: number | null;
+      /** Real followers (sample + total), or null when unavailable —
+       *  the visibility card hides the follower section. */
+      followers: FollowerPreview | null;
     };
 
 export function LogDiveScreen({ activeNav = 'log', onNavigate, params }: LogDiveScreenProps) {
@@ -451,10 +456,21 @@ export function LogDiveScreen({ activeNav = 'log', onNavigate, params }: LogDive
     try {
       const result = await submitDiveLog(buildCallablePayload(form, spotId));
       // Count AFTER the write so the total includes this dive.
-      const totalDives = await countUserDiveLogs(user.uid);
-      setPublishState({ phase: 'published', result, spotId, totalDives });
+      const [totalDives, followers] = await Promise.all([
+        countUserDiveLogs(user.uid),
+        fetchFollowerPreview(user.uid),
+      ]);
+      setPublishState({ phase: 'published', result, spotId, totalDives, followers });
     } catch (err) {
       const raw = err instanceof Error ? err.message : String(err);
+      // Durable report of the failed write — this is the path that
+      // otherwise vanished into the browser console. Tag the flow and
+      // attach the spot so failures are filterable in Sentry. No PII:
+      // we send the spot id/name, not the user's notes or buddy.
+      captureException(err, {
+        tags: { flow: 'log-dive-publish' },
+        extra: { spotId, spotName: form.spot, diveType: form.diveType },
+      });
       setPublishState({
         phase: 'error',
         message: `Your dive wasn't saved — ${raw}. Your entries are still here; fix the issue (or check your connection) and publish again.`,
@@ -549,6 +565,7 @@ export function LogDiveScreen({ activeNav = 'log', onNavigate, params }: LogDive
             result={publishState.result}
             spotId={publishState.spotId}
             totalDives={publishState.totalDives}
+            followers={publishState.followers}
             onAnother={() => {
               setForm(INITIAL_FORM);
               setPublishState({ phase: 'idle' });
@@ -803,18 +820,21 @@ function fmtMetric(v: string | number): string {
   return String(n);
 }
 
-const NOTIFICATIONS_SENT = [
-  { initials: 'KM', name: 'Kai M.',     reason: 'follows Electric Beach' },
-  { initials: 'RP', name: 'Ryan P.',    reason: 'follows you' },
-  { initials: 'NO', name: 'Nina O.',    reason: 'follows Electric Beach' },
-  { initials: 'LS', name: 'Leilani S.', reason: 'follows you' },
-];
+/** "Kai Makena" → "KM". Follower docs only carry a denormalized name. */
+function initialsFromName(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  const first = parts[0][0] ?? '?';
+  const last = parts.length > 1 ? parts[parts.length - 1][0] ?? '' : '';
+  return (first + last).toUpperCase();
+}
 
 function PublishedView({
   form,
   result,
   spotId,
   totalDives,
+  followers,
   onAnother,
   onNavigate,
 }: {
@@ -822,6 +842,7 @@ function PublishedView({
   result: SubmitDiveLogResult;
   spotId: string;
   totalDives: number | null;
+  followers: FollowerPreview | null;
   onAnother: () => void;
   onNavigate?: NavigateFn;
 }) {
@@ -902,32 +923,58 @@ function PublishedView({
           </View>
         ) : null}
 
+        {/* Visibility card — who can actually see this dive. No push
+            notifications go out on publish (there's no fan-out in
+            submitDiveLog), so the card describes real visibility:
+            the privacy setting, the user's actual followers, and
+            whether the report updated the live community overlay. */}
         <View style={styles.notifyCard}>
           <View style={styles.notifyHeader}>
-            <Text style={styles.notifyHeaderTitle}>Notifying {NOTIFICATIONS_SENT.length + 19} divers</Text>
-            <Text style={styles.notifyHeaderSub}>23 friends follow this spot or follow you</Text>
+            <Text style={styles.notifyHeaderTitle}>
+              {form.shareToCommunity ? 'Shared to community' : 'Private dive'}
+            </Text>
+            <Text style={styles.notifyHeaderSub}>
+              {!form.shareToCommunity
+                ? 'Only you can see this dive in your log.'
+                : followers && followers.total > 0
+                  ? `Visible to your ${followers.total} follower${followers.total === 1 ? '' : 's'} and divers checking ${form.spot}.`
+                  : `Visible to divers checking ${form.spot}.`}
+            </Text>
           </View>
-          <View style={styles.notifyAvatarRow}>
-            {NOTIFICATIONS_SENT.map((n, i) => (
-              <View
-                key={n.name}
-                style={[styles.notifyAvatar, { marginLeft: i === 0 ? 0 : -10, zIndex: NOTIFICATIONS_SENT.length - i }]}
-              >
-                <Text style={styles.notifyAvatarText}>{n.initials}</Text>
+          {form.shareToCommunity && followers && followers.sample.length > 0 ? (
+            <>
+              <View style={styles.notifyAvatarRow}>
+                {followers.sample.map((f, i) => (
+                  <View
+                    key={f.uid}
+                    style={[styles.notifyAvatar, { marginLeft: i === 0 ? 0 : -10, zIndex: followers.sample.length - i }]}
+                  >
+                    <Text style={styles.notifyAvatarText}>{initialsFromName(f.name)}</Text>
+                  </View>
+                ))}
+                {followers.total > followers.sample.length ? (
+                  <View style={[styles.notifyAvatarMore, { marginLeft: -10 }]}>
+                    <Text style={styles.notifyAvatarMoreText}>+{followers.total - followers.sample.length}</Text>
+                  </View>
+                ) : null}
               </View>
-            ))}
-            <View style={[styles.notifyAvatarMore, { marginLeft: -10 }]}>
-              <Text style={styles.notifyAvatarMoreText}>+19</Text>
-            </View>
-          </View>
-          <View style={styles.notifyList}>
-            {NOTIFICATIONS_SENT.slice(0, 3).map((n) => (
-              <View key={n.name} style={styles.notifyRow}>
-                <Text style={styles.notifyRowName}>{n.name}</Text>
-                <Text style={styles.notifyRowReason}>{n.reason}</Text>
+              <View style={styles.notifyList}>
+                {followers.sample.slice(0, 3).map((f) => (
+                  <View key={f.uid} style={styles.notifyRow}>
+                    <Text style={styles.notifyRowName}>{f.name}</Text>
+                    <Text style={styles.notifyRowReason}>
+                      {f.handle ? `@${f.handle}` : 'follows you'}
+                    </Text>
+                  </View>
+                ))}
               </View>
-            ))}
-          </View>
+            </>
+          ) : null}
+          {result.communityOverlayUpdated ? (
+            <Text style={styles.notifyOverlayNote}>
+              ✓ Your report just updated live conditions at {form.spot}
+            </Text>
+          ) : null}
         </View>
       </View>
 
@@ -3191,6 +3238,13 @@ const styles = StyleSheet.create({
     fontFamily: fonts.mono,
     fontSize: 11,
     color: colors.text3,
+  },
+  notifyOverlayNote: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.excellent,
+    marginTop: 12,
   },
 
   // Action buttons grid
