@@ -29,7 +29,7 @@ import * as Sentry from '@sentry/react';
 // hardcodes it). VITE_SENTRY_DSN overrides it if set, e.g. to point a
 // staging build at a separate project or to disable by setting it empty.
 const DEFAULT_DSN =
-  'https://2663910f55b54cd8ca875d45e81aa235@o4511555730407424.ingest.us.sentry.io/4511555803414528';
+  'https://7cc94e47dab9d0dfb403f5838a9d9487@o4511555730407424.ingest.us.sentry.io/4511555806953472';
 
 const envDsn = (import.meta as any).env?.VITE_SENTRY_DSN;
 const DSN = (typeof envDsn === 'string' ? envDsn : DEFAULT_DSN).trim();
