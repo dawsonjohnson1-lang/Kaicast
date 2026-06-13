@@ -1303,6 +1303,13 @@ function buildWindows(hourlyItems, nowMs, count = 8) {
 
 // ─── Report builder ───────────────────────────────────────────────────────────
 
+// Bump when the rating/scoring math changes in a way that invalidates
+// already-cached kaicast_reports docs. readCachedReport rejects any doc
+// stamped below this, forcing a one-time recompute (self-clears within
+// an hour as the scheduler refills caches). v2: visibility two-role
+// rework — dominant input penalty + hard score ceiling (ratingConfig.js).
+const SCORING_VERSION = 2;
+
 async function buildSpotReport({ spot, owHourly, buoyData, marineForecast, nowMs }) {
   const nowDate    = new Date(nowMs);
   const generatedAt = nowDate.toISOString();
@@ -1684,6 +1691,7 @@ async function buildSpotReport({ spot, owHourly, buoyData, marineForecast, nowMs
     spotCoast:  coast,
     generatedAt,
     hourKey,
+    scoringVersion: SCORING_VERSION,
     sources,
     qcFlags,
     // Top-level freshness indicator: is the current visibility estimate
@@ -1966,6 +1974,9 @@ async function readCachedReport(spotId, nowMs, spot = null) {
     if (!data?.days?.[0]?.solar) continue;
     // Skip caches lacking the rationale field (latest abyss revision).
     if (!Array.isArray(data?.now?.visibility?.rationale)) continue;
+    // Skip caches scored by an older rating model (pre visibility
+    // input+ceiling rework). Forces a recompute so the cap lands.
+    if (!(Number(data?.scoringVersion) >= SCORING_VERSION)) continue;
     // Skip caches from before the data-freshness indicator + calibrated
     // cascade shipped. Self-clears within an hour as caches refill.
     if (!data?.now?.visibility?.dataQuality) continue;

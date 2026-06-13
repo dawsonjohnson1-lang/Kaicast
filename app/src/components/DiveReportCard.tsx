@@ -34,7 +34,7 @@ export function DiveReportCard({ report, onPress }: Props) {
       </View>
 
       <View style={styles.statsRow}>
-        <Stat label="VISIBILITY" value={`${report.depthFt} FT`} />
+        <Stat label="DEPTH" value={fmtStat(report.depthFt, 'FT')} />
         <Stat label="CURRENT" value={report.current} />
         <Stat label="ENTRY" value={report.surface} />
         <Stat label="WATER QUALITY" value={report.visibility} />
@@ -54,6 +54,13 @@ export function DiveReportCard({ report, onPress }: Props) {
       </View>
     </Pressable>
   );
+}
+
+// Blank numeric stats are stored as 0 / not-entered; show "N/A" rather
+// than a misleading "0 FT". Mirrors fmtStat in the desktop
+// DiveReportCard and fmtMetric in the LogDive success screen.
+function fmtStat(n: number, unit: string): string {
+  return Number.isFinite(n) && n > 0 ? `${n} ${unit}` : 'N/A';
 }
 
 function Stat({ label, value }: { label: string; value: string }) {
