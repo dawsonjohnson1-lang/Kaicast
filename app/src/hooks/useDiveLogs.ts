@@ -27,6 +27,42 @@ type State = {
   loading: boolean;
 };
 
+// The submitDiveLog callable writes snake_case docs ordered by
+// logged_at; pre-path-B client writes used camelCase loggedAt.
+// orderBy silently drops docs missing its field, so a single query
+// can only ever see one generation — every hook subscribes to both
+// shapes and merges until the legacy docs are migrated.
+function subscribeMerged(
+  queries: ReturnType<typeof query>[],
+  max: number,
+  setState: (s: State) => void,
+): () => void {
+  const buckets: DiveLogRecord[][] = queries.map(() => []);
+  const publish = () => {
+    const seen = new Set<string>();
+    const merged = buckets
+      .flat()
+      .filter((l) => (seen.has(l.id) ? false : (seen.add(l.id), true)))
+      .sort((a, b) => (b.loggedAt?.getTime() ?? 0) - (a.loggedAt?.getTime() ?? 0))
+      .slice(0, max);
+    setState({ logs: merged, loading: false });
+  };
+  const unsubs = queries.map((q, i) =>
+    onSnapshot(
+      q,
+      (snap) => {
+        buckets[i] = snap.docs.map((d) => normalize(d.id, d.data()));
+        publish();
+      },
+      () => {
+        buckets[i] = [];
+        publish();
+      },
+    ),
+  );
+  return () => unsubs.forEach((u) => u());
+}
+
 export function useUserDiveLogs(uid: string | undefined, max = 50): State {
   const [state, setState] = useState<State>({ logs: [], loading: !!uid });
 
@@ -36,40 +72,15 @@ export function useUserDiveLogs(uid: string | undefined, max = 50): State {
       return;
     }
     if (firebaseConfigured && db) {
-      // The submitDiveLog callable writes snake_case docs ordered by
-      // logged_at; pre-path-B client writes used camelCase loggedAt.
-      // orderBy silently drops docs missing its field, so a single
-      // query can only ever see one generation — subscribe to both
-      // shapes and merge until the legacy docs are migrated.
       const col = collection(db, 'diveLogs');
-      const queries = [
-        query(col, where('uid', '==', uid), orderBy('logged_at', 'desc'), fbLimit(max)),
-        query(col, where('uid', '==', uid), orderBy('loggedAt', 'desc'), fbLimit(max)),
-      ];
-      const buckets: DiveLogRecord[][] = [[], []];
-      const publish = () => {
-        const seen = new Set<string>();
-        const merged = buckets
-          .flat()
-          .filter((l) => (seen.has(l.id) ? false : (seen.add(l.id), true)))
-          .sort((a, b) => (b.loggedAt?.getTime() ?? 0) - (a.loggedAt?.getTime() ?? 0))
-          .slice(0, max);
-        setState({ logs: merged, loading: false });
-      };
-      const unsubs = queries.map((q, i) =>
-        onSnapshot(
-          q,
-          (snap) => {
-            buckets[i] = snap.docs.map((d) => normalize(d.id, d.data()));
-            publish();
-          },
-          () => {
-            buckets[i] = [];
-            publish();
-          },
-        ),
+      return subscribeMerged(
+        [
+          query(col, where('uid', '==', uid), orderBy('logged_at', 'desc'), fbLimit(max)),
+          query(col, where('uid', '==', uid), orderBy('loggedAt', 'desc'), fbLimit(max)),
+        ],
+        max,
+        setState,
       );
-      return () => unsubs.forEach((u) => u());
     }
     // Stub fallback.
     listDiveLogsForUser(uid, max).then((logs) => setState({ logs, loading: false }));
@@ -104,24 +115,18 @@ export function useFriendsDiveLogs(authorUids: string[], max = 30): State {
       return;
     }
     const slice = authorUids.slice(0, 30);
-    const q = query(
-      collection(db, 'diveLogs'),
-      where('uid', 'in', slice),
-      where('privacy', 'in', ['public', 'friends']),
-      orderBy('loggedAt', 'desc'),
-      fbLimit(max),
+    // public == true is the rule-checkable flag the read rule allows;
+    // filtering on the privacy string alone gets permission-denied
+    // because rules can't prove the result set is non-private.
+    const col = collection(db, 'diveLogs');
+    return subscribeMerged(
+      [
+        query(col, where('uid', 'in', slice), where('public', '==', true), orderBy('logged_at', 'desc'), fbLimit(max)),
+        query(col, where('uid', 'in', slice), where('public', '==', true), orderBy('loggedAt', 'desc'), fbLimit(max)),
+      ],
+      max,
+      setState,
     );
-    const unsub = onSnapshot(
-      q,
-      (snap) => {
-        setState({
-          loading: false,
-          logs: snap.docs.map((d) => normalize(d.id, d.data())),
-        });
-      },
-      () => setState({ logs: [], loading: false }),
-    );
-    return unsub;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, max]);
 
@@ -137,26 +142,17 @@ export function useSpotDiveLogs(spotId: string | undefined, max = 50): State {
       return;
     }
     if (firebaseConfigured && db) {
-      // privacy in ('public','friends') — exclude private logs from
-      // the spot-wide "Friends' Reports" feed.
-      const q = query(
-        collection(db, 'diveLogs'),
-        where('spotId', '==', spotId),
-        where('privacy', 'in', ['public', 'friends']),
-        orderBy('loggedAt', 'desc'),
-        fbLimit(max),
+      // public == true matches the diveLogs read rule — private (and
+      // for now 'friends') logs never appear in the spot-wide feed.
+      const col = collection(db, 'diveLogs');
+      return subscribeMerged(
+        [
+          query(col, where('spot_id', '==', spotId), where('public', '==', true), orderBy('logged_at', 'desc'), fbLimit(max)),
+          query(col, where('spotId', '==', spotId), where('public', '==', true), orderBy('loggedAt', 'desc'), fbLimit(max)),
+        ],
+        max,
+        setState,
       );
-      const unsub = onSnapshot(
-        q,
-        (snap) => {
-          setState({
-            loading: false,
-            logs: snap.docs.map((d) => normalize(d.id, d.data())),
-          });
-        },
-        () => setState({ logs: [], loading: false }),
-      );
-      return unsub;
     }
     listDiveLogsForSpot(spotId, max).then((logs) => setState({ logs, loading: false }));
   }, [spotId, max]);

@@ -117,12 +117,17 @@ service cloud.firestore {
     // or malicious client can't scrape the full corpus:
     //   - the authenticated author of the log, OR
     //   - any log a guide has reviewed and explicitly verified
-    //     (verified_by_guide != null). Public community feed (when
-    //     it ships) gets a separate `public: true` flag + rule.
+    //     (verified_by_guide != null), OR
+    //   - logs flagged public (the rule-checkable boolean the
+    //     submitDiveLog callable writes alongside privacy; legacy
+    //     docs get it from scripts/backfill-divelogs-public.mjs).
+    //     'friends' visibility has no rule support yet — those logs
+    //     stay author-only until a follower-graph rule ships.
     match /diveLogs/{logId} {
       allow read: if request.auth != null
                   && (request.auth.uid == resource.data.uid
-                      || resource.data.verified_by_guide != null);
+                      || resource.data.verified_by_guide != null
+                      || resource.data.public == true);
       allow write: if false;
     }
 

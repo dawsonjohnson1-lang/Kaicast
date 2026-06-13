@@ -215,6 +215,10 @@ exports.submitDiveLog = onCall(
         logged_at: admin.firestore.FieldValue.serverTimestamp(),
         dive_type: input.dive_type,
         privacy:   input.privacy,
+        // Rule-checkable feed flag — firestore.rules can't compare the
+        // privacy string in a query-driven read, but it can gate on a
+        // boolean. Keep in lockstep with privacy.
+        public:    input.privacy === 'public',
         verified_by_guide: null,
 
         observed: input.observed,

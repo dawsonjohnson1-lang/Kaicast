@@ -26,6 +26,42 @@
       ]
     },
     {
+      "collectionGroup": "diveLogs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "spot_id", "order": "ASCENDING" },
+        { "fieldPath": "public", "order": "ASCENDING" },
+        { "fieldPath": "logged_at", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "diveLogs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "spotId", "order": "ASCENDING" },
+        { "fieldPath": "public", "order": "ASCENDING" },
+        { "fieldPath": "loggedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "diveLogs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "uid", "order": "ASCENDING" },
+        { "fieldPath": "public", "order": "ASCENDING" },
+        { "fieldPath": "logged_at", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "diveLogs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "uid", "order": "ASCENDING" },
+        { "fieldPath": "public", "order": "ASCENDING" },
+        { "fieldPath": "loggedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "spot_alerts",
       "queryScope": "COLLECTION",
       "fields": [
