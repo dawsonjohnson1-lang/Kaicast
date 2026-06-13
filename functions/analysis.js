@@ -1666,21 +1666,20 @@ function generateSnorkelRating({
   let score = 100;
   const details = {};
 
-  // Visibility — continuous penalty so an 11 m and 14 m reading
-  // aren't both flat at −10. 20 m+ is full credit; 5 m is −30; <2 m
-  // floors at −40.
-  if (visibilityMeters == null) {
-    score -= 12; details.vis = -12;
+  // Visibility — role 1 of 2: the DOMINANT input penalty (see
+  // abyss/ratingConfig.js). The penalty curve there is the steepest,
+  // highest-magnitude factor in this scorer by design, so no
+  // combination of wind / swell / tide / runoff can lift a low-clarity
+  // spot into a good composite. Role 2 (the hard ceiling) is applied
+  // separately at the very end of this function — the two are NOT
+  // redundant: the input weights how clean the day is; the ceiling
+  // guarantees bad clarity can't be bought back by good weather.
+  const visPenalty = visibilityInputPenalty(visibilityMeters);
+  if (visPenalty > 0) {
+    score -= visPenalty;
+    details.vis = -visPenalty;
   } else {
-    const visPenalty = visibilityMeters >= 20 ? 0
-      : visibilityMeters >= 5 ? Math.round((20 - visibilityMeters) * 2)
-      : 30 + Math.min(10, Math.round((5 - visibilityMeters) * 4));
-    if (visPenalty > 0) {
-      score -= visPenalty;
-      details.vis = -visPenalty;
-    } else {
-      details.vis = 0;
-    }
+    details.vis = 0;
   }
 
   // Wind — continuous (wind − 8) × 1.8, capped at 32. Then scale by
@@ -1906,30 +1905,36 @@ function generateSnorkelRating({
 
   score = clamp(score, 0, 100);
 
-  let rating = 'Excellent';
-  if (score < 20) rating = 'No-Go';
-  else if (score < 40) rating = 'Fair';
-  else if (score < 60) rating = 'Good';
-  else if (score < 80) rating = 'Great';
-
-  // Caps AFTER we choose rating
-  if (jellyfishWarning && (rating === 'Excellent' || rating === 'Great')) {
-    rating = 'Good';
+  // ── Visibility CEILING (role 2 of 2) ───────────────────────────────
+  // Applied AFTER the composite is fully computed. Even a perfect
+  // composite (calm wind, no swell, slack tide, clear sky) is clamped
+  // down here when the water itself is dirty — bad clarity can never be
+  // "bought back" by good weather. Keyed to the same visibility bands
+  // (abyss/ratingConfig.js) the input penalty uses, so the overall
+  // rating and the clarity label can't contradict. Do NOT fold this
+  // into the input penalty above: the two roles are deliberately
+  // separate mechanisms (weighting vs. hard guarantee).
+  const visCap = visibilityScoreCap(visibilityMeters);
+  if (score > visCap) {
+    score = visCap;
+    details.visCeiling = visCap;
   }
-  if (confidenceScore < 0.5 && rating === 'Excellent') {
-    rating = 'Great';
-  }
 
-  // Runoff caps should be final: unsafe/high health risk cannot be Excellent/Great
+  // Safety / quality caps. These trim the SCORE (not just the rating
+  // label) so every client — all of which derive their tier from the
+  // numeric score — honors them. Each maps a hazard to the top score
+  // its capped tier may keep (Good=59, Great=79, No-Go=19).
+  if (jellyfishWarning) score = Math.min(score, 59);       // jellies → never above Good
+  if (confidenceScore < 0.5) score = Math.min(score, 79);  // low confidence → not Excellent
   if (runoff) {
-    if (runoff.safeToEnter === false) {
-      if (rating === 'Excellent' || rating === 'Great') rating = 'No-Go';
-    }
-    if (runoff.healthRisk === 'high') {
-      if (rating === 'Excellent' || rating === 'Great') rating = 'No-Go';
-      if (rating === 'Good') rating = 'Fair';
-    }
+    if (runoff.safeToEnter === false) score = Math.min(score, 19); // unsafe → No-Go
+    if (runoff.healthRisk === 'high') score = Math.min(score, 19);
   }
+
+  score = clamp(score, 0, 100);
+
+  // Single source of truth for the tier label: the final capped score.
+  const rating = ratingFromScore(score);
 
   // Plain-English summary in the voice of a friend who dives this spot.
   // Score + per-factor details stay on the response (sort/filter,

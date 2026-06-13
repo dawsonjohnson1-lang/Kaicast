@@ -8,7 +8,7 @@ import { useBreakpoint, pick } from './hooks/useBreakpoint';
 import { useFavorites } from './hooks/useFavorites';
 import { FavoriteButton } from './components/FavoriteButton';
 import { SPOTS as CANONICAL_SPOTS } from './data/spots';
-import { useSpotRatings, useSpotReport, tierFromRating, type BackendReport } from './data/getReport';
+import { useSpotRatings, useSpotReport, tierFromRating, visBandForFt, clarityCaptionForFt, type BackendReport } from './data/getReport';
 import { useSpotAlerts } from './data/spotAlerts';
 import { SpotAlerts } from './components/SpotAlerts';
 import type { NavigateFn } from './router';
@@ -835,17 +835,14 @@ function buildLiveMetrics(report: BackendReport): MetricCell[] {
   // Backend now produces realistic 5-82ft visibility numbers via a
   // saturated KD490 curve (functions/abyss/kd490.js), so no display
   // clamp needed — distinct spots show distinct vis.
+  // Clarity caption + tone derive from the SAME visibility bands the
+  // backend rating ceiling uses (see data/getReport VIS_BANDS, mirror
+  // of functions/abyss/ratingConfig.js). This is what keeps the overall
+  // rating and the clarity label from ever contradicting each other.
   const visFt = (v as { estimatedVisibilityFeet?: number }).estimatedVisibilityFeet;
-  const visTone = visFt == null ? colors.text3
-    : visFt >= 50 ? colors.great
-    : visFt >= 30 ? colors.good
-    : visFt >= 15 ? colors.fair
-    : colors.nogo;
-  const visCaption = visFt == null ? '—'
-    : visFt >= 50 ? 'Excellent clarity'
-    : visFt >= 35 ? 'Good clarity'
-    : visFt >= 20 ? 'Moderate clarity'
-    : 'Poor clarity';
+  const visBand = visBandForFt(visFt);
+  const visTone = visBand ? TIER_COLORS[visBand.tier] : colors.text3;
+  const visCaption = clarityCaptionForFt(visFt);
 
   const waterC = m.waterTempC;
   const waterF = waterC == null ? null : C_TO_F(waterC);

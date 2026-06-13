@@ -174,6 +174,48 @@ const TIER_FROM_SCORE = (score: number | undefined | null): 'excellent' | 'great
   return 'no-go';
 };
 
+// ─── Visibility bands (clarity label) ───────────────────────────────
+// MUST mirror functions/abyss/ratingConfig.js VIS_BANDS. The clarity
+// caption and the overall-rating ceiling share these exact thresholds,
+// so the rating tier and the clarity label can never contradict (no
+// "Good" rating sitting next to a "Poor clarity" caption). Reconcile
+// both off the SAME visibility value via these helpers.
+export const VIS_BANDS: ReadonlyArray<{
+  minFt: number;
+  clarity: string;
+  tier: 'excellent' | 'great' | 'good' | 'fair' | 'no-go';
+  maxScore: number;
+}> = [
+  { minFt: 50, clarity: 'Excellent', tier: 'excellent', maxScore: 100 },
+  { minFt: 35, clarity: 'Great',     tier: 'great',     maxScore: 79 },
+  { minFt: 20, clarity: 'Good',      tier: 'good',      maxScore: 59 },
+  { minFt: 10, clarity: 'Fair',      tier: 'fair',      maxScore: 39 },
+  { minFt: 0,  clarity: 'Poor',      tier: 'no-go',     maxScore: 19 },
+];
+
+export function visBandForFt(visFt: number | null | undefined) {
+  if (visFt == null || !Number.isFinite(visFt)) return null;
+  return VIS_BANDS.find((b) => visFt >= b.minFt) ?? VIS_BANDS[VIS_BANDS.length - 1];
+}
+
+/**
+ * Hard composite-score ceiling for a visibility in feet — role 2 of the
+ * two-role visibility model (see functions/abyss/ratingConfig.js). Used
+ * by the future-day AGGREGATE scorer below, whose only visibility signal
+ * is an estimate (the live per-window scores are already capped on the
+ * backend). Unknown vis → 79 (can't certify Excellent without clarity).
+ */
+export function visibilityScoreCapFt(visFt: number | null | undefined): number {
+  const b = visBandForFt(visFt);
+  return b ? b.maxScore : 79;
+}
+
+/** "Excellent clarity" … "Poor clarity", or "—" when vis is unknown. */
+export function clarityCaptionForFt(visFt: number | null | undefined): string {
+  const b = visBandForFt(visFt);
+  return b ? `${b.clarity} clarity` : '—';
+}
+
 export function tierFromRating(r: BackendRating | undefined): 'excellent' | 'great' | 'good' | 'fair' | 'no-go' {
   // Single source of truth: the numeric score, mapped via TIER_FROM_SCORE.
   // Previously this preferred the backend's string label (`r.label` /
@@ -236,7 +278,12 @@ export function aggregateDayScore(day: BackendDay): number {
   score -= Math.max(0, wind - 8) * 2;
   score -= Math.min(30, rain * 1.2);
   if (wind < 10 && swellM < 1.2 && rain < 1) score += 6;
-  return clampScore(score);
+  // Visibility ceiling (role 2): a rough vis estimate from swell + rain
+  // (no satellite vis on the 7-day aggregate) caps the day score the
+  // same way the backend caps the live windows — so a forecast day with
+  // poor expected clarity can't paint Great/Excellent on the strip.
+  const estVisFt = Math.max(8, Math.min(80, Math.round(60 - swellM * 10 - rain * 0.8)));
+  return Math.min(clampScore(score), visibilityScoreCapFt(estVisFt));
 }
 
 /** YYYY-MM-DD for `ms` in Hawaii-local time, viewer-tz independent. */
